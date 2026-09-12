@@ -22,6 +22,7 @@ import {
   type Paged,
 } from "../../api/types.js";
 import { useAuth } from "../auth/AuthProvider.js";
+import { ReturnModal } from "./ReturnModal.js";
 
 export function InvoicesPage() {
   const { can } = useAuth();
@@ -30,6 +31,7 @@ export function InvoicesPage() {
   const [openId, setOpenId] = useState<string | null>(null);
   const [voidReason, setVoidReason] = useState("");
   const [voiding, setVoiding] = useState(false);
+  const [returning, setReturning] = useState(false);
 
   const list = useQuery({
     queryKey: ["invoices", page],
@@ -121,10 +123,17 @@ export function InvoicesPage() {
         onClose={() => setOpenId(null)}
         title={detail.data?.code ?? "Chi tiết hóa đơn"}
         extra={
-          detail.data?.status === "COMPLETED" && can("invoice.void") ? (
-            <Button danger onClick={() => setVoiding(true)}>
-              Hủy hóa đơn
-            </Button>
+          detail.data?.status === "COMPLETED" ? (
+            <Space>
+              {can("return.create") && detail.data.returnStatus !== "FULL" ? (
+                <Button onClick={() => setReturning(true)}>Nhận trả hàng</Button>
+              ) : null}
+              {can("invoice.void") && detail.data.returnStatus === "NONE" ? (
+                <Button danger onClick={() => setVoiding(true)}>
+                  Hủy hóa đơn
+                </Button>
+              ) : null}
+            </Space>
           ) : null
         }
       >
@@ -190,6 +199,14 @@ export function InvoicesPage() {
           </Space>
         ) : null}
       </Drawer>
+
+      {detail.data ? (
+        <ReturnModal
+          invoice={detail.data}
+          open={returning}
+          onClose={() => setReturning(false)}
+        />
+      ) : null}
 
       <Modal
         open={voiding}

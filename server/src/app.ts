@@ -19,6 +19,7 @@ import { unitsRouter } from "./modules/catalog/units.routes.js";
 import { pricesRouter } from "./modules/catalog/prices.routes.js";
 import { goodsReceiptsRouter } from "./modules/inventory/goods-receipts.routes.js";
 import { invoicesRouter } from "./modules/sales/invoices.routes.js";
+import { returnsRouter } from "./modules/sales/returns.routes.js";
 
 /**
  * Lắp ráp ứng dụng Express. Thứ tự middleware quan trọng:
@@ -68,6 +69,7 @@ export function createApp() {
   app.use("/api/v1", pricesRouter);
   app.use("/api/v1", goodsReceiptsRouter);
   app.use("/api/v1", invoicesRouter);
+  app.use("/api/v1", returnsRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

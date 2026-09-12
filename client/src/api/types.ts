@@ -130,3 +130,42 @@ export function formatVnd(value: Money | null | undefined): string {
   if (value === null || value === undefined) return "—";
   return new Intl.NumberFormat("vi-VN").format(value) + " ₫";
 }
+
+// --- Trả hàng (contract §15) -----------------------------------------------
+
+export type ReturnLine = {
+  id: string;
+  lineNo: number;
+  productName: string;
+  unitName: string;
+  quantity: number;
+  baseQuantity: number;
+  refundAmount: Money;
+  batchNumber: string;
+  expiryDate: string;
+};
+
+export type ReturnDetail = {
+  id: string;
+  code: string;
+  invoice: { id: string; code: string; returnStatus: string };
+  reason: string | null;
+  disposition: "RESTOCK" | "DISPOSE";
+  refundMethod: string | null;
+  refundAmount: Money;
+  businessDate: string;
+  createdAt: string;
+  createdBy: { id: string; fullName: string };
+  lines: ReturnLine[];
+};
+
+export type ReturnListItem = {
+  id: string;
+  code: string;
+  invoiceCode: string;
+  disposition: "RESTOCK" | "DISPOSE";
+  refundAmount: Money;
+  createdAt: string;
+  createdByName: string;
+  lineCount: number;
+};

@@ -1022,5 +1022,5 @@ Toàn bộ P1–P17 được nhóm xác nhận ngày **12/09/2026**. Bảng dư�
 
 1. ~~Thiết kế ERD PostgreSQL~~ — đã xong, xem `docs/erd.md` v1.1 (41 bảng, có sẵn `store_id` cho mô hình chuỗi).
 2. ~~Viết kiểm thử cho các bảng trạng thái ở §5 và các kịch bản đồng thời~~ — đã có bộ kiểm thử tích hợp chạy trên PostgreSQL thật, gồm xác nhận một phiếu nhập hai lần và hai quầy bán lô cuối cùng cùng lúc. Còn thiếu: hai phiếu trả song song cho cùng một dòng, duyệt điều chỉnh trong lúc đang bán.
-3. **Dựng khung dự án và CSDL local**, rồi mới viết endpoint theo thứ tự: ~~cửa hàng, người dùng, phân quyền~~ → ~~danh mục, đơn vị, giá~~ → ~~phiếu nhập~~ → ~~bán hàng~~ → trả hàng, hủy hóa đơn → thu hồi. Đã xong tới bán hàng; phần còn lại của bán hàng chưa làm là in K80 (§14) và sửa phiếu nhập nháp (§9).
+3. **Dựng khung dự án và CSDL local**, rồi mới viết endpoint theo thứ tự: ~~cửa hàng, người dùng, phân quyền~~ → ~~danh mục, đơn vị, giá~~ → ~~phiếu nhập~~ → ~~bán hàng~~ → ~~trả hàng, hủy hóa đơn~~ → thu hồi. Đã xong tới trả hàng; phần chưa làm là in hóa đơn K80 (§14) và sửa phiếu nhập nháp (§9).
 4. Thêm vào bộ kiểm thử một nhóm riêng cho phạm vi cửa hàng: tài khoản của cửa hàng A không đọc, không sửa được dữ liệu của cửa hàng B ở **mọi** endpoint thuộc phạm vi cửa hàng.

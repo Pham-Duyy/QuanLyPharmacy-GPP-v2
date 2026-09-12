@@ -2,6 +2,7 @@ import {
   AppstoreOutlined,
   FileTextOutlined,
   InboxOutlined,
+  RollbackOutlined,
   ShoppingCartOutlined,
 } from "@ant-design/icons";
 import { Button, Layout, Menu, Select, Space, Typography } from "antd";
@@ -11,6 +12,7 @@ import { useAuth } from "../features/auth/AuthProvider.js";
 const ITEMS = [
   { key: "/ban-hang", icon: <ShoppingCartOutlined />, label: "Bán hàng", permission: "invoice.create" },
   { key: "/hoa-don", icon: <FileTextOutlined />, label: "Hóa đơn", permission: "invoice.read" },
+  { key: "/tra-hang", icon: <RollbackOutlined />, label: "Trả hàng", permission: "invoice.read" },
   { key: "/san-pham", icon: <AppstoreOutlined />, label: "Sản phẩm", permission: "catalog.read" },
   { key: "/phieu-nhap", icon: <InboxOutlined />, label: "Phiếu nhập", permission: "goods_receipt.read" },
 ];
