@@ -1,0 +1,983 @@
+// Lược đồ dữ liệu theo docs/erd.md v1.1.
+// Quy ước: model PascalCase, bảng và cột snake_case qua @map.
+// Những gì Prisma không mô tả được (CHECK, chỉ mục từng phần,
+// UNIQUE NULLS NOT DISTINCT, extension) nằm trong SQL viết tay của migration.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Nhóm hệ thống và phân quyền
+// ---------------------------------------------------------------------------
+
+/// Cửa hàng trong chuỗi. MVP chạy một cửa hàng, nhưng mọi dữ liệu kho
+/// và bán hàng đều gắn với store_id ngay từ đầu (ERD §1.8).
+model Store {
+  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code                 String   @unique
+  name                 String
+  address              String?
+  phone                String?
+  gppCertificateNumber String?  @map("gpp_certificate_number")
+  licenseNumber        String?  @map("license_number")
+  isActive             Boolean  @default(true) @map("is_active")
+  version              Int      @default(1)
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  users              User[]
+  userRoles          UserRole[]
+  settings           Setting[]
+  productPrices      ProductPrice[]
+  batches            Batch[]
+  stockMovements     StockMovement[]
+  goodsReceipts      GoodsReceipt[]
+  stockAdjustments   StockAdjustment[]
+  invoices           Invoice[]
+  invoiceAllocations InvoiceAllocation[]
+  returns            Return[]
+  prescriptions      Prescription[]
+  storageLocations   StorageLocation[]
+  storageLogs        StorageLog[]
+  auditLogs          AuditLog[]
+  aiLogs             AiLog[]
+
+  @@map("stores")
+}
+
+model User {
+  id                        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  username                  String    @unique
+  passwordHash              String    @map("password_hash")
+  fullName                  String    @map("full_name")
+  phone                     String?
+  practiceCertificateNumber String?   @map("practice_certificate_number")
+  mustChangePassword        Boolean   @default(true) @map("must_change_password")
+  failedLoginCount          Int       @default(0) @map("failed_login_count")
+  lastFailedLoginAt         DateTime? @map("last_failed_login_at") @db.Timestamptz(6)
+  defaultStoreId            String?   @map("default_store_id") @db.Uuid
+  isActive                  Boolean   @default(true) @map("is_active")
+  version                   Int       @default(1)
+  createdAt                 DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                 DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  defaultStore Store? @relation(fields: [defaultStoreId], references: [id])
+
+  userRoles              UserRole[]              @relation("UserRoleUser")
+  assignedUserRoles      UserRole[]              @relation("UserRoleAssignedBy")
+  refreshSessions        RefreshSession[]
+  auditLogs              AuditLog[]
+  aiLogs                 AiLog[]
+  productPrices          ProductPrice[]
+  settingsUpdated        Setting[]
+  goodsReceiptsCreated   GoodsReceipt[]          @relation("GoodsReceiptCreatedBy")
+  goodsReceiptsConfirmed GoodsReceipt[]          @relation("GoodsReceiptConfirmedBy")
+  goodsReceiptsCancelled GoodsReceipt[]          @relation("GoodsReceiptCancelledBy")
+  adjustmentsCreated     StockAdjustment[]       @relation("AdjustmentCreatedBy")
+  adjustmentsApproved    StockAdjustment[]       @relation("AdjustmentApprovedBy")
+  recallsCreated         Recall[]                @relation("RecallCreatedBy")
+  recallsClosed          Recall[]                @relation("RecallClosedBy")
+  invoicesSold           Invoice[]               @relation("InvoiceSeller")
+  invoicesAsPharmacist   Invoice[]               @relation("InvoicePharmacist")
+  invoicesVoided         Invoice[]               @relation("InvoiceVoidedBy")
+  safetyAcks             InvoiceSafetyAck[]
+  returnsCreated         Return[]
+  prescriptionsCreated   Prescription[]          @relation("PrescriptionCreatedBy")
+  prescriptionsVerified  Prescription[]          @relation("PrescriptionVerifiedBy")
+  prescriptionImages     PrescriptionImage[]
+  storageLogs            StorageLog[]
+  healthProfilesUpdated  CustomerHealthProfile[]
+  stockMovements         StockMovement[]
+
+  @@index([defaultStoreId])
+  @@map("users")
+}
+
+model Role {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code        String   @unique
+  name        String
+  description String?
+  isSystem    Boolean  @default(true) @map("is_system")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  permissions RolePermission[]
+  userRoles   UserRole[]
+
+  @@map("roles")
+}
+
+/// Mã permission làm khóa chính vì mã cố định và đọc dữ liệu thô dễ hiểu.
+model Permission {
+  code        String   @id
+  description String
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  roles RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId         String @map("role_id") @db.Uuid
+  permissionCode String @map("permission_code")
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionCode], references: [code], onDelete: Cascade)
+
+  @@id([roleId, permissionCode])
+  @@map("role_permissions")
+}
+
+/// Vai trò gán theo cửa hàng. storeId để trống nghĩa là áp dụng toàn chuỗi.
+/// Ràng buộc duy nhất dùng NULLS NOT DISTINCT, thêm trong SQL viết tay.
+model UserRole {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  roleId     String   @map("role_id") @db.Uuid
+  storeId    String?  @map("store_id") @db.Uuid
+  assignedAt DateTime @default(now()) @map("assigned_at") @db.Timestamptz(6)
+  assignedBy String?  @map("assigned_by") @db.Uuid
+
+  user           User   @relation("UserRoleUser", fields: [userId], references: [id], onDelete: Cascade)
+  role           Role   @relation(fields: [roleId], references: [id])
+  store          Store? @relation(fields: [storeId], references: [id])
+  assignedByUser User?  @relation("UserRoleAssignedBy", fields: [assignedBy], references: [id])
+
+  @@index([userId])
+  @@index([storeId])
+  @@map("user_roles")
+}
+
+model RefreshSession {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId        String    @map("user_id") @db.Uuid
+  tokenHash     String    @unique @map("token_hash")
+  familyId      String    @map("family_id") @db.Uuid
+  issuedAt      DateTime  @default(now()) @map("issued_at") @db.Timestamptz(6)
+  expiresAt     DateTime  @map("expires_at") @db.Timestamptz(6)
+  lastUsedAt    DateTime? @map("last_used_at") @db.Timestamptz(6)
+  revokedAt     DateTime? @map("revoked_at") @db.Timestamptz(6)
+  revokedReason String?   @map("revoked_reason")
+  userAgent     String?   @map("user_agent")
+  ip            String?   @db.Inet
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([familyId])
+  @@index([expiresAt])
+  @@map("refresh_sessions")
+}
+
+/// Chốt chặn C1: hai request cùng khóa thì chỉ một request chèn được dòng này.
+model IdempotencyKey {
+  id             BigInt    @id @default(autoincrement())
+  key            String
+  userId         String    @map("user_id") @db.Uuid
+  method         String
+  path           String
+  requestHash    String    @map("request_hash")
+  status         String    @default("IN_PROGRESS")
+  responseStatus Int?      @map("response_status")
+  responseBody   Json?     @map("response_body")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  completedAt    DateTime? @map("completed_at") @db.Timestamptz(6)
+  expiresAt      DateTime  @map("expires_at") @db.Timestamptz(6)
+
+  @@unique([key, userId])
+  @@index([expiresAt])
+  @@map("idempotency_keys")
+}
+
+/// Chỉ ghi thêm. Quyền UPDATE và DELETE của tài khoản ứng dụng bị thu hồi
+/// trong SQL viết tay của migration.
+model AuditLog {
+  id           BigInt   @id @default(autoincrement())
+  occurredAt   DateTime @default(now()) @map("occurred_at") @db.Timestamptz(6)
+  storeId      String?  @map("store_id") @db.Uuid
+  actorId      String?  @map("actor_id") @db.Uuid
+  action       String
+  resourceType String   @map("resource_type")
+  resourceId   String?  @map("resource_id")
+  requestId    String?  @map("request_id")
+  ip           String?  @db.Inet
+  userAgent    String?  @map("user_agent")
+  before       Json?
+  after        Json?
+  reason       String?
+
+  store Store? @relation(fields: [storeId], references: [id])
+  actor User?  @relation(fields: [actorId], references: [id])
+
+  @@index([occurredAt(sort: Desc)])
+  @@index([resourceType, resourceId])
+  @@index([actorId, occurredAt(sort: Desc)])
+  @@map("audit_logs")
+}
+
+/// Cấu hình hệ thống. storeId để trống là mặc định toàn chuỗi,
+/// dòng có storeId là bản ghi đè riêng của một cửa hàng.
+model Setting {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  key       String
+  storeId   String?  @map("store_id") @db.Uuid
+  value     Json
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy String?  @map("updated_by") @db.Uuid
+
+  store         Store? @relation(fields: [storeId], references: [id])
+  updatedByUser User?  @relation(fields: [updatedBy], references: [id])
+
+  @@index([key])
+  @@map("settings")
+}
+
+// ---------------------------------------------------------------------------
+// Nhóm danh mục (dùng chung toàn chuỗi)
+// ---------------------------------------------------------------------------
+
+model Category {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String
+  parentId  String?  @map("parent_id") @db.Uuid
+  isActive  Boolean  @default(true) @map("is_active")
+  version   Int      @default(1)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  parent   Category?  @relation("CategoryTree", fields: [parentId], references: [id])
+  children Category[] @relation("CategoryTree")
+  products Product[]
+
+  @@unique([parentId, name])
+  @@map("categories")
+}
+
+model ActiveIngredient {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String   @unique
+  atcCode   String?  @map("atc_code")
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  products  ProductIngredient[]
+  allergies CustomerAllergy[]
+
+  @@map("active_ingredients")
+}
+
+model Product {
+  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code                 String   @unique
+  name                 String
+  productType          String   @map("product_type")
+  drugClass            String?  @map("drug_class")
+  registrationNumber   String?  @map("registration_number")
+  dosageForm           String?  @map("dosage_form")
+  strengthText         String?  @map("strength_text")
+  packagingText        String?  @map("packaging_text")
+  manufacturer         String?
+  countryOfOrigin      String?  @map("country_of_origin")
+  storageCondition     String?  @map("storage_condition")
+  categoryId           String   @map("category_id") @db.Uuid
+  minStockBaseQuantity Int      @default(0) @map("min_stock_base_quantity")
+  isActive             Boolean  @default(true) @map("is_active")
+  version              Int      @default(1)
+  createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  category           Category            @relation(fields: [categoryId], references: [id])
+  ingredients        ProductIngredient[]
+  units              ProductUnit[]
+  batches            Batch[]
+  goodsReceiptLines  GoodsReceiptLine[]
+  invoiceLines       InvoiceLine[]
+  prescriptionItems  PrescriptionItem[]
+  stockMovements     StockMovement[]
+  recallItems        RecallItem[]
+
+  @@index([categoryId])
+  @@index([productType, drugClass])
+  @@map("products")
+}
+
+model ProductIngredient {
+  productId    String  @map("product_id") @db.Uuid
+  ingredientId String  @map("ingredient_id") @db.Uuid
+  strengthText String? @map("strength_text")
+
+  product    Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
+  ingredient ActiveIngredient @relation(fields: [ingredientId], references: [id])
+
+  @@id([productId, ingredientId])
+  @@index([ingredientId])
+  @@map("product_ingredients")
+}
+
+/// Đơn vị quy đổi. Đơn vị cơ bản là đơn vị có conversionToBase = 1;
+/// chỉ mục duy nhất từng phần bảo đảm mỗi sản phẩm chỉ có một đơn vị như vậy.
+model ProductUnit {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  productId         String   @map("product_id") @db.Uuid
+  name              String
+  conversionToBase  Int      @map("conversion_to_base")
+  isSellable        Boolean  @default(true) @map("is_sellable")
+  isDefaultSaleUnit Boolean  @default(false) @map("is_default_sale_unit")
+  isActive          Boolean  @default(true) @map("is_active")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  product           Product               @relation(fields: [productId], references: [id])
+  barcodes          ProductBarcode[]
+  prices            ProductPrice[]
+  goodsReceiptLines GoodsReceiptLine[]
+  invoiceLines      InvoiceLine[]
+  prescriptionItems PrescriptionItem[]
+  adjustmentLines   StockAdjustmentLine[]
+  returnLines       ReturnLine[]
+
+  @@unique([productId, name])
+  @@index([productId])
+  @@map("product_units")
+}
+
+/// Mã vạch duy nhất trên toàn hệ thống để quét là ra đúng một đơn vị.
+model ProductBarcode {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  productUnitId String   @map("product_unit_id") @db.Uuid
+  barcode       String   @unique
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  productUnit ProductUnit @relation(fields: [productUnitId], references: [id], onDelete: Cascade)
+
+  @@index([productUnitId])
+  @@map("product_barcodes")
+}
+
+/// Giá quản lý theo phiên bản, chỉ thêm dòng mới. storeId để trống là giá
+/// chung toàn chuỗi; có giá trị là giá riêng của cửa hàng.
+model ProductPrice {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  productUnitId  String   @map("product_unit_id") @db.Uuid
+  storeId        String?  @map("store_id") @db.Uuid
+  salePrice      BigInt   @map("sale_price")
+  vatRatePercent Decimal  @map("vat_rate_percent") @db.Decimal(5, 2)
+  effectiveFrom  DateTime @map("effective_from") @db.Timestamptz(6)
+  createdBy      String?  @map("created_by") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  productUnit   ProductUnit @relation(fields: [productUnitId], references: [id])
+  store         Store?      @relation(fields: [storeId], references: [id])
+  createdByUser User?       @relation(fields: [createdBy], references: [id])
+
+  @@index([productUnitId, storeId, effectiveFrom(sort: Desc)])
+  @@map("product_prices")
+}
+
+model Supplier {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name          String
+  taxCode       String?  @map("tax_code")
+  licenseNumber String?  @map("license_number")
+  address       String?
+  phone         String?
+  isActive      Boolean  @default(true) @map("is_active")
+  version       Int      @default(1)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  goodsReceipts GoodsReceipt[]
+
+  @@map("suppliers")
+}
+
+// ---------------------------------------------------------------------------
+// Nhóm kho (riêng theo cửa hàng)
+// ---------------------------------------------------------------------------
+
+/// Lô thuốc: trung tâm của toàn bộ nghiệp vụ kho.
+/// Khóa phụ (id, storeId) phục vụ khóa ngoại tổ hợp, chặn bán lô của
+/// cửa hàng khác. CHECK tồn không âm và chỉ mục FEFO nằm trong SQL viết tay.
+model Batch {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  storeId         String    @map("store_id") @db.Uuid
+  productId       String    @map("product_id") @db.Uuid
+  batchNumber     String    @map("batch_number")
+  manufactureDate DateTime? @map("manufacture_date") @db.Date
+  expiryDate      DateTime  @map("expiry_date") @db.Date
+  status          String    @default("AVAILABLE")
+  quantityOnHand  Int       @default(0) @map("quantity_on_hand")
+  unitCost        Decimal?  @map("unit_cost") @db.Decimal(18, 4)
+  shelfLocation   String?   @map("shelf_location")
+  note            String?
+  sourceType      String?   @map("source_type")
+  sourceId        String?   @map("source_id") @db.Uuid
+  recallId        String?   @map("recall_id") @db.Uuid
+  version         Int       @default(1)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  store              Store                 @relation(fields: [storeId], references: [id])
+  product            Product               @relation(fields: [productId], references: [id])
+  recall             Recall?               @relation(fields: [recallId], references: [id])
+  stockMovements     StockMovement[]
+  invoiceAllocations InvoiceAllocation[]
+  goodsReceiptLines  GoodsReceiptLine[]
+  adjustmentLines    StockAdjustmentLine[]
+  recallItems        RecallItem[]
+
+  @@unique([storeId, productId, batchNumber])
+  @@unique([id, storeId])
+  @@index([productId, expiryDate])
+  @@map("batches")
+}
+
+/// Thẻ kho: chỉ ghi thêm, không sửa, không xóa.
+/// Ràng buộc duy nhất theo chứng từ nguồn là chốt chặn chính của C1.
+model StockMovement {
+  id           BigInt   @id @default(autoincrement())
+  occurredAt   DateTime @default(now()) @map("occurred_at") @db.Timestamptz(6)
+  storeId      String   @map("store_id") @db.Uuid
+  batchId      String   @map("batch_id") @db.Uuid
+  productId    String   @map("product_id") @db.Uuid
+  type         String
+  baseQuantity Int      @map("base_quantity")
+  balanceAfter Int      @map("balance_after")
+  sourceType   String   @map("source_type")
+  sourceId     String   @map("source_id") @db.Uuid
+  sourceLineId String   @map("source_line_id") @db.Uuid
+  userId       String?  @map("user_id") @db.Uuid
+  note         String?
+
+  batch   Batch   @relation(fields: [batchId, storeId], references: [id, storeId])
+  store   Store   @relation(fields: [storeId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+  user    User?   @relation(fields: [userId], references: [id])
+
+  @@unique([sourceType, sourceLineId, batchId, type])
+  @@index([batchId, id])
+  @@index([productId, occurredAt])
+  @@index([storeId, occurredAt])
+  @@map("stock_movements")
+}
+
+/// Phiếu nhập. type = OPENING_BALANCE dùng cho tồn đầu kỳ, đi cùng một
+/// đường ghi sổ kho với phiếu nhập mua hàng (ERD §1.7).
+model GoodsReceipt {
+  id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  storeId               String    @map("store_id") @db.Uuid
+  code                  String    @unique
+  type                  String    @default("PURCHASE")
+  supplierId            String?   @map("supplier_id") @db.Uuid
+  supplierInvoiceNumber String?   @map("supplier_invoice_number")
+  supplierInvoiceDate   DateTime? @map("supplier_invoice_date") @db.Date
+  receivedAt            DateTime  @map("received_at") @db.Timestamptz(6)
+  status                String    @default("DRAFT")
+  totalCost             BigInt    @default(0) @map("total_cost")
+  note                  String?
+  createdBy             String    @map("created_by") @db.Uuid
+  confirmedBy           String?   @map("confirmed_by") @db.Uuid
+  confirmedAt           DateTime? @map("confirmed_at") @db.Timestamptz(6)
+  cancelledBy           String?   @map("cancelled_by") @db.Uuid
+  cancelledAt           DateTime? @map("cancelled_at") @db.Timestamptz(6)
+  cancelReason          String?   @map("cancel_reason")
+  version               Int       @default(1)
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  store           Store              @relation(fields: [storeId], references: [id])
+  supplier        Supplier?          @relation(fields: [supplierId], references: [id])
+  createdByUser   User               @relation("GoodsReceiptCreatedBy", fields: [createdBy], references: [id])
+  confirmedByUser User?              @relation("GoodsReceiptConfirmedBy", fields: [confirmedBy], references: [id])
+  cancelledByUser User?              @relation("GoodsReceiptCancelledBy", fields: [cancelledBy], references: [id])
+  lines           GoodsReceiptLine[]
+
+  @@index([storeId, status, receivedAt(sort: Desc)])
+  @@index([supplierId])
+  @@map("goods_receipts")
+}
+
+model GoodsReceiptLine {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  goodsReceiptId  String    @map("goods_receipt_id") @db.Uuid
+  lineNo          Int       @map("line_no")
+  productId       String    @map("product_id") @db.Uuid
+  productUnitId   String    @map("product_unit_id") @db.Uuid
+  quantity        Int
+  baseQuantity    Int       @map("base_quantity")
+  unitCost        BigInt    @map("unit_cost")
+  lineCost        BigInt    @map("line_cost")
+  batchNumber     String    @map("batch_number")
+  manufactureDate DateTime? @map("manufacture_date") @db.Date
+  expiryDate      DateTime  @map("expiry_date") @db.Date
+  batchId         String?   @map("batch_id") @db.Uuid
+
+  goodsReceipt GoodsReceipt @relation(fields: [goodsReceiptId], references: [id], onDelete: Cascade)
+  product      Product      @relation(fields: [productId], references: [id])
+  productUnit  ProductUnit  @relation(fields: [productUnitId], references: [id])
+  batch        Batch?       @relation(fields: [batchId], references: [id])
+
+  @@unique([goodsReceiptId, lineNo])
+  @@index([batchId])
+  @@map("goods_receipt_lines")
+}
+
+/// Phiếu điều chỉnh tồn. CHECK người duyệt khác người lập nằm trong SQL viết tay.
+model StockAdjustment {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  storeId        String    @map("store_id") @db.Uuid
+  code           String    @unique
+  status         String    @default("DRAFT")
+  reason         String?
+  createdBy      String    @map("created_by") @db.Uuid
+  approvedBy     String?   @map("approved_by") @db.Uuid
+  approvedAt     DateTime? @map("approved_at") @db.Timestamptz(6)
+  rejectedReason String?   @map("rejected_reason")
+  version        Int       @default(1)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  store          Store                 @relation(fields: [storeId], references: [id])
+  createdByUser  User                  @relation("AdjustmentCreatedBy", fields: [createdBy], references: [id])
+  approvedByUser User?                 @relation("AdjustmentApprovedBy", fields: [approvedBy], references: [id])
+  lines          StockAdjustmentLine[]
+
+  @@index([storeId, status])
+  @@map("stock_adjustments")
+}
+
+model StockAdjustmentLine {
+  id                        String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  stockAdjustmentId         String @map("stock_adjustment_id") @db.Uuid
+  lineNo                    Int    @map("line_no")
+  batchId                   String @map("batch_id") @db.Uuid
+  productUnitId             String @map("product_unit_id") @db.Uuid
+  reasonCode                String @map("reason_code")
+  countedQuantity           Int?   @map("counted_quantity")
+  quantity                  Int?
+  systemBaseQuantityAtCount Int?   @map("system_base_quantity_at_count")
+  deltaBaseQuantity         Int?   @map("delta_base_quantity")
+
+  stockAdjustment StockAdjustment @relation(fields: [stockAdjustmentId], references: [id], onDelete: Cascade)
+  batch           Batch           @relation(fields: [batchId], references: [id])
+  productUnit     ProductUnit     @relation(fields: [productUnitId], references: [id])
+
+  @@unique([stockAdjustmentId, lineNo])
+  @@index([batchId])
+  @@map("stock_adjustment_lines")
+}
+
+/// Thông báo thu hồi của cơ quan quản lý, áp dụng cho toàn chuỗi.
+model Recall {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  documentNumber String    @unique @map("document_number")
+  issuedBy       String?   @map("issued_by")
+  issuedAt       DateTime  @map("issued_at") @db.Date
+  reason         String?
+  status         String    @default("OPEN")
+  createdBy      String    @map("created_by") @db.Uuid
+  closedBy       String?   @map("closed_by") @db.Uuid
+  closedAt       DateTime? @map("closed_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  createdByUser User         @relation("RecallCreatedBy", fields: [createdBy], references: [id])
+  closedByUser  User?        @relation("RecallClosedBy", fields: [closedBy], references: [id])
+  items         RecallItem[]
+  batches       Batch[]
+
+  @@map("recalls")
+}
+
+/// batchId để trống nghĩa là số lô trong công văn không có trong kho,
+/// vẫn lưu để đối chiếu khi báo cáo.
+model RecallItem {
+  id          String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  recallId    String  @map("recall_id") @db.Uuid
+  productId   String  @map("product_id") @db.Uuid
+  batchNumber String  @map("batch_number")
+  batchId     String? @map("batch_id") @db.Uuid
+
+  recall  Recall  @relation(fields: [recallId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+  batch   Batch?  @relation(fields: [batchId], references: [id])
+
+  @@unique([recallId, productId, batchNumber])
+  @@index([batchId])
+  @@map("recall_items")
+}
+
+// ---------------------------------------------------------------------------
+// Nhóm khách hàng và đơn thuốc (dùng chung toàn chuỗi)
+// ---------------------------------------------------------------------------
+
+model Customer {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  fullName             String?   @map("full_name")
+  phone                String?
+  birthYear            Int?      @map("birth_year")
+  gender               String?
+  note                 String?
+  healthDataConsentAt  DateTime? @map("health_data_consent_at") @db.Timestamptz(6)
+  isAnonymized         Boolean   @default(false) @map("is_anonymized")
+  anonymizedAt         DateTime? @map("anonymized_at") @db.Timestamptz(6)
+  version              Int       @default(1)
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  healthProfile CustomerHealthProfile?
+  allergies     CustomerAllergy[]
+  invoices      Invoice[]
+  prescriptions Prescription[]
+
+  @@index([phone])
+  @@map("customers")
+}
+
+model CustomerHealthProfile {
+  customerId         String   @id @map("customer_id") @db.Uuid
+  chronicConditions  String?  @map("chronic_conditions")
+  note               String?
+  updatedAt          DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy          String?  @map("updated_by") @db.Uuid
+
+  customer      Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  updatedByUser User?    @relation(fields: [updatedBy], references: [id])
+
+  @@map("customer_health_profiles")
+}
+
+/// Dị ứng gắn với hoạt chất, không gắn với sản phẩm, để cảnh báo được
+/// mọi biệt dược chứa hoạt chất đó.
+model CustomerAllergy {
+  customerId   String  @map("customer_id") @db.Uuid
+  ingredientId String  @map("ingredient_id") @db.Uuid
+  note         String?
+
+  customer   Customer         @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  ingredient ActiveIngredient @relation(fields: [ingredientId], references: [id])
+
+  @@id([customerId, ingredientId])
+  @@index([ingredientId])
+  @@map("customer_allergies")
+}
+
+model Prescription {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  storeId        String    @map("store_id") @db.Uuid
+  code           String    @unique
+  externalCode   String?   @map("external_code")
+  customerId     String?   @map("customer_id") @db.Uuid
+  prescriberName String?   @map("prescriber_name")
+  facilityName   String?   @map("facility_name")
+  diagnosisText  String?   @map("diagnosis_text")
+  prescribedDate DateTime  @map("prescribed_date") @db.Date
+  validUntil     DateTime  @map("valid_until") @db.Date
+  status         String    @default("DRAFT")
+  createdBy      String    @map("created_by") @db.Uuid
+  verifiedBy     String?   @map("verified_by") @db.Uuid
+  verifiedAt     DateTime? @map("verified_at") @db.Timestamptz(6)
+  rejectedReason String?   @map("rejected_reason")
+  version        Int       @default(1)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  store          Store               @relation(fields: [storeId], references: [id])
+  customer       Customer?           @relation(fields: [customerId], references: [id])
+  createdByUser  User                @relation("PrescriptionCreatedBy", fields: [createdBy], references: [id])
+  verifiedByUser User?               @relation("PrescriptionVerifiedBy", fields: [verifiedBy], references: [id])
+  items          PrescriptionItem[]
+  images         PrescriptionImage[]
+  invoices       Invoice[]
+
+  @@index([storeId, status])
+  @@index([customerId])
+  @@map("prescriptions")
+}
+
+/// CHECK số đã bán không vượt số lượng kê nằm trong SQL viết tay.
+model PrescriptionItem {
+  id                    String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  prescriptionId        String  @map("prescription_id") @db.Uuid
+  lineNo                Int     @map("line_no")
+  productId             String? @map("product_id") @db.Uuid
+  drugNameText          String  @map("drug_name_text")
+  productUnitId         String? @map("product_unit_id") @db.Uuid
+  quantity              Int
+  baseQuantity          Int?    @map("base_quantity")
+  dosageInstruction     String? @map("dosage_instruction")
+  dispensedBaseQuantity Int     @default(0) @map("dispensed_base_quantity")
+
+  prescription Prescription  @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
+  product      Product?      @relation(fields: [productId], references: [id])
+  productUnit  ProductUnit?  @relation(fields: [productUnitId], references: [id])
+  invoiceLines InvoiceLine[]
+
+  @@unique([prescriptionId, lineNo])
+  @@map("prescription_items")
+}
+
+/// Chỉ lưu khóa tệp trong kho riêng tư, không lưu đường dẫn công khai.
+model PrescriptionImage {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  prescriptionId String   @map("prescription_id") @db.Uuid
+  storageKey     String   @map("storage_key")
+  contentType    String   @map("content_type")
+  sizeBytes      Int      @map("size_bytes")
+  versionNo      Int      @map("version_no")
+  uploadedBy     String   @map("uploaded_by") @db.Uuid
+  uploadedAt     DateTime @default(now()) @map("uploaded_at") @db.Timestamptz(6)
+
+  prescription   Prescription @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
+  uploadedByUser User         @relation(fields: [uploadedBy], references: [id])
+
+  @@unique([prescriptionId, versionNo])
+  @@map("prescription_images")
+}
+
+// ---------------------------------------------------------------------------
+// Nhóm bán hàng (riêng theo cửa hàng)
+// ---------------------------------------------------------------------------
+
+model Invoice {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  storeId        String    @map("store_id") @db.Uuid
+  code           String    @unique
+  customerId     String?   @map("customer_id") @db.Uuid
+  prescriptionId String?   @map("prescription_id") @db.Uuid
+  sellerId       String    @map("seller_id") @db.Uuid
+  pharmacistId   String?   @map("pharmacist_id") @db.Uuid
+  soldAt         DateTime  @default(now()) @map("sold_at") @db.Timestamptz(6)
+  businessDate   DateTime  @map("business_date") @db.Date
+  status         String    @default("COMPLETED")
+  subtotal       BigInt    @default(0)
+  discountType   String?   @map("discount_type")
+  discountValue  Decimal?  @map("discount_value") @db.Decimal(12, 2)
+  discountReason String?   @map("discount_reason")
+  discountAmount BigInt    @default(0) @map("discount_amount")
+  vatAmount      BigInt    @default(0) @map("vat_amount")
+  totalAmount    BigInt    @default(0) @map("total_amount")
+  paymentMethod  String    @default("CASH") @map("payment_method")
+  amountTendered BigInt?   @map("amount_tendered")
+  changeAmount   BigInt?   @map("change_amount")
+  returnStatus   String    @default("NONE") @map("return_status")
+  voidedBy       String?   @map("voided_by") @db.Uuid
+  voidedAt       DateTime? @map("voided_at") @db.Timestamptz(6)
+  voidReason     String?   @map("void_reason")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  store           Store              @relation(fields: [storeId], references: [id])
+  customer        Customer?          @relation(fields: [customerId], references: [id])
+  prescription    Prescription?      @relation(fields: [prescriptionId], references: [id])
+  seller          User               @relation("InvoiceSeller", fields: [sellerId], references: [id])
+  pharmacist      User?              @relation("InvoicePharmacist", fields: [pharmacistId], references: [id])
+  voidedByUser    User?              @relation("InvoiceVoidedBy", fields: [voidedBy], references: [id])
+  lines           InvoiceLine[]
+  safetyAcks      InvoiceSafetyAck[]
+  returns         Return[]
+
+  @@index([storeId, businessDate, status])
+  @@index([customerId, soldAt(sort: Desc)])
+  @@index([storeId, sellerId, soldAt(sort: Desc)])
+  @@map("invoices")
+}
+
+/// Dòng hóa đơn chụp lại tên, đơn vị và giá tại thời điểm bán, để đổi giá
+/// hay đổi tên sau này không làm thay đổi hóa đơn cũ.
+model InvoiceLine {
+  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  invoiceId           String   @map("invoice_id") @db.Uuid
+  lineNo              Int      @map("line_no")
+  productId           String   @map("product_id") @db.Uuid
+  productUnitId       String   @map("product_unit_id") @db.Uuid
+  productName         String   @map("product_name")
+  unitName            String   @map("unit_name")
+  conversionToBase    Int      @map("conversion_to_base")
+  quantity            Int
+  baseQuantity        Int      @map("base_quantity")
+  unitPrice           BigInt   @map("unit_price")
+  vatRatePercent      Decimal  @map("vat_rate_percent") @db.Decimal(5, 2)
+  discountAmount      BigInt   @default(0) @map("discount_amount")
+  lineTotal           BigInt   @map("line_total")
+  prescriptionItemId  String?  @map("prescription_item_id") @db.Uuid
+  batchOverrideReason String?  @map("batch_override_reason")
+
+  invoice          Invoice             @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  product          Product             @relation(fields: [productId], references: [id])
+  productUnit      ProductUnit         @relation(fields: [productUnitId], references: [id])
+  prescriptionItem PrescriptionItem?   @relation(fields: [prescriptionItemId], references: [id])
+  allocations      InvoiceAllocation[]
+  returnLines      ReturnLine[]
+
+  @@unique([invoiceId, lineNo])
+  @@index([productId])
+  @@map("invoice_lines")
+}
+
+/// Phân bổ lô: trả lời câu hỏi lô nào đã bán cho ai, xương sống của thu hồi.
+/// Khóa ngoại tổ hợp (batchId, storeId) chặn bán lô của cửa hàng khác.
+/// CHECK số đã trả không vượt số đã bán nằm trong SQL viết tay.
+model InvoiceAllocation {
+  id                   String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  invoiceLineId        String @map("invoice_line_id") @db.Uuid
+  storeId              String @map("store_id") @db.Uuid
+  batchId              String @map("batch_id") @db.Uuid
+  baseQuantity         Int    @map("base_quantity")
+  returnedBaseQuantity Int    @default(0) @map("returned_base_quantity")
+
+  invoiceLine InvoiceLine  @relation(fields: [invoiceLineId], references: [id], onDelete: Cascade)
+  batch       Batch        @relation(fields: [batchId, storeId], references: [id, storeId])
+  store       Store        @relation(fields: [storeId], references: [id])
+  returnLines ReturnLine[]
+
+  @@index([batchId])
+  @@index([invoiceLineId])
+  @@map("invoice_allocations")
+}
+
+/// Bằng chứng dược sĩ đã thấy cảnh báo mức cao và vẫn quyết định bán.
+model InvoiceSafetyAck {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  invoiceId      String   @map("invoice_id") @db.Uuid
+  code           String
+  severity       String
+  productIds     String[] @map("product_ids") @db.Uuid
+  reason         String?
+  acknowledgedBy String   @map("acknowledged_by") @db.Uuid
+  acknowledgedAt DateTime @default(now()) @map("acknowledged_at") @db.Timestamptz(6)
+
+  invoice            Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  acknowledgedByUser User    @relation(fields: [acknowledgedBy], references: [id])
+
+  @@index([invoiceId])
+  @@map("invoice_safety_acks")
+}
+
+model Return {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  storeId      String   @map("store_id") @db.Uuid
+  code         String   @unique
+  invoiceId    String   @map("invoice_id") @db.Uuid
+  reason       String?
+  disposition  String
+  refundMethod String?  @map("refund_method")
+  refundAmount BigInt   @default(0) @map("refund_amount")
+  businessDate DateTime @map("business_date") @db.Date
+  createdBy    String   @map("created_by") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  store         Store        @relation(fields: [storeId], references: [id])
+  invoice       Invoice      @relation(fields: [invoiceId], references: [id])
+  createdByUser User         @relation(fields: [createdBy], references: [id])
+  lines         ReturnLine[]
+
+  @@index([storeId, businessDate])
+  @@index([invoiceId])
+  @@map("returns")
+}
+
+/// Mỗi dòng trả trỏ tới dòng phân bổ lô, không chỉ trỏ tới dòng hóa đơn,
+/// để hàng quay về đúng lô đã xuất.
+model ReturnLine {
+  id                  String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  returnId            String @map("return_id") @db.Uuid
+  lineNo              Int    @map("line_no")
+  invoiceLineId       String @map("invoice_line_id") @db.Uuid
+  invoiceAllocationId String @map("invoice_allocation_id") @db.Uuid
+  productUnitId       String @map("product_unit_id") @db.Uuid
+  quantity            Int
+  baseQuantity        Int    @map("base_quantity")
+  refundAmount        BigInt @default(0) @map("refund_amount")
+
+  return            Return            @relation(fields: [returnId], references: [id], onDelete: Cascade)
+  invoiceLine       InvoiceLine       @relation(fields: [invoiceLineId], references: [id])
+  invoiceAllocation InvoiceAllocation @relation(fields: [invoiceAllocationId], references: [id])
+  productUnit       ProductUnit       @relation(fields: [productUnitId], references: [id])
+
+  @@unique([returnId, lineNo])
+  @@index([invoiceAllocationId])
+  @@map("return_lines")
+}
+
+// ---------------------------------------------------------------------------
+// Nhóm GPP và AI
+// ---------------------------------------------------------------------------
+
+/// Khu vực bảo quản của từng cửa hàng, mỗi khu có ngưỡng riêng.
+model StorageLocation {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  storeId            String   @map("store_id") @db.Uuid
+  code               String
+  name               String
+  minTempC           Decimal? @map("min_temp_c") @db.Decimal(4, 1)
+  maxTempC           Decimal? @map("max_temp_c") @db.Decimal(4, 1)
+  maxHumidityPercent Decimal? @map("max_humidity_percent") @db.Decimal(5, 2)
+  isActive           Boolean  @default(true) @map("is_active")
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  store Store        @relation(fields: [storeId], references: [id])
+  logs  StorageLog[]
+
+  @@unique([storeId, code])
+  @@map("storage_locations")
+}
+
+/// Sổ nhiệt độ và độ ẩm. Bản ghi sai không sửa, không xóa; ghi bản mới
+/// trỏ correctsLogId về bản cũ.
+model StorageLog {
+  id                BigInt   @id @default(autoincrement())
+  storeId           String   @map("store_id") @db.Uuid
+  storageLocationId String   @map("storage_location_id") @db.Uuid
+  recordedAt        DateTime @map("recorded_at") @db.Timestamptz(6)
+  businessDate      DateTime @map("business_date") @db.Date
+  temperatureC      Decimal  @map("temperature_c") @db.Decimal(4, 1)
+  humidityPercent   Decimal? @map("humidity_percent") @db.Decimal(5, 2)
+  outOfRange        Boolean  @default(false) @map("out_of_range")
+  note              String?
+  recordedBy        String   @map("recorded_by") @db.Uuid
+  correctsLogId     BigInt?  @map("corrects_log_id")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  store           Store           @relation(fields: [storeId], references: [id])
+  storageLocation StorageLocation @relation(fields: [storageLocationId], references: [id])
+  recordedByUser  User            @relation(fields: [recordedBy], references: [id])
+  corrects        StorageLog?     @relation("StorageLogCorrection", fields: [correctsLogId], references: [id])
+  correctedBy     StorageLog[]    @relation("StorageLogCorrection")
+
+  @@index([storageLocationId, recordedAt(sort: Desc)])
+  @@index([storeId, businessDate])
+  @@map("storage_logs")
+}
+
+/// Nhật ký mọi lượt dùng AI. inputRedacted chỉ chứa dữ liệu đã lọc bỏ
+/// thông tin định danh (contract §20).
+model AiLog {
+  id            BigInt   @id @default(autoincrement())
+  occurredAt    DateTime @default(now()) @map("occurred_at") @db.Timestamptz(6)
+  storeId       String?  @map("store_id") @db.Uuid
+  userId        String?  @map("user_id") @db.Uuid
+  feature       String
+  model         String
+  modelVersion  String?  @map("model_version")
+  inputRedacted Json?    @map("input_redacted")
+  output        Json?
+  accepted      Boolean?
+  confirmedBy   String?  @map("confirmed_by") @db.Uuid
+  latencyMs     Int?     @map("latency_ms")
+  inputTokens   Int?     @map("input_tokens")
+  outputTokens  Int?     @map("output_tokens")
+  estimatedCost Decimal? @map("estimated_cost") @db.Decimal(12, 2)
+
+  store Store? @relation(fields: [storeId], references: [id])
+  user  User?  @relation(fields: [userId], references: [id])
+
+  @@index([occurredAt(sort: Desc)])
+  @@index([userId])
+  @@map("ai_logs")
+}

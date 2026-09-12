@@ -51,3 +51,25 @@ Sao chép file mẫu rồi sửa cho máy mình. File `.env` thật không bao g
 ```bash
 cp .env.example server/.env
 ```
+
+## Cơ sở dữ liệu và migration
+
+Lược đồ mô tả trong `server/prisma/schema.prisma`, các ràng buộc mà Prisma không mô tả được (`CHECK`, chỉ mục từng phần, `UNIQUE NULLS NOT DISTINCT`, extension) nằm trong phần SQL viết tay ở cuối mỗi file migration.
+
+```bash
+cd server
+npm install              # tự chạy prisma generate
+npm run db:migrate       # áp dụng migration còn thiếu
+npm run db:studio        # xem dữ liệu bằng giao diện
+npm run db:reset         # XÓA sạch CSDL dev rồi tạo lại từ đầu
+```
+
+Sửa lược đồ thì làm theo thứ tự: sửa `schema.prisma`, chạy `npx prisma migrate dev --create-only --name <ten>`, mở file SQL vừa sinh để thêm ràng buộc viết tay nếu cần, rồi chạy `npm run db:migrate`. Không sửa file migration đã được áp dụng.
+
+## Máy chủ
+
+```bash
+cd server
+npm run dev              # http://localhost:3000/api/v1/health
+npm run typecheck
+```
