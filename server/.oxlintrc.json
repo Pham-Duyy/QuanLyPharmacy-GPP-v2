@@ -6,6 +6,7 @@
   "rules": {
     "no-console": "off",
     "typescript/no-explicit-any": "error",
-    "oxc/no-async-endpoint-handlers": "off"
+    "oxc/no-async-endpoint-handlers": "off",
+    "no-underscore-dangle": ["warn", { "allow": ["_count", "_sum", "_avg", "_min", "_max"] }]
   }
 }
