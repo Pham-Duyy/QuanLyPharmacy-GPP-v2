@@ -31,7 +31,7 @@ suppliersRouter.get("/suppliers", requirePermission("catalog.read"), async (req,
   const search = typeof req.query["search"] === "string" ? req.query["search"].trim() : "";
 
   const where = {
-    isActive: req.query["isActive"] === "false" ? false : true,
+    isActive: req.query["isActive"] !== "false",
     ...(search
       ? {
           OR: [

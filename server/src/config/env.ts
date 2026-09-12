@@ -11,9 +11,7 @@ const envSchema = z.object({
   DATABASE_URL: z.string().min(1, "Thiếu chuỗi kết nối CSDL"),
   JWT_SECRET: z.string().min(16, "JWT_SECRET phải dài ít nhất 16 ký tự"),
   CORS_ORIGIN: z.string().default("http://localhost:5173"),
-  LOG_LEVEL: z
-    .enum(["fatal", "error", "warn", "info", "debug", "trace"])
-    .default("info"),
+  LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info"),
 });
 
 const parsed = envSchema.safeParse(process.env);

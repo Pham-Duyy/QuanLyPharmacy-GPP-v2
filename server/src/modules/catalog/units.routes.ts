@@ -148,7 +148,10 @@ unitsRouter.patch(
       { conflictMessage: "Tên đơn vị hoặc mã vạch đã được dùng" },
     );
 
-    sendData(res, await prisma.productUnit.findUnique({ where: { id: unitId }, include: { barcodes: true } }));
+    sendData(
+      res,
+      await prisma.productUnit.findUnique({ where: { id: unitId }, include: { barcodes: true } }),
+    );
   },
 );
 

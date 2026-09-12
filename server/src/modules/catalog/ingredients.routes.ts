@@ -19,26 +19,30 @@ const bodySchema = z.object({
   atcCode: z.string().trim().max(20).nullish(),
 });
 
-ingredientsRouter.get("/active-ingredients", requirePermission("catalog.read"), async (req, res) => {
-  const page = parsePageQuery(req.query, { sortable: ["name"], defaultSort: "name" });
-  const search = typeof req.query["search"] === "string" ? req.query["search"].trim() : "";
+ingredientsRouter.get(
+  "/active-ingredients",
+  requirePermission("catalog.read"),
+  async (req, res) => {
+    const page = parsePageQuery(req.query, { sortable: ["name"], defaultSort: "name" });
+    const search = typeof req.query["search"] === "string" ? req.query["search"].trim() : "";
 
-  // Tìm không dấu dùng chỉ mục trigram (ERD §1.6).
-  const ids = search ? await searchIdsByName("active_ingredients", search, 200) : null;
-  const where = { isActive: true, ...(ids ? { id: { in: ids } } : {}) };
+    // Tìm không dấu dùng chỉ mục trigram (ERD §1.6).
+    const ids = search ? await searchIdsByName("active_ingredients", search, 200) : null;
+    const where = { isActive: true, ...(ids ? { id: { in: ids } } : {}) };
 
-  const [items, total] = await Promise.all([
-    prisma.activeIngredient.findMany({
-      where,
-      orderBy: { name: page.order },
-      skip: page.skip,
-      take: page.limit,
-    }),
-    prisma.activeIngredient.count({ where }),
-  ]);
+    const [items, total] = await Promise.all([
+      prisma.activeIngredient.findMany({
+        where,
+        orderBy: { name: page.order },
+        skip: page.skip,
+        take: page.limit,
+      }),
+      prisma.activeIngredient.count({ where }),
+    ]);
 
-  sendData(res, pageResult(items, total, page));
-});
+    sendData(res, pageResult(items, total, page));
+  },
+);
 
 ingredientsRouter.post(
   "/active-ingredients",

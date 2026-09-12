@@ -60,8 +60,18 @@ export const INGREDIENTS = [
 ];
 
 export const SUPPLIERS = [
-  { name: "Công ty CP Dược phẩm Trung ương CPC1", taxCode: "0100108536", licenseNumber: "GPP-HN-0001", phone: "02438256868" },
-  { name: "Công ty TNHH Dược phẩm Hoàng Long", taxCode: "0106123456", licenseNumber: "GPP-HN-0042", phone: "02439991234" },
+  {
+    name: "Công ty CP Dược phẩm Trung ương CPC1",
+    taxCode: "0100108536",
+    licenseNumber: "GPP-HN-0001",
+    phone: "02438256868",
+  },
+  {
+    name: "Công ty TNHH Dược phẩm Hoàng Long",
+    taxCode: "0106123456",
+    licenseNumber: "GPP-HN-0042",
+    phone: "02439991234",
+  },
 ];
 
 export const PRODUCTS: SeedProduct[] = [
@@ -82,13 +92,45 @@ export const PRODUCTS: SeedProduct[] = [
     vatRatePercent: 5,
     ingredients: [{ name: "Paracetamol", strengthText: "500 mg" }],
     units: [
-      { name: "Viên", conversionToBase: 1, isSellable: true, isDefaultSaleUnit: true, salePrice: 1200 },
-      { name: "Vỉ", conversionToBase: 10, isSellable: true, salePrice: 11000, barcode: "8934567000011" },
-      { name: "Hộp", conversionToBase: 100, isSellable: true, salePrice: 105000, barcode: "8934567000028" },
+      {
+        name: "Viên",
+        conversionToBase: 1,
+        isSellable: true,
+        isDefaultSaleUnit: true,
+        salePrice: 1200,
+      },
+      {
+        name: "Vỉ",
+        conversionToBase: 10,
+        isSellable: true,
+        salePrice: 11000,
+        barcode: "8934567000011",
+      },
+      {
+        name: "Hộp",
+        conversionToBase: 100,
+        isSellable: true,
+        salePrice: 105000,
+        barcode: "8934567000028",
+      },
     ],
     openingBatches: [
-      { batchNumber: "PA250110", expiryDate: "2027-01-09", manufactureDate: "2025-01-10", unitName: "Hộp", quantity: 5, unitCost: 82000 },
-      { batchNumber: "PA240915", expiryDate: "2026-10-31", manufactureDate: "2024-09-15", unitName: "Hộp", quantity: 2, unitCost: 80000 },
+      {
+        batchNumber: "PA250110",
+        expiryDate: "2027-01-09",
+        manufactureDate: "2025-01-10",
+        unitName: "Hộp",
+        quantity: 5,
+        unitCost: 82000,
+      },
+      {
+        batchNumber: "PA240915",
+        expiryDate: "2026-10-31",
+        manufactureDate: "2024-09-15",
+        unitName: "Hộp",
+        quantity: 2,
+        unitCost: 80000,
+      },
     ],
   },
   {
@@ -107,12 +149,31 @@ export const PRODUCTS: SeedProduct[] = [
     vatRatePercent: 5,
     ingredients: [{ name: "Amoxicillin", strengthText: "500 mg" }],
     units: [
-      { name: "Viên", conversionToBase: 1, isSellable: true, isDefaultSaleUnit: true, salePrice: 2500 },
-      { name: "Vỉ", conversionToBase: 10, isSellable: true, salePrice: 24000, barcode: "8934567000035" },
+      {
+        name: "Viên",
+        conversionToBase: 1,
+        isSellable: true,
+        isDefaultSaleUnit: true,
+        salePrice: 2500,
+      },
+      {
+        name: "Vỉ",
+        conversionToBase: 10,
+        isSellable: true,
+        salePrice: 24000,
+        barcode: "8934567000035",
+      },
       { name: "Hộp", conversionToBase: 100, isSellable: true, salePrice: 230000 },
     ],
     openingBatches: [
-      { batchNumber: "AM250320", expiryDate: "2027-03-19", manufactureDate: "2025-03-20", unitName: "Hộp", quantity: 3, unitCost: 180000 },
+      {
+        batchNumber: "AM250320",
+        expiryDate: "2027-03-19",
+        manufactureDate: "2025-03-20",
+        unitName: "Hộp",
+        quantity: 3,
+        unitCost: 180000,
+      },
     ],
   },
   {
@@ -130,11 +191,23 @@ export const PRODUCTS: SeedProduct[] = [
     vatRatePercent: 5,
     ingredients: [{ name: "Ibuprofen", strengthText: "400 mg" }],
     units: [
-      { name: "Viên", conversionToBase: 1, isSellable: true, isDefaultSaleUnit: true, salePrice: 1800 },
+      {
+        name: "Viên",
+        conversionToBase: 1,
+        isSellable: true,
+        isDefaultSaleUnit: true,
+        salePrice: 1800,
+      },
       { name: "Vỉ", conversionToBase: 10, isSellable: true, salePrice: 17000 },
     ],
     openingBatches: [
-      { batchNumber: "IB250505", expiryDate: "2027-05-04", unitName: "Vỉ", quantity: 40, unitCost: 12000 },
+      {
+        batchNumber: "IB250505",
+        expiryDate: "2027-05-04",
+        unitName: "Vỉ",
+        quantity: 40,
+        unitCost: 12000,
+      },
     ],
   },
   {
@@ -149,11 +222,23 @@ export const PRODUCTS: SeedProduct[] = [
     vatRatePercent: 5,
     ingredients: [{ name: "Cetirizine", strengthText: "10 mg" }],
     units: [
-      { name: "Viên", conversionToBase: 1, isSellable: true, isDefaultSaleUnit: true, salePrice: 2000 },
+      {
+        name: "Viên",
+        conversionToBase: 1,
+        isSellable: true,
+        isDefaultSaleUnit: true,
+        salePrice: 2000,
+      },
       { name: "Vỉ", conversionToBase: 10, isSellable: true, salePrice: 19000 },
     ],
     openingBatches: [
-      { batchNumber: "CE250210", expiryDate: "2028-02-09", unitName: "Vỉ", quantity: 20, unitCost: 13000 },
+      {
+        batchNumber: "CE250210",
+        expiryDate: "2028-02-09",
+        unitName: "Vỉ",
+        quantity: 20,
+        unitCost: 13000,
+      },
     ],
   },
   {
@@ -168,11 +253,23 @@ export const PRODUCTS: SeedProduct[] = [
     vatRatePercent: 5,
     ingredients: [{ name: "Omeprazole", strengthText: "20 mg" }],
     units: [
-      { name: "Viên", conversionToBase: 1, isSellable: true, isDefaultSaleUnit: true, salePrice: 3000 },
+      {
+        name: "Viên",
+        conversionToBase: 1,
+        isSellable: true,
+        isDefaultSaleUnit: true,
+        salePrice: 3000,
+      },
       { name: "Vỉ", conversionToBase: 14, isSellable: true, salePrice: 40000 },
     ],
     openingBatches: [
-      { batchNumber: "OM250601", expiryDate: "2027-05-31", unitName: "Vỉ", quantity: 15, unitCost: 28000 },
+      {
+        batchNumber: "OM250601",
+        expiryDate: "2027-05-31",
+        unitName: "Vỉ",
+        quantity: 15,
+        unitCost: 28000,
+      },
     ],
   },
   {
@@ -186,11 +283,29 @@ export const PRODUCTS: SeedProduct[] = [
     vatRatePercent: 8,
     ingredients: [{ name: "Acid ascorbic", strengthText: "500 mg" }],
     units: [
-      { name: "Viên", conversionToBase: 1, isSellable: true, isDefaultSaleUnit: true, salePrice: 1500 },
-      { name: "Lọ", conversionToBase: 100, isSellable: true, salePrice: 140000, barcode: "8934567000059" },
+      {
+        name: "Viên",
+        conversionToBase: 1,
+        isSellable: true,
+        isDefaultSaleUnit: true,
+        salePrice: 1500,
+      },
+      {
+        name: "Lọ",
+        conversionToBase: 100,
+        isSellable: true,
+        salePrice: 140000,
+        barcode: "8934567000059",
+      },
     ],
     openingBatches: [
-      { batchNumber: "VC250401", expiryDate: "2027-03-31", unitName: "Lọ", quantity: 6, unitCost: 105000 },
+      {
+        batchNumber: "VC250401",
+        expiryDate: "2027-03-31",
+        unitName: "Lọ",
+        quantity: 6,
+        unitCost: 105000,
+      },
     ],
   },
   {
@@ -205,10 +320,23 @@ export const PRODUCTS: SeedProduct[] = [
     ingredients: [],
     units: [
       { name: "Cái", conversionToBase: 1, isSellable: true, salePrice: 1500 },
-      { name: "Hộp", conversionToBase: 50, isSellable: true, isDefaultSaleUnit: true, salePrice: 55000, barcode: "8934567000066" },
+      {
+        name: "Hộp",
+        conversionToBase: 50,
+        isSellable: true,
+        isDefaultSaleUnit: true,
+        salePrice: 55000,
+        barcode: "8934567000066",
+      },
     ],
     openingBatches: [
-      { batchNumber: "KT250101", expiryDate: "2028-01-01", unitName: "Hộp", quantity: 10, unitCost: 38000 },
+      {
+        batchNumber: "KT250101",
+        expiryDate: "2028-01-01",
+        unitName: "Hộp",
+        quantity: 10,
+        unitCost: 38000,
+      },
     ],
   },
   {
@@ -221,10 +349,23 @@ export const PRODUCTS: SeedProduct[] = [
     vatRatePercent: 8,
     ingredients: [],
     units: [
-      { name: "Cái", conversionToBase: 1, isSellable: true, isDefaultSaleUnit: true, salePrice: 120000, barcode: "8934567000073" },
+      {
+        name: "Cái",
+        conversionToBase: 1,
+        isSellable: true,
+        isDefaultSaleUnit: true,
+        salePrice: 120000,
+        barcode: "8934567000073",
+      },
     ],
     openingBatches: [
-      { batchNumber: "NK250201", expiryDate: "2030-01-01", unitName: "Cái", quantity: 8, unitCost: 85000 },
+      {
+        batchNumber: "NK250201",
+        expiryDate: "2030-01-01",
+        unitName: "Cái",
+        quantity: 8,
+        unitCost: 85000,
+      },
     ],
   },
 ];

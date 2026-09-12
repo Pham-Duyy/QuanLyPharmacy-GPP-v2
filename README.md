@@ -87,3 +87,20 @@ Vite chuyển tiếp mọi request `/api` sang backend ở cổng 3000, nên kh�
 Chạy đủ bộ cần ba việc: `docker compose up -d` cho CSDL, `npm run dev` trong `server/`, và `npm run dev` trong `client/`.
 
 Tài khoản mặc định sau khi seed: `admin` / `Admin@12345`, bắt buộc đổi mật khẩu khi dùng thật.
+
+## Kiểm thử và chất lượng mã
+
+```bash
+cd server
+npm test                 # kiểm thử tích hợp trên CSDL pharmacy_gpp_test
+npm run test:watch
+npm run lint             # oxlint
+npm run format           # prettier
+npm run typecheck
+```
+
+Kiểm thử chạy trên **PostgreSQL thật**, không dùng mock, vì phần lớn ràng buộc quan trọng của dự án nằm ở tầng CSDL: `CHECK` tồn không âm, khóa duy nhất `NULLS NOT DISTINCT`, khóa ngoại tổ hợp chặn bán lô của cửa hàng khác. Mock sẽ không bắt được những lỗi đó.
+
+Mỗi test tự xóa sạch dữ liệu rồi dựng lại bộ dữ liệu tối thiểu gồm hai cửa hàng, đủ permission và vai trò, một tài khoản bao toàn chuỗi và một dược sĩ chỉ thuộc cửa hàng thứ nhất. Có hai cửa hàng để kiểm tra được việc không lộ dữ liệu chéo.
+
+GitHub Actions chạy lint, kiểm tra định dạng, typecheck và toàn bộ kiểm thử cho mỗi Pull Request.

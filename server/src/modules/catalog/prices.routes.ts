@@ -76,11 +76,7 @@ pricesRouter.post("/products/:id/prices", requirePermission("price.manage"), asy
   let storeId: string | null = null;
   if (input.scope === "STORE") {
     if (!req.auth?.storeId) {
-      throw new AppError(
-        400,
-        "STORE_REQUIRED",
-        "Đặt giá riêng cho cửa hàng cần header X-Store-Id",
-      );
+      throw new AppError(400, "STORE_REQUIRED", "Đặt giá riêng cho cửa hàng cần header X-Store-Id");
     }
     storeId = req.auth.storeId;
   }

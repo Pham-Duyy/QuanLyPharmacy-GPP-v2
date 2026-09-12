@@ -32,9 +32,15 @@ export function createApp() {
     pinoHttp({
       level: env.LOG_LEVEL,
       // Dùng lại requestId đã gắn ở middleware trên để log và response khớp nhau.
-      genReqId: (_req: IncomingMessage, res: ServerResponse) => String((res as { locals?: { requestId?: string } }).locals?.requestId ?? ""),
+      genReqId: (_req: IncomingMessage, res: ServerResponse) =>
+        String((res as { locals?: { requestId?: string } }).locals?.requestId ?? ""),
       ...(env.NODE_ENV === "development"
-        ? { transport: { target: "pino-pretty", options: { translateTime: "HH:MM:ss", ignore: "pid,hostname" } } }
+        ? {
+            transport: {
+              target: "pino-pretty",
+              options: { translateTime: "HH:MM:ss", ignore: "pid,hostname" },
+            },
+          }
         : {}),
     }),
   );
