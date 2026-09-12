@@ -19,10 +19,12 @@ export async function getCurrentPrices(
   productUnitIds: string[],
   storeId: string | null,
   at: Date = new Date(),
+  // Lúc bán hàng phải đọc giá bằng chính transaction đang bán, không đọc ngoài.
+  client: Prisma.TransactionClient = prisma,
 ): Promise<Map<string, CurrentPrice>> {
   if (productUnitIds.length === 0) return new Map();
 
-  const rows = await prisma.$queryRaw<
+  const rows = await client.$queryRaw<
     Array<{
       product_unit_id: string;
       sale_price: bigint;
