@@ -11,6 +11,12 @@ import cookieParser from "cookie-parser";
 import { healthRouter } from "./modules/health/health.routes.js";
 import { authRouter } from "./modules/auth/auth.routes.js";
 import { storesRouter } from "./modules/stores/stores.routes.js";
+import { categoriesRouter } from "./modules/catalog/categories.routes.js";
+import { ingredientsRouter } from "./modules/catalog/ingredients.routes.js";
+import { suppliersRouter } from "./modules/catalog/suppliers.routes.js";
+import { productsRouter } from "./modules/catalog/products.routes.js";
+import { unitsRouter } from "./modules/catalog/units.routes.js";
+import { pricesRouter } from "./modules/catalog/prices.routes.js";
 
 /**
  * Lắp ráp ứng dụng Express. Thứ tự middleware quan trọng:
@@ -46,6 +52,12 @@ export function createApp() {
   app.use("/api/v1", healthRouter);
   app.use("/api/v1", authRouter);
   app.use("/api/v1", storesRouter);
+  app.use("/api/v1", categoriesRouter);
+  app.use("/api/v1", ingredientsRouter);
+  app.use("/api/v1", suppliersRouter);
+  app.use("/api/v1", productsRouter);
+  app.use("/api/v1", unitsRouter);
+  app.use("/api/v1", pricesRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);
