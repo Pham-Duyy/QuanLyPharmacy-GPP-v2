@@ -2,10 +2,11 @@
 
 | Mục | Giá trị |
 |---|---|
-| Phiên bản tài liệu | 2.1 |
+| Phiên bản tài liệu | 2.2 |
 | Phiên bản API | `/api/v1` |
 | Ngày cập nhật | 12/09/2026 |
-| Trạng thái | Toàn bộ quyết định đã chốt; sẵn sàng thiết kế ERD |
+| Trạng thái | Toàn bộ quyết định đã chốt; ERD ở `docs/erd.md` |
+| Thay đổi ở 2.2 | Thiết kế cho **chuỗi nhiều nhà thuốc**: header `X-Store-Id`, tài nguyên `/stores`, vai trò gán theo cửa hàng (§2.8) |
 | Căn cứ | Bản gốc `docs/restful-api-review.md` và báo cáo review v1 (mã phát hiện C1–C3, H1–H9, M1–M12, L1–L12) |
 | Thay thế | Nội dung contract trong `restful-api-review.md`. Bản gốc được giữ lại để tham chiếu. |
 
@@ -42,6 +43,7 @@
 | Gộp kiểm tra tương tác, dị ứng thành `POST /sales/safety-check` tất định | H8 | Đã chốt – P7 |
 | Tách permission dữ liệu nhạy cảm; chính sách OCR | H7 | Đã chốt – P8 |
 | camelCase, ID dạng chuỗi, action dùng `POST`, cập nhật dùng `PATCH`, bảng mã lỗi | L1–L5, L7 | Đã chốt (quy ước) |
+| Thiết kế cho chuỗi nhiều nhà thuốc: `X-Store-Id`, `/stores`, vai trò theo cửa hàng | – | Đã chốt – P18 (12/09/2026) |
 
 ---
 
@@ -49,7 +51,7 @@
 
 - Frontend: React + Vite. Backend: Node.js + Express. **CSDL: PostgreSQL [Đã chốt]**.
 - API trao đổi JSON; upload tệp dùng `multipart/form-data`.
-- Phạm vi: một nhà thuốc bán lẻ theo GPP.
+- Phạm vi: **chuỗi nhà thuốc bán lẻ** theo GPP. MVP vận hành một cửa hàng, nhưng dữ liệu và API đã có phạm vi cửa hàng ngay từ đầu (§2.8).
 - Backend là nơi duy nhất quyết định quyền, giá, tồn, lô xuất và trạng thái. Không tin các giá trị này từ Frontend.
 
 ---
@@ -68,6 +70,7 @@
 | Hành động | `POST /{resource}/{id}/{action}`, ví dụ `/confirm`, `/approve`, `/void`. |
 | Cập nhật | `PATCH` cho cập nhật một phần. Không dùng `DELETE` cho chứng từ nghiệp vụ; danh mục dùng `/deactivate`, `/activate`. |
 | Request ID | Mọi response có `requestId` và header `X-Request-Id`. |
+| Phạm vi cửa hàng | Header `X-Store-Id` bắt buộc với endpoint thuộc phạm vi cửa hàng (§2.8). |
 
 ### 2.1 Thời gian, ngày và hạn dùng [Đã chốt]
 
@@ -143,14 +146,28 @@ Lỗi:
 
 | Status | Khi nào | Mã lỗi |
 |---|---|---|
-| 400 | Request sai cú pháp, thiếu header bắt buộc | `BAD_REQUEST`, `IDEMPOTENCY_KEY_REQUIRED` |
+| 400 | Request sai cú pháp, thiếu header bắt buộc | `BAD_REQUEST`, `IDEMPOTENCY_KEY_REQUIRED`, `STORE_REQUIRED` |
 | 401 | Chưa đăng nhập, token hết hạn hoặc bị thu hồi | `UNAUTHENTICATED`, `TOKEN_EXPIRED` |
-| 403 | Thiếu permission | `FORBIDDEN` |
+| 403 | Thiếu permission, hoặc không có quyền tại cửa hàng được chỉ định | `FORBIDDEN`, `STORE_FORBIDDEN` |
 | 404 | Không tìm thấy tài nguyên | `NOT_FOUND` |
 | 409 | Xung đột trạng thái, phiên bản hoặc tồn kho | `INVALID_STATE`, `VERSION_CONFLICT`, `INSUFFICIENT_STOCK`, `REQUEST_IN_PROGRESS`, `BATCH_EXPIRY_MISMATCH` |
 | 422 | Dữ liệu đúng cú pháp nhưng vi phạm validation hoặc quy tắc nghiệp vụ | `VALIDATION_ERROR`, `UNIT_NOT_IN_PRODUCT`, `PRICE_NOT_SET`, `BATCH_NOT_SELLABLE`, `PRESCRIPTION_REQUIRED`, `PRESCRIPTION_NOT_VERIFIED`, `PRESCRIPTION_EXPIRED`, `PRESCRIBED_QUANTITY_EXCEEDED`, `SAFETY_ACK_REQUIRED`, `DISCOUNT_LIMIT_EXCEEDED`, `RETURN_QUANTITY_EXCEEDED`, `RETURN_WINDOW_EXPIRED`, `RETURN_NOT_ALLOWED_FOR_RX`, `SELF_APPROVAL_NOT_ALLOWED`, `IDEMPOTENCY_KEY_REUSED` |
 | 429 | Vượt giới hạn request | `RATE_LIMITED` |
 | 500 | Lỗi không mong muốn | `INTERNAL_ERROR` |
+
+### 2.8 Phạm vi cửa hàng [Đã chốt – P18]
+
+Hệ thống thiết kế cho chuỗi nhiều nhà thuốc. MVP mở một cửa hàng, nhưng mọi dữ liệu kho và bán hàng đều gắn với một `storeId` ngay từ đầu.
+
+- Endpoint **thuộc phạm vi cửa hàng** phải gửi header `X-Store-Id`. Backend kiểm tra người dùng có vai trò tại cửa hàng đó, hoặc có vai trò toàn chuỗi, rồi mới xử lý. Thiếu header trả `400 STORE_REQUIRED`; không có quyền tại cửa hàng đó trả `403 STORE_FORBIDDEN`.
+- **Theo cửa hàng:** lô và tồn kho, thẻ kho, phiếu nhập, tồn đầu kỳ, điều chỉnh, kiểm tra an toàn, hóa đơn, trả hàng, sổ nhiệt độ – độ ẩm, dashboard và báo cáo.
+- **Toàn chuỗi, không cần header:** danh mục sản phẩm, đơn vị, hoạt chất, nhà cung cấp, khách hàng và hồ sơ sức khỏe, đơn thuốc, thu hồi, người dùng, vai trò, audit log.
+- Truy cập một bản ghi thuộc cửa hàng khác luôn trả `404 NOT_FOUND`, không trả `403`, để không lộ việc bản ghi đó có tồn tại hay không.
+- **Giá bán:** bảng giá dùng chung toàn chuỗi, cho phép đặt giá riêng cho từng cửa hàng. Khi bán, backend lấy giá riêng của cửa hàng trước, không có thì dùng giá chung.
+- **Khách hàng dùng chung toàn chuỗi:** mua ở cửa hàng nào cũng tra được lịch sử và hồ sơ dị ứng. Đơn thuốc lưu cửa hàng tiếp nhận nhưng bán được ở cửa hàng khác trong chuỗi.
+- **Trả hàng chỉ nhận tại cửa hàng đã bán**, vì lô nằm trong kho của cửa hàng đó.
+- **Báo cáo:** mặc định theo cửa hàng trong header. Muốn xem hợp nhất toàn chuỗi thì gửi `?storeId=ALL` và cần permission `report.chain`.
+- Số chứng từ có tiền tố mã cửa hàng, ví dụ `HD-NT01-20260912-0001`.
 
 ---
 
@@ -161,7 +178,7 @@ Lỗi:
 | POST | `/auth/login` | Đăng nhập; trả `accessToken` trong body và đặt refresh token | Public, có giới hạn |
 | POST | `/auth/refresh` | Cấp access token mới, xoay vòng refresh token | Public (cần refresh token) |
 | POST | `/auth/logout` | Thu hồi phiên hiện tại | Đã đăng nhập |
-| GET | `/auth/me` | Người dùng hiện tại, vai trò và danh sách permission | Đã đăng nhập |
+| GET | `/auth/me` | Người dùng hiện tại; danh sách cửa hàng được phép kèm permission tại từng cửa hàng; cửa hàng mặc định | Đã đăng nhập |
 | POST | `/auth/change-password` | Đổi mật khẩu; bắt buộc gửi mật khẩu hiện tại | Đã đăng nhập |
 
 Quy tắc:
@@ -184,7 +201,9 @@ Quy tắc:
 
 | Permission | Ý nghĩa |
 |---|---|
+| `store.manage` | Tạo, sửa, ngừng hoạt động cửa hàng trong chuỗi |
 | `user.manage` | Quản lý tài khoản, vai trò |
+| `report.chain` | Xem báo cáo hợp nhất toàn chuỗi (`?storeId=ALL`) |
 | `catalog.read` | Xem danh mục sản phẩm, nhóm, đơn vị, hoạt chất, nhà cung cấp |
 | `catalog.manage` | Tạo, sửa, ngừng dùng danh mục |
 | `price.manage` | Tạo phiên bản giá mới |
@@ -224,7 +243,9 @@ Quy tắc:
 
 | Permission | admin | pharmacist | sales_staff | warehouse_staff | auditor |
 |---|:-:|:-:|:-:|:-:|:-:|
+| `store.manage` | ✓ | | | | |
 | `user.manage` | ✓ | | | | |
+| `report.chain` | ✓ | | | | ✓ |
 | `catalog.read` | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `catalog.manage` | ✓ | ✓ | | | |
 | `price.manage` | ✓ | | | | |
@@ -265,6 +286,7 @@ Ghi chú:
 - `sale.prescription_drug` chỉ gán cho vai trò `pharmacist` như ma trận trên. Nếu có nhân viên khác đủ điều kiện theo quy định, admin gán thêm vai trò `pharmacist` cho người đó, không gán lẻ permission ra ngoài ma trận. **[Đã chốt – P14]**
 - Chủ nhà thuốc đồng thời là dược sĩ thì giữ cả `admin` và `pharmacist`.
 - `auditor` chỉ có quyền đọc.
+- **Vai trò gán theo cửa hàng.** Mỗi lần gán gồm `roleCode` và `storeId`; `storeId = null` nghĩa là vai trò áp dụng cho toàn chuỗi. Ví dụ: chủ chuỗi giữ `admin` toàn chuỗi, còn dược sĩ phụ trách cửa hàng NT01 giữ `pharmacist` tại đúng cửa hàng đó. Backend kiểm tra permission **trong phạm vi cửa hàng của request** (§2.8). **[Đã chốt – P18]**
 
 ---
 
@@ -866,6 +888,7 @@ Chính sách trả hàng **[Đã chốt – P6]**:
 Quy tắc tính:
 
 - Ngày theo `Asia/Ho_Chi_Minh`; khoảng `[from, to)`.
+- Mặc định báo cáo tính cho cửa hàng trong header `X-Store-Id`. Thêm `?storeId=ALL` để hợp nhất toàn chuỗi (cần `report.chain`), hoặc `?storeId=<id>` để xem một cửa hàng khác mà người dùng có quyền. Kết quả toàn chuỗi luôn kèm phần tách theo từng cửa hàng. **[Đã chốt – P18]**
 - Doanh thu = hóa đơn `COMPLETED` trong kỳ trừ tiền hoàn của phiếu trả **lập trong kỳ**. Hóa đơn `VOIDED` bị loại hoàn toàn. **[Đã chốt – P13]**
 - Báo cáo xuất – nhập – tồn tính từ thẻ kho, nên luôn khớp với tồn thực tế của lô.
 
@@ -900,7 +923,7 @@ Nguyên tắc (giữ từ bản gốc, bổ sung):
 | GET | `/users/{id}` | Chi tiết | `user.manage` |
 | POST | `/users` | Tạo tài khoản với mật khẩu tạm; bắt đổi ở lần đăng nhập đầu | `user.manage` |
 | PATCH | `/users/{id}` | Sửa `fullName`, `phone`, `practiceCertificateNumber` (số chứng chỉ hành nghề) | `user.manage` |
-| PUT | `/users/{id}/roles` | Thay toàn bộ vai trò; ghi audit | `user.manage` |
+| PUT | `/users/{id}/roles` | Thay toàn bộ vai trò; body là mảng `{ roleCode, storeId }`, `storeId = null` là toàn chuỗi; ghi audit | `user.manage` |
 | POST | `/users/{id}/deactivate` | Vô hiệu hóa, thu hồi mọi phiên | `user.manage` |
 | POST | `/users/{id}/activate` | Kích hoạt lại | `user.manage` |
 | POST | `/users/{id}/reset-password` | Đặt mật khẩu tạm, thu hồi mọi phiên | `user.manage` |
@@ -908,6 +931,20 @@ Nguyên tắc (giữ từ bản gốc, bổ sung):
 
 - Không ai tự đổi vai trò của chính mình. Không vô hiệu hóa hoặc gỡ vai trò của admin cuối cùng (`422`).
 - `PATCH /users/{id}` không nhận `roles`, `password`, `isActive`; các trường này có endpoint riêng.
+
+### Cửa hàng [Đã chốt – P18]
+
+| Method | Endpoint | Mô tả | Quyền |
+|---|---|---|---|
+| GET | `/stores` | Danh sách cửa hàng người dùng được phép làm việc | Đã đăng nhập |
+| GET | `/stores/{id}` | Chi tiết cửa hàng | Có vai trò tại cửa hàng, hoặc `store.manage` |
+| POST | `/stores` | Mở cửa hàng mới trong chuỗi | `store.manage` |
+| PATCH | `/stores/{id}` | Sửa thông tin cửa hàng | `store.manage` |
+| POST | `/stores/{id}/deactivate` | Ngừng hoạt động; chặn mọi nghiệp vụ mới tại cửa hàng đó | `store.manage` |
+
+Trường chính: `code` (ví dụ `NT01`, dùng làm tiền tố số chứng từ), `name`, `address`, `phone`, `gppCertificateNumber`, `licenseNumber`, `isActive`.
+
+Cửa hàng đã phát sinh chứng từ thì không xóa, chỉ ngừng hoạt động.
 
 ---
 
@@ -926,6 +963,8 @@ Nguyên tắc (giữ từ bản gốc, bổ sung):
 | Báo cáo | Dashboard, doanh thu, bán chạy, xuất – nhập – tồn, hạn dùng (§19) |
 
 Quy tắc MVP: chưa có sổ theo dõi thuốc kiểm soát đặc biệt thì hệ thống **chặn bán** sản phẩm `drugClass = CONTROLLED`.
+
+Về mô hình chuỗi: MVP chạy với **một cửa hàng**, nhưng dữ liệu và API đã có phạm vi cửa hàng (§2.8), nên mở cửa hàng thứ hai chỉ là thêm một dòng trong `/stores` và gán vai trò cho nhân sự. Phần còn lại của mô hình chuỗi để sau MVP: chuyển hàng giữa các cửa hàng, giá riêng theo cửa hàng, báo cáo so sánh giữa các cửa hàng.
 
 **Sau MVP**
 
@@ -960,6 +999,7 @@ Toàn bộ P1–P17 được nhóm xác nhận ngày **12/09/2026**. Bảng dư�
 | P15 | Danh mục bác sĩ để sau MVP | – | §12 |
 | P16 | Ngưỡng nhiệt độ – độ ẩm theo khu vực (đối chiếu GPP hiện hành) | – | §17 |
 | P17 | Có đưa trợ lý tra cứu AI (chỉ đọc) vào MVP không | – | §20 |
+| P18 | **Mở rộng thành chuỗi nhiều nhà thuốc.** Thêm `store_id` và tài nguyên `/stores` ngay từ migration đầu tiên; header `X-Store-Id`; vai trò gán theo cửa hàng; báo cáo toàn chuỗi cần `report.chain` | – | §2.8, §4.2, §19, §21 |
 
 ---
 
@@ -967,7 +1007,7 @@ Toàn bộ P1–P17 được nhóm xác nhận ngày **12/09/2026**. Bảng dư�
 
 **Ba giá trị mặc định cần đối chiếu văn bản pháp lý trước khi vận hành thật:** số ngày hạn dùng tối thiểu khi bán (P11), thời hạn hiệu lực của đơn thuốc và vai trò được bán thuốc kê đơn (P14), ngưỡng nhiệt độ – độ ẩm (P16). Phần mềm chạy được với giá trị mặc định, nhưng nhóm phải xác nhận lại theo văn bản đang có hiệu lực.
 
-1. **Thiết kế ERD PostgreSQL** theo contract này: bảng, khóa, ràng buộc (tồn không âm, số lô duy nhất theo sản phẩm, dòng thẻ kho duy nhất theo chứng từ nguồn), chỉ mục phục vụ chọn lô FEFO.
+1. ~~Thiết kế ERD PostgreSQL~~ — đã xong, xem `docs/erd.md` v1.1 (41 bảng, có sẵn `store_id` cho mô hình chuỗi).
 2. **Viết kiểm thử** cho các bảng trạng thái ở §5 và các kịch bản đồng thời: confirm một phiếu hai lần, hai quầy bán cùng một lô, hai phiếu trả song song cho cùng một dòng, duyệt điều chỉnh trong lúc đang bán.
-3. **Dựng khung dự án và CSDL local**, rồi mới viết endpoint theo thứ tự: danh mục, đơn vị, giá → phiếu nhập → bán hàng → trả hàng, hủy hóa đơn → thu hồi.
-4. **Commit thư mục `docs/`** — hiện Git vẫn chưa theo dõi thư mục này.
+3. **Dựng khung dự án và CSDL local**, rồi mới viết endpoint theo thứ tự: cửa hàng, người dùng, phân quyền → danh mục, đơn vị, giá → phiếu nhập → bán hàng → trả hàng, hủy hóa đơn → thu hồi.
+4. Thêm vào bộ kiểm thử một nhóm riêng cho phạm vi cửa hàng: tài khoản của cửa hàng A không đọc, không sửa được dữ liệu của cửa hàng B ở **mọi** endpoint thuộc phạm vi cửa hàng.
