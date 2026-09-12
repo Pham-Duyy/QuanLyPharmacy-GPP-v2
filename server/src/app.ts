@@ -7,7 +7,10 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { env } from "./config/env.js";
 import { requestId } from "./middlewares/request-id.js";
 import { errorHandler, notFoundHandler } from "./middlewares/error-handler.js";
+import cookieParser from "cookie-parser";
 import { healthRouter } from "./modules/health/health.routes.js";
+import { authRouter } from "./modules/auth/auth.routes.js";
+import { storesRouter } from "./modules/stores/stores.routes.js";
 
 /**
  * Lắp ráp ứng dụng Express. Thứ tự middleware quan trọng:
@@ -38,8 +41,11 @@ export function createApp() {
     }),
   );
   app.use(express.json({ limit: "1mb" }));
+  app.use(cookieParser());
 
   app.use("/api/v1", healthRouter);
+  app.use("/api/v1", authRouter);
+  app.use("/api/v1", storesRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);
