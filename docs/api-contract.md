@@ -151,7 +151,7 @@ Lỗi:
 | 403 | Thiếu permission, hoặc không có quyền tại cửa hàng được chỉ định | `FORBIDDEN`, `STORE_FORBIDDEN` |
 | 404 | Không tìm thấy tài nguyên | `NOT_FOUND` |
 | 409 | Xung đột trạng thái, phiên bản hoặc tồn kho | `INVALID_STATE`, `VERSION_CONFLICT`, `INSUFFICIENT_STOCK`, `REQUEST_IN_PROGRESS`, `BATCH_EXPIRY_MISMATCH` |
-| 422 | Dữ liệu đúng cú pháp nhưng vi phạm validation hoặc quy tắc nghiệp vụ | `VALIDATION_ERROR`, `UNIT_NOT_IN_PRODUCT`, `PRICE_NOT_SET`, `BATCH_NOT_SELLABLE`, `PRESCRIPTION_REQUIRED`, `PRESCRIPTION_NOT_VERIFIED`, `PRESCRIPTION_EXPIRED`, `PRESCRIBED_QUANTITY_EXCEEDED`, `SAFETY_ACK_REQUIRED`, `DISCOUNT_LIMIT_EXCEEDED`, `RETURN_QUANTITY_EXCEEDED`, `RETURN_WINDOW_EXPIRED`, `RETURN_NOT_ALLOWED_FOR_RX`, `SELF_APPROVAL_NOT_ALLOWED`, `IDEMPOTENCY_KEY_REUSED` |
+| 422 | Dữ liệu đúng cú pháp nhưng vi phạm validation hoặc quy tắc nghiệp vụ | `VALIDATION_ERROR`, `UNIT_NOT_IN_PRODUCT`, `PRICE_NOT_SET`, `BATCH_NOT_SELLABLE`, `CONTROLLED_DRUG_NOT_SUPPORTED`, `PRESCRIPTION_REQUIRED`, `PRESCRIPTION_NOT_VERIFIED`, `PRESCRIPTION_EXPIRED`, `PRESCRIBED_QUANTITY_EXCEEDED`, `SAFETY_ACK_REQUIRED`, `DISCOUNT_LIMIT_EXCEEDED`, `RETURN_QUANTITY_EXCEEDED`, `RETURN_WINDOW_EXPIRED`, `RETURN_NOT_ALLOWED_FOR_RX`, `SELF_APPROVAL_NOT_ALLOWED`, `IDEMPOTENCY_KEY_REUSED` |
 | 429 | Vượt giới hạn request | `RATE_LIMITED` |
 | 500 | Lỗi không mong muốn | `INTERNAL_ERROR` |
 
@@ -719,6 +719,19 @@ Response:
 - `notChecked`: những gì **không kiểm tra được**, ví dụ sản phẩm chưa gắn hoạt chất, nguồn dữ liệu tương tác không có thông tin. Frontend phải hiển thị rõ, không được coi là “an toàn”.
 - **Phạm vi trong MVP:** thuốc kê đơn phải có đơn đã xác nhận, lô phải bán được, phải đủ tồn, cảnh báo trùng hoạt chất và cảnh báo dị ứng theo hoạt chất. **Kiểm tra tương tác thuốc chỉ bật khi nhóm có nguồn dữ liệu đáng tin cậy**, không thuộc MVP, và không dùng LLM để thay cho nguồn dữ liệu đó. Khi bật, mỗi cảnh báo phải kèm `source` và `sourceVersion`. **[Đã chốt – P7]**
 
+**Các mã đã cài đặt trong phiên bản này**
+
+| Nhóm | Mã | Ý nghĩa |
+|---|---|---|
+| blocking | `CONTROLLED_DRUG_NOT_SUPPORTED` | Thuốc kiểm soát đặc biệt, chưa có sổ theo dõi nên chặn bán |
+| blocking | `PRESCRIPTION_REQUIRED`, `PRESCRIPTION_NOT_VERIFIED`, `PRESCRIPTION_EXPIRED` | Thuốc kê đơn không có đơn hợp lệ |
+| blocking | `INSUFFICIENT_STOCK` | Không đủ tồn **bán được**; kèm `requestedBaseQuantity` và `sellableBaseQuantity` |
+| warning | `DUPLICATE_INGREDIENT` (HIGH, cần ghi nhận) | Hai sản phẩm trong giỏ cùng một hoạt chất |
+| warning | `ALLERGY_MATCH` (HIGH, cần ghi nhận) | Hoạt chất trùng hồ sơ dị ứng của khách |
+| warning | `NEAR_EXPIRY_BATCH` (MEDIUM, không cần ghi nhận) | Lô sẽ xuất còn dưới `nearExpiryWarningDays` ngày |
+| notChecked | `NO_INGREDIENT_MAPPING` | Sản phẩm chưa gắn hoạt chất nên không đối chiếu được |
+| notChecked | `INTERACTION_SOURCE_NOT_CONFIGURED` | Chưa có nguồn dữ liệu tương tác thuốc; **không** thay bằng suy đoán của LLM |
+
 ---
 
 ## 14. Bán hàng (hóa đơn)
@@ -1008,6 +1021,6 @@ Toàn bộ P1–P17 được nhóm xác nhận ngày **12/09/2026**. Bảng dư�
 **Ba giá trị mặc định cần đối chiếu văn bản pháp lý trước khi vận hành thật:** số ngày hạn dùng tối thiểu khi bán (P11), thời hạn hiệu lực của đơn thuốc và vai trò được bán thuốc kê đơn (P14), ngưỡng nhiệt độ – độ ẩm (P16). Phần mềm chạy được với giá trị mặc định, nhưng nhóm phải xác nhận lại theo văn bản đang có hiệu lực.
 
 1. ~~Thiết kế ERD PostgreSQL~~ — đã xong, xem `docs/erd.md` v1.1 (41 bảng, có sẵn `store_id` cho mô hình chuỗi).
-2. **Viết kiểm thử** cho các bảng trạng thái ở §5 và các kịch bản đồng thời: confirm một phiếu hai lần, hai quầy bán cùng một lô, hai phiếu trả song song cho cùng một dòng, duyệt điều chỉnh trong lúc đang bán.
-3. **Dựng khung dự án và CSDL local**, rồi mới viết endpoint theo thứ tự: cửa hàng, người dùng, phân quyền → danh mục, đơn vị, giá → phiếu nhập → bán hàng → trả hàng, hủy hóa đơn → thu hồi.
+2. ~~Viết kiểm thử cho các bảng trạng thái ở §5 và các kịch bản đồng thời~~ — đã có bộ kiểm thử tích hợp chạy trên PostgreSQL thật, gồm xác nhận một phiếu nhập hai lần và hai quầy bán lô cuối cùng cùng lúc. Còn thiếu: hai phiếu trả song song cho cùng một dòng, duyệt điều chỉnh trong lúc đang bán.
+3. **Dựng khung dự án và CSDL local**, rồi mới viết endpoint theo thứ tự: ~~cửa hàng, người dùng, phân quyền~~ → ~~danh mục, đơn vị, giá~~ → ~~phiếu nhập~~ → ~~bán hàng~~ → trả hàng, hủy hóa đơn → thu hồi. Đã xong tới bán hàng; phần còn lại của bán hàng chưa làm là in K80 (§14) và sửa phiếu nhập nháp (§9).
 4. Thêm vào bộ kiểm thử một nhóm riêng cho phạm vi cửa hàng: tài khoản của cửa hàng A không đọc, không sửa được dữ liệu của cửa hàng B ở **mọi** endpoint thuộc phạm vi cửa hàng.

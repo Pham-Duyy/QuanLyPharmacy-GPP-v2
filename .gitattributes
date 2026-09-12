@@ -1,0 +1,17 @@
+# Mọi file văn bản dùng LF, kể cả khi checkout trên Windows.
+#
+# Không có dòng này thì core.autocrlf của Git trên Windows đổi LF thành CRLF
+# lúc checkout, làm `npm run format:check` báo sai gần như toàn bộ file trong
+# khi GitHub Actions (chạy Linux) vẫn xanh. Lỗi chỉ xuất hiện ở máy một số
+# người, rất mất thời gian tìm.
+* text=auto eol=lf
+
+# File nhị phân giữ nguyên byte, không đụng vào ký tự xuống dòng.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.woff binary
+*.woff2 binary
