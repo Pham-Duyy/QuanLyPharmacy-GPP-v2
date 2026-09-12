@@ -1,3 +1,11 @@
+# TẠM TẮT ngày 12/09/2026: tài khoản GitHub bị khóa vì vấn đề billing nên
+# Actions không được phép chạy (mọi job fail ngay lập tức, không thật sự
+# thực thi). Không phải do lỗi code — chạy tay ở máy vẫn xanh bình thường.
+#
+# Bật lại khi tài khoản được mở khóa:
+#   git mv .github/workflows/ci.yml.disabled .github/workflows/ci.yml
+# rồi xóa đoạn ghi chú này và commit.
+
 name: CI
 
 on:
