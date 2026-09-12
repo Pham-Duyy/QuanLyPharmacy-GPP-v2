@@ -38,7 +38,8 @@ const INVARIANTS: Invariant[] = [
   },
   {
     name: "Không còn lô hết hạn mà vẫn ở trạng thái bán được",
-    meaning: "Không phải lỗi dữ liệu, mà là việc cần làm: nhà thuốc phải lập phiếu hủy cho các lô này.",
+    meaning:
+      "Không phải lỗi dữ liệu, mà là việc cần làm: nhà thuốc phải lập phiếu hủy cho các lô này.",
     sql: `
       SELECT id::text, batch_number, expiry_date::text, quantity_on_hand
       FROM batches

@@ -12,12 +12,13 @@ declare global {
   }
 }
 
+// Cố ý mở rộng prototype: đây là cách duy nhất để JSON.stringify xử lý được
+// BigInt ở mọi chỗ trong ứng dụng, thay vì phải nhớ chuyển đổi ở từng endpoint.
+// oxlint-disable-next-line no-extend-native
 BigInt.prototype.toJSON = function (this: bigint): number {
   const asNumber = Number(this);
   if (!Number.isSafeInteger(asNumber)) {
-    throw new Error(
-      `Giá trị ${this.toString()} vượt giới hạn số nguyên an toàn của JSON`,
-    );
+    throw new Error(`Giá trị ${this.toString()} vượt giới hạn số nguyên an toàn của JSON`);
   }
   return asNumber;
 };

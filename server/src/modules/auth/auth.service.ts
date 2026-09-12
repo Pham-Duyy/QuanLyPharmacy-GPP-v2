@@ -137,10 +137,7 @@ export async function logout(sessionId: string): Promise<void> {
   });
 }
 
-export async function changePassword(
-  auth: AuthContext,
-  input: ChangePasswordInput,
-): Promise<void> {
+export async function changePassword(auth: AuthContext, input: ChangePasswordInput): Promise<void> {
   const user = await prisma.user.findUniqueOrThrow({ where: { id: auth.userId } });
 
   if (!(await verifyPassword(input.currentPassword, user.passwordHash))) {

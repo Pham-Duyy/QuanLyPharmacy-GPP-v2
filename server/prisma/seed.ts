@@ -2,7 +2,7 @@ import "dotenv/config";
 import bcrypt from "bcryptjs";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../src/generated/prisma/client.js";
-import { PERMISSIONS, ROLES } from "./seed-data.js";
+import { PERMISSIONS, ROLES } from "../src/config/permissions.js";
 import { CATEGORIES, INGREDIENTS, SUPPLIERS, PRODUCTS } from "./seed-catalog.js";
 
 /**
@@ -31,7 +31,13 @@ const SETTINGS: Array<{ key: string; value: unknown }> = [
 
 const STORAGE_LOCATIONS = [
   { code: "RETAIL_AREA", name: "Khu bán lẻ", minTempC: null, maxTempC: 30, maxHumidityPercent: 75 },
-  { code: "FRIDGE", name: "Tủ lạnh bảo quản thuốc", minTempC: 2, maxTempC: 8, maxHumidityPercent: null },
+  {
+    code: "FRIDGE",
+    name: "Tủ lạnh bảo quản thuốc",
+    minTempC: 2,
+    maxTempC: 8,
+    maxHumidityPercent: null,
+  },
 ];
 
 async function seedStore() {
@@ -107,7 +113,10 @@ async function seedSettingsAndLocations(storeId: string) {
   for (const setting of SETTINGS) {
     const existing = await prisma.setting.findFirst({ where: { key: setting.key, storeId: null } });
     if (existing) {
-      await prisma.setting.update({ where: { id: existing.id }, data: { value: setting.value as never } });
+      await prisma.setting.update({
+        where: { id: existing.id },
+        data: { value: setting.value as never },
+      });
     } else {
       await prisma.setting.create({ data: { key: setting.key, value: setting.value as never } });
     }
@@ -290,7 +299,9 @@ async function seedOpeningBalance(storeId: string, adminId: string) {
               unitCost: BigInt(seedBatch.unitCost),
               lineCost,
               batchNumber: seedBatch.batchNumber,
-              manufactureDate: seedBatch.manufactureDate ? new Date(seedBatch.manufactureDate) : null,
+              manufactureDate: seedBatch.manufactureDate
+                ? new Date(seedBatch.manufactureDate)
+                : null,
               expiryDate: new Date(seedBatch.expiryDate),
             },
           });
@@ -300,7 +311,9 @@ async function seedOpeningBalance(storeId: string, adminId: string) {
               storeId,
               productId: product.id,
               batchNumber: seedBatch.batchNumber,
-              manufactureDate: seedBatch.manufactureDate ? new Date(seedBatch.manufactureDate) : null,
+              manufactureDate: seedBatch.manufactureDate
+                ? new Date(seedBatch.manufactureDate)
+                : null,
               expiryDate: new Date(seedBatch.expiryDate),
               quantityOnHand: baseQuantity,
               unitCost: (Number(lineCost) / baseQuantity).toFixed(4),
@@ -363,7 +376,9 @@ async function main() {
   console.log(`  sản phẩm      : ${products} (${units} đơn vị tính)`);
   console.log(`  lô thuốc      : ${batches}`);
   console.log(`  dòng thẻ kho  : ${movements}`);
-  console.log(`  tài khoản     : ${ADMIN_USERNAME} / ${ADMIN_PASSWORD} (bắt buộc đổi khi đăng nhập lần đầu)`);
+  console.log(
+    `  tài khoản     : ${ADMIN_USERNAME} / ${ADMIN_PASSWORD} (bắt buộc đổi khi đăng nhập lần đầu)`,
+  );
 }
 
 main()

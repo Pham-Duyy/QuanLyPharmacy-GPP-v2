@@ -5,9 +5,7 @@ import { pool } from "./db/pool.js";
 const app = createApp();
 
 const server = app.listen(env.PORT, () => {
-  console.log(
-    `Máy chủ chạy tại http://localhost:${env.PORT}/api/v1 (môi trường ${env.NODE_ENV})`,
-  );
+  console.log(`Máy chủ chạy tại http://localhost:${env.PORT}/api/v1 (môi trường ${env.NODE_ENV})`);
 });
 
 /** Dừng gọn gàng: đóng server rồi đóng pool kết nối CSDL. */

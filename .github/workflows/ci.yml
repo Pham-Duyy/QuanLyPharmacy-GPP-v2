@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  server:
+    name: Backend (lint, typecheck, test)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: gpp
+          POSTGRES_PASSWORD: gpp_ci_password
+          POSTGRES_DB: pharmacy_gpp_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U gpp -d pharmacy_gpp_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://gpp:gpp_ci_password@localhost:5432/pharmacy_gpp_test
+      DATABASE_URL_TEST: postgresql://gpp:gpp_ci_password@localhost:5432/pharmacy_gpp_test
+      JWT_SECRET: chuoi-bi-mat-danh-rieng-cho-ci
+      CHECKPOINT_DISABLE: "1"
+
+    defaults:
+      run:
+        working-directory: server
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm run typecheck
+      # Kiểm thử tích hợp chạy trên PostgreSQL thật, vì phần lớn ràng buộc
+      # quan trọng của dự án nằm ở tầng CSDL (CHECK, chỉ mục từng phần).
+      - run: npm test
+
+  client:
+    name: Frontend (lint, build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: client
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build

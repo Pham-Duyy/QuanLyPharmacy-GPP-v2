@@ -8,9 +8,7 @@ import type { RequestHandler } from "express";
 export const requestId: RequestHandler = (req, res, next) => {
   const incoming = req.header("X-Request-Id");
   const id =
-    incoming && incoming.length > 0 && incoming.length <= 100
-      ? incoming
-      : `req_${randomUUID()}`;
+    incoming && incoming.length > 0 && incoming.length <= 100 ? incoming : `req_${randomUUID()}`;
 
   res.locals.requestId = id;
   res.setHeader("X-Request-Id", id);

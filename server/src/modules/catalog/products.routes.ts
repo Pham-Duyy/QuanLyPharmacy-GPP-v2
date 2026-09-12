@@ -36,7 +36,9 @@ const createSchema = z
     minStockBaseQuantity: z.coerce.number().int().min(0).default(0),
     baseUnitName: z.string().trim().min(1, "Thiếu tên đơn vị cơ bản").max(50),
     ingredients: z
-      .array(z.object({ ingredientId: z.uuid(), strengthText: z.string().trim().max(100).nullish() }))
+      .array(
+        z.object({ ingredientId: z.uuid(), strengthText: z.string().trim().max(100).nullish() }),
+      )
       .default([]),
   })
   // Ràng buộc nghiệp vụ GPP, cũng được CSDL chặn lần nữa (ERD §9).
@@ -69,7 +71,7 @@ productsRouter.get("/products", requirePermission("catalog.read"), async (req, r
   const ids = search ? await searchProductIds(search, 500) : null;
 
   const where = {
-    isActive: query["isActive"] === "false" ? false : true,
+    isActive: query["isActive"] !== "false",
     ...(ids ? { id: { in: ids } } : {}),
     ...(query["categoryId"] ? { categoryId: query["categoryId"] } : {}),
     ...(query["productType"] ? { productType: query["productType"] } : {}),
@@ -91,7 +93,12 @@ productsRouter.get("/products", requirePermission("catalog.read"), async (req, r
   const unitIds = products.flatMap((product) => product.units.map((unit) => unit.id));
   const [prices, stock] = await Promise.all([
     getCurrentPrices(unitIds, storeId),
-    storeId ? getStockSummary(products.map((p) => p.id), storeId) : new Map(),
+    storeId
+      ? getStockSummary(
+          products.map((p) => p.id),
+          storeId,
+        )
+      : new Map(),
   ]);
 
   const items = products.map((product) => {
@@ -111,10 +118,18 @@ productsRouter.get("/products", requirePermission("catalog.read"), async (req, r
       isActive: product.isActive,
       version: product.version,
       defaultUnit: defaultUnit
-        ? { id: defaultUnit.id, name: defaultUnit.name, conversionToBase: defaultUnit.conversionToBase }
+        ? {
+            id: defaultUnit.id,
+            name: defaultUnit.name,
+            conversionToBase: defaultUnit.conversionToBase,
+          }
         : null,
       currentPrice: price
-        ? { salePrice: price.salePrice, vatRatePercent: price.vatRatePercent, isStoreOverride: price.isStoreOverride }
+        ? {
+            salePrice: price.salePrice,
+            vatRatePercent: price.vatRatePercent,
+            isStoreOverride: price.isStoreOverride,
+          }
         : null,
       stock: stock.get(product.id) ?? null,
     };
@@ -137,7 +152,10 @@ productsRouter.get("/products/:id", requirePermission("catalog.read"), async (re
 
   const storeId = req.auth?.storeId ?? null;
   const [prices, stock] = await Promise.all([
-    getCurrentPrices(product.units.map((unit) => unit.id), storeId),
+    getCurrentPrices(
+      product.units.map((unit) => unit.id),
+      storeId,
+    ),
     storeId ? getStockSummary([product.id], storeId) : new Map(),
   ]);
 
