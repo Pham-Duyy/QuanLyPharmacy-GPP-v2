@@ -73,3 +73,17 @@ cd server
 npm run dev              # http://localhost:3000/api/v1/health
 npm run typecheck
 ```
+
+## Giao diện
+
+```bash
+cd client
+npm install
+npm run dev              # http://localhost:5173
+```
+
+Vite chuyển tiếp mọi request `/api` sang backend ở cổng 3000, nên không bị lỗi CORS và cookie refresh token hoạt động bình thường khi phát triển.
+
+Chạy đủ bộ cần ba việc: `docker compose up -d` cho CSDL, `npm run dev` trong `server/`, và `npm run dev` trong `client/`.
+
+Tài khoản mặc định sau khi seed: `admin` / `Admin@12345`, bắt buộc đổi mật khẩu khi dùng thật.
