@@ -1,0 +1,29 @@
+# Thư viện
+node_modules/
+
+# Kết quả build
+dist/
+build/
+coverage/
+*.tsbuildinfo
+
+# Biến môi trường: KHÔNG BAO GIỜ commit file .env thật
+.env
+.env.*
+!.env.example
+
+# Prisma sinh mã
+generated/
+server/generated/
+
+# Log
+*.log
+npm-debug.log*
+logs/
+
+# Hệ điều hành và trình soạn thảo
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
