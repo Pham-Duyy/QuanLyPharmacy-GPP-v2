@@ -25,6 +25,7 @@ export type Fixture = {
   otherStoreId: string;
   adminId: string;
   pharmacistId: string;
+  salesId: string;
 };
 
 /**
@@ -65,11 +66,24 @@ export async function seedFixture(): Promise<Fixture> {
     data: { userId: pharmacist.id, roleId: roleByCode.get("pharmacist")!, storeId: store.id },
   });
 
+  const sales = await prisma.user.create({
+    data: {
+      username: "banhang",
+      passwordHash,
+      fullName: "Nhân viên bán hàng",
+      defaultStoreId: store.id,
+    },
+  });
+  await prisma.userRole.create({
+    data: { userId: sales.id, roleId: roleByCode.get("sales_staff")!, storeId: store.id },
+  });
+
   return {
     storeId: store.id,
     otherStoreId: otherStore.id,
     adminId: admin.id,
     pharmacistId: pharmacist.id,
+    salesId: sales.id,
   };
 }
 
