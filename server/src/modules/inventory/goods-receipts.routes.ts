@@ -14,7 +14,11 @@ import * as service from "./goods-receipts.service.js";
 export const goodsReceiptsRouter = Router();
 
 // Phiếu nhập thuộc phạm vi cửa hàng, nên mọi endpoint đều cần X-Store-Id.
-goodsReceiptsRouter.use(authenticate, storeContext, requireStore);
+// Giới hạn theo tiền tố "/goods-receipts": nhiều router được app.ts gắn
+// chung vào "/api/v1", nếu dùng .use() không kèm đường dẫn thì middleware
+// này sẽ chạy cho MỌI request đi qua (kể cả của router khác như /recalls)
+// và làm chúng bị đòi X-Store-Id một cách sai chỗ.
+goodsReceiptsRouter.use("/goods-receipts", authenticate, storeContext, requireStore);
 
 goodsReceiptsRouter.get(
   "/goods-receipts",

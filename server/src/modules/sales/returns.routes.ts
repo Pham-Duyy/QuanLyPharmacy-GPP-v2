@@ -14,7 +14,11 @@ import * as service from "./returns.service.js";
 export const returnsRouter = Router();
 
 // Trả hàng chỉ nhận tại cửa hàng đã bán, vì lô nằm trong kho cửa hàng đó (§2.8).
-returnsRouter.use(authenticate, storeContext, requireStore);
+// Giới hạn theo hai tiền tố router này thực sự dùng: nhiều router được
+// app.ts gắn chung vào "/api/v1", nếu dùng .use() không kèm đường dẫn thì
+// middleware này chạy cho MỌI request đi qua (kể cả của router khác như
+// /recalls) và làm chúng bị đòi X-Store-Id một cách sai chỗ.
+returnsRouter.use(["/invoices", "/returns"], authenticate, storeContext, requireStore);
 
 returnsRouter.post(
   "/invoices/:id/returns",
