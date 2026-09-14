@@ -7,7 +7,7 @@ import {
   Card,
   Col,
   Descriptions,
-  Drawer,
+  Empty,
   Input,
   InputNumber,
   Modal,
@@ -94,74 +94,74 @@ export function GoodsReceiptsPage() {
         <Col xs={24} md={8}><Card><Space><span className="receipt-icon blue"><FileDoneOutlined /></span><div><Typography.Text strong>Đã kiểm nhập</Typography.Text><Typography.Title level={3}>{receipts.filter((item) => item.status === "CONFIRMED").length}</Typography.Title></div></Space></Card></Col>
         <Col xs={24} md={8}><Card><Space><span className="receipt-icon purple"><InboxOutlined /></span><div><Typography.Text strong>Giá trị trang hiện tại</Typography.Text><Typography.Title level={3}>{formatVnd(receipts.reduce((sum, item) => sum + Number(item.totalCost), 0))}</Typography.Title></div></Space></Card></Col>
       </Row>
-    <Card className="receipt-list-card"
-      title="Phiếu nhập kho"
-      extra={
-        <Space>
-          <Select
-            allowClear
-            placeholder="Trạng thái"
-            style={{ width: 150 }}
-            value={status}
-            onChange={(value) => {
-              setStatus(value);
-              setPage(1);
-            }}
-            options={Object.entries(STATUS).map(([value, item]) => ({ value, label: item.text }))}
-          />
-          <Button hidden
-            type="primary"
-            icon={<PlusOutlined />}
-            disabled={!canCreate}
-            onClick={() => setCreating(true)}
-          >
-            Tạo phiếu nhập
-          </Button>
-        </Space>
-      }
-    >
-      <Table
-        rowKey="id"
-        size="small"
-        loading={list.isLoading}
-        dataSource={receipts}
-        onRow={(row) => ({ onClick: () => setOpenId(row.id), style: { cursor: "pointer" } })}
-        pagination={{
-          current: page,
-          pageSize: list.data?.pagination.limit ?? 20,
-          total: list.data?.pagination.total ?? 0,
-          onChange: setPage,
-          showSizeChanger: false,
-        }}
-        columns={[
-          { title: "Số phiếu", dataIndex: "code", width: 200 },
-          {
-            title: "Ngày nhập",
-            width: 130,
-            render: (_, row: GoodsReceiptListItem) => formatDate(row.receivedAt),
-          },
-          {
-            title: "Nhà cung cấp",
-            render: (_, row: GoodsReceiptListItem) => row.supplierName ?? "—",
-          },
-          { title: "Số dòng", dataIndex: "lineCount", width: 90, align: "right" },
-          {
-            title: "Giá trị",
-            width: 140,
-            align: "right",
-            render: (_, row: GoodsReceiptListItem) => (
-              <Typography.Text strong>{formatVnd(row.totalCost)}</Typography.Text>
-            ),
-          },
-          {
-            title: "Trạng thái",
-            width: 140,
-            render: (_, row: GoodsReceiptListItem) => <StatusTag status={row.status} />,
-          },
-        ]}
-      />
 
-      <ReceiptDrawer receiptId={openId} onClose={() => setOpenId(null)} onChanged={refreshList} />
+      <Row gutter={[16, 16]}>
+        <Col xs={24} xl={15}>
+          <Card
+            className="receipt-list-card"
+            title="Phiếu nhập kho"
+            extra={
+              <Select
+                allowClear
+                placeholder="Trạng thái"
+                style={{ width: 150 }}
+                value={status}
+                onChange={(value) => {
+                  setStatus(value);
+                  setPage(1);
+                }}
+                options={Object.entries(STATUS).map(([value, item]) => ({ value, label: item.text }))}
+              />
+            }
+          >
+            <Table
+              rowKey="id"
+              size="small"
+              loading={list.isLoading}
+              dataSource={receipts}
+              onRow={(row) => ({ onClick: () => setOpenId(row.id), style: { cursor: "pointer" } })}
+              rowClassName={(row) => (row.id === openId ? "row-selected" : "")}
+              pagination={{
+                current: page,
+                pageSize: list.data?.pagination.limit ?? 20,
+                total: list.data?.pagination.total ?? 0,
+                onChange: setPage,
+                showSizeChanger: false,
+              }}
+              columns={[
+                { title: "Số phiếu", dataIndex: "code", width: 190 },
+                {
+                  title: "Ngày nhập",
+                  width: 120,
+                  render: (_, row: GoodsReceiptListItem) => formatDate(row.receivedAt),
+                },
+                {
+                  title: "Nhà cung cấp",
+                  render: (_, row: GoodsReceiptListItem) => row.supplierName ?? "—",
+                },
+                {
+                  title: "Giá trị",
+                  width: 130,
+                  align: "right",
+                  render: (_, row: GoodsReceiptListItem) => (
+                    <Typography.Text strong>{formatVnd(row.totalCost)}</Typography.Text>
+                  ),
+                },
+                {
+                  title: "Trạng thái",
+                  width: 120,
+                  render: (_, row: GoodsReceiptListItem) => <StatusTag status={row.status} />,
+                },
+              ]}
+            />
+          </Card>
+        </Col>
+
+        <Col xs={24} xl={9}>
+          <ReceiptDetailPanel receiptId={openId} onChanged={refreshList} />
+        </Col>
+      </Row>
+
       <ReceiptFormModal
         open={creating}
         receipt={null}
@@ -172,18 +172,15 @@ export function GoodsReceiptsPage() {
           setOpenId(id);
         }}
       />
-    </Card>
     </div>
   );
 }
 
-function ReceiptDrawer({
+function ReceiptDetailPanel({
   receiptId,
-  onClose,
   onChanged,
 }: {
   receiptId: string | null;
-  onClose: () => void;
   onChanged: () => Promise<void>;
 }) {
   const { can } = useAuth();
@@ -237,14 +234,13 @@ function ReceiptDrawer({
 
   return (
     <>
-      <Drawer
-        width={850}
-        open={receiptId !== null}
-        onClose={onClose}
+      <Card
+        className="receipt-detail-card"
         title={receipt?.code ?? "Chi tiết phiếu nhập"}
+        loading={detail.isFetching}
         extra={
-          isDraft ? (
-            <Space>
+          receipt && isDraft ? (
+            <Space wrap>
               <Button
                 danger
                 disabled={!can("goods_receipt.confirm")}
@@ -266,8 +262,8 @@ function ReceiptDrawer({
           ) : null
         }
       >
-        {receipt ? <ReceiptDetail receipt={receipt} /> : null}
-      </Drawer>
+        {receipt ? <ReceiptDetail receipt={receipt} /> : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chọn một phiếu nhập để xem chi tiết" />}
+      </Card>
 
       {receipt ? (
         <ReceiptFormModal
