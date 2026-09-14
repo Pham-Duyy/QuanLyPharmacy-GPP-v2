@@ -169,3 +169,60 @@ export type ReturnListItem = {
   createdByName: string;
   lineCount: number;
 };
+
+// --- Đơn thuốc (contract §12) -----------------------------------------------
+
+export type PrescriptionStatus =
+  | "DRAFT"
+  | "PENDING_REVIEW"
+  | "VERIFIED"
+  | "PARTIALLY_DISPENSED"
+  | "DISPENSED"
+  | "REJECTED";
+
+export type PrescriptionItem = {
+  id: string;
+  lineNo: number;
+  productId: string | null;
+  productCode: string | null;
+  productName: string | null;
+  drugClass: string | null;
+  drugNameText: string;
+  unitId: string | null;
+  unitName: string | null;
+  quantity: number;
+  baseQuantity: number | null;
+  dosageInstruction: string | null;
+  dispensedBaseQuantity: number;
+};
+
+export type PrescriptionDetail = {
+  id: string;
+  code: string;
+  externalCode: string | null;
+  status: PrescriptionStatus;
+  customer: { id: string; fullName: string | null; phone: string | null } | null;
+  prescriberName: string | null;
+  facilityName: string | null;
+  diagnosisText: string | null;
+  prescribedDate: string;
+  validUntil: string;
+  createdBy: { id: string; fullName: string };
+  verifiedBy: { id: string; fullName: string } | null;
+  verifiedAt: string | null;
+  rejectedReason: string | null;
+  version: number;
+  images: Array<{ id: string; versionNo: number; uploadedAt: string }>;
+  items: PrescriptionItem[];
+};
+
+export type PrescriptionListItem = {
+  id: string;
+  code: string;
+  status: PrescriptionStatus;
+  customer: { fullName: string | null } | null;
+  createdAt: string;
+  prescribedDate: string;
+  validUntil: string;
+  _count: { items: number };
+};

@@ -6,6 +6,7 @@ import { LoginPage } from "./features/auth/LoginPage.js";
 import { ProductsPage } from "./features/catalog/ProductsPage.js";
 import { DashboardPage } from "./features/dashboard/DashboardPage.js";
 import { GoodsReceiptsPage } from "./features/inventory/GoodsReceiptsPage.js";
+import { PrescriptionsPage } from "./features/prescriptions/PrescriptionsPage.js";
 import { InvoicesPage } from "./features/sales/InvoicesPage.js";
 import { ReturnsPage } from "./features/sales/ReturnsPage.js";
 import { SalePage } from "./features/sales/SalePage.js";
@@ -37,6 +38,7 @@ export default function App() {
         <Route path="/ban-hang" element={<SalePage />} />
         <Route path="/hoa-don" element={<InvoicesPage />} />
         <Route path="/tra-hang" element={<ReturnsPage />} />
+        <Route path="/don-thuoc" element={<PrescriptionsPage />} />
         <Route path="/san-pham" element={<ProductsPage />} />
         <Route path="/phieu-nhap" element={<GoodsReceiptsPage />} />
         <Route path="/tai-khoan" element={<DashboardPage />} />
