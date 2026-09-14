@@ -333,3 +333,127 @@ describe("Hủy phiếu và phân quyền", () => {
     expect(response.body.error.code).toBe("FORBIDDEN");
   });
 });
+
+describe("Sửa phiếu nhập", () => {
+  function patchReceipt(id: string, body: Record<string, unknown>) {
+    return api()
+      .patch(`/api/v1/goods-receipts/${id}`)
+      .set(authHeaders(token, fixture.storeId))
+      .send(body);
+  }
+
+  it("sửa được các trường của phiếu khi còn nháp", async () => {
+    const draft = await createDraft().expect(201);
+
+    const response = await patchReceipt(draft.body.data.id, {
+      version: draft.body.data.version,
+      note: "Đổi giờ giao hàng",
+      supplierInvoiceNumber: "0009999",
+    }).expect(200);
+
+    expect(response.body.data).toMatchObject({
+      note: "Đổi giờ giao hàng",
+      supplierInvoiceNumber: "0009999",
+      version: draft.body.data.version + 1,
+    });
+    // Không gửi lines thì giữ nguyên dòng cũ.
+    expect(response.body.data.lines).toHaveLength(1);
+  });
+
+  it("thay nguyên danh sách dòng và tính lại tổng tiền", async () => {
+    const draft = await createDraft().expect(201);
+
+    const response = await patchReceipt(draft.body.data.id, {
+      version: draft.body.data.version,
+      lines: [
+        {
+          productId,
+          unitId,
+          quantity: 5,
+          unitCost: 90000,
+          batchNumber: "PA250110-B",
+          expiryDate: "2027-06-01",
+        },
+      ],
+    }).expect(200);
+
+    expect(response.body.data.lines).toHaveLength(1);
+    expect(response.body.data.lines[0]).toMatchObject({
+      batchNumber: "PA250110-B",
+      quantity: 5,
+    });
+    expect(response.body.data.totalCost).toBe(450000);
+  });
+
+  it("chặn đơn vị không thuộc sản phẩm khi sửa dòng", async () => {
+    const draft = await createDraft().expect(201);
+    const category = await prisma.category.create({ data: { name: "Vitamin" } });
+    const otherProduct = await prisma.product.create({
+      data: {
+        code: "TH9999",
+        name: "Vitamin C",
+        productType: "DRUG",
+        drugClass: "OTC",
+        categoryId: category.id,
+        units: { create: { name: "Viên", conversionToBase: 1 } },
+      },
+      include: { units: true },
+    });
+
+    const response = await patchReceipt(draft.body.data.id, {
+      version: draft.body.data.version,
+      lines: [
+        {
+          productId,
+          unitId: otherProduct.units[0]!.id,
+          quantity: 1,
+          unitCost: 1000,
+          batchNumber: "SAI",
+          expiryDate: "2027-06-01",
+        },
+      ],
+    }).expect(422);
+
+    expect(response.body.error.code).toBe("UNIT_NOT_IN_PRODUCT");
+  });
+
+  it("chặn khi version không khớp", async () => {
+    const draft = await createDraft().expect(201);
+
+    const response = await patchReceipt(draft.body.data.id, {
+      version: draft.body.data.version + 1,
+      note: "Sửa nhầm version",
+    }).expect(409);
+
+    expect(response.body.error.code).toBe("VERSION_CONFLICT");
+  });
+
+  it("không sửa được phiếu đã xác nhận", async () => {
+    const draft = await createDraft().expect(201);
+    await api()
+      .post(`/api/v1/goods-receipts/${draft.body.data.id}/confirm`)
+      .set({ ...authHeaders(token, fixture.storeId), ...idem() })
+      .send({})
+      .expect(200);
+
+    const response = await patchReceipt(draft.body.data.id, {
+      version: draft.body.data.version,
+      note: "Thử sửa sau khi đã xác nhận",
+    }).expect(409);
+
+    expect(response.body.error.code).toBe("INVALID_STATE");
+  });
+
+  it("không thấy phiếu của cửa hàng khác", async () => {
+    const draft = await createDraft().expect(201);
+    const admin = await login("admin");
+
+    const response = await api()
+      .patch(`/api/v1/goods-receipts/${draft.body.data.id}`)
+      .set(authHeaders(admin.token, fixture.otherStoreId))
+      .send({ version: draft.body.data.version, note: "..." })
+      .expect(404);
+
+    expect(response.body.error.code).toBe("NOT_FOUND");
+  });
+});

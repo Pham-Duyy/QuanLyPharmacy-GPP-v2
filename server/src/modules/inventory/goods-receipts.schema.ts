@@ -25,4 +25,21 @@ export const cancelSchema = z.object({
   reason: z.string().trim().min(1, "Phải ghi lý do hủy phiếu").max(500),
 });
 
+/**
+ * Sửa phiếu khi còn DRAFT (contract §9, §2.5). Mọi trường đều tùy chọn —
+ * gửi gì sửa nấy, không gửi thì giữ nguyên. Riêng `lines` là thay nguyên
+ * danh sách dòng, không sửa từng dòng lẻ, vì phiếu còn nháp thì chưa có lô
+ * hay thẻ kho nào phụ thuộc vào dòng cũ.
+ */
+export const patchReceiptSchema = z.object({
+  version: z.coerce.number().int().positive("Thiếu version"),
+  supplierId: z.uuid("supplierId không hợp lệ").optional(),
+  supplierInvoiceNumber: z.string().trim().max(50).nullish(),
+  supplierInvoiceDate: z.coerce.date().nullish(),
+  receivedAt: z.coerce.date().optional(),
+  note: z.string().trim().max(500).nullish(),
+  lines: z.array(lineSchema).min(1, "Phiếu nhập phải có ít nhất một dòng").optional(),
+});
+
 export type CreateReceiptInput = z.infer<typeof createReceiptSchema>;
+export type PatchReceiptInput = z.infer<typeof patchReceiptSchema>;
