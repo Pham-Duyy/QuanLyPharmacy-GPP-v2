@@ -1,3 +1,4 @@
+import { MedicineBoxOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, Card, Descriptions, Drawer, Form, Input, InputNumber, Modal, Select, Space, Table, Tag, Typography, message } from "antd";
 import { useState } from "react";
@@ -36,7 +37,7 @@ export function ProductsPage() {
   });
   async function refresh(): Promise<void> { await queryClient.invalidateQueries({ queryKey: ["products-page"] }); }
 
-  return <Card title="Sản phẩm" extra={<Space><Input.Search allowClear style={{ width: 310 }} placeholder="Tên, mã hoặc hoạt chất" onSearch={(value) => { setTerm(value); setPage(1); }} />{can("catalog.manage") ? <Button type="primary" onClick={() => setCreating(true)}>Thêm sản phẩm</Button> : null}</Space>}>
+  return <div className="products-page"><div className="page-heading"><div><Typography.Title level={2}><MedicineBoxOutlined /> Quản lý thuốc</Typography.Title><Typography.Text>Danh mục thuốc, thực phẩm chức năng và dược phẩm tại nhà thuốc.</Typography.Text></div>{can("catalog.manage") ? <Button type="primary" size="large" onClick={() => setCreating(true)}>+ Thêm thuốc</Button> : null}</div><Card className="products-list-card" title="Danh sách thuốc" extra={<Space><Input.Search allowClear style={{ width: 310 }} placeholder="Tìm theo tên thuốc, hoạt chất, mã" onSearch={(value) => { setTerm(value); setPage(1); }} /></Space>}>
     <Table rowKey="id" size="small" loading={products.isLoading} dataSource={products.data?.items ?? []} onRow={(row) => ({ onClick: () => setSelectedId(row.id), style: { cursor: "pointer" } })} pagination={{ current: page, pageSize: products.data?.pagination.limit ?? 20, total: products.data?.pagination.total ?? 0, onChange: setPage, showSizeChanger: false }} columns={[
       { title: "Mã", dataIndex: "code", width: 110 },
       { title: "Tên sản phẩm", render: (_, item: ProductListItem) => <Space direction="vertical" size={0}><Typography.Text strong>{item.name}</Typography.Text><Typography.Text type="secondary">{item.categoryName}</Typography.Text></Space> },
@@ -47,7 +48,7 @@ export function ProductsPage() {
     ]} />
     <ProductDrawer id={selectedId} onClose={() => setSelectedId(null)} />
     <ProductFormModal open={creating} onClose={() => setCreating(false)} onSaved={async () => { setCreating(false); await refresh(); }} />
-  </Card>;
+  </Card></div>;
 }
 
 function ProductDrawer({ id, onClose }: { id: string | null; onClose: () => void }) {

@@ -185,11 +185,15 @@ describe("Xem sổ nhiệt độ – độ ẩm", () => {
 
 describe("Tổng hợp theo tháng", () => {
   it("đánh dấu đúng số lần đo và ngày có vượt ngưỡng", async () => {
-    const today = new Date();
-    const month = today.toISOString().slice(0, 7);
+    // Server ghi businessDate theo giờ Việt Nam (Asia/Ho_Chi_Minh), không
+    // phải ngày UTC — dùng cùng cách quy đổi ở đây, nếu không test sẽ chập
+    // chờn khoảng 17:00–23:59 UTC mỗi ngày (đã lúc đó là ngày mới ở VN).
+    const now = new Date();
+    const todayKey = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Ho_Chi_Minh" }).format(now);
+    const month = todayKey.slice(0, 7);
 
-    await record({ location: retailAreaCode, recordedAt: today.toISOString(), temperatureC: 25 });
-    await record({ location: retailAreaCode, recordedAt: today.toISOString(), temperatureC: 33 });
+    await record({ location: retailAreaCode, recordedAt: now.toISOString(), temperatureC: 25 });
+    await record({ location: retailAreaCode, recordedAt: now.toISOString(), temperatureC: 33 });
 
     const response = await api()
       .get("/api/v1/storage-logs/summary")
@@ -200,7 +204,6 @@ describe("Tổng hợp theo tháng", () => {
     const retail = response.body.data.find(
       (row: { locationCode: string }) => row.locationCode === retailAreaCode,
     );
-    const todayKey = today.toISOString().slice(0, 10);
     const day = retail.days.find((d: { businessDate: string }) => d.businessDate === todayKey);
 
     expect(day).toMatchObject({ count: 2, expectedCount: 2, hasOutOfRange: true });

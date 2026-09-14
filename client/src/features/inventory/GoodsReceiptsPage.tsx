@@ -1,15 +1,17 @@
-import { DeleteOutlined, PlusOutlined } from "@ant-design/icons";
+import { ClockCircleOutlined, DeleteOutlined, FileDoneOutlined, InboxOutlined, PlusOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Alert,
   AutoComplete,
   Button,
   Card,
+  Col,
   Descriptions,
   Drawer,
   Input,
   InputNumber,
   Modal,
+  Row,
   Select,
   Space,
   Table,
@@ -72,13 +74,27 @@ export function GoodsReceiptsPage() {
       return response.data.data;
     },
   });
+  const receipts = list.data?.items ?? [];
 
   async function refreshList(): Promise<void> {
     await queryClient.invalidateQueries({ queryKey: ["goods-receipts"] });
   }
 
   return (
-    <Card
+    <div className="receipt-page">
+      <div className="page-heading">
+        <div>
+          <Typography.Title level={2}><InboxOutlined /> Nhập hàng</Typography.Title>
+          <Typography.Text>Quản lý phiếu nhập hàng từ nhà cung cấp, kiểm tra hàng hóa và nhập kho.</Typography.Text>
+        </div>
+        <Button type="primary" size="large" icon={<PlusOutlined />} disabled={!canCreate} onClick={() => setCreating(true)}>Tạo phiếu nhập</Button>
+      </div>
+      <Row gutter={[16, 16]} className="receipt-stats">
+        <Col xs={24} md={8}><Card><Space><span className="receipt-icon green"><ClockCircleOutlined /></span><div><Typography.Text strong>Phiếu nháp</Typography.Text><Typography.Title level={3}>{receipts.filter((item) => item.status === "DRAFT").length}</Typography.Title></div></Space></Card></Col>
+        <Col xs={24} md={8}><Card><Space><span className="receipt-icon blue"><FileDoneOutlined /></span><div><Typography.Text strong>Đã kiểm nhập</Typography.Text><Typography.Title level={3}>{receipts.filter((item) => item.status === "CONFIRMED").length}</Typography.Title></div></Space></Card></Col>
+        <Col xs={24} md={8}><Card><Space><span className="receipt-icon purple"><InboxOutlined /></span><div><Typography.Text strong>Giá trị trang hiện tại</Typography.Text><Typography.Title level={3}>{formatVnd(receipts.reduce((sum, item) => sum + Number(item.totalCost), 0))}</Typography.Title></div></Space></Card></Col>
+      </Row>
+    <Card className="receipt-list-card"
       title="Phiếu nhập kho"
       extra={
         <Space>
@@ -93,7 +109,7 @@ export function GoodsReceiptsPage() {
             }}
             options={Object.entries(STATUS).map(([value, item]) => ({ value, label: item.text }))}
           />
-          <Button
+          <Button hidden
             type="primary"
             icon={<PlusOutlined />}
             disabled={!canCreate}
@@ -108,7 +124,7 @@ export function GoodsReceiptsPage() {
         rowKey="id"
         size="small"
         loading={list.isLoading}
-        dataSource={list.data?.items ?? []}
+        dataSource={receipts}
         onRow={(row) => ({ onClick: () => setOpenId(row.id), style: { cursor: "pointer" } })}
         pagination={{
           current: page,
@@ -157,6 +173,7 @@ export function GoodsReceiptsPage() {
         }}
       />
     </Card>
+    </div>
   );
 }
 

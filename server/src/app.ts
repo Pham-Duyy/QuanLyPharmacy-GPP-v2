@@ -29,6 +29,7 @@ import { inventoryRouter } from "./modules/inventory/inventory.routes.js";
 import { storageLogsRouter } from "./modules/inventory/storage-logs.routes.js";
 import { prescriptionsRouter } from "./modules/prescriptions/prescriptions.routes.js";
 import { prescriptionImagesRouter } from "./modules/prescriptions/prescription-images.routes.js";
+import { dashboardRouter } from "./modules/dashboard/dashboard.routes.js";
 
 /**
  * Lắp ráp ứng dụng Express. Thứ tự middleware quan trọng:
@@ -88,6 +89,7 @@ export function createApp() {
   app.use("/api/v1", storageLogsRouter);
   app.use("/api/v1", prescriptionsRouter);
   app.use("/api/v1", prescriptionImagesRouter);
+  app.use("/api/v1", dashboardRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

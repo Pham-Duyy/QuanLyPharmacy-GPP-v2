@@ -5,6 +5,31 @@ export type Paged<T> = { items: T[]; pagination: { page: number; limit: number; 
 
 export type Money = number;
 
+export type DashboardData = {
+  generatedAt: string;
+  days: 7 | 30;
+  permissions: { sales: boolean; inventory: boolean; customers: boolean; storageLogs: boolean };
+  sales: {
+    today: {
+      revenue: Money;
+      invoiceCount: number;
+      newCustomerCount: number;
+      revenueChangePercent: number | null;
+      invoiceChangePercent: number | null;
+      newCustomerChangePercent: number | null;
+    };
+    trend: Array<{ date: string; revenue: Money; invoiceCount: number }>;
+    topProducts: Array<{ productId: string; productName: string; quantity: number; revenue: Money }>;
+  };
+  inventory: {
+    expiringBatches: Array<{ id: string; productId: string; productName: string; batchNumber: string; expiryDate: string; quantityOnHand: number }>;
+    lowStockProducts: Array<{ productId: string; productName: string; stock: number; minimumStock: number }>;
+    categoryStock: Array<{ categoryName: string; quantity: number; productCount: number }>;
+    counts: { expired: number; expiring: number; lowStock: number };
+  };
+  notifications: Array<{ type: string; severity: "danger" | "warning" | "info"; title: string; href: string }>;
+};
+
 export type ProductUnit = {
   id: string;
   name: string;
@@ -93,6 +118,9 @@ export type ProductListItem = {
   productType: string;
   drugClass: string | null;
   categoryName: string;
+  dosageForm: string | null;
+  strengthText: string | null;
+  ingredients: Array<{ name: string; strengthText: string | null }>;
   defaultUnit: ProductUnit | null;
   currentPrice: CurrentPrice | null;
   stock: StockSummary | null;

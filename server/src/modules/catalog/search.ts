@@ -41,9 +41,13 @@ export async function searchProductIds(term: string, limit = 500): Promise<strin
     FROM products p
     LEFT JOIN product_ingredients pi ON pi.product_id = p.id
     LEFT JOIN active_ingredients ai ON ai.id = pi.ingredient_id
+    LEFT JOIN product_barcodes pb ON pb.product_unit_id IN (
+      SELECT pu.id FROM product_units pu WHERE pu.product_id = p.id
+    )
     WHERE f_unaccent(lower(p.name)) LIKE '%' || f_unaccent(lower(${term})) || '%'
        OR lower(p.code) LIKE '%' || lower(${term}) || '%'
        OR f_unaccent(lower(ai.name)) LIKE '%' || f_unaccent(lower(${term})) || '%'
+       OR pb.barcode = ${term}
     LIMIT ${limit}
   `);
   return rows.map((row) => row.id);

@@ -10,6 +10,7 @@ import { CustomersPage } from "./features/customers/CustomersPage.js";
 import { DashboardPage } from "./features/dashboard/DashboardPage.js";
 import { GoodsReceiptsPage } from "./features/inventory/GoodsReceiptsPage.js";
 import { BatchesPage } from "./features/inventory/BatchesPage.js";
+import { AlertsPage } from "./features/inventory/AlertsPage.js";
 import { StockAdjustmentsPage } from "./features/inventory/StockAdjustmentsPage.js";
 import { StorageLogsPage } from "./features/inventory/StorageLogsPage.js";
 import { PrescriptionsPage } from "./features/prescriptions/PrescriptionsPage.js";
@@ -51,6 +52,7 @@ export default function App() {
         <Route path="/nha-cung-cap" element={<SuppliersPage />} />
         <Route path="/phieu-nhap" element={<GoodsReceiptsPage />} />
         <Route path="/ton-kho" element={<BatchesPage />} />
+        <Route path="/canh-bao" element={<AlertsPage />} />
         <Route path="/dieu-chinh-ton" element={<StockAdjustmentsPage />} />
         <Route path="/so-nhiet-do" element={<StorageLogsPage />} />
         <Route path="/tai-khoan" element={<DashboardPage />} />

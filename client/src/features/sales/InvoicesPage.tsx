@@ -1,13 +1,15 @@
-import { PrinterOutlined } from "@ant-design/icons";
+import { DollarCircleOutlined, FileTextOutlined, PrinterOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Button,
   Card,
+  Col,
   Descriptions,
   Drawer,
   Dropdown,
   Input,
   Modal,
+  Row,
   Space,
   Table,
   Tag,
@@ -45,6 +47,7 @@ export function InvoicesPage() {
       return response.data.data;
     },
   });
+  const invoices = list.data?.items ?? [];
 
   const detail = useQuery({
     queryKey: ["invoice", openId],
@@ -74,12 +77,15 @@ export function InvoicesPage() {
   });
 
   return (
-    <Card title="Hóa đơn">
+    <div className="invoices-page">
+      <div className="page-heading"><div><Typography.Title level={2}><FileTextOutlined /> Hóa đơn</Typography.Title><Typography.Text>Quản lý, tra cứu và theo dõi toàn bộ hóa đơn bán hàng.</Typography.Text></div><Tag color="blue">{list.data?.pagination.total ?? 0} hóa đơn</Tag></div>
+      <Row gutter={[16, 16]} className="invoice-stats"><Col xs={24} md={12}><Card><Space><span className="invoice-icon blue"><FileTextOutlined /></span><div><Typography.Text strong>Hóa đơn trên trang</Typography.Text><Typography.Title level={3}>{invoices.length}</Typography.Title></div></Space></Card></Col><Col xs={24} md={12}><Card><Space><span className="invoice-icon green"><DollarCircleOutlined /></span><div><Typography.Text strong>Giá trị trên trang</Typography.Text><Typography.Title level={3}>{formatVnd(invoices.reduce((sum, item) => sum + Number(item.totalAmount), 0))}</Typography.Title></div></Space></Card></Col></Row>
+    <Card className="invoice-list-card" title="Danh sách hóa đơn">
       <Table
         rowKey="id"
         size="small"
         loading={list.isLoading}
-        dataSource={list.data?.items ?? []}
+        dataSource={invoices}
         onRow={(row) => ({ onClick: () => setOpenId(row.id), style: { cursor: "pointer" } })}
         pagination={{
           current: page,
@@ -245,5 +251,6 @@ export function InvoicesPage() {
         />
       </Modal>
     </Card>
+    </div>
   );
 }
