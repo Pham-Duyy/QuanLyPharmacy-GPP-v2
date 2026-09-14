@@ -2,6 +2,8 @@ export type StoreAccess = {
   id: string;
   code: string;
   name: string;
+  phone: string | null;
+  address: string | null;
   permissions: string[];
 };
 

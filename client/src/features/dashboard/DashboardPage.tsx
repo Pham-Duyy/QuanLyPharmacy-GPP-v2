@@ -1,4 +1,4 @@
-import { BellOutlined, DollarCircleOutlined, MedicineBoxOutlined, TeamOutlined, WarningOutlined } from "@ant-design/icons";
+import { AuditOutlined, BellOutlined, DollarCircleOutlined, MedicineBoxOutlined, PhoneOutlined, SafetyCertificateOutlined, TeamOutlined, WarningOutlined } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
 import { Alert, Button, Card, Col, Empty, Progress, Row, Segmented, Skeleton, Space, Statistic, Table, Tag, Tooltip, Typography } from "antd";
 import { useState, type ReactNode } from "react";
@@ -45,7 +45,7 @@ export function DashboardPage() {
     </Row>
     <Row gutter={[16, 16]}>
       <Col xs={24} xl={15}><Card className="dashboard-chart-card" title={`Doanh thu và số đơn ${days} ngày gần đây`} extra={data.permissions.sales ? <Tag color="blue">Dữ liệu thực tế</Tag> : null}>{data.permissions.sales ? <RevenueChart points={data.sales.trend} /> : <NoPermission />}</Card></Col>
-      <Col xs={24} xl={9}><Card className="dashboard-top-products" title="Top thuốc bán chạy" extra={data.permissions.sales ? <Tag color="blue">Theo doanh thu</Tag> : null}>{data.permissions.sales ? <TopProducts items={data.sales.topProducts} /> : <NoPermission />}</Card></Col>
+      <Col xs={24} xl={9}><Card className="dashboard-top-products" title="Top thuốc bán chạy" extra={data.permissions.sales ? <Tag color="blue">Theo doanh thu</Tag> : null}>{data.permissions.sales ? <TopProductsDonut items={data.sales.topProducts} trend={data.sales.trend} /> : <NoPermission />}</Card></Col>
     </Row>
     <Row gutter={[16, 16]} className="dashboard-bottom-row">
       <Col xs={24} xl={15}><Card title="Danh sách lô sắp hết hạn" extra={<Button type="link" onClick={() => void navigate("/canh-bao")}>Xem tất cả →</Button>}>{data.permissions.inventory ? <Table size="small" rowKey="id" pagination={false} locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có lô sắp hết hạn trong 90 ngày" /> }} dataSource={data.inventory.expiringBatches} columns={[{ title: "Tên thuốc", dataIndex: "productName", render: (value) => <Typography.Text strong>{value}</Typography.Text> }, { title: "Số lô", dataIndex: "batchNumber" }, { title: "HSD", dataIndex: "expiryDate", render: dateText }, { title: "Tồn kho", dataIndex: "quantityOnHand", align: "right", render: (value) => number.format(value) }]} /> : <NoPermission />}</Card></Col>
@@ -55,6 +55,29 @@ export function DashboardPage() {
       <Col xs={24} xl={15}><Card title="Mặt hàng tồn thấp" extra={<Button type="link" onClick={() => void navigate("/ton-kho")}>Mở quản lý kho →</Button>}>{data.permissions.inventory ? <LowStock items={data.inventory.lowStockProducts} /> : <NoPermission />}</Card></Col>
       <Col xs={24} xl={9}><Card className="dashboard-notifications" title={<Space><BellOutlined /> Thông báo & nhắc nhở</Space>}><Notifications items={data.notifications} navigate={navigate} /></Card></Col>
     </Row>
+    <div className="dashboard-trust-row">
+      <div className="trust-badge">
+        <SafetyCertificateOutlined />
+        <div>
+          <strong>Tuân thủ GPP</strong>
+          <span>Quy trình theo Thực hành tốt nhà thuốc</span>
+        </div>
+      </div>
+      <div className="trust-badge">
+        <AuditOutlined />
+        <div>
+          <strong>Kiểm soát truy cập</strong>
+          <span>Phân quyền theo vai trò, ghi audit log</span>
+        </div>
+      </div>
+      <div className="trust-badge">
+        <PhoneOutlined />
+        <div>
+          <strong>Hỗ trợ</strong>
+          <span>{store?.phone ?? "Liên hệ quản trị viên hệ thống"}</span>
+        </div>
+      </div>
+    </div>
   </div>;
 }
 
@@ -69,10 +92,52 @@ function RevenueChart({ points }: { points: DashboardData["sales"]["trend"] }) {
   return <div className="revenue-chart" aria-label="Biểu đồ doanh thu và số hóa đơn">{points.map((point) => <Tooltip key={point.date} title={<div>{dateText(point.date)}<br />Doanh thu: {money.format(point.revenue)}<br />Số đơn: {number.format(point.invoiceCount)}</div>}><div className="revenue-bar-item"><div className="revenue-bar-wrap"><div className="revenue-bar" style={{ height: `${Math.max((point.revenue / maximum) * 100, point.revenue > 0 ? 5 : 0)}%` }} /></div><span>{dateText(point.date)}</span></div></Tooltip>)}</div>;
 }
 
-function TopProducts({ items }: { items: DashboardData["sales"]["topProducts"] }) {
-  const maximum = Math.max(...items.map((item) => item.revenue), 1);
+const DONUT_COLORS = ["#1677ff", "#08c299", "#ffab2e", "#7c4bf2", "#f5455c", "#0ea5e9"];
+const DONUT_OTHER_COLOR = "#94a3b8";
+
+/**
+ * Vòng tròn top sản phẩm, dựng bằng conic-gradient thuần CSS — không thêm
+ * thư viện biểu đồ chỉ cho một chỗ dùng. "Khác" tính từ doanh thu cả kỳ trừ
+ * top sản phẩm, không phải số minh họa.
+ */
+function TopProductsDonut({ items, trend }: { items: DashboardData["sales"]["topProducts"]; trend: DashboardData["sales"]["trend"] }) {
   if (items.length === 0) return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có dữ liệu bán hàng" />;
-  return <div className="rank-list">{items.map((item, index) => <div className="rank-row" key={item.productId}><span className="rank-number">{index + 1}</span><div className="rank-name"><Typography.Text strong ellipsis>{item.productName}</Typography.Text><Progress percent={Math.round((item.revenue / maximum) * 100)} showInfo={false} strokeColor="#147cf5" size="small" /></div><div className="rank-value">{money.format(item.revenue)}<small>{number.format(item.quantity)} đơn vị</small></div></div>)}</div>;
+
+  const periodRevenue = trend.reduce((sum, point) => sum + point.revenue, 0);
+  const topRevenue = items.reduce((sum, item) => sum + item.revenue, 0);
+  const otherRevenue = Math.max(0, periodRevenue - topRevenue);
+  const slices = [
+    ...items.map((item, index) => ({ label: item.productName, revenue: item.revenue, color: DONUT_COLORS[index % DONUT_COLORS.length]! })),
+    ...(otherRevenue > 0 ? [{ label: "Khác", revenue: otherRevenue, color: DONUT_OTHER_COLOR }] : []),
+  ];
+  const total = slices.reduce((sum, slice) => sum + slice.revenue, 0) || 1;
+
+  let cursor = 0;
+  const stops = slices.map((slice) => {
+    const start = (cursor / total) * 360;
+    cursor += slice.revenue;
+    return `${slice.color} ${start}deg ${(cursor / total) * 360}deg`;
+  });
+
+  return (
+    <div className="donut-wrap">
+      <div className="donut-chart" style={{ background: `conic-gradient(${stops.join(", ")})` }}>
+        <div className="donut-center">
+          <span>Tổng doanh thu</span>
+          <strong>{money.format(total)}</strong>
+        </div>
+      </div>
+      <div className="donut-legend">
+        {slices.map((slice) => (
+          <div className="donut-legend-item" key={slice.label}>
+            <span className="donut-dot" style={{ background: slice.color }} />
+            <span className="donut-legend-label" title={slice.label}>{slice.label}</span>
+            <span className="donut-legend-value">{Math.round((slice.revenue / total) * 1000) / 10}%</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 function CategoryStock({ items }: { items: DashboardData["inventory"]["categoryStock"] }) {
