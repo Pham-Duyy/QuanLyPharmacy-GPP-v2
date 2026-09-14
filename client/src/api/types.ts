@@ -615,3 +615,25 @@ export type AuditLogItem = {
 };
 
 export type AuditLogPage = { items: AuditLogItem[]; nextCursor: string | null };
+
+// --- Báo cáo kinh doanh (ngoài danh sách endpoint gốc §19, dùng dữ liệu thật) --
+
+export type ReportsSummary = {
+  from: string;
+  to: string;
+  kpis: {
+    netRevenue: Money;
+    netRevenueChangePercent: number | null;
+    grossProfit: Money;
+    grossProfitChangePercent: number | null;
+    invoiceCount: number;
+    invoiceCountChangePercent: number | null;
+    averageOrderValue: Money;
+    averageOrderValueChangePercent: number | null;
+  };
+  trend: Array<{ date: string; revenue: Money; profit: Money }>;
+  topProducts: Array<{ productId: string; productName: string; quantity: number; revenue: Money }>;
+  categoryBreakdown: Array<{ categoryName: string; revenue: Money; percent: number }>;
+  paymentMethods: Array<{ method: string; amount: Money; count: number; percent: number }>;
+  staffPerformance: Array<{ userId: string; fullName: string; revenue: Money; invoiceCount: number }>;
+};
