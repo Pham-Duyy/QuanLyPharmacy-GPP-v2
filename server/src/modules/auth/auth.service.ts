@@ -187,6 +187,8 @@ export async function describeMe(auth: AuthContext) {
       id: store.id,
       code: store.code,
       name: store.name,
+      phone: store.phone,
+      address: store.address,
       permissions: [...auth.permissionsForStore(store.id)].sort(),
     })),
   };
