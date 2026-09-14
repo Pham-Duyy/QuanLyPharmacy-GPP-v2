@@ -12,7 +12,11 @@ import { requirePermission } from "../../middlewares/require-permission.js";
 import { storeContext } from "../../middlewares/store-context.js";
 
 export const categoriesRouter = Router();
-categoriesRouter.use(authenticate, storeContext);
+// Giới hạn theo tiền tố "/categories": .use() không kèm đường dẫn chạy cho
+// MỌI request đi qua router này, kể cả của router khác đăng ký sau — ở đây
+// cụ thể là chặn nhầm 401 lên endpoint công khai /rx-images (xem
+// prescription-images.routes.ts).
+categoriesRouter.use("/categories", authenticate, storeContext);
 
 const createSchema = z.object({
   name: z.string().trim().min(1, "Thiếu tên nhóm").max(200),

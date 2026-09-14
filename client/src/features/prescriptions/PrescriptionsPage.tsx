@@ -1,9 +1,11 @@
+import { FilePdfOutlined, UploadOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Button,
   Card,
   Descriptions,
   Drawer,
+  Image,
   Input,
   Modal,
   Select,
@@ -13,7 +15,7 @@ import {
   Typography,
   message,
 } from "antd";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { getErrorMessage, http } from "../../api/http.js";
 import type {
   Envelope,
@@ -111,6 +113,22 @@ export function PrescriptionsPage() {
       await afterAction();
     },
     onError: (error) => void message.error(getErrorMessage(error, "Không từ chối được đơn")),
+  });
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const uploadImage = useMutation({
+    mutationFn: async (file: File) => {
+      const form = new FormData();
+      form.append("file", file);
+      // Không tự đặt Content-Type: trình duyệt cần tự thêm boundary của multipart.
+      await http.post(`/prescriptions/${openId}/images`, form);
+    },
+    onSuccess: async () => {
+      void message.success("Đã tải ảnh lên");
+      await afterAction();
+    },
+    onError: (error) => void message.error(getErrorMessage(error, "Không tải được ảnh lên")),
   });
 
   const data = detail.data;
@@ -290,6 +308,62 @@ export function PrescriptionsPage() {
                 { title: "Liều dùng", dataIndex: "dosageInstruction" },
               ]}
             />
+
+            <div>
+              <Space align="center" style={{ marginBottom: 8 }}>
+                <Typography.Text type="secondary">Ảnh đơn thuốc</Typography.Text>
+                {can("prescription.create") ? (
+                  <>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/jpeg,image/png,application/pdf"
+                      hidden
+                      onChange={(event) => {
+                        const file = event.target.files?.[0];
+                        if (file) uploadImage.mutate(file);
+                        event.target.value = "";
+                      }}
+                    />
+                    <Button
+                      size="small"
+                      icon={<UploadOutlined />}
+                      loading={uploadImage.isPending}
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      Tải ảnh lên
+                    </Button>
+                  </>
+                ) : null}
+              </Space>
+
+              {data.images.length === 0 ? (
+                <Typography.Text type="secondary">Chưa có ảnh nào.</Typography.Text>
+              ) : (
+                <Space wrap>
+                  {data.images.map((image) =>
+                    image.contentType === "application/pdf" ? (
+                      <Button
+                        key={image.id}
+                        icon={<FilePdfOutlined />}
+                        onClick={() => window.open(image.url, "_blank")}
+                      >
+                        Phiên bản {image.versionNo} (PDF)
+                      </Button>
+                    ) : (
+                      <div key={image.id} style={{ textAlign: "center" }}>
+                        <Image src={image.url} width={90} height={90} style={{ objectFit: "cover" }} />
+                        <div>
+                          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                            Phiên bản {image.versionNo}
+                          </Typography.Text>
+                        </div>
+                      </div>
+                    ),
+                  )}
+                </Space>
+              )}
+            </div>
           </Space>
         ) : null}
       </Drawer>

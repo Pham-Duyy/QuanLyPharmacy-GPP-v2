@@ -12,7 +12,8 @@ import { requirePermission } from "../../middlewares/require-permission.js";
 import { storeContext } from "../../middlewares/store-context.js";
 
 export const suppliersRouter = Router();
-suppliersRouter.use(authenticate, storeContext);
+// Giới hạn theo tiền tố thật sự dùng, cùng lý do đã ghi ở categories.routes.ts.
+suppliersRouter.use("/suppliers", authenticate, storeContext);
 
 const createSchema = z.object({
   name: z.string().trim().min(1, "Thiếu tên nhà cung cấp").max(300),

@@ -212,7 +212,14 @@ export type PrescriptionDetail = {
   verifiedAt: string | null;
   rejectedReason: string | null;
   version: number;
-  images: Array<{ id: string; versionNo: number; uploadedAt: string }>;
+  images: Array<{
+    id: string;
+    versionNo: number;
+    contentType: string;
+    uploadedAt: string;
+    /** URL có chữ ký, hạn ngắn — xem xong nhớ tải lại chi tiết đơn nếu quá 5 phút (contract §12). */
+    url: string;
+  }>;
   items: PrescriptionItem[];
 };
 

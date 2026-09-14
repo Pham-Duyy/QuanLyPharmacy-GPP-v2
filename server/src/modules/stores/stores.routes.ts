@@ -7,7 +7,8 @@ import { storeContext } from "../../middlewares/store-context.js";
 
 export const storesRouter = Router();
 
-storesRouter.use(authenticate, storeContext);
+// Giới hạn theo tiền tố thật sự dùng, cùng lý do đã ghi ở categories.routes.ts.
+storesRouter.use("/stores", authenticate, storeContext);
 
 /** GET /api/v1/stores: các cửa hàng người dùng được phép làm việc (contract §21). */
 storesRouter.get("/stores", async (req, res) => {

@@ -12,7 +12,8 @@ import { storeContext } from "../../middlewares/store-context.js";
 import { searchIdsByName } from "./search.js";
 
 export const ingredientsRouter = Router();
-ingredientsRouter.use(authenticate, storeContext);
+// Giới hạn theo tiền tố thật sự dùng, cùng lý do đã ghi ở categories.routes.ts.
+ingredientsRouter.use("/active-ingredients", authenticate, storeContext);
 
 const bodySchema = z.object({
   name: z.string().trim().min(1, "Thiếu tên hoạt chất").max(200),

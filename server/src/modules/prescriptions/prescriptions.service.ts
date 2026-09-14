@@ -1,6 +1,7 @@
 import { Prisma } from "../../generated/prisma/client.js";
 import { prisma } from "../../db/prisma.js";
 import { AppError } from "../../lib/app-error.js";
+import { createSignedImageUrl } from "../../lib/signed-url.js";
 import { getSetting } from "../../lib/settings.js";
 import type { AuthContext } from "../auth/auth.context.js";
 import type {
@@ -258,7 +259,7 @@ export async function getDetail(prescriptionId: string, auth: AuthContext) {
       verifiedByUser: { select: { id: true, fullName: true } },
       images: {
         orderBy: { versionNo: "desc" },
-        select: { id: true, versionNo: true, uploadedAt: true },
+        select: { id: true, versionNo: true, contentType: true, uploadedAt: true },
       },
       items: {
         orderBy: { lineNo: "asc" },
@@ -297,7 +298,16 @@ export async function getDetail(prescriptionId: string, auth: AuthContext) {
     verifiedAt: prescription.verifiedAt,
     rejectedReason: prescription.rejectedReason,
     version: prescription.version,
-    images: prescription.images,
+    images: prescription.images.map((image) => {
+      const { expires, sig } = createSignedImageUrl(image.id);
+      return {
+        id: image.id,
+        versionNo: image.versionNo,
+        contentType: image.contentType,
+        uploadedAt: image.uploadedAt,
+        url: `/api/v1/rx-images/${image.id}?expires=${expires}&sig=${sig}`,
+      };
+    }),
     items: prescription.items.map((item) => ({
       id: item.id,
       lineNo: item.lineNo,
