@@ -28,6 +28,8 @@ import {
   type Envelope,
   type Invoice,
   type Paged,
+  type PrescriptionDetail,
+  type PrescriptionListItem,
   type ProductDetail,
   type ProductListItem,
   type SafetyResult,
@@ -39,7 +41,14 @@ type CartLine = {
   product: ProductDetail;
   unitId: string;
   quantity: number;
+  /** Chỉ có ý nghĩa với thuốc kê đơn: dòng nào của đơn thuốc đang chọn khớp với dòng này. */
+  prescriptionItemId: string | null;
 };
+
+/** Thuốc kê đơn hoặc thuốc kiểm soát đặc biệt đều cần đơn thuốc mới bán được (contract §14.2). */
+function needsPrescription(drugClass: string | null): boolean {
+  return drugClass === "RX" || drugClass === "CONTROLLED";
+}
 
 const SEVERITY_COLOR: Record<string, string> = { HIGH: "red", MEDIUM: "orange", INFO: "blue" };
 
@@ -56,6 +65,8 @@ const NOT_CHECKED_TEXT: Record<string, string> = {
 export function SalePage() {
   const [term, setTerm] = useState("");
   const [cart, setCart] = useState<CartLine[]>([]);
+  const [prescriptionSearch, setPrescriptionSearch] = useState("");
+  const [prescription, setPrescription] = useState<PrescriptionDetail | null>(null);
   const [acked, setAcked] = useState<Set<string>>(new Set());
   const [ackReason, setAckReason] = useState("");
   const [discountType, setDiscountType] = useState<"PERCENT" | "AMOUNT">("PERCENT");
@@ -85,12 +96,28 @@ export function SalePage() {
     [cart],
   );
 
+  // Tải một lần rồi lọc theo mã hoặc tên khách ngay trên trình duyệt — danh
+  // mục này không lớn tới mức cần endpoint tìm kiếm riêng. Endpoint chỉ lọc
+  // được một trạng thái mỗi lần gọi, nên lấy hết rồi tự lọc còn dùng bán
+  // tiếp được: VERIFIED hoặc PARTIALLY_DISPENSED (đã bán một phần vẫn còn
+  // dòng chưa bán hết, contract §5.4 cho phép bán tiếp).
+  const verifiedPrescriptions = useQuery({
+    queryKey: ["usable-prescriptions"],
+    queryFn: async () => {
+      const response = await http.get<Envelope<PrescriptionListItem[]>>("/prescriptions");
+      return response.data.data.filter(
+        (item) => item.status === "VERIFIED" || item.status === "PARTIALLY_DISPENSED",
+      );
+    },
+  });
+
   const safety = useQuery({
-    queryKey: ["safety-check", cartLines],
+    queryKey: ["safety-check", cartLines, prescription?.id],
     enabled: cart.length > 0,
     queryFn: async () => {
       const response = await http.post<Envelope<SafetyResult>>("/sales/safety-check", {
         lines: cartLines,
+        prescriptionId: prescription?.id ?? null,
       });
       return response.data.data;
     },
@@ -106,7 +133,13 @@ export function SalePage() {
   const liveAcked = [...acked].filter((code) => liveCodes.has(code));
 
   const body = {
-    lines: cartLines,
+    prescriptionId: prescription?.id ?? null,
+    lines: cart.map((line) => ({
+      productId: line.product.id,
+      unitId: line.unitId,
+      quantity: line.quantity,
+      prescriptionItemId: line.prescriptionItemId,
+    })),
     discount:
       discountValue > 0
         ? { type: discountType, value: discountValue, reason: discountReason || "Giảm giá" }
@@ -144,6 +177,7 @@ export function SalePage() {
     onSuccess: (invoice) => {
       setDone(invoice);
       setCart([]);
+      setPrescription(null);
       setAcked(new Set());
       setAckReason("");
       setDiscountValue(0);
@@ -154,6 +188,13 @@ export function SalePage() {
       void message.error(getErrorMessage(error, "Không bán được"));
     },
   });
+
+  /** Dòng đơn thuốc còn khớp được với một sản phẩm: đúng thuốc, chưa bán hết theo đơn. */
+  function matchingPrescriptionItems(productId: string) {
+    return (prescription?.items ?? []).filter(
+      (item) => item.productId === productId && (item.baseQuantity ?? 0) > item.dispensedBaseQuantity,
+    );
+  }
 
   async function addProduct(productId: string) {
     const response = await http.get<Envelope<ProductDetail>>(`/products/${productId}`);
@@ -167,6 +208,11 @@ export function SalePage() {
       return;
     }
 
+    // Thuốc kê đơn thì thử khớp sẵn vào đơn đang chọn nếu chỉ có đúng một
+    // dòng phù hợp; khớp nhiều dòng thì để trống, người bán tự chọn ở bảng.
+    const candidates = needsPrescription(product.drugClass) ? matchingPrescriptionItems(product.id) : [];
+    const prescriptionItemId = candidates.length === 1 ? candidates[0]!.id : null;
+
     setCart((current) => {
       const found = current.find(
         (line) => line.product.id === product.id && line.unitId === unit.id,
@@ -178,7 +224,13 @@ export function SalePage() {
       }
       return [
         ...current,
-        { key: `${product.id}:${unit.id}:${Date.now()}`, product, unitId: unit.id, quantity: 1 },
+        {
+          key: `${product.id}:${unit.id}:${Date.now()}`,
+          product,
+          unitId: unit.id,
+          quantity: 1,
+          prescriptionItemId,
+        },
       ];
     });
     setTerm("");
@@ -237,6 +289,53 @@ export function SalePage() {
             </AutoComplete>
           }
         >
+          <Space direction="vertical" style={{ width: "100%", marginBottom: 12 }}>
+            {prescription ? (
+              <Alert
+                type="info"
+                showIcon
+                message={
+                  <Space>
+                    <span>
+                      Đơn thuốc <strong>{prescription.code}</strong>
+                      {prescription.customer?.fullName ? ` — ${prescription.customer.fullName}` : ""}
+                    </span>
+                    <Button
+                      size="small"
+                      onClick={() => {
+                        setPrescription(null);
+                        setCart((current) => current.map((line) => ({ ...line, prescriptionItemId: null })));
+                      }}
+                    >
+                      Bỏ chọn
+                    </Button>
+                  </Space>
+                }
+              />
+            ) : (
+              <AutoComplete
+                style={{ width: "100%" }}
+                value={prescriptionSearch}
+                onChange={setPrescriptionSearch}
+                filterOption={(input, option) =>
+                  typeof option?.label === "string" &&
+                  option.label.toLowerCase().includes(input.toLowerCase())
+                }
+                options={(verifiedPrescriptions.data ?? []).map((item) => ({
+                  value: item.id,
+                  label: `${item.code} — ${item.customer?.fullName ?? "Khách lẻ"}`,
+                }))}
+                onSelect={async (id) => {
+                  const response = await http.get<Envelope<PrescriptionDetail>>(`/prescriptions/${id}`);
+                  setPrescription(response.data.data);
+                  setPrescriptionSearch("");
+                }}
+              >
+                <Input.Search placeholder="Bán thuốc kê đơn thì chọn đơn thuốc đã xác nhận ở đây" allowClear />
+              </AutoComplete>
+            )}
+          </Space>
+
           {cart.length === 0 ? (
             <Empty description="Giỏ hàng trống. Tìm sản phẩm ở ô bên trên để thêm." />
           ) : (
@@ -294,6 +393,40 @@ export function SalePage() {
                       style={{ width: "100%" }}
                     />
                   ),
+                },
+                {
+                  title: "Đơn thuốc",
+                  width: 160,
+                  render: (_, line: CartLine) => {
+                    if (!needsPrescription(line.product.drugClass)) return null;
+                    const candidates = matchingPrescriptionItems(line.product.id);
+                    if (candidates.length === 0) {
+                      return (
+                        <Typography.Text type="danger" style={{ fontSize: 12 }}>
+                          {prescription ? "Không có trong đơn" : "Cần chọn đơn thuốc"}
+                        </Typography.Text>
+                      );
+                    }
+                    return (
+                      <Select
+                        size="small"
+                        style={{ width: "100%" }}
+                        placeholder="Chọn dòng trong đơn"
+                        value={line.prescriptionItemId ?? undefined}
+                        onChange={(prescriptionItemId) =>
+                          setCart((current) =>
+                            current.map((item) =>
+                              item.key === line.key ? { ...item, prescriptionItemId } : item,
+                            ),
+                          )
+                        }
+                        options={candidates.map((item) => ({
+                          value: item.id,
+                          label: `${item.quantity - item.dispensedBaseQuantity} ${item.unitName ?? ""} còn lại`,
+                        }))}
+                      />
+                    );
+                  },
                 },
                 {
                   title: "Đơn giá",
