@@ -304,10 +304,31 @@ export async function getDetail(storeId: string, adjustmentId: string) {
   };
 }
 
-export async function list(storeId: string, query: { status?: string }) {
-  return prisma.stockAdjustment.findMany({
-    where: { storeId, ...(query.status ? { status: query.status } : {}) },
+export async function list(storeId: string, query: { status?: string; from?: Date; to?: Date }) {
+  const rows = await prisma.stockAdjustment.findMany({
+    where: {
+      storeId,
+      ...(query.status ? { status: query.status } : {}),
+      ...(query.from || query.to ? { createdAt: { gte: query.from, lte: query.to } } : {}),
+    },
     orderBy: { createdAt: "desc" },
-    include: { _count: { select: { lines: true } }, createdByUser: { select: { fullName: true } } },
+    include: {
+      _count: { select: { lines: true } },
+      createdByUser: { select: { fullName: true } },
+      approvedByUser: { select: { fullName: true } },
+    },
   });
+
+  return rows.map((row) => ({
+    id: row.id,
+    code: row.code,
+    status: row.status,
+    reason: row.reason,
+    createdByName: row.createdByUser.fullName,
+    approvedByName: row.approvedByUser?.fullName ?? null,
+    approvedAt: row.approvedAt,
+    rejectedReason: row.rejectedReason,
+    createdAt: row.createdAt,
+    lineCount: row._count.lines,
+  }));
 }

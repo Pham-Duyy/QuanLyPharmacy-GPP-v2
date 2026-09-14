@@ -22,7 +22,12 @@ export type CurrentPrice = {
   isStoreOverride: boolean;
 };
 
-export type StockSummary = { sellable: number; quarantined: number; expired: number };
+export type StockSummary = {
+  sellable: number;
+  quarantined: number;
+  recalled: number;
+  expired: number;
+};
 
 export type BatchListItem = {
   id: string;
@@ -38,7 +43,48 @@ export type BatchListItem = {
   shelfLocation: string | null;
   note: string | null;
   version: number;
+  /** Chỉ có khi người xem có quyền stock.cost.read. */
+  unitCost?: Money | null;
 };
+
+export type InventoryOverviewItem = {
+  productId: string;
+  code: string;
+  name: string;
+  categoryName: string;
+  minStockBaseQuantity: number;
+  stock: StockSummary;
+};
+
+export type StockMovementType =
+  | "RECEIPT"
+  | "OPENING_BALANCE"
+  | "SALE"
+  | "SALE_VOID"
+  | "CUSTOMER_RETURN"
+  | "ADJUSTMENT"
+  | "DISPOSAL";
+
+export type StockLedgerEntry = {
+  id: string;
+  occurredAt: string;
+  type: StockMovementType;
+  batchId: string;
+  batchNumber: string;
+  productId: string;
+  productCode: string;
+  productName: string;
+  baseQuantity: number;
+  balanceAfter: number;
+  sourceType: string;
+  sourceId: string;
+  sourceLineId: string;
+  userId: string | null;
+  userName: string | null;
+  note: string | null;
+};
+
+export type StockLedgerPage = { items: StockLedgerEntry[]; nextCursor: string | null };
 
 export type ProductListItem = {
   id: string;
@@ -378,4 +424,92 @@ export type CustomerInvoiceHistoryItem = {
   soldAt: string;
   totalAmount: Money;
   lineCount: number;
+};
+
+// --- Điều chỉnh tồn kho (contract §10.3) ------------------------------------
+
+export type AdjustmentReasonCode =
+  | "COUNT_DIFFERENCE"
+  | "DAMAGED"
+  | "EXPIRED_DISPOSAL"
+  | "RECALL_DISPOSAL"
+  | "OTHER";
+
+export type StockAdjustmentStatus = "DRAFT" | "APPROVED" | "REJECTED" | "CANCELLED";
+
+export type StockAdjustmentListItem = {
+  id: string;
+  code: string;
+  status: StockAdjustmentStatus;
+  reason: string | null;
+  createdByName: string;
+  approvedByName: string | null;
+  approvedAt: string | null;
+  rejectedReason: string | null;
+  createdAt: string;
+  lineCount: number;
+};
+
+export type StockAdjustmentLine = {
+  id: string;
+  lineNo: number;
+  batchId: string;
+  batchNumber: string;
+  unitName: string;
+  reasonCode: AdjustmentReasonCode;
+  countedQuantity: number | null;
+  quantity: number | null;
+  systemBaseQuantityAtCount: number | null;
+  deltaBaseQuantity: number | null;
+};
+
+export type StockAdjustmentDetail = {
+  id: string;
+  code: string;
+  status: StockAdjustmentStatus;
+  reason: string | null;
+  createdBy: { id: string; fullName: string };
+  approvedBy: { id: string; fullName: string } | null;
+  approvedAt: string | null;
+  rejectedReason: string | null;
+  version: number;
+  lines: StockAdjustmentLine[];
+};
+
+// --- Sổ nhiệt độ – độ ẩm (contract §17) -------------------------------------
+
+export type StorageLocationItem = {
+  id: string;
+  code: string;
+  name: string;
+  minTempC: number | null;
+  maxTempC: number | null;
+  maxHumidityPercent: number | null;
+};
+
+export type StorageLogItem = {
+  id: string;
+  storageLocation: { id: string; code: string; name: string };
+  recordedAt: string;
+  businessDate: string;
+  temperatureC: number;
+  humidityPercent: number | null;
+  outOfRange: boolean;
+  note: string | null;
+  recordedBy: { id: string; fullName: string };
+  correctsLogId: string | null;
+};
+
+export type StorageLogSummaryDay = {
+  businessDate: string;
+  count: number;
+  expectedCount: number;
+  hasOutOfRange: boolean;
+};
+
+export type StorageLogSummaryLocation = {
+  locationId: string;
+  locationCode: string;
+  locationName: string;
+  days: StorageLogSummaryDay[];
 };

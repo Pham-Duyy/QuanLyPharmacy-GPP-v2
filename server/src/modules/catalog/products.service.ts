@@ -65,7 +65,13 @@ export async function getStockSummary(productIds: string[], storeId: string) {
   if (productIds.length === 0) return new Map<string, Record<string, number>>();
 
   const rows = await prisma.$queryRaw<
-    Array<{ product_id: string; sellable: number; quarantined: number; expired: number }>
+    Array<{
+      product_id: string;
+      sellable: number;
+      quarantined: number;
+      recalled: number;
+      expired: number;
+    }>
   >(Prisma.sql`
     SELECT
       product_id::text,
@@ -74,6 +80,7 @@ export async function getStockSummary(productIds: string[], storeId: string) {
           AND expiry_date > (now() AT TIME ZONE 'Asia/Ho_Chi_Minh')::date
       ), 0)::int AS sellable,
       COALESCE(SUM(quantity_on_hand) FILTER (WHERE status = 'QUARANTINED'), 0)::int AS quarantined,
+      COALESCE(SUM(quantity_on_hand) FILTER (WHERE status = 'RECALLED'), 0)::int AS recalled,
       COALESCE(SUM(quantity_on_hand) FILTER (
         WHERE expiry_date <= (now() AT TIME ZONE 'Asia/Ho_Chi_Minh')::date
       ), 0)::int AS expired
@@ -85,7 +92,12 @@ export async function getStockSummary(productIds: string[], storeId: string) {
   return new Map(
     rows.map((row) => [
       row.product_id,
-      { sellable: row.sellable, quarantined: row.quarantined, expired: row.expired },
+      {
+        sellable: row.sellable,
+        quarantined: row.quarantined,
+        recalled: row.recalled,
+        expired: row.expired,
+      },
     ]),
   );
 }

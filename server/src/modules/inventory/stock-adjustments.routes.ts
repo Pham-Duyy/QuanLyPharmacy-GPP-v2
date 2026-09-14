@@ -21,7 +21,11 @@ stockAdjustmentsRouter.get(
   requirePermission("stock.read"),
   async (req, res) => {
     const query = req.query as Record<string, string | undefined>;
-    const items = await service.list(req.auth!.storeId!, { status: query["status"] });
+    const items = await service.list(req.auth!.storeId!, {
+      status: query["status"],
+      from: query["from"] ? new Date(query["from"]) : undefined,
+      to: query["to"] ? new Date(query["to"]) : undefined,
+    });
     sendData(res, items);
   },
 );

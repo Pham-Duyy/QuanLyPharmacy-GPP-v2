@@ -13,6 +13,7 @@ import {
 let fixture: Fixture;
 let adminToken: string;
 let salesToken: string;
+let pharmacistToken: string;
 let productId: string;
 
 function idem(): Record<string, string> {
@@ -22,6 +23,7 @@ function idem(): Record<string, string> {
 async function makeBatch(
   status: "AVAILABLE" | "QUARANTINED" | "RECALLED" = "AVAILABLE",
   storeId = fixture.storeId,
+  unitCost: number | null = null,
 ) {
   const expiryDate = new Date();
   expiryDate.setUTCFullYear(expiryDate.getUTCFullYear() + 1);
@@ -33,6 +35,7 @@ async function makeBatch(
       expiryDate,
       quantityOnHand: 50,
       status,
+      unitCost,
     },
   });
 }
@@ -42,6 +45,7 @@ beforeEach(async () => {
   fixture = await seedFixture();
   adminToken = (await login("admin")).token;
   salesToken = (await login("banhang")).token;
+  pharmacistToken = (await login("duocsi")).token;
 
   const categoryId = (await prisma.category.create({ data: { name: "Thuốc" } })).id;
   const product = await prisma.product.create({
@@ -86,6 +90,23 @@ describe("Danh sách lô", () => {
 
     expect(response.body.data.items).toHaveLength(1);
     expect(response.body.data.items[0].status).toBe("QUARANTINED");
+  });
+
+  it("chỉ trả giá vốn cho người có quyền stock.cost.read", async () => {
+    await makeBatch("AVAILABLE", fixture.storeId, 85000);
+
+    const admin = await api()
+      .get("/api/v1/inventory/batches")
+      .set(authHeaders(adminToken, fixture.storeId))
+      .expect(200);
+    expect(admin.body.data.items[0].unitCost).toBe(85000);
+
+    // Dược sĩ có stock.read (thấy được lô) nhưng không có stock.cost.read.
+    const pharmacist = await api()
+      .get("/api/v1/inventory/batches")
+      .set(authHeaders(pharmacistToken, fixture.storeId))
+      .expect(200);
+    expect(pharmacist.body.data.items[0]).not.toHaveProperty("unitCost");
   });
 });
 

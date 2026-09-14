@@ -1,19 +1,27 @@
 import {
   AppstoreOutlined,
   DatabaseOutlined,
+  ExperimentOutlined,
   FileProtectOutlined,
   FileTextOutlined,
   InboxOutlined,
   RollbackOutlined,
   ShoppingCartOutlined,
+  SwapOutlined,
   TruckOutlined,
   TeamOutlined,
 } from "@ant-design/icons";
 import { Button, Layout, Menu, Select, Space, Typography } from "antd";
+import type { ReactNode } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router";
 import { useAuth } from "../features/auth/AuthProvider.js";
 
-const ITEMS = [
+const ITEMS: Array<{
+  key: string;
+  icon: ReactNode;
+  label: string;
+  permission: string | string[];
+}> = [
   { key: "/ban-hang", icon: <ShoppingCartOutlined />, label: "Bán hàng", permission: "invoice.create" },
   { key: "/hoa-don", icon: <FileTextOutlined />, label: "Hóa đơn", permission: "invoice.read" },
   { key: "/tra-hang", icon: <RollbackOutlined />, label: "Trả hàng", permission: "invoice.read" },
@@ -28,7 +36,14 @@ const ITEMS = [
   { key: "/danh-muc", icon: <AppstoreOutlined />, label: "Danh mục nền", permission: "catalog.read" },
   { key: "/nha-cung-cap", icon: <TruckOutlined />, label: "Nhà cung cấp", permission: "catalog.read" },
   { key: "/phieu-nhap", icon: <InboxOutlined />, label: "Phiếu nhập", permission: "goods_receipt.read" },
-  { key: "/ton-kho", icon: <DatabaseOutlined />, label: "Tồn kho theo lô", permission: "stock.read" },
+  { key: "/ton-kho", icon: <DatabaseOutlined />, label: "Tồn kho", permission: "stock.read" },
+  {
+    key: "/dieu-chinh-ton",
+    icon: <SwapOutlined />,
+    label: "Điều chỉnh tồn kho",
+    permission: ["stock.adjust.create", "stock.adjust.approve"],
+  },
+  { key: "/so-nhiet-do", icon: <ExperimentOutlined />, label: "Sổ nhiệt độ – độ ẩm", permission: "storage_log.read" },
 ];
 
 /** Khung chung: chọn cửa hàng ở trên, điều hướng bên trái, nội dung ở giữa. */
@@ -40,7 +55,10 @@ export function AppLayout() {
   if (!me) return null;
 
   // Chỉ hiện menu người dùng thực sự có quyền tại cửa hàng đang đứng.
-  const visible = ITEMS.filter((item) => can(item.permission));
+  // Một số màn cho vào được nếu có MỘT TRONG NHIỀU quyền (ví dụ vừa lập vừa duyệt).
+  const visible = ITEMS.filter((item) =>
+    Array.isArray(item.permission) ? item.permission.some((p) => can(p)) : can(item.permission),
+  );
 
   return (
     <Layout style={{ minHeight: "100vh" }}>
