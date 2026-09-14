@@ -560,18 +560,35 @@ Ví dụ tạo phiếu:
 
 Khi tạo hoặc sửa, backend kiểm tra: sản phẩm đang kinh doanh, `unitId` thuộc sản phẩm, `expiryDate` sau ngày hiện tại, số lượng là số nguyên dương. Backend tự tính số lượng theo đơn vị nhỏ nhất và thành tiền từng dòng.
 
-Khi **confirm**, trong một transaction:
+### Kiểm nhập cảm quan khi confirm [Đã chốt]
+
+Thực hành GPP yêu cầu người xác nhận (dược sĩ phụ trách) kiểm tra hạn dùng, bao bì và chất lượng cảm quan **trước khi** hàng được coi là bán được — không chỉ là trách nhiệm ngầm định. Vì vậy `POST /goods-receipts/{id}/confirm` bắt buộc gửi kèm kết quả kiểm nhập từng dòng:
+
+```json
+{
+  "lines": [
+    { "lineId": "grl_01", "passed": true },
+    { "lineId": "grl_02", "passed": false, "rejectReason": "Bao bì móp méo, nghi ngờ chất lượng" }
+  ]
+}
+```
+
+- Phải có đúng một kết quả cho mỗi dòng của phiếu, không thiếu không thừa; thiếu dòng nào thì trả `422 VALIDATION_ERROR` và **không tạo lô nào cả** (dừng trước khi đụng vào kho).
+- `passed: false` bắt buộc có `rejectReason`.
+
+Trong một transaction:
 
 1. Chuyển `DRAFT` → `CONFIRMED` có điều kiện (§2.4).
 2. Với từng dòng, tìm lô theo (`productId`, `batchNumber`):
-   - Chưa có: tạo lô `AVAILABLE`.
+   - Chưa có: tạo lô mới — `AVAILABLE` nếu `passed`, `QUARANTINED` (kèm `note` = `rejectReason`) nếu không.
    - Đã có, khác `expiryDate`: dừng, trả `409 BATCH_EXPIRY_MISMATCH`.
    - Đã có, trạng thái `RECALLED`: dừng, trả `422 BATCH_NOT_SELLABLE`.
-3. Cộng tồn và ghi một dòng thẻ kho loại `RECEIPT` cho mỗi dòng phiếu.
-4. Ghi audit log.
+   - Đã có, dòng này `passed: false`: cả lô chuyển `QUARANTINED` — cùng số lô sản xuất nên vấn đề chất lượng coi như ảnh hưởng toàn bộ, không tách riêng phần mới nhập. Lô đã biệt trữ từ trước thì giữ nguyên dù dòng này đạt, không tự mở lại.
+3. Cộng tồn và ghi một dòng thẻ kho loại `RECEIPT` cho mỗi dòng phiếu (kể cả dòng không đạt — hàng đã thực sự về kho, chỉ là chưa bán được).
+4. Dòng không đạt thì ghi thêm audit log `GOODS_RECEIPT_LINE_REJECTED`.
 5. Bất kỳ bước nào lỗi thì rollback toàn bộ.
 
-Người xác nhận chịu trách nhiệm kiểm nhập theo GPP. Lô nghi ngờ chất lượng được biệt trữ ngay sau khi xác nhận (§8).
+Không có khoảnh khắc nào hàng chưa qua kiểm nhập ở trạng thái bán được — khác với việc xác nhận trước rồi mới biệt trữ sau qua endpoint riêng ở §8.
 
 ---
 

@@ -80,6 +80,13 @@ async function stockOf(batchNumber: string): Promise<number> {
   return batch?.quantityOnHand ?? 0;
 }
 
+/** Kết quả kiểm nhập mặc định cho test: mọi dòng đều đạt cảm quan. */
+function passedAll(receipt: { lines: Array<{ id: string }> }) {
+  return {
+    lines: receipt.lines.map((line: { id: string }) => ({ lineId: line.id, passed: true })),
+  };
+}
+
 describe("Tạo phiếu nhập", () => {
   it("tạo phiếu nháp và chưa đụng gì tới tồn kho", async () => {
     const response = await createDraft().expect(201);
@@ -164,7 +171,7 @@ describe("Xác nhận phiếu nhập", () => {
     const response = await api()
       .post(`/api/v1/goods-receipts/${draft.body.data.id}/confirm`)
       .set({ ...authHeaders(token, fixture.storeId), ...idem() })
-      .send({})
+      .send(passedAll(draft.body.data))
       .expect(200);
 
     expect(response.body.data.status).toBe("CONFIRMED");
@@ -188,18 +195,19 @@ describe("Xác nhận phiếu nhập", () => {
   it("xác nhận lần thứ hai bị chặn và tồn không đổi", async () => {
     const draft = await createDraft().expect(201);
     const url = `/api/v1/goods-receipts/${draft.body.data.id}/confirm`;
+    const body = passedAll(draft.body.data);
 
     await api()
       .post(url)
       .set({ ...authHeaders(token, fixture.storeId), ...idem() })
-      .send({})
+      .send(body)
       .expect(200);
 
     // Khóa idempotency khác: đây là lần bấm mới, không phải retry.
     const second = await api()
       .post(url)
       .set({ ...authHeaders(token, fixture.storeId), ...idem() })
-      .send({})
+      .send(body)
       .expect(409);
 
     expect(second.body.error.code).toBe("INVALID_STATE");
@@ -209,16 +217,17 @@ describe("Xác nhận phiếu nhập", () => {
   it("bấm xác nhận hai lần cùng lúc thì tồn chỉ cộng một lần", async () => {
     const draft = await createDraft().expect(201);
     const url = `/api/v1/goods-receipts/${draft.body.data.id}/confirm`;
+    const body = passedAll(draft.body.data);
 
     const [first, second] = await Promise.all([
       api()
         .post(url)
         .set({ ...authHeaders(token, fixture.storeId), ...idem() })
-        .send({}),
+        .send(body),
       api()
         .post(url)
         .set({ ...authHeaders(token, fixture.storeId), ...idem() })
-        .send({}),
+        .send(body),
     ]);
 
     const statuses = [first.status, second.status].sort();
@@ -231,9 +240,10 @@ describe("Xác nhận phiếu nhập", () => {
     const draft = await createDraft().expect(201);
     const url = `/api/v1/goods-receipts/${draft.body.data.id}/confirm`;
     const headers = { ...authHeaders(token, fixture.storeId), ...idem() };
+    const body = passedAll(draft.body.data);
 
-    await api().post(url).set(headers).send({}).expect(200);
-    const retry = await api().post(url).set(headers).send({}).expect(200);
+    await api().post(url).set(headers).send(body).expect(200);
+    const retry = await api().post(url).set(headers).send(body).expect(200);
 
     expect(retry.body.data.status).toBe("CONFIRMED");
     expect(await stockOf("PA250110")).toBe(2000);
@@ -245,7 +255,7 @@ describe("Xác nhận phiếu nhập", () => {
     await api()
       .post(`/api/v1/goods-receipts/${first.body.data.id}/confirm`)
       .set({ ...authHeaders(token, fixture.storeId), ...idem() })
-      .send({})
+      .send(passedAll(first.body.data))
       .expect(200);
 
     const second = await createDraft(
@@ -254,7 +264,7 @@ describe("Xác nhận phiếu nhập", () => {
     await api()
       .post(`/api/v1/goods-receipts/${second.body.data.id}/confirm`)
       .set({ ...authHeaders(token, fixture.storeId), ...idem() })
-      .send({})
+      .send(passedAll(second.body.data))
       .expect(200);
 
     expect(await prisma.batch.count()).toBe(1);
@@ -269,7 +279,7 @@ describe("Xác nhận phiếu nhập", () => {
     await api()
       .post(`/api/v1/goods-receipts/${first.body.data.id}/confirm`)
       .set({ ...authHeaders(token, fixture.storeId), ...idem() })
-      .send({})
+      .send(passedAll(first.body.data))
       .expect(200);
 
     const second = await createDraft(
@@ -279,7 +289,7 @@ describe("Xác nhận phiếu nhập", () => {
     const response = await api()
       .post(`/api/v1/goods-receipts/${second.body.data.id}/confirm`)
       .set({ ...authHeaders(token, fixture.storeId), ...idem() })
-      .send({})
+      .send(passedAll(second.body.data))
       .expect(409);
 
     expect(response.body.error.code).toBe("BATCH_EXPIRY_MISMATCH");
@@ -289,6 +299,95 @@ describe("Xác nhận phiếu nhập", () => {
     ).toMatchObject({
       status: "DRAFT",
     });
+  });
+});
+
+describe("Kiểm nhập cảm quan khi xác nhận", () => {
+  it("dòng không đạt vào thẳng lô biệt trữ, không có lúc nào ở trạng thái bán được", async () => {
+    const draft = await createDraft().expect(201);
+    const lineId = draft.body.data.lines[0].id;
+
+    const response = await api()
+      .post(`/api/v1/goods-receipts/${draft.body.data.id}/confirm`)
+      .set({ ...authHeaders(token, fixture.storeId), ...idem() })
+      .send({
+        lines: [{ lineId, passed: false, rejectReason: "Bao bì móp méo, nghi ngờ chất lượng" }],
+      })
+      .expect(200);
+
+    expect(response.body.data.status).toBe("CONFIRMED");
+
+    const batch = await prisma.batch.findFirstOrThrow({ where: { batchNumber: "PA250110" } });
+    expect(batch.status).toBe("QUARANTINED");
+    expect(batch.note).toBe("Bao bì móp méo, nghi ngờ chất lượng");
+    // Vẫn ghi đúng tồn và thẻ kho — hàng thật sự đã về kho, chỉ là chưa bán được.
+    expect(batch.quantityOnHand).toBe(2000);
+
+    const auditEntry = await prisma.auditLog.findFirst({ where: { resourceId: batch.id } });
+    expect(auditEntry).toMatchObject({
+      action: "GOODS_RECEIPT_LINE_REJECTED",
+      resourceType: "batch",
+    });
+  });
+
+  it("bắt buộc ghi lý do khi đánh dấu không đạt", async () => {
+    const draft = await createDraft().expect(201);
+    const lineId = draft.body.data.lines[0].id;
+
+    const response = await api()
+      .post(`/api/v1/goods-receipts/${draft.body.data.id}/confirm`)
+      .set({ ...authHeaders(token, fixture.storeId), ...idem() })
+      .send({ lines: [{ lineId, passed: false }] })
+      .expect(422);
+
+    expect(response.body.error.code).toBe("VALIDATION_ERROR");
+  });
+
+  it("thiếu kết quả kiểm nhập cho một dòng thì chặn toàn bộ phiếu", async () => {
+    const draft = await createDraft(
+      draftBody({
+        lines: [
+          { ...draftBody().lines[0], batchNumber: "PA1" },
+          { ...draftBody().lines[0], batchNumber: "PA2" },
+        ],
+      }),
+    ).expect(201);
+    const onlyFirstLine = [{ lineId: draft.body.data.lines[0].id, passed: true }];
+
+    const response = await api()
+      .post(`/api/v1/goods-receipts/${draft.body.data.id}/confirm`)
+      .set({ ...authHeaders(token, fixture.storeId), ...idem() })
+      .send({ lines: onlyFirstLine })
+      .expect(422);
+
+    expect(response.body.error.code).toBe("VALIDATION_ERROR");
+    expect(await prisma.batch.count()).toBe(0);
+  });
+
+  it("lô đã có sẵn mà lần nhập này không đạt thì cả lô chuyển biệt trữ", async () => {
+    const first = await createDraft().expect(201);
+    await api()
+      .post(`/api/v1/goods-receipts/${first.body.data.id}/confirm`)
+      .set({ ...authHeaders(token, fixture.storeId), ...idem() })
+      .send(passedAll(first.body.data))
+      .expect(200);
+    expect(
+      (await prisma.batch.findFirstOrThrow({ where: { batchNumber: "PA250110" } })).status,
+    ).toBe("AVAILABLE");
+
+    const second = await createDraft(
+      draftBody({ lines: [{ ...draftBody().lines[0], quantity: 5 }] }),
+    ).expect(201);
+    const lineId = second.body.data.lines[0].id;
+    await api()
+      .post(`/api/v1/goods-receipts/${second.body.data.id}/confirm`)
+      .set({ ...authHeaders(token, fixture.storeId), ...idem() })
+      .send({ lines: [{ lineId, passed: false, rejectReason: "Phát hiện mốc ở một số hộp" }] })
+      .expect(200);
+
+    const batch = await prisma.batch.findFirstOrThrow({ where: { batchNumber: "PA250110" } });
+    expect(batch.status).toBe("QUARANTINED");
+    expect(batch.quantityOnHand).toBe(2500);
   });
 });
 
@@ -310,7 +409,7 @@ describe("Hủy phiếu và phân quyền", () => {
     await api()
       .post(`/api/v1/goods-receipts/${draft.body.data.id}/confirm`)
       .set({ ...authHeaders(token, fixture.storeId), ...idem() })
-      .send({})
+      .send(passedAll(draft.body.data))
       .expect(200);
 
     const response = await api()
@@ -433,7 +532,7 @@ describe("Sửa phiếu nhập", () => {
     await api()
       .post(`/api/v1/goods-receipts/${draft.body.data.id}/confirm`)
       .set({ ...authHeaders(token, fixture.storeId), ...idem() })
-      .send({})
+      .send(passedAll(draft.body.data))
       .expect(200);
 
     const response = await patchReceipt(draft.body.data.id, {
