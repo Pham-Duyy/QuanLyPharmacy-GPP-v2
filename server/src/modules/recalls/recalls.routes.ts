@@ -12,7 +12,11 @@ import * as service from "./recalls.service.js";
 export const recallsRouter = Router();
 
 // Thu hồi là tài nguyên toàn chuỗi, không cần X-Store-Id (contract §2.8).
-recallsRouter.use(authenticate, storeContext, requirePermission("recall.manage"));
+// Giới hạn theo tiền tố "/recalls": nhiều router được app.ts gắn chung vào
+// "/api/v1", nếu dùng .use() không kèm đường dẫn thì middleware này chạy
+// cho MỌI request đi qua (kể cả của router khác đăng ký sau, như
+// /prescriptions) và đòi permission recall.manage một cách sai chỗ.
+recallsRouter.use("/recalls", authenticate, storeContext, requirePermission("recall.manage"));
 
 recallsRouter.post("/recalls", idempotency, async (req, res) => {
   const input = parseOrThrow(createRecallSchema, req.body);
