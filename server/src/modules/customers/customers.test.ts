@@ -136,6 +136,106 @@ describe("Tạo và sửa khách hàng", () => {
   });
 });
 
+describe("Bắt buộc có định danh khi tạo khách hàng", () => {
+  it("chặn khi cả họ tên lẫn số điện thoại đều thiếu", async () => {
+    const response = await api()
+      .post("/api/v1/customers")
+      .set(authHeaders(salesToken))
+      .send({ note: "Chỉ có ghi chú, không có tên hay số điện thoại" })
+      .expect(422);
+
+    expect(response.body.error.code).toBe("VALIDATION_ERROR");
+  });
+
+  it("chặn khi cả hai đều là chuỗi rỗng hoặc chỉ có khoảng trắng", async () => {
+    const response = await api()
+      .post("/api/v1/customers")
+      .set(authHeaders(salesToken))
+      .send({ fullName: "   ", phone: "" })
+      .expect(422);
+
+    expect(response.body.error.code).toBe("VALIDATION_ERROR");
+  });
+
+  it("chỉ có họ tên vẫn tạo được", async () => {
+    const response = await api()
+      .post("/api/v1/customers")
+      .set(authHeaders(salesToken))
+      .send({ fullName: "Chỉ có tên" })
+      .expect(201);
+
+    expect(response.body.data.fullName).toBe("Chỉ có tên");
+    expect(response.body.data.phone).toBeNull();
+  });
+
+  it("chỉ có số điện thoại vẫn tạo được", async () => {
+    const response = await api()
+      .post("/api/v1/customers")
+      .set(authHeaders(salesToken))
+      .send({ phone: "0909090909" })
+      .expect(201);
+
+    expect(response.body.data.phone).toBe("0909090909");
+    expect(response.body.data.fullName).toBeNull();
+  });
+});
+
+describe("Sửa khách hàng không được xóa hết định danh", () => {
+  it("xóa số điện thoại vẫn được vì còn họ tên", async () => {
+    const id = await createCustomer({ fullName: "Còn tên", phone: "0901111111" });
+    const before = await api().get(`/api/v1/customers/${id}`).set(authHeaders(salesToken));
+
+    const response = await api()
+      .patch(`/api/v1/customers/${id}`)
+      .set(authHeaders(salesToken))
+      .send({ version: before.body.data.version, phone: null })
+      .expect(200);
+
+    expect(response.body.data.phone).toBeNull();
+    expect(response.body.data.fullName).toBe("Còn tên");
+  });
+
+  it("chặn xóa nốt trường còn lại khi trường kia đã bị xóa từ trước", async () => {
+    const id = await createCustomer({ fullName: "Sắp rỗng", phone: "0902222222" });
+    const afterFirstPatch = await api()
+      .patch(`/api/v1/customers/${id}`)
+      .set(authHeaders(salesToken))
+      .send({ version: 1, phone: null })
+      .expect(200);
+
+    const response = await api()
+      .patch(`/api/v1/customers/${id}`)
+      .set(authHeaders(salesToken))
+      .send({ version: afterFirstPatch.body.data.version, fullName: null })
+      .expect(422);
+
+    expect(response.body.error.code).toBe("VALIDATION_ERROR");
+
+    // Xác nhận dữ liệu không đổi sau request bị chặn.
+    const stillThere = await prisma.customer.findUniqueOrThrow({ where: { id } });
+    expect(stillThere.fullName).toBe("Sắp rỗng");
+    expect(stillThere.version).toBe(afterFirstPatch.body.data.version);
+  });
+
+  it("xóa cả hai trong cùng một request bị chặn ngay, không sửa gì cả", async () => {
+    const id = await createCustomer({ fullName: "Trước khi xóa", phone: "0903333333" });
+    const before = await api().get(`/api/v1/customers/${id}`).set(authHeaders(salesToken));
+
+    const response = await api()
+      .patch(`/api/v1/customers/${id}`)
+      .set(authHeaders(salesToken))
+      .send({ version: before.body.data.version, fullName: null, phone: null })
+      .expect(422);
+
+    expect(response.body.error.code).toBe("VALIDATION_ERROR");
+
+    const stillThere = await prisma.customer.findUniqueOrThrow({ where: { id } });
+    expect(stillThere.fullName).toBe("Trước khi xóa");
+    expect(stillThere.phone).toBe("0903333333");
+    expect(stillThere.version).toBe(before.body.data.version);
+  });
+});
+
 describe("Hồ sơ sức khỏe — permission tách biệt với customer.read/manage", () => {
   it("admin và nhân viên bán hàng không xem được hồ sơ sức khỏe", async () => {
     const id = await createCustomer();
@@ -205,6 +305,33 @@ describe("Hồ sơ sức khỏe — permission tách biệt với customer.read/
       .expect(200);
 
     expect(response.body.data.chronicConditions).toBe("Hen suyễn");
+  });
+
+  it("ingredientId hợp lệ định dạng nhưng không tồn tại thì trả 422, không lưu gì cả", async () => {
+    const id = await createCustomer();
+    const fakeIngredientId = "00000000-0000-0000-0000-000000000000"; // UUID hợp lệ, không có trong bảng.
+
+    const response = await api()
+      .patch(`/api/v1/customers/${id}/health-profile`)
+      .set(authHeaders(pharmacistToken))
+      .send({
+        consent: true,
+        chronicConditions: "Không được lưu",
+        allergies: [{ ingredientId: fakeIngredientId }],
+      })
+      .expect(422);
+
+    expect(response.body.error.code).toBe("VALIDATION_ERROR");
+
+    // Cả consent, hồ sơ sức khỏe lẫn dị ứng đều không được lưu dở dang.
+    const customer = await prisma.customer.findUniqueOrThrow({ where: { id } });
+    expect(customer.healthDataConsentAt).toBeNull();
+
+    const profile = await prisma.customerHealthProfile.findUnique({ where: { customerId: id } });
+    expect(profile).toBeNull();
+
+    const allergies = await prisma.customerAllergy.findMany({ where: { customerId: id } });
+    expect(allergies).toHaveLength(0);
   });
 
   it("mỗi lần xem hồ sơ đều ghi audit riêng", async () => {

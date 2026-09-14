@@ -6,15 +6,28 @@ export const searchCustomersSchema = z.object({
   search: z.string().trim().min(3, "Gõ ít nhất 3 ký tự để tìm"),
 });
 
-export const createCustomerSchema = z.object({
+/** Trường thông tin cơ bản, dùng chung cho tạo mới và sửa. */
+const customerFieldsSchema = z.object({
   fullName: z.string().trim().min(1, "Thiếu họ tên").max(200).nullish(),
-  phone: z.string().trim().max(20).nullish(),
+  phone: z.string().trim().min(1, "Thiếu số điện thoại").max(20).nullish(),
   birthYear: z.coerce.number().int().min(1900).max(CURRENT_YEAR).nullish(),
   gender: z.enum(["MALE", "FEMALE", "OTHER"]).nullish(),
   note: z.string().trim().max(1000).nullish(),
 });
 
-export const patchCustomerSchema = createCustomerSchema.extend({
+/**
+ * Bắt buộc có ít nhất họ tên hoặc số điện thoại lúc tạo mới — khách lẻ
+ * không cần tạo bản ghi Customer. Không áp lại ràng buộc này cho PATCH: sửa
+ * có thể chỉ gửi một trường, schema không biết trường còn lại trong CSDL
+ * đang có giá trị hay không, nên việc "sửa xong không được rỗng cả hai"
+ * phải kiểm tra ở service sau khi đã biết dữ liệu hiện có (customers.service.ts).
+ */
+export const createCustomerSchema = customerFieldsSchema.refine(
+  (value) => Boolean(value.fullName) || Boolean(value.phone),
+  { message: "Phải có ít nhất họ tên hoặc số điện thoại", path: ["fullName"] },
+);
+
+export const patchCustomerSchema = customerFieldsSchema.extend({
   version: z.coerce.number().int().positive("Thiếu version"),
 });
 
