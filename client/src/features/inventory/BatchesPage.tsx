@@ -1,7 +1,7 @@
 import { DatabaseOutlined, WarningOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, Card, Drawer, Form, Input, Modal, Select, Space, Table, Tabs, Tag, Typography, message } from "antd";
-import { useState } from "react";
+import { Alert, Button, Card, Col, Drawer, Form, Input, Modal, Progress, Row, Select, Space, Table, Tabs, Tag, Typography, message } from "antd";
+import { useMemo, useState } from "react";
 import { getErrorMessage, http } from "../../api/http.js";
 import {
   formatVnd,
@@ -20,6 +20,7 @@ const STATUS: Record<BatchListItem["status"], { label: string; color: string }> 
   RECALLED: { label: "Thu hồi", color: "red" },
 };
 const formatDate = (value: string | null) => (value ? new Intl.DateTimeFormat("vi-VN").format(new Date(value)) : "—");
+const daysUntil = (date: string) => Math.ceil((new Date(date).getTime() - Date.now()) / 86_400_000);
 
 /** Tồn kho: theo lô (biệt trữ/mở biệt trữ) và theo sản phẩm (tổng hợp, cảnh báo dưới mức tối thiểu). */
 export function BatchesPage() {
@@ -32,15 +33,101 @@ export function BatchesPage() {
         </div>
         <Tag color="gold" icon={<WarningOutlined />}>Ưu tiên kiểm tra lô gần hết hạn</Tag>
       </div>
-    <Card className="inventory-panel" title="Dữ liệu kho">
-      <Tabs
-        items={[
-          { key: "batches", label: "Theo lô", children: <BatchesTab /> },
-          { key: "overview", label: "Theo sản phẩm", children: <OverviewTab /> },
-        ]}
-      />
-    </Card>
+      <Row gutter={[16, 16]}>
+        <Col xs={24} xl={16}>
+          <Card className="inventory-panel" title="Dữ liệu kho">
+            <Tabs
+              items={[
+                { key: "batches", label: "Theo lô", children: <BatchesTab /> },
+                { key: "overview", label: "Theo sản phẩm", children: <OverviewTab /> },
+              ]}
+            />
+          </Card>
+        </Col>
+        <Col xs={24} xl={8}>
+          <InventorySidebar />
+        </Col>
+      </Row>
     </div>
+  );
+}
+
+/** Tổng hợp cơ cấu tồn theo nhóm hàng và lô sắp hết hạn — dữ liệu thật, không phụ thuộc dòng đang chọn ở bảng chính. */
+function InventorySidebar() {
+  const overview = useQuery({
+    queryKey: ["inventory-sidebar-overview"],
+    queryFn: async () => (await http.get<Envelope<Paged<InventoryOverviewItem>>>("/inventory", { params: { limit: 100 } })).data.data.items,
+  });
+  const availableBatches = useQuery({
+    queryKey: ["inventory-sidebar-batches"],
+    queryFn: async () => (await http.get<Envelope<Paged<BatchListItem>>>("/inventory/batches", { params: { status: "AVAILABLE", limit: 100 } })).data.data.items,
+  });
+
+  const categoryTotals = useMemo(() => {
+    const totals = new Map<string, number>();
+    for (const item of overview.data ?? []) totals.set(item.categoryName, (totals.get(item.categoryName) ?? 0) + item.stock.sellable);
+    return [...totals.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6);
+  }, [overview.data]);
+  const maxCategoryQty = Math.max(...categoryTotals.map(([, qty]) => qty), 1);
+
+  const expiringSoon = useMemo(() => {
+    return (availableBatches.data ?? [])
+      .map((batch) => ({ batch, days: daysUntil(batch.expiryDate) }))
+      .filter((item) => item.days >= 0 && item.days <= 90)
+      .sort((a, b) => a.days - b.days)
+      .slice(0, 6);
+  }, [availableBatches.data]);
+
+  const lowStockCount = (overview.data ?? []).filter((item) => item.stock.sellable < item.minStockBaseQuantity).length;
+
+  return (
+    <Space direction="vertical" size="middle" style={{ width: "100%" }}>
+      {expiringSoon.length > 0 ? (
+        <Alert
+          type="warning"
+          showIcon
+          message="Ưu tiên xuất lô gần hết hạn"
+          description={`Có ${expiringSoon.length} lô sẽ hết hạn trong 90 ngày tới. Ưu tiên bán các lô này trước để tránh lãng phí.`}
+        />
+      ) : null}
+      <Card size="small" title="Cơ cấu tồn theo nhóm hàng" loading={overview.isLoading}>
+        {categoryTotals.length === 0 ? (
+          <Typography.Text type="secondary">Chưa có dữ liệu tồn kho.</Typography.Text>
+        ) : (
+          <Space direction="vertical" style={{ width: "100%" }} size={10}>
+            {categoryTotals.map(([name, qty]) => (
+              <div key={name}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#173d7c" }}>
+                  <span>{name}</span>
+                  <strong>{qty}</strong>
+                </div>
+                <Progress percent={Math.round((qty / maxCategoryQty) * 100)} showInfo={false} size="small" strokeColor="#0876eb" />
+              </div>
+            ))}
+          </Space>
+        )}
+      </Card>
+      <Card size="small" title="Lô sắp hết hạn (90 ngày tới)" loading={availableBatches.isLoading}>
+        {expiringSoon.length === 0 ? (
+          <Typography.Text type="secondary">Không có lô nào sắp hết hạn.</Typography.Text>
+        ) : (
+          <Space direction="vertical" style={{ width: "100%" }} size={10}>
+            {expiringSoon.map(({ batch, days }) => (
+              <div key={batch.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                <div style={{ minWidth: 0 }}>
+                  <Typography.Text strong ellipsis style={{ display: "block", fontSize: 12 }}>{batch.productName}</Typography.Text>
+                  <Typography.Text type="secondary" style={{ fontSize: 11 }}>Lô {batch.batchNumber}</Typography.Text>
+                </div>
+                <Tag color={days <= 30 ? "red" : "orange"}>{days} ngày</Tag>
+              </div>
+            ))}
+          </Space>
+        )}
+      </Card>
+      <Card size="small" title="Tồn thấp">
+        <Typography.Text>{lowStockCount} mặt hàng đang dưới mức tồn tối thiểu.</Typography.Text>
+      </Card>
+    </Space>
   );
 }
 

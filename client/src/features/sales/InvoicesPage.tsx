@@ -5,8 +5,8 @@ import {
   Card,
   Col,
   Descriptions,
-  Drawer,
   Dropdown,
+  Empty,
   Input,
   Modal,
   Row,
@@ -30,7 +30,6 @@ import { printInvoice } from "./print-invoice.js";
 import { ReturnModal } from "./ReturnModal.js";
 
 export function InvoicesPage() {
-  const { can } = useAuth();
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [openId, setOpenId] = useState<string | null>(null);
@@ -78,157 +77,96 @@ export function InvoicesPage() {
 
   return (
     <div className="invoices-page">
-      <div className="page-heading"><div><Typography.Title level={2}><FileTextOutlined /> Hóa đơn</Typography.Title><Typography.Text>Quản lý, tra cứu và theo dõi toàn bộ hóa đơn bán hàng.</Typography.Text></div><Tag color="blue">{list.data?.pagination.total ?? 0} hóa đơn</Tag></div>
-      <Row gutter={[16, 16]} className="invoice-stats"><Col xs={24} md={12}><Card><Space><span className="invoice-icon blue"><FileTextOutlined /></span><div><Typography.Text strong>Hóa đơn trên trang</Typography.Text><Typography.Title level={3}>{invoices.length}</Typography.Title></div></Space></Card></Col><Col xs={24} md={12}><Card><Space><span className="invoice-icon green"><DollarCircleOutlined /></span><div><Typography.Text strong>Giá trị trên trang</Typography.Text><Typography.Title level={3}>{formatVnd(invoices.reduce((sum, item) => sum + Number(item.totalAmount), 0))}</Typography.Title></div></Space></Card></Col></Row>
-    <Card className="invoice-list-card" title="Danh sách hóa đơn">
-      <Table
-        rowKey="id"
-        size="small"
-        loading={list.isLoading}
-        dataSource={invoices}
-        onRow={(row) => ({ onClick: () => setOpenId(row.id), style: { cursor: "pointer" } })}
-        pagination={{
-          current: page,
-          pageSize: list.data?.pagination.limit ?? 20,
-          total: list.data?.pagination.total ?? 0,
-          onChange: setPage,
-          showSizeChanger: false,
-        }}
-        columns={[
-          { title: "Số hóa đơn", dataIndex: "code", width: 200 },
-          {
-            title: "Thời điểm",
-            width: 170,
-            render: (_, row: InvoiceListItem) =>
-              new Date(row.soldAt).toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" }),
-          },
-          { title: "Khách", render: (_, row: InvoiceListItem) => row.customerName ?? "Khách lẻ" },
-          { title: "Người bán", dataIndex: "sellerName", width: 160 },
-          { title: "Số dòng", dataIndex: "lineCount", width: 80, align: "right" },
-          {
-            title: "Tổng tiền",
-            width: 130,
-            align: "right",
-            render: (_, row: InvoiceListItem) => (
-              <Typography.Text strong>{formatVnd(row.totalAmount)}</Typography.Text>
-            ),
-          },
-          {
-            title: "Trạng thái",
-            width: 110,
-            render: (_, row: InvoiceListItem) =>
-              row.status === "VOIDED" ? (
-                <Tag color="red">Đã hủy</Tag>
-              ) : (
-                <Tag color="green">Hoàn tất</Tag>
-              ),
-          },
-        ]}
-      />
-
-      <Drawer
-        width={640}
-        open={openId !== null}
-        onClose={() => setOpenId(null)}
-        title={detail.data?.code ?? "Chi tiết hóa đơn"}
-        extra={
-          detail.data ? (
+      <div className="page-heading">
+        <div>
+          <Typography.Title level={2}><FileTextOutlined /> Hóa đơn</Typography.Title>
+          <Typography.Text>Quản lý, tra cứu và theo dõi toàn bộ hóa đơn bán hàng.</Typography.Text>
+        </div>
+        <Tag color="blue">{list.data?.pagination.total ?? 0} hóa đơn</Tag>
+      </div>
+      <Row gutter={[16, 16]} className="invoice-stats">
+        <Col xs={24} md={12}>
+          <Card>
             <Space>
-              <Dropdown
-                menu={{
-                  items: [
-                    { key: "k80", label: "Khổ K80 (máy in nhiệt)" },
-                    { key: "a5", label: "Khổ A5" },
-                  ],
-                  onClick: ({ key }) => void printInvoice(detail.data!.id, key as "k80" | "a5"),
-                }}
-              >
-                <Button icon={<PrinterOutlined />}>In hóa đơn</Button>
-              </Dropdown>
-              {detail.data.status === "COMPLETED" && can("return.create") &&
-              detail.data.returnStatus !== "FULL" ? (
-                <Button onClick={() => setReturning(true)}>Nhận trả hàng</Button>
-              ) : null}
-              {detail.data.status === "COMPLETED" && can("invoice.void") &&
-              detail.data.returnStatus === "NONE" ? (
-                <Button danger onClick={() => setVoiding(true)}>
-                  Hủy hóa đơn
-                </Button>
-              ) : null}
+              <span className="invoice-icon blue"><FileTextOutlined /></span>
+              <div>
+                <Typography.Text strong>Hóa đơn trên trang</Typography.Text>
+                <Typography.Title level={3}>{invoices.length}</Typography.Title>
+              </div>
             </Space>
-          ) : null
-        }
-      >
-        {detail.data ? (
-          <Space direction="vertical" style={{ width: "100%" }} size="middle">
-            <Descriptions
-              size="small"
-              column={1}
-              items={[
-                { key: "s", label: "Trạng thái", children: detail.data.status },
-                { key: "b", label: "Người bán", children: detail.data.seller.fullName },
-                {
-                  key: "k",
-                  label: "Khách",
-                  children: detail.data.customer?.fullName ?? "Khách lẻ",
-                },
-                { key: "t", label: "Tạm tính", children: formatVnd(detail.data.subtotal) },
-                { key: "g", label: "Giảm giá", children: formatVnd(detail.data.discountAmount) },
-                { key: "v", label: "Trong đó VAT", children: formatVnd(detail.data.vatAmount) },
-                { key: "c", label: "Tổng tiền", children: formatVnd(detail.data.totalAmount) },
-                ...(detail.data.voidReason
-                  ? [{ key: "r", label: "Lý do hủy", children: detail.data.voidReason }]
-                  : []),
-              ]}
-            />
+          </Card>
+        </Col>
+        <Col xs={24} md={12}>
+          <Card>
+            <Space>
+              <span className="invoice-icon green"><DollarCircleOutlined /></span>
+              <div>
+                <Typography.Text strong>Giá trị trên trang</Typography.Text>
+                <Typography.Title level={3}>{formatVnd(invoices.reduce((sum, item) => sum + Number(item.totalAmount), 0))}</Typography.Title>
+              </div>
+            </Space>
+          </Card>
+        </Col>
+      </Row>
 
+      <Row gutter={[16, 16]}>
+        <Col xs={24} xl={15}>
+          <Card className="invoice-list-card" title="Danh sách hóa đơn">
             <Table
               rowKey="id"
               size="small"
-              pagination={false}
-              dataSource={detail.data.lines}
+              loading={list.isLoading}
+              dataSource={invoices}
+              onRow={(row) => ({ onClick: () => setOpenId(row.id), style: { cursor: "pointer" } })}
+              rowClassName={(row) => (row.id === openId ? "row-selected" : "")}
+              pagination={{
+                current: page,
+                pageSize: list.data?.pagination.limit ?? 20,
+                total: list.data?.pagination.total ?? 0,
+                onChange: setPage,
+                showSizeChanger: false,
+              }}
               columns={[
-                { title: "Sản phẩm", dataIndex: "productName" },
-                { title: "ĐVT", dataIndex: "unitName", width: 80 },
-                { title: "SL", dataIndex: "quantity", width: 60, align: "right" },
+                { title: "Số hóa đơn", dataIndex: "code", width: 190 },
                 {
-                  title: "Đơn giá",
-                  width: 110,
-                  align: "right",
-                  render: (_, line) => formatVnd(line.unitPrice),
+                  title: "Thời điểm",
+                  width: 160,
+                  render: (_, row: InvoiceListItem) =>
+                    new Date(row.soldAt).toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" }),
                 },
+                { title: "Khách", render: (_, row: InvoiceListItem) => row.customerName ?? "Khách lẻ" },
+                { title: "Người bán", dataIndex: "sellerName", width: 150 },
                 {
-                  title: "Thành tiền",
+                  title: "Tổng tiền",
                   width: 120,
                   align: "right",
-                  render: (_, line) => formatVnd(line.lineTotal),
+                  render: (_, row: InvoiceListItem) => (
+                    <Typography.Text strong>{formatVnd(row.totalAmount)}</Typography.Text>
+                  ),
+                },
+                {
+                  title: "Trạng thái",
+                  width: 100,
+                  render: (_, row: InvoiceListItem) =>
+                    row.status === "VOIDED" ? <Tag color="red">Đã hủy</Tag> : <Tag color="green">Hoàn tất</Tag>,
                 },
               ]}
-              expandable={{
-                expandedRowRender: (line) => (
-                  <Space direction="vertical" size={0}>
-                    {line.allocations.map((allocation) => (
-                      <Typography.Text key={allocation.id}>
-                        Lô {allocation.batchNumber} · hạn{" "}
-                        {new Date(allocation.expiryDate).toLocaleDateString("vi-VN")} ·{" "}
-                        {allocation.baseQuantity} đơn vị nhỏ nhất
-                      </Typography.Text>
-                    ))}
-                  </Space>
-                ),
-              }}
             />
-          </Space>
-        ) : null}
-      </Drawer>
+          </Card>
+        </Col>
 
-      {detail.data ? (
-        <ReturnModal
-          invoice={detail.data}
-          open={returning}
-          onClose={() => setReturning(false)}
-        />
-      ) : null}
+        <Col xs={24} xl={9}>
+          <InvoiceDetailPanel
+            invoice={detail.data ?? null}
+            loading={detail.isFetching}
+            onPrint={(format) => void printInvoice(detail.data!.id, format)}
+            onReturn={() => setReturning(true)}
+            onVoid={() => setVoiding(true)}
+          />
+        </Col>
+      </Row>
+
+      {detail.data ? <ReturnModal invoice={detail.data} open={returning} onClose={() => setReturning(false)} /> : null}
 
       <Modal
         open={voiding}
@@ -250,7 +188,100 @@ export function InvoicesPage() {
           onChange={(event) => setVoidReason(event.target.value)}
         />
       </Modal>
-    </Card>
     </div>
+  );
+}
+
+function InvoiceDetailPanel({
+  invoice,
+  loading,
+  onPrint,
+  onReturn,
+  onVoid,
+}: {
+  invoice: Invoice | null;
+  loading: boolean;
+  onPrint: (format: "k80" | "a5") => void;
+  onReturn: () => void;
+  onVoid: () => void;
+}) {
+  const { can } = useAuth();
+
+  return (
+    <Card
+      className="invoice-detail-card"
+      title={invoice?.code ?? "Chi tiết hóa đơn"}
+      loading={loading}
+      extra={
+        invoice ? (
+          <Space>
+            <Dropdown
+              menu={{
+                items: [
+                  { key: "k80", label: "Khổ K80 (máy in nhiệt)" },
+                  { key: "a5", label: "Khổ A5" },
+                ],
+                onClick: ({ key }) => onPrint(key as "k80" | "a5"),
+              }}
+            >
+              <Button icon={<PrinterOutlined />}>In</Button>
+            </Dropdown>
+          </Space>
+        ) : null
+      }
+    >
+      {!invoice ? (
+        <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chọn một hóa đơn để xem chi tiết" />
+      ) : (
+        <Space direction="vertical" style={{ width: "100%" }} size="middle">
+          <Descriptions
+            size="small"
+            column={1}
+            items={[
+              { key: "s", label: "Trạng thái", children: invoice.status === "VOIDED" ? <Tag color="red">Đã hủy</Tag> : <Tag color="green">Hoàn tất</Tag> },
+              { key: "b", label: "Người bán", children: invoice.seller.fullName },
+              { key: "k", label: "Khách", children: invoice.customer?.fullName ?? "Khách lẻ" },
+              { key: "pm", label: "Thanh toán", children: invoice.paymentMethod === "CASH" ? "Tiền mặt" : "Chuyển khoản" },
+              { key: "t", label: "Tạm tính", children: formatVnd(invoice.subtotal) },
+              { key: "g", label: "Giảm giá", children: formatVnd(invoice.discountAmount) },
+              { key: "v", label: "Trong đó VAT", children: formatVnd(invoice.vatAmount) },
+              { key: "c", label: "Tổng tiền", children: <Typography.Text strong>{formatVnd(invoice.totalAmount)}</Typography.Text> },
+              ...(invoice.voidReason ? [{ key: "r", label: "Lý do hủy", children: invoice.voidReason }] : []),
+            ]}
+          />
+
+          <Table
+            rowKey="id"
+            size="small"
+            pagination={false}
+            dataSource={invoice.lines}
+            columns={[
+              { title: "Sản phẩm", dataIndex: "productName" },
+              { title: "ĐVT", dataIndex: "unitName", width: 70 },
+              { title: "SL", dataIndex: "quantity", width: 50, align: "right" },
+              { title: "Thành tiền", width: 100, align: "right", render: (_, line) => formatVnd(line.lineTotal) },
+            ]}
+            expandable={{
+              expandedRowRender: (line) => (
+                <Space direction="vertical" size={0}>
+                  {line.allocations.map((allocation) => (
+                    <Typography.Text key={allocation.id}>
+                      Lô {allocation.batchNumber} · hạn {new Date(allocation.expiryDate).toLocaleDateString("vi-VN")} · {allocation.baseQuantity} đơn vị nhỏ nhất
+                    </Typography.Text>
+                  ))}
+                </Space>
+              ),
+            }}
+          />
+
+          {invoice.status === "COMPLETED" ? (
+            <Space wrap>
+              {can("return.create") && invoice.returnStatus !== "FULL" ? <Button onClick={onReturn}>Nhận trả hàng</Button> : null}
+              {can("invoice.void") && invoice.returnStatus === "NONE" ? <Button danger onClick={onVoid}>Hủy hóa đơn</Button> : null}
+            </Space>
+          ) : null}
+        </Space>
+      )}
+    </Card>
   );
 }
