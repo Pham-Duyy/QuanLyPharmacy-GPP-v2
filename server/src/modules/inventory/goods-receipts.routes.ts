@@ -8,7 +8,7 @@ import { authenticate } from "../../middlewares/authenticate.js";
 import { idempotency } from "../../middlewares/idempotency.js";
 import { requirePermission } from "../../middlewares/require-permission.js";
 import { requireStore, storeContext } from "../../middlewares/store-context.js";
-import { cancelSchema, createReceiptSchema } from "./goods-receipts.schema.js";
+import { cancelSchema, createReceiptSchema, patchReceiptSchema } from "./goods-receipts.schema.js";
 import * as service from "./goods-receipts.service.js";
 
 export const goodsReceiptsRouter = Router();
@@ -92,6 +92,20 @@ goodsReceiptsRouter.post(
       service.createDraft(req.auth!.storeId!, req.auth!.userId, input),
     );
     sendData(res, await service.getDetail(req.auth!.storeId!, id), 201);
+  },
+);
+
+// Không cần Idempotency-Key: PATCH đã tự chống ghi trùng bằng version,
+// gửi lại y hệt thì lần hai lệch version nên bị 409 chứ không sửa đè.
+goodsReceiptsRouter.patch(
+  "/goods-receipts/:id",
+  requirePermission("goods_receipt.create"),
+  async (req, res) => {
+    const input = parseOrThrow(patchReceiptSchema, req.body);
+    const storeId = req.auth!.storeId!;
+    const id = String(req.params.id);
+    await withMappedErrors(() => service.updateDraft(storeId, id, input));
+    sendData(res, await service.getDetail(storeId, id));
   },
 );
 
