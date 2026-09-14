@@ -74,7 +74,24 @@ export async function create(input: CreateCustomerInput): Promise<string> {
   return customer.id;
 }
 
+/**
+ * Sửa không được để khách đang có dữ liệu biến thành hoàn toàn rỗng: nếu
+ * một trường bị xóa (gửi null) thì trường còn lại phải vẫn có giá trị —
+ * hoặc trường đó vốn đã có sẵn trong CSDL, hoặc chính request này gán cho
+ * nó. Đọc bản ghi hiện tại trước để biết trường không được gửi trong
+ * request vẫn giữ giá trị nào; race giữa lúc đọc và lúc ghi vẫn an toàn vì
+ * `updateWithVersion` chặn bằng version ngay sau đó.
+ */
 export async function update(customerId: string, input: PatchCustomerInput): Promise<void> {
+  const existing = await prisma.customer.findUnique({ where: { id: customerId } });
+  if (!existing) throw AppError.notFound("Không tìm thấy khách hàng");
+
+  const nextFullName = input.fullName !== undefined ? input.fullName : existing.fullName;
+  const nextPhone = input.phone !== undefined ? input.phone : existing.phone;
+  if (!nextFullName && !nextPhone) {
+    throw new AppError(422, "VALIDATION_ERROR", "Phải giữ lại ít nhất họ tên hoặc số điện thoại");
+  }
+
   await updateWithVersion({
     notFoundMessage: "Không tìm thấy khách hàng",
     exists: async () => (await prisma.customer.count({ where: { id: customerId } })) > 0,

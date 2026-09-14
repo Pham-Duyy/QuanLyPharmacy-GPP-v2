@@ -58,7 +58,11 @@ customersRouter.patch(
   async (req, res) => {
     const input = parseOrThrow(patchHealthProfileSchema, req.body);
     const id = String(req.params.id);
-    await service.updateHealthProfile(id, req.auth!, input);
+    // ingredientId hợp lệ về định dạng nhưng không tồn tại thì Prisma ném
+    // P2003 (khóa ngoại) — dịch sang 422 thay vì để rơi xuống 500 chung.
+    // Toàn bộ nằm trong transaction ở service nên lỗi giữa chừng tự rollback,
+    // không để sót consent, hồ sơ hay dị ứng dở dang.
+    await withMappedErrors(() => service.updateHealthProfile(id, req.auth!, input));
     sendData(res, await service.getHealthProfile(id, req.auth!));
   },
 );
