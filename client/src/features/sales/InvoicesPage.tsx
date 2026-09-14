@@ -1,9 +1,11 @@
+import { PrinterOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Button,
   Card,
   Descriptions,
   Drawer,
+  Dropdown,
   Input,
   Modal,
   Space,
@@ -22,6 +24,7 @@ import {
   type Paged,
 } from "../../api/types.js";
 import { useAuth } from "../auth/AuthProvider.js";
+import { printInvoice } from "./print-invoice.js";
 import { ReturnModal } from "./ReturnModal.js";
 
 export function InvoicesPage() {
@@ -123,12 +126,25 @@ export function InvoicesPage() {
         onClose={() => setOpenId(null)}
         title={detail.data?.code ?? "Chi tiết hóa đơn"}
         extra={
-          detail.data?.status === "COMPLETED" ? (
+          detail.data ? (
             <Space>
-              {can("return.create") && detail.data.returnStatus !== "FULL" ? (
+              <Dropdown
+                menu={{
+                  items: [
+                    { key: "k80", label: "Khổ K80 (máy in nhiệt)" },
+                    { key: "a5", label: "Khổ A5" },
+                  ],
+                  onClick: ({ key }) => void printInvoice(detail.data!.id, key as "k80" | "a5"),
+                }}
+              >
+                <Button icon={<PrinterOutlined />}>In hóa đơn</Button>
+              </Dropdown>
+              {detail.data.status === "COMPLETED" && can("return.create") &&
+              detail.data.returnStatus !== "FULL" ? (
                 <Button onClick={() => setReturning(true)}>Nhận trả hàng</Button>
               ) : null}
-              {can("invoice.void") && detail.data.returnStatus === "NONE" ? (
+              {detail.data.status === "COMPLETED" && can("invoice.void") &&
+              detail.data.returnStatus === "NONE" ? (
                 <Button danger onClick={() => setVoiding(true)}>
                   Hủy hóa đơn
                 </Button>
