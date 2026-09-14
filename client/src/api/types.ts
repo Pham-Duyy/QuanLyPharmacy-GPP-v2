@@ -430,6 +430,7 @@ export type CustomerDetail = {
   gender: "MALE" | "FEMALE" | "OTHER" | null;
   note: string | null;
   hasHealthConsent: boolean;
+  isAnonymized: boolean;
   version: number;
 };
 
@@ -541,3 +542,76 @@ export type StorageLogSummaryLocation = {
   locationName: string;
   days: StorageLogSummaryDay[];
 };
+
+// --- Người dùng và vai trò (contract §21) -----------------------------------
+
+export type UserRoleAssignment = {
+  roleCode: string;
+  roleName: string;
+  storeId: string | null;
+  storeName?: string | null;
+};
+
+export type UserListItem = {
+  id: string;
+  username: string;
+  fullName: string;
+  phone: string | null;
+  isActive: boolean;
+  roles: UserRoleAssignment[];
+};
+
+export type UserDetail = {
+  id: string;
+  username: string;
+  fullName: string;
+  phone: string | null;
+  practiceCertificateNumber: string | null;
+  mustChangePassword: boolean;
+  isActive: boolean;
+  defaultStoreId: string | null;
+  version: number;
+  roles: UserRoleAssignment[];
+};
+
+export type RoleItem = {
+  code: string;
+  name: string;
+  description: string | null;
+  permissions: string[];
+};
+
+// --- Cửa hàng (contract §21) -------------------------------------------------
+
+export type StoreDetail = {
+  id: string;
+  code: string;
+  name: string;
+  address: string | null;
+  phone: string | null;
+  gppCertificateNumber: string | null;
+  licenseNumber: string | null;
+  isActive: boolean;
+  version: number;
+  permissions: string[];
+};
+
+// --- Audit log (contract §18) -----------------------------------------------
+
+export type AuditLogItem = {
+  id: string;
+  occurredAt: string;
+  actorId: string | null;
+  actorName: string | null;
+  action: string;
+  resourceType: string;
+  resourceId: string | null;
+  requestId: string | null;
+  ip: string | null;
+  userAgent: string | null;
+  before: unknown;
+  after: unknown;
+  reason: string | null;
+};
+
+export type AuditLogPage = { items: AuditLogItem[]; nextCursor: string | null };

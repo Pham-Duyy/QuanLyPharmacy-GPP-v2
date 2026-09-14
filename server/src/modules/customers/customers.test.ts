@@ -469,3 +469,134 @@ describe("Không tìm thấy khách hàng", () => {
     expect(response.body.error.code).toBe("NOT_FOUND");
   });
 });
+
+describe("Ẩn danh khách hàng", () => {
+  it("xóa họ tên/SĐT/hồ sơ sức khỏe, giữ nguyên hóa đơn đã phát sinh", async () => {
+    const customerId = await createCustomer({ fullName: "Trần Thị B", phone: "0912345678" });
+    await api()
+      .patch(`/api/v1/customers/${customerId}/health-profile`)
+      .set(authHeaders(pharmacistToken))
+      .send({ consent: true, chronicConditions: "Tiểu đường", allergies: [] })
+      .expect(200);
+
+    const category = await prisma.category.create({ data: { name: "Thuốc" } });
+    const product = await prisma.product.create({
+      data: {
+        code: "TH0001",
+        name: "Paracetamol 500mg",
+        productType: "DRUG",
+        drugClass: "OTC",
+        categoryId: category.id,
+        units: { create: { name: "Viên", conversionToBase: 1, isDefaultSaleUnit: true } },
+      },
+      include: { units: true },
+    });
+    await prisma.productPrice.create({
+      data: {
+        productUnitId: product.units[0]!.id,
+        salePrice: 1000n,
+        vatRatePercent: 5,
+        effectiveFrom: new Date(Date.now() - 86_400_000),
+      },
+    });
+    await prisma.batch.create({
+      data: {
+        storeId: fixture.storeId,
+        productId: product.id,
+        batchNumber: "L1",
+        expiryDate: new Date(Date.now() + 365 * 86_400_000),
+        quantityOnHand: 100,
+      },
+    });
+    const invoice = await api()
+      .post("/api/v1/invoices")
+      .set({ ...authHeaders(salesToken, fixture.storeId), ...idem() })
+      .send({
+        customerId,
+        lines: [{ productId: product.id, unitId: product.units[0]!.id, quantity: 1 }],
+      })
+      .expect(201);
+
+    const response = await api()
+      .post(`/api/v1/customers/${customerId}/anonymize`)
+      .set(authHeaders(pharmacistToken))
+      .send({ reason: "Khách yêu cầu xóa dữ liệu cá nhân" })
+      .expect(200);
+
+    expect(response.body.data.fullName).toMatch(/^KH-AN-/);
+    expect(response.body.data.phone).toBeNull();
+    expect(response.body.data.hasHealthConsent).toBe(false);
+
+    const health = await api()
+      .get(`/api/v1/customers/${customerId}/health-profile`)
+      .set(authHeaders(pharmacistToken))
+      .expect(200);
+    expect(health.body.data.chronicConditions).toBeNull();
+    expect(health.body.data.allergies).toEqual([]);
+
+    // Hóa đơn đã phát sinh vẫn còn nguyên, chỉ tên khách đổi theo mã ẩn danh mới.
+    const invoiceDetail = await api()
+      .get(`/api/v1/invoices/${invoice.body.data.id}`)
+      .set(authHeaders(salesToken, fixture.storeId))
+      .expect(200);
+    expect(invoiceDetail.body.data.customer.id).toBe(customerId);
+    expect(invoiceDetail.body.data.customer.fullName).toMatch(/^KH-AN-/);
+
+    const audit = await prisma.auditLog.findFirst({
+      where: { resourceType: "customer", resourceId: customerId, action: "CUSTOMER_ANONYMIZE" },
+    });
+    expect(audit).toMatchObject({ reason: "Khách yêu cầu xóa dữ liệu cá nhân" });
+  });
+
+  it("bắt buộc ghi lý do", async () => {
+    const customerId = await createCustomer();
+    const response = await api()
+      .post(`/api/v1/customers/${customerId}/anonymize`)
+      .set(authHeaders(pharmacistToken))
+      .send({})
+      .expect(422);
+    expect(response.body.error.code).toBe("VALIDATION_ERROR");
+  });
+
+  it("không ẩn danh lại lần hai", async () => {
+    const customerId = await createCustomer();
+    await api()
+      .post(`/api/v1/customers/${customerId}/anonymize`)
+      .set(authHeaders(pharmacistToken))
+      .send({ reason: "Lần 1" })
+      .expect(200);
+
+    const response = await api()
+      .post(`/api/v1/customers/${customerId}/anonymize`)
+      .set(authHeaders(pharmacistToken))
+      .send({ reason: "Lần 2" })
+      .expect(409);
+    expect(response.body.error.code).toBe("INVALID_STATE");
+  });
+
+  it("khách đã ẩn danh không còn hiện trong tìm kiếm", async () => {
+    const customerId = await createCustomer({ fullName: "Phạm Văn C", phone: "0987654321" });
+    await api()
+      .post(`/api/v1/customers/${customerId}/anonymize`)
+      .set(authHeaders(pharmacistToken))
+      .send({ reason: "Khách yêu cầu" })
+      .expect(200);
+
+    const response = await api()
+      .get("/api/v1/customers")
+      .query({ search: "Phạm Văn C" })
+      .set(authHeaders(pharmacistToken))
+      .expect(200);
+    expect(response.body.data).toHaveLength(0);
+  });
+
+  it("nhân viên bán hàng không có quyền ẩn danh (thiếu customer.sensitive)", async () => {
+    const customerId = await createCustomer();
+    const response = await api()
+      .post(`/api/v1/customers/${customerId}/anonymize`)
+      .set(authHeaders(salesToken))
+      .send({ reason: "Thử" })
+      .expect(403);
+    expect(response.body.error.code).toBe("FORBIDDEN");
+  });
+});

@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { Prisma } from "../../generated/prisma/client.js";
 import { prisma } from "../../db/prisma.js";
 import { AppError } from "../../lib/app-error.js";
@@ -57,6 +58,7 @@ export async function getDetail(customerId: string) {
     gender: customer.gender,
     note: customer.note,
     hasHealthConsent: customer.healthDataConsentAt !== null,
+    isAnonymized: customer.isAnonymized,
     version: customer.version,
   };
 }
@@ -246,4 +248,51 @@ export async function getInvoiceHistory(customerId: string, auth: AuthContext) {
     totalAmount: invoice.totalAmount,
     lineCount: invoice._count.lines,
   }));
+}
+
+/**
+ * Ẩn danh khi khách yêu cầu xóa dữ liệu cá nhân (contract §11, P8). Chỉ xóa
+ * đúng ba thứ contract nêu — họ tên, số điện thoại, hồ sơ sức khỏe — không
+ * đụng tới birthYear/gender/note vì không nằm trong danh sách đó. Chứng từ
+ * đã phát sinh (hóa đơn, đơn thuốc, thẻ kho) giữ nguyên, chỉ hiện tên thay
+ * bằng mã ẩn danh nên vẫn tra cứu được mà không lộ danh tính.
+ */
+export async function anonymize(
+  customerId: string,
+  auth: AuthContext,
+  reason: string,
+): Promise<void> {
+  await prisma.$transaction(async (tx) => {
+    const customer = await tx.customer.findUnique({ where: { id: customerId } });
+    if (!customer) throw AppError.notFound("Không tìm thấy khách hàng");
+    if (customer.isAnonymized) {
+      throw new AppError(409, "INVALID_STATE", "Khách hàng này đã được ẩn danh từ trước");
+    }
+
+    const anonymCode = `KH-AN-${randomBytes(4).toString("hex").toUpperCase()}`;
+
+    await tx.customer.update({
+      where: { id: customerId },
+      data: {
+        fullName: anonymCode,
+        phone: null,
+        healthDataConsentAt: null,
+        isAnonymized: true,
+        anonymizedAt: new Date(),
+      },
+    });
+
+    await tx.customerHealthProfile.deleteMany({ where: { customerId } });
+    await tx.customerAllergy.deleteMany({ where: { customerId } });
+
+    await tx.auditLog.create({
+      data: {
+        actorId: auth.userId,
+        action: "CUSTOMER_ANONYMIZE",
+        resourceType: "customer",
+        resourceId: customerId,
+        reason,
+      },
+    });
+  });
 }

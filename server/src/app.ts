@@ -30,6 +30,8 @@ import { storageLogsRouter } from "./modules/inventory/storage-logs.routes.js";
 import { prescriptionsRouter } from "./modules/prescriptions/prescriptions.routes.js";
 import { prescriptionImagesRouter } from "./modules/prescriptions/prescription-images.routes.js";
 import { dashboardRouter } from "./modules/dashboard/dashboard.routes.js";
+import { usersRouter } from "./modules/users/users.routes.js";
+import { auditRouter } from "./modules/audit/audit.routes.js";
 
 /**
  * Lắp ráp ứng dụng Express. Thứ tự middleware quan trọng:
@@ -90,6 +92,8 @@ export function createApp() {
   app.use("/api/v1", prescriptionsRouter);
   app.use("/api/v1", prescriptionImagesRouter);
   app.use("/api/v1", dashboardRouter);
+  app.use("/api/v1", usersRouter);
+  app.use("/api/v1", auditRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

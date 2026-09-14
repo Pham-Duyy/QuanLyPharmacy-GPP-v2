@@ -17,6 +17,9 @@ import { PrescriptionsPage } from "./features/prescriptions/PrescriptionsPage.js
 import { InvoicesPage } from "./features/sales/InvoicesPage.js";
 import { ReturnsPage } from "./features/sales/ReturnsPage.js";
 import { SalePage } from "./features/sales/SalePage.js";
+import { UsersPage } from "./features/users/UsersPage.js";
+import { StoresPage } from "./features/stores/StoresPage.js";
+import { AuditLogPage } from "./features/audit/AuditLogPage.js";
 
 export default function App() {
   const { status } = useAuth();
@@ -55,6 +58,9 @@ export default function App() {
         <Route path="/canh-bao" element={<AlertsPage />} />
         <Route path="/dieu-chinh-ton" element={<StockAdjustmentsPage />} />
         <Route path="/so-nhiet-do" element={<StorageLogsPage />} />
+        <Route path="/nhan-vien" element={<UsersPage />} />
+        <Route path="/cua-hang" element={<StoresPage />} />
+        <Route path="/audit-log" element={<AuditLogPage />} />
         <Route path="/tai-khoan" element={<DashboardPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/ban-hang" replace />} />
