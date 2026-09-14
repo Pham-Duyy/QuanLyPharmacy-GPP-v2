@@ -8,7 +8,12 @@ import { authenticate } from "../../middlewares/authenticate.js";
 import { idempotency } from "../../middlewares/idempotency.js";
 import { requirePermission } from "../../middlewares/require-permission.js";
 import { requireStore, storeContext } from "../../middlewares/store-context.js";
-import { cancelSchema, createReceiptSchema, patchReceiptSchema } from "./goods-receipts.schema.js";
+import {
+  cancelSchema,
+  confirmSchema,
+  createReceiptSchema,
+  patchReceiptSchema,
+} from "./goods-receipts.schema.js";
 import * as service from "./goods-receipts.service.js";
 
 export const goodsReceiptsRouter = Router();
@@ -114,9 +119,10 @@ goodsReceiptsRouter.post(
   requirePermission("goods_receipt.confirm"),
   idempotency,
   async (req, res) => {
+    const input = parseOrThrow(confirmSchema, req.body);
     const storeId = req.auth!.storeId!;
     const id = String(req.params.id);
-    await withMappedErrors(() => service.confirm(storeId, id, req.auth!.userId));
+    await withMappedErrors(() => service.confirm(storeId, id, req.auth!.userId, input));
     sendData(res, await service.getDetail(storeId, id));
   },
 );

@@ -26,6 +26,28 @@ export const cancelSchema = z.object({
 });
 
 /**
+ * Kết quả kiểm nhập cảm quan từng dòng, bắt buộc khi xác nhận phiếu nhập
+ * (thực hành GPP: dược sĩ phụ trách phải kiểm tra hạn dùng, bao bì, chất
+ * lượng cảm quan trước khi cho hàng vào kho bán). Dòng "không đạt" phải ghi
+ * lý do — lô tương ứng sẽ vào thẳng biệt trữ thay vì bán được ngay.
+ */
+const confirmLineSchema = z
+  .object({
+    lineId: z.uuid("lineId không hợp lệ"),
+    passed: z.boolean(),
+    rejectReason: z.string().trim().max(500).nullish(),
+  })
+  .refine((line) => line.passed || Boolean(line.rejectReason), {
+    message: "Dòng không đạt kiểm nhập phải ghi lý do",
+    path: ["rejectReason"],
+  });
+
+export const confirmSchema = z.object({
+  lines: z.array(confirmLineSchema).min(1, "Phải có kết quả kiểm nhập cho ít nhất một dòng"),
+});
+export type ConfirmReceiptInput = z.infer<typeof confirmSchema>;
+
+/**
  * Sửa phiếu khi còn DRAFT (contract §9, §2.5). Mọi trường đều tùy chọn —
  * gửi gì sửa nấy, không gửi thì giữ nguyên. Riêng `lines` là thay nguyên
  * danh sách dòng, không sửa từng dòng lẻ, vì phiếu còn nháp thì chưa có lô

@@ -1,7 +1,11 @@
 import { Prisma } from "../../generated/prisma/client.js";
 import { prisma } from "../../db/prisma.js";
 import { AppError } from "../../lib/app-error.js";
-import type { CreateReceiptInput, PatchReceiptInput } from "./goods-receipts.schema.js";
+import type {
+  ConfirmReceiptInput,
+  CreateReceiptInput,
+  PatchReceiptInput,
+} from "./goods-receipts.schema.js";
 
 type Tx = Prisma.TransactionClient;
 type LineInput = CreateReceiptInput["lines"][number];
@@ -177,8 +181,20 @@ export async function updateDraft(
  * Toàn bộ nằm trong một transaction, và bước đầu tiên là chuyển trạng thái
  * có điều kiện. Hai người bấm xác nhận cùng lúc thì người thứ hai không tìm
  * thấy phiếu ở trạng thái DRAFT nữa nên bị chặn, tồn chỉ cộng đúng một lần.
+ *
+ * Kiểm nhập cảm quan (thực hành GPP): mỗi dòng phải có kết quả đạt/không đạt
+ * do người xác nhận (dược sĩ phụ trách) ghi nhận. Dòng đạt vào lô AVAILABLE
+ * như trước; dòng không đạt vào thẳng lô QUARANTINED — không có khoảnh khắc
+ * nào hàng có vấn đề ở trạng thái bán được. Lô đã tồn tại mà lần nhập này
+ * không đạt thì cả lô chuyển biệt trữ, vì cùng số lô sản xuất nên vấn đề
+ * chất lượng phải coi là ảnh hưởng toàn bộ, không tách riêng phần mới.
  */
-export async function confirm(storeId: string, receiptId: string, userId: string): Promise<void> {
+export async function confirm(
+  storeId: string,
+  receiptId: string,
+  userId: string,
+  input: ConfirmReceiptInput,
+): Promise<void> {
   await prisma.$transaction(
     async (tx) => {
       const moved = await tx.goodsReceipt.updateMany({
@@ -201,7 +217,19 @@ export async function confirm(storeId: string, receiptId: string, userId: string
         orderBy: { lineNo: "asc" },
       });
 
+      const resultByLineId = new Map(input.lines.map((line) => [line.lineId, line]));
       for (const line of lines) {
+        if (!resultByLineId.has(line.id)) {
+          throw AppError.validation(`Thiếu kết quả kiểm nhập cho dòng ${line.lineNo}`);
+        }
+      }
+      if (resultByLineId.size !== lines.length) {
+        throw AppError.validation("Kết quả kiểm nhập có dòng không thuộc phiếu này");
+      }
+
+      for (const line of lines) {
+        const result = resultByLineId.get(line.id)!;
+
         const existing = await tx.batch.findUnique({
           where: {
             storeId_productId_batchNumber: {
@@ -234,7 +262,12 @@ export async function confirm(storeId: string, receiptId: string, userId: string
 
           const updated = await tx.batch.update({
             where: { id: existing.id },
-            data: { quantityOnHand: { increment: line.baseQuantity } },
+            data: {
+              quantityOnHand: { increment: line.baseQuantity },
+              // Không đạt thì biệt trữ ngay; đã biệt trữ từ trước thì giữ
+              // nguyên, không tự mở lại chỉ vì đợt nhập này đạt kiểm nhập.
+              ...(result.passed ? {} : { status: "QUARANTINED", note: result.rejectReason }),
+            },
           });
           batchId = updated.id;
           balanceAfter = updated.quantityOnHand;
@@ -248,6 +281,8 @@ export async function confirm(storeId: string, receiptId: string, userId: string
               expiryDate: line.expiryDate,
               quantityOnHand: line.baseQuantity,
               unitCost: (Number(line.lineCost) / line.baseQuantity).toFixed(4),
+              status: result.passed ? "AVAILABLE" : "QUARANTINED",
+              note: result.passed ? null : result.rejectReason,
               sourceType: "GOODS_RECEIPT",
               sourceId: receiptId,
             },
@@ -272,6 +307,20 @@ export async function confirm(storeId: string, receiptId: string, userId: string
             userId,
           },
         });
+
+        if (!result.passed) {
+          await tx.auditLog.create({
+            data: {
+              storeId,
+              actorId: userId,
+              action: "GOODS_RECEIPT_LINE_REJECTED",
+              resourceType: "batch",
+              resourceId: batchId,
+              reason: result.rejectReason,
+              after: { batchNumber: line.batchNumber, baseQuantity: line.baseQuantity },
+            },
+          });
+        }
       }
     },
     { timeout: 20_000 },
