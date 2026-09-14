@@ -21,6 +21,7 @@ import { goodsReceiptsRouter } from "./modules/inventory/goods-receipts.routes.j
 import { invoicesRouter } from "./modules/sales/invoices.routes.js";
 import { returnsRouter } from "./modules/sales/returns.routes.js";
 import { recallsRouter } from "./modules/recalls/recalls.routes.js";
+import { stockAdjustmentsRouter } from "./modules/inventory/stock-adjustments.routes.js";
 
 /**
  * Lắp ráp ứng dụng Express. Thứ tự middleware quan trọng:
@@ -72,6 +73,7 @@ export function createApp() {
   app.use("/api/v1", invoicesRouter);
   app.use("/api/v1", returnsRouter);
   app.use("/api/v1", recallsRouter);
+  app.use("/api/v1", stockAdjustmentsRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);
