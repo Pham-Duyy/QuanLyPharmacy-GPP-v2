@@ -25,6 +25,7 @@ import { useMemo, useRef, useState } from "react";
 import { getErrorMessage, http } from "../../api/http.js";
 import {
   formatVnd,
+  type CustomerSearchItem,
   type Envelope,
   type Invoice,
   type Paged,
@@ -65,6 +66,8 @@ const NOT_CHECKED_TEXT: Record<string, string> = {
 export function SalePage() {
   const [term, setTerm] = useState("");
   const [cart, setCart] = useState<CartLine[]>([]);
+  const [customerSearch, setCustomerSearch] = useState("");
+  const [customer, setCustomer] = useState<CustomerSearchItem | null>(null);
   const [prescriptionSearch, setPrescriptionSearch] = useState("");
   const [prescription, setPrescription] = useState<PrescriptionDetail | null>(null);
   const [acked, setAcked] = useState<Set<string>>(new Set());
@@ -83,6 +86,18 @@ export function SalePage() {
         params: { search: term || undefined, limit: 15 },
       });
       return response.data.data.items;
+    },
+  });
+
+  // Chỉ tìm khi gõ đủ 3 ký tự, khớp đúng quy tắc GET /customers (contract §11).
+  const customerSearchResults = useQuery({
+    queryKey: ["customer-search", customerSearch],
+    enabled: customerSearch.trim().length >= 3,
+    queryFn: async () => {
+      const response = await http.get<Envelope<CustomerSearchItem[]>>("/customers", {
+        params: { search: customerSearch },
+      });
+      return response.data.data;
     },
   });
 
@@ -112,12 +127,13 @@ export function SalePage() {
   });
 
   const safety = useQuery({
-    queryKey: ["safety-check", cartLines, prescription?.id],
+    queryKey: ["safety-check", cartLines, prescription?.id, customer?.id],
     enabled: cart.length > 0,
     queryFn: async () => {
       const response = await http.post<Envelope<SafetyResult>>("/sales/safety-check", {
         lines: cartLines,
         prescriptionId: prescription?.id ?? null,
+        customerId: customer?.id ?? null,
       });
       return response.data.data;
     },
@@ -133,6 +149,7 @@ export function SalePage() {
   const liveAcked = [...acked].filter((code) => liveCodes.has(code));
 
   const body = {
+    customerId: customer?.id ?? null,
     prescriptionId: prescription?.id ?? null,
     lines: cart.map((line) => ({
       productId: line.product.id,
@@ -177,6 +194,7 @@ export function SalePage() {
     onSuccess: (invoice) => {
       setDone(invoice);
       setCart([]);
+      setCustomer(null);
       setPrescription(null);
       setAcked(new Set());
       setAckReason("");
@@ -290,6 +308,44 @@ export function SalePage() {
           }
         >
           <Space direction="vertical" style={{ width: "100%", marginBottom: 12 }}>
+            {customer ? (
+              <Alert
+                type="info"
+                showIcon
+                message={
+                  <Space>
+                    <span>
+                      Khách: <strong>{customer.fullName ?? "Chưa rõ tên"}</strong>
+                      {customer.phone ? ` — ${customer.phone}` : ""}
+                    </span>
+                    <Button size="small" onClick={() => setCustomer(null)}>
+                      Bỏ chọn
+                    </Button>
+                  </Space>
+                }
+              />
+            ) : (
+              <AutoComplete
+                style={{ width: "100%" }}
+                value={customerSearch}
+                onChange={setCustomerSearch}
+                options={(customerSearchResults.data ?? []).map((item) => ({
+                  value: item.id,
+                  label: `${item.fullName ?? "Chưa rõ tên"}${item.phone ? ` — ${item.phone}` : ""}`,
+                }))}
+                onSelect={(id) => {
+                  const found = customerSearchResults.data?.find((item) => item.id === id);
+                  if (found) setCustomer(found);
+                  setCustomerSearch("");
+                }}
+              >
+                <Input.Search
+                  placeholder="Tìm khách quen theo tên hoặc số điện thoại (gõ ≥ 3 ký tự) — để trống nếu là khách lẻ"
+                  allowClear
+                />
+              </AutoComplete>
+            )}
+
             {prescription ? (
               <Alert
                 type="info"
@@ -329,6 +385,8 @@ export function SalePage() {
                   const response = await http.get<Envelope<PrescriptionDetail>>(`/prescriptions/${id}`);
                   setPrescription(response.data.data);
                   setPrescriptionSearch("");
+                  // Đơn thuốc thường đã gắn sẵn khách — tự điền nếu chưa chọn ai.
+                  if (!customer && response.data.data.customer) setCustomer(response.data.data.customer);
                 }}
               >
                 <Input.Search placeholder="Bán thuốc kê đơn thì chọn đơn thuốc đã xác nhận ở đây" allowClear />

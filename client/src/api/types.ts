@@ -233,3 +233,44 @@ export type PrescriptionListItem = {
   validUntil: string;
   _count: { items: number };
 };
+
+// --- Khách hàng (contract §11) ----------------------------------------------
+
+export type CustomerSearchItem = {
+  id: string;
+  fullName: string | null;
+  /** Che bớt ở kết quả tìm kiếm, xem chi tiết mới thấy đầy đủ. */
+  phone: string | null;
+};
+
+export type CustomerDetail = {
+  id: string;
+  fullName: string | null;
+  phone: string | null;
+  birthYear: number | null;
+  gender: "MALE" | "FEMALE" | "OTHER" | null;
+  note: string | null;
+  hasHealthConsent: boolean;
+  version: number;
+};
+
+export type CustomerAllergyItem = { ingredientId: string; ingredientName: string; note: string | null };
+
+export type CustomerHealthProfile = {
+  hasHealthConsent: boolean;
+  healthDataConsentAt: string | null;
+  chronicConditions: string | null;
+  note: string | null;
+  allergies: CustomerAllergyItem[];
+};
+
+export type CustomerInvoiceHistoryItem = {
+  id: string;
+  code: string;
+  storeCode: string;
+  storeName: string;
+  status: "COMPLETED" | "VOIDED";
+  soldAt: string;
+  totalAmount: Money;
+  lineCount: number;
+};

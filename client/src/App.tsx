@@ -4,6 +4,7 @@ import { AppLayout } from "./app/AppLayout.js";
 import { useAuth } from "./features/auth/AuthProvider.js";
 import { LoginPage } from "./features/auth/LoginPage.js";
 import { ProductsPage } from "./features/catalog/ProductsPage.js";
+import { CustomersPage } from "./features/customers/CustomersPage.js";
 import { DashboardPage } from "./features/dashboard/DashboardPage.js";
 import { GoodsReceiptsPage } from "./features/inventory/GoodsReceiptsPage.js";
 import { PrescriptionsPage } from "./features/prescriptions/PrescriptionsPage.js";
@@ -39,6 +40,7 @@ export default function App() {
         <Route path="/hoa-don" element={<InvoicesPage />} />
         <Route path="/tra-hang" element={<ReturnsPage />} />
         <Route path="/don-thuoc" element={<PrescriptionsPage />} />
+        <Route path="/khach-hang" element={<CustomersPage />} />
         <Route path="/san-pham" element={<ProductsPage />} />
         <Route path="/phieu-nhap" element={<GoodsReceiptsPage />} />
         <Route path="/tai-khoan" element={<DashboardPage />} />
