@@ -1,5 +1,6 @@
 import {
   AppstoreOutlined,
+  FileProtectOutlined,
   FileTextOutlined,
   InboxOutlined,
   RollbackOutlined,
@@ -13,6 +14,12 @@ const ITEMS = [
   { key: "/ban-hang", icon: <ShoppingCartOutlined />, label: "Bán hàng", permission: "invoice.create" },
   { key: "/hoa-don", icon: <FileTextOutlined />, label: "Hóa đơn", permission: "invoice.read" },
   { key: "/tra-hang", icon: <RollbackOutlined />, label: "Trả hàng", permission: "invoice.read" },
+  {
+    key: "/don-thuoc",
+    icon: <FileProtectOutlined />,
+    label: "Đơn thuốc",
+    permission: "prescription.read",
+  },
   { key: "/san-pham", icon: <AppstoreOutlined />, label: "Sản phẩm", permission: "catalog.read" },
   { key: "/phieu-nhap", icon: <InboxOutlined />, label: "Phiếu nhập", permission: "goods_receipt.read" },
 ];
