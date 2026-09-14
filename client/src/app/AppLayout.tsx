@@ -5,6 +5,7 @@ import {
   InboxOutlined,
   RollbackOutlined,
   ShoppingCartOutlined,
+  TeamOutlined,
 } from "@ant-design/icons";
 import { Button, Layout, Menu, Select, Space, Typography } from "antd";
 import { Outlet, useLocation, useNavigate } from "react-router";
@@ -20,6 +21,7 @@ const ITEMS = [
     label: "Đơn thuốc",
     permission: "prescription.read",
   },
+  { key: "/khach-hang", icon: <TeamOutlined />, label: "Khách hàng", permission: "customer.read" },
   { key: "/san-pham", icon: <AppstoreOutlined />, label: "Sản phẩm", permission: "catalog.read" },
   { key: "/phieu-nhap", icon: <InboxOutlined />, label: "Phiếu nhập", permission: "goods_receipt.read" },
 ];
