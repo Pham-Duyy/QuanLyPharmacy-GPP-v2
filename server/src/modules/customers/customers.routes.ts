@@ -6,6 +6,7 @@ import { authenticate } from "../../middlewares/authenticate.js";
 import { requirePermission } from "../../middlewares/require-permission.js";
 import { storeContext } from "../../middlewares/store-context.js";
 import {
+  anonymizeCustomerSchema,
   createCustomerSchema,
   patchCustomerSchema,
   patchHealthProfileSchema,
@@ -72,5 +73,16 @@ customersRouter.get(
   requirePermission("customer.sensitive"),
   async (req, res) => {
     sendData(res, await service.getInvoiceHistory(String(req.params.id), req.auth!));
+  },
+);
+
+customersRouter.post(
+  "/customers/:id/anonymize",
+  requirePermission("customer.sensitive"),
+  async (req, res) => {
+    const input = parseOrThrow(anonymizeCustomerSchema, req.body);
+    const id = String(req.params.id);
+    await withMappedErrors(() => service.anonymize(id, req.auth!, input.reason));
+    sendData(res, await service.getDetail(id));
   },
 );

@@ -51,6 +51,11 @@ export const patchHealthProfileSchema = z.object({
   allergies: z.array(allergySchema).default([]),
 });
 
+export const anonymizeCustomerSchema = z.object({
+  reason: z.string().trim().min(1, "Phải ghi lý do ẩn danh").max(500),
+});
+
 export type CreateCustomerInput = z.infer<typeof createCustomerSchema>;
 export type PatchCustomerInput = z.infer<typeof patchCustomerSchema>;
 export type PatchHealthProfileInput = z.infer<typeof patchHealthProfileSchema>;
+export type AnonymizeCustomerInput = z.infer<typeof anonymizeCustomerSchema>;

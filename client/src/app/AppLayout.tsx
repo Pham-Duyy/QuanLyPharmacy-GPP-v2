@@ -1,4 +1,4 @@
-import { AppstoreOutlined, BellOutlined, CalendarOutlined, DatabaseOutlined, ExperimentOutlined, FileProtectOutlined, FileTextOutlined, MedicineBoxOutlined, MenuFoldOutlined, MenuUnfoldOutlined, PlusOutlined, RollbackOutlined, SearchOutlined, SettingOutlined, ShoppingCartOutlined, SwapOutlined, TeamOutlined, TruckOutlined } from "@ant-design/icons";
+import { AppstoreOutlined, AuditOutlined, BellOutlined, CalendarOutlined, DatabaseOutlined, ExperimentOutlined, FileProtectOutlined, FileTextOutlined, MedicineBoxOutlined, MenuFoldOutlined, MenuUnfoldOutlined, PlusOutlined, RollbackOutlined, SearchOutlined, SettingOutlined, ShopOutlined, ShoppingCartOutlined, SwapOutlined, TeamOutlined, TruckOutlined, UserSwitchOutlined } from "@ant-design/icons";
 import { Avatar, Badge, Button, Input, Layout, Menu, Select } from "antd";
 import type { ReactNode } from "react";
 import { useState } from "react";
@@ -20,6 +20,9 @@ const ITEMS: Array<{ key: string; icon: ReactNode; label: string; permission: st
   { key: "/dieu-chinh-ton", icon: <SwapOutlined />, label: "Điều chỉnh tồn", permission: ["stock.adjust.create", "stock.adjust.approve"] },
   { key: "/so-nhiet-do", icon: <ExperimentOutlined />, label: "Sổ nhiệt độ", permission: "storage_log.read" },
   { key: "/canh-bao", icon: <BellOutlined />, label: "Cảnh báo", permission: "stock.read" },
+  { key: "/nhan-vien", icon: <UserSwitchOutlined />, label: "Nhân viên", permission: "user.manage" },
+  { key: "/cua-hang", icon: <ShopOutlined />, label: "Cửa hàng", permission: "store.manage" },
+  { key: "/audit-log", icon: <AuditOutlined />, label: "Audit log", permission: "audit.read" },
 ];
 
 export function AppLayout() {

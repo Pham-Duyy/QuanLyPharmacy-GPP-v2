@@ -143,6 +143,7 @@ function CustomerDrawer({
 }) {
   const { can } = useAuth();
   const [editing, setEditing] = useState(false);
+  const [anonymizing, setAnonymizing] = useState(false);
 
   return (
     <Drawer
@@ -151,9 +152,29 @@ function CustomerDrawer({
       onClose={onClose}
       title={detail?.fullName ?? "Chi tiết khách hàng"}
       extra={
-        detail && can("customer.manage") ? <Button onClick={() => setEditing(true)}>Sửa</Button> : null
+        detail ? (
+          <Space>
+            {can("customer.sensitive") && !detail.isAnonymized ? (
+              <Button danger onClick={() => setAnonymizing(true)}>
+                Ẩn danh
+              </Button>
+            ) : null}
+            {can("customer.manage") && !detail.isAnonymized ? (
+              <Button onClick={() => setEditing(true)}>Sửa</Button>
+            ) : null}
+          </Space>
+        ) : null
       }
     >
+      {detail?.isAnonymized ? (
+        <Alert
+          style={{ marginBottom: 16 }}
+          type="warning"
+          showIcon
+          message="Khách hàng này đã được ẩn danh"
+          description="Họ tên, số điện thoại và hồ sơ sức khỏe đã bị xóa theo yêu cầu của khách. Chứng từ đã phát sinh vẫn giữ nguyên."
+        />
+      ) : null}
       {detail ? (
         <Space direction="vertical" style={{ width: "100%" }} size="middle">
           <Descriptions
@@ -206,7 +227,73 @@ function CustomerDrawer({
           await onSaved();
         }}
       />
+
+      <AnonymizeModal
+        open={anonymizing}
+        customerId={customerId}
+        onClose={() => setAnonymizing(false)}
+        onSaved={async () => {
+          setAnonymizing(false);
+          await onSaved();
+        }}
+      />
     </Drawer>
+  );
+}
+
+function AnonymizeModal({
+  open,
+  customerId,
+  onClose,
+  onSaved,
+}: {
+  open: boolean;
+  customerId: string | null;
+  onClose: () => void;
+  onSaved: () => Promise<unknown>;
+}) {
+  const [reason, setReason] = useState("");
+
+  const anonymize = useMutation({
+    mutationFn: () => http.post(`/customers/${customerId}/anonymize`, { reason }),
+    onSuccess: async () => {
+      void message.success("Đã ẩn danh hồ sơ khách hàng");
+      setReason("");
+      await onSaved();
+    },
+    onError: (error) => void message.error(getErrorMessage(error, "Không ẩn danh được khách hàng")),
+  });
+
+  return (
+    <Modal
+      open={open}
+      title="Ẩn danh hồ sơ khách hàng"
+      okText="Xác nhận ẩn danh"
+      cancelText="Hủy"
+      onCancel={() => {
+        setReason("");
+        onClose();
+      }}
+      onOk={() => anonymize.mutate()}
+      confirmLoading={anonymize.isPending}
+      okButtonProps={{ danger: true, disabled: reason.trim().length === 0 }}
+      destroyOnHidden
+    >
+      <Alert
+        type="warning"
+        showIcon
+        style={{ marginBottom: 16 }}
+        message="Thao tác không thể hoàn tác"
+        description="Họ tên, số điện thoại và hồ sơ sức khỏe sẽ bị xóa vĩnh viễn, thay bằng mã ẩn danh. Hóa đơn và đơn thuốc đã phát sinh vẫn được giữ lại."
+      />
+      <Input.TextArea
+        rows={3}
+        placeholder="Lý do ẩn danh (bắt buộc — ví dụ: khách yêu cầu xóa dữ liệu cá nhân)"
+        value={reason}
+        onChange={(event) => setReason(event.target.value)}
+        autoFocus
+      />
+    </Modal>
   );
 }
 
