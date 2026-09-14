@@ -62,6 +62,10 @@ batchesRouter.get("/inventory/batches", requirePermission("stock.read"), async (
     }),
     prisma.batch.count({ where }),
   ]);
+  // Giá vốn là dữ liệu nhạy cảm về kinh doanh, chỉ trả về khi có quyền
+  // stock.cost.read (contract §4.1) — không có quyền thì bỏ hẳn trường này
+  // thay vì trả null, để tránh lẫn với "chưa có giá vốn".
+  const showCost = req.auth!.can("stock.cost.read");
   sendData(
     res,
     pageResult(
@@ -79,6 +83,7 @@ batchesRouter.get("/inventory/batches", requirePermission("stock.read"), async (
         shelfLocation: batch.shelfLocation,
         note: batch.note,
         version: batch.version,
+        ...(showCost ? { unitCost: batch.unitCost ? batch.unitCost.toNumber() : null } : {}),
       })),
       total,
       page,

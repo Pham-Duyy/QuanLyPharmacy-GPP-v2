@@ -372,3 +372,32 @@ describe("Phạm vi cửa hàng", () => {
       .expect(404);
   });
 });
+
+describe("Danh sách phiếu điều chỉnh", () => {
+  it("lọc theo trạng thái, trả tên người lập/người duyệt", async () => {
+    const batchId = await makeBatch("L1", 100);
+    const draft = await createDraft({
+      lines: [{ batchId, unitId, reasonCode: "DAMAGED", quantity: 5 }],
+    }).expect(201);
+    await approve(draft.body.data.id).expect(200);
+
+    const batchId2 = await makeBatch("L2", 100);
+    await createDraft({
+      lines: [{ batchId: batchId2, unitId, reasonCode: "DAMAGED", quantity: 1 }],
+    }).expect(201);
+
+    const response = await api()
+      .get("/api/v1/stock-adjustments")
+      .query({ status: "APPROVED" })
+      .set(authHeaders(adminToken, fixture.storeId))
+      .expect(200);
+
+    expect(response.body.data).toHaveLength(1);
+    expect(response.body.data[0]).toMatchObject({
+      status: "APPROVED",
+      createdByName: "Dược sĩ",
+      approvedByName: "Quản trị",
+      lineCount: 1,
+    });
+  });
+});
