@@ -16,6 +16,9 @@ coverage/
 generated/
 server/generated/
 
+# Ảnh đơn thuốc lưu trên đĩa (contract §12): không commit, không thuộc mã nguồn.
+server/storage/
+
 # Log
 *.log
 npm-debug.log*

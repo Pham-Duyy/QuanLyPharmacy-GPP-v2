@@ -14,7 +14,8 @@ import { searchProductIds } from "./search.js";
 import { getCurrentPrices, getStockSummary } from "./products.service.js";
 
 export const productsRouter = Router();
-productsRouter.use(authenticate, storeContext);
+// Giới hạn theo tiền tố thật sự dùng, cùng lý do đã ghi ở categories.routes.ts.
+productsRouter.use("/products", authenticate, storeContext);
 
 const PRODUCT_TYPES = ["DRUG", "SUPPLEMENT", "MEDICAL_DEVICE", "COSMETIC", "OTHER"] as const;
 const DRUG_CLASSES = ["OTC", "RX", "CONTROLLED"] as const;

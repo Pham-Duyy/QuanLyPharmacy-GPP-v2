@@ -11,7 +11,8 @@ import { storeContext } from "../../middlewares/store-context.js";
 import { getCurrentPrices } from "./products.service.js";
 
 export const pricesRouter = Router();
-pricesRouter.use(authenticate, storeContext);
+// Giới hạn theo tiền tố thật sự dùng, cùng lý do đã ghi ở categories.routes.ts.
+pricesRouter.use("/products", authenticate, storeContext);
 
 const createSchema = z.object({
   unitId: z.uuid("unitId không hợp lệ"),

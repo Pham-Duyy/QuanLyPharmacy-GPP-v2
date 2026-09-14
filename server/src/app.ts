@@ -24,6 +24,7 @@ import { recallsRouter } from "./modules/recalls/recalls.routes.js";
 import { stockAdjustmentsRouter } from "./modules/inventory/stock-adjustments.routes.js";
 import { openingBalanceRouter } from "./modules/inventory/opening-balance.routes.js";
 import { prescriptionsRouter } from "./modules/prescriptions/prescriptions.routes.js";
+import { prescriptionImagesRouter } from "./modules/prescriptions/prescription-images.routes.js";
 
 /**
  * Lắp ráp ứng dụng Express. Thứ tự middleware quan trọng:
@@ -78,6 +79,7 @@ export function createApp() {
   app.use("/api/v1", stockAdjustmentsRouter);
   app.use("/api/v1", openingBalanceRouter);
   app.use("/api/v1", prescriptionsRouter);
+  app.use("/api/v1", prescriptionImagesRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

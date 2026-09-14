@@ -1,4 +1,5 @@
 import type { ErrorRequestHandler, RequestHandler } from "express";
+import { MulterError } from "multer";
 import { AppError } from "../lib/app-error.js";
 import { sendError } from "../lib/respond.js";
 import { isProduction } from "../config/env.js";
@@ -22,6 +23,18 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
   if (err instanceof SyntaxError && "body" in err) {
     req.log?.warn({ err }, "JSON gửi lên không hợp lệ");
     sendError(res, 400, "BAD_REQUEST", "Nội dung JSON không hợp lệ");
+    return;
+  }
+
+  // multer báo lỗi khi tải tệp (vượt dung lượng, sai tên field...) bằng
+  // lỗi riêng của nó, không phải AppError — dịch sang khung lỗi chung.
+  if (err instanceof MulterError) {
+    req.log?.warn({ err }, "Lỗi tải tệp");
+    const message =
+      err.code === "LIMIT_FILE_SIZE"
+        ? "Tệp vượt quá dung lượng cho phép"
+        : "Không tải được tệp lên";
+    sendError(res, 422, "VALIDATION_ERROR", message);
     return;
   }
 
