@@ -20,6 +20,7 @@ import { SalePage } from "./features/sales/SalePage.js";
 import { UsersPage } from "./features/users/UsersPage.js";
 import { StoresPage } from "./features/stores/StoresPage.js";
 import { AuditLogPage } from "./features/audit/AuditLogPage.js";
+import { ReportsPage } from "./features/reports/ReportsPage.js";
 
 export default function App() {
   const { status } = useAuth();
@@ -61,6 +62,7 @@ export default function App() {
         <Route path="/nhan-vien" element={<UsersPage />} />
         <Route path="/cua-hang" element={<StoresPage />} />
         <Route path="/audit-log" element={<AuditLogPage />} />
+        <Route path="/bao-cao" element={<ReportsPage />} />
         <Route path="/tai-khoan" element={<DashboardPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/ban-hang" replace />} />
