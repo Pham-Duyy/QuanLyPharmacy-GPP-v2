@@ -1,10 +1,12 @@
 import {
   AppstoreOutlined,
+  DatabaseOutlined,
   FileProtectOutlined,
   FileTextOutlined,
   InboxOutlined,
   RollbackOutlined,
   ShoppingCartOutlined,
+  TruckOutlined,
   TeamOutlined,
 } from "@ant-design/icons";
 import { Button, Layout, Menu, Select, Space, Typography } from "antd";
@@ -23,7 +25,10 @@ const ITEMS = [
   },
   { key: "/khach-hang", icon: <TeamOutlined />, label: "Khách hàng", permission: "customer.read" },
   { key: "/san-pham", icon: <AppstoreOutlined />, label: "Sản phẩm", permission: "catalog.read" },
+  { key: "/danh-muc", icon: <AppstoreOutlined />, label: "Danh mục nền", permission: "catalog.read" },
+  { key: "/nha-cung-cap", icon: <TruckOutlined />, label: "Nhà cung cấp", permission: "catalog.read" },
   { key: "/phieu-nhap", icon: <InboxOutlined />, label: "Phiếu nhập", permission: "goods_receipt.read" },
+  { key: "/ton-kho", icon: <DatabaseOutlined />, label: "Tồn kho theo lô", permission: "stock.read" },
 ];
 
 /** Khung chung: chọn cửa hàng ở trên, điều hướng bên trái, nội dung ở giữa. */

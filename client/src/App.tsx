@@ -4,9 +4,12 @@ import { AppLayout } from "./app/AppLayout.js";
 import { useAuth } from "./features/auth/AuthProvider.js";
 import { LoginPage } from "./features/auth/LoginPage.js";
 import { ProductsPage } from "./features/catalog/ProductsPage.js";
+import { CatalogDataPage } from "./features/catalog/CatalogDataPage.js";
+import { SuppliersPage } from "./features/catalog/SuppliersPage.js";
 import { CustomersPage } from "./features/customers/CustomersPage.js";
 import { DashboardPage } from "./features/dashboard/DashboardPage.js";
 import { GoodsReceiptsPage } from "./features/inventory/GoodsReceiptsPage.js";
+import { BatchesPage } from "./features/inventory/BatchesPage.js";
 import { PrescriptionsPage } from "./features/prescriptions/PrescriptionsPage.js";
 import { InvoicesPage } from "./features/sales/InvoicesPage.js";
 import { ReturnsPage } from "./features/sales/ReturnsPage.js";
@@ -42,7 +45,10 @@ export default function App() {
         <Route path="/don-thuoc" element={<PrescriptionsPage />} />
         <Route path="/khach-hang" element={<CustomersPage />} />
         <Route path="/san-pham" element={<ProductsPage />} />
+        <Route path="/danh-muc" element={<CatalogDataPage />} />
+        <Route path="/nha-cung-cap" element={<SuppliersPage />} />
         <Route path="/phieu-nhap" element={<GoodsReceiptsPage />} />
+        <Route path="/ton-kho" element={<BatchesPage />} />
         <Route path="/tai-khoan" element={<DashboardPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/ban-hang" replace />} />

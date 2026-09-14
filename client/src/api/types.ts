@@ -9,7 +9,10 @@ export type ProductUnit = {
   id: string;
   name: string;
   conversionToBase: number;
+  isSellable?: boolean;
   isDefaultSaleUnit?: boolean;
+  isActive?: boolean;
+  barcodes?: string[];
   currentPrice?: CurrentPrice | null;
 };
 
@@ -20,6 +23,22 @@ export type CurrentPrice = {
 };
 
 export type StockSummary = { sellable: number; quarantined: number; expired: number };
+
+export type BatchListItem = {
+  id: string;
+  productId: string;
+  productCode: string;
+  productName: string;
+  baseUnitName: string;
+  batchNumber: string;
+  manufactureDate: string | null;
+  expiryDate: string;
+  status: "AVAILABLE" | "QUARANTINED" | "RECALLED";
+  quantityOnHand: number;
+  shelfLocation: string | null;
+  note: string | null;
+  version: number;
+};
 
 export type ProductListItem = {
   id: string;
@@ -33,7 +52,93 @@ export type ProductListItem = {
   stock: StockSummary | null;
 };
 
-export type ProductDetail = ProductListItem & { units: ProductUnit[] };
+export type ProductDetail = {
+  id: string;
+  code: string;
+  name: string;
+  productType: string;
+  drugClass: string | null;
+  category: { id: string; name: string };
+  minStockBaseQuantity: number;
+  version: number;
+  units: ProductUnit[];
+  ingredients: Array<{ ingredientId: string; name: string; strengthText: string | null }>;
+  stock: StockSummary | null;
+};
+
+export type CategoryItem = {
+  id: string;
+  name: string;
+  parentId: string | null;
+  isActive: boolean;
+  version: number;
+};
+
+export type ActiveIngredientItem = {
+  id: string;
+  name: string;
+  atcCode: string | null;
+};
+
+// --- Kho: phiếu nhập -------------------------------------------------------
+
+export type SupplierListItem = {
+  id: string;
+  name: string;
+  phone: string | null;
+  taxCode: string | null;
+  licenseNumber: string | null;
+  address: string | null;
+  isActive: boolean;
+  version: number;
+};
+
+export type GoodsReceiptLine = {
+  id: string;
+  lineNo: number;
+  productId: string;
+  productCode: string;
+  productName: string;
+  unitId: string;
+  unitName: string;
+  conversionToBase: number;
+  quantity: number;
+  baseQuantity: number;
+  unitCost: Money;
+  lineCost: Money;
+  batchNumber: string;
+  manufactureDate: string | null;
+  expiryDate: string;
+  batchId: string | null;
+};
+
+export type GoodsReceiptDetail = {
+  id: string;
+  type: "PURCHASE" | "OPENING_BALANCE";
+  code: string;
+  status: "DRAFT" | "CONFIRMED" | "CANCELLED";
+  supplier: { id: string; name: string } | null;
+  supplierInvoiceNumber: string | null;
+  supplierInvoiceDate: string | null;
+  receivedAt: string;
+  note: string | null;
+  totalCost: Money;
+  version: number;
+  confirmedAt: string | null;
+  cancelledAt: string | null;
+  cancelReason: string | null;
+  lines: GoodsReceiptLine[];
+};
+
+export type GoodsReceiptListItem = {
+  id: string;
+  code: string;
+  status: GoodsReceiptDetail["status"];
+  supplierName: string | null;
+  receivedAt: string;
+  totalCost: Money;
+  lineCount: number;
+};
 
 // --- Kiểm tra an toàn (contract §13) ---------------------------------------
 
