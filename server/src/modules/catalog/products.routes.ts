@@ -85,7 +85,11 @@ productsRouter.get("/products", requirePermission("catalog.read"), async (req, r
       orderBy: { [page.sortBy]: page.order },
       skip: page.skip,
       take: page.limit,
-      include: { units: { where: { isActive: true } }, category: { select: { name: true } } },
+      include: {
+        units: { where: { isActive: true } },
+        category: { select: { name: true } },
+        ingredients: { include: { ingredient: { select: { name: true } } } },
+      },
     }),
     prisma.product.count({ where }),
   ]);
@@ -115,6 +119,12 @@ productsRouter.get("/products", requirePermission("catalog.read"), async (req, r
       productType: product.productType,
       drugClass: product.drugClass,
       categoryName: product.category.name,
+      dosageForm: product.dosageForm,
+      strengthText: product.strengthText,
+      ingredients: product.ingredients.map((item) => ({
+        name: item.ingredient.name,
+        strengthText: item.strengthText,
+      })),
       minStockBaseQuantity: product.minStockBaseQuantity,
       isActive: product.isActive,
       version: product.version,

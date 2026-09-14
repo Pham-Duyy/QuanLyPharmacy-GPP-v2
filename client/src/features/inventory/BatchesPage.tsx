@@ -1,3 +1,4 @@
+import { DatabaseOutlined, WarningOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, Card, Drawer, Form, Input, Modal, Select, Space, Table, Tabs, Tag, Typography, message } from "antd";
 import { useState } from "react";
@@ -23,7 +24,15 @@ const formatDate = (value: string | null) => (value ? new Intl.DateTimeFormat("v
 /** Tồn kho: theo lô (biệt trữ/mở biệt trữ) và theo sản phẩm (tổng hợp, cảnh báo dưới mức tối thiểu). */
 export function BatchesPage() {
   return (
-    <Card title="Tồn kho">
+    <div className="inventory-page">
+      <div className="page-heading">
+        <div>
+          <Typography.Title level={2}><DatabaseOutlined /> Quản lý kho</Typography.Title>
+          <Typography.Text>Theo dõi tồn kho, lô thuốc, kiểm kê và biến động kho tại cửa hàng.</Typography.Text>
+        </div>
+        <Tag color="gold" icon={<WarningOutlined />}>Ưu tiên kiểm tra lô gần hết hạn</Tag>
+      </div>
+    <Card className="inventory-panel" title="Dữ liệu kho">
       <Tabs
         items={[
           { key: "batches", label: "Theo lô", children: <BatchesTab /> },
@@ -31,6 +40,7 @@ export function BatchesPage() {
         ]}
       />
     </Card>
+    </div>
   );
 }
 

@@ -1,4 +1,4 @@
-import { DeleteOutlined, PrinterOutlined, WarningOutlined } from "@ant-design/icons";
+import { BarcodeOutlined, DeleteOutlined, PlusOutlined, PrinterOutlined, UserAddOutlined, WarningOutlined } from "@ant-design/icons";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   Alert,
@@ -14,6 +14,7 @@ import {
   Modal,
   Radio,
   Row,
+  Segmented,
   Select,
   Space,
   Table,
@@ -26,6 +27,8 @@ import { getErrorMessage, http } from "../../api/http.js";
 import {
   formatVnd,
   type CustomerSearchItem,
+  type CustomerDetail,
+  type CategoryItem,
   type Envelope,
   type Invoice,
   type Paged,
@@ -36,6 +39,7 @@ import {
   type SafetyResult,
 } from "../../api/types.js";
 import { printInvoice } from "./print-invoice.js";
+import { useAuth } from "../auth/AuthProvider.js";
 
 type CartLine = {
   key: string;
@@ -64,7 +68,11 @@ const NOT_CHECKED_TEXT: Record<string, string> = {
  * số tạm tính để người bán ước lượng.
  */
 export function SalePage() {
+  const { can } = useAuth();
   const [term, setTerm] = useState("");
+  const [catalogFilter, setCatalogFilter] = useState<"ALL" | "RX" | "OTC" | "SUPPLEMENT" | "MEDICAL_DEVICE">("ALL");
+  const [categoryId, setCategoryId] = useState<string>();
+  const [catalogPage, setCatalogPage] = useState(1);
   const [cart, setCart] = useState<CartLine[]>([]);
   const [customerSearch, setCustomerSearch] = useState("");
   const [customer, setCustomer] = useState<CustomerSearchItem | null>(null);
@@ -77,16 +85,32 @@ export function SalePage() {
   const [discountReason, setDiscountReason] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("CASH");
   const [tendered, setTendered] = useState<number | null>(null);
+  const [printAfterPayment, setPrintAfterPayment] = useState(true);
+  const [newCustomerOpen, setNewCustomerOpen] = useState(false);
+  const [newCustomerName, setNewCustomerName] = useState("");
+  const [newCustomerPhone, setNewCustomerPhone] = useState("");
   const [done, setDone] = useState<Invoice | null>(null);
 
   const search = useQuery({
-    queryKey: ["products", term],
+    queryKey: ["products", term, catalogFilter, categoryId, catalogPage],
     queryFn: async () => {
       const response = await http.get<Envelope<Paged<ProductListItem>>>("/products", {
-        params: { search: term || undefined, limit: 15 },
+        params: {
+          search: term || undefined,
+          page: catalogPage,
+          limit: 15,
+          categoryId,
+          ...(catalogFilter === "RX" || catalogFilter === "OTC" ? { productType: "DRUG", drugClass: catalogFilter } : {}),
+          ...(catalogFilter === "SUPPLEMENT" || catalogFilter === "MEDICAL_DEVICE" ? { productType: catalogFilter } : {}),
+        },
       });
-      return response.data.data.items;
+      return response.data.data;
     },
+  });
+
+  const categories = useQuery({
+    queryKey: ["sale-categories"],
+    queryFn: async () => (await http.get<Envelope<Paged<CategoryItem>>>("/categories", { params: { page: 1, limit: 100 } })).data.data.items,
   });
 
   // Chỉ tìm khi gõ đủ 3 ký tự, khớp đúng quy tắc GET /customers (contract §11).
@@ -99,6 +123,21 @@ export function SalePage() {
       });
       return response.data.data;
     },
+  });
+
+  const createCustomer = useMutation({
+    mutationFn: async () => (await http.post<Envelope<CustomerDetail>>("/customers", {
+      fullName: newCustomerName.trim() || null,
+      phone: newCustomerPhone.trim() || null,
+    })).data.data,
+    onSuccess: (created) => {
+      setCustomer(created);
+      setNewCustomerOpen(false);
+      setNewCustomerName("");
+      setNewCustomerPhone("");
+      void message.success("Đã tạo và chọn khách hàng cho đơn bán");
+    },
+    onError: (error) => void message.error(getErrorMessage(error, "Không thể tạo khách hàng")),
   });
 
   const cartLines = useMemo(
@@ -192,6 +231,7 @@ export function SalePage() {
       return response.data.data;
     },
     onSuccess: (invoice) => {
+      if (printAfterPayment) void printInvoice(invoice.id, "k80");
       setDone(invoice);
       setCart([]);
       setCustomer(null);
@@ -279,17 +319,25 @@ export function SalePage() {
     cart.find((line) => line.product.id === productId)?.product.name ?? productId;
 
   return (
-    <Row gutter={16}>
-      <Col xs={24} lg={15}>
+    <div className="sale-page">
+      <div className="page-heading">
+        <div>
+          <Typography.Title level={2}>Bán thuốc</Typography.Title>
+          <Typography.Text>Tìm kiếm và thêm thuốc vào đơn hàng</Typography.Text>
+        </div>
+        <Tag color="blue">Bán hàng tại quầy</Tag>
+      </div>
+    <Row gutter={18}>
+      <Col xs={24} lg={15} className="sale-catalog">
         <Card
-          title="Bán hàng"
+          title="Danh sách thuốc"
           extra={
             <AutoComplete
               style={{ width: 380 }}
               value={term}
               onChange={setTerm}
               onSelect={(value) => void addProduct(value)}
-              options={(search.data ?? []).map((product) => ({
+              options={(search.data?.items ?? []).map((product) => ({
                 value: product.id,
                 label: (
                   <Space>
@@ -303,10 +351,53 @@ export function SalePage() {
                 ),
               }))}
             >
-              <Input.Search placeholder="Tìm theo tên, mã, hoạt chất rồi chọn để thêm" allowClear />
+              <Input.Search prefix={<BarcodeOutlined />} placeholder="Quét mã vạch hoặc nhập tên thuốc, hoạt chất..." allowClear onChange={(event) => { setTerm(event.target.value); setCatalogPage(1); }} onSearch={() => { if (search.data?.items.length === 1) void addProduct(search.data.items[0]!.id); }} />
             </AutoComplete>
           }
         >
+          <Segmented
+            className="sale-catalog-filter"
+            block
+            value={catalogFilter}
+            onChange={(value) => { setCatalogFilter(value as typeof catalogFilter); setCatalogPage(1); }}
+            options={[
+              { label: "Tất cả", value: "ALL" },
+              { label: "Thuốc kê đơn", value: "RX" },
+              { label: "Không kê đơn", value: "OTC" },
+              { label: "Thực phẩm chức năng", value: "SUPPLEMENT" },
+              { label: "Thiết bị y tế", value: "MEDICAL_DEVICE" },
+            ]}
+          />
+          <Select
+            allowClear
+            showSearch
+            optionFilterProp="label"
+            className="sale-category-filter"
+            placeholder="Lọc theo nhóm hàng"
+            value={categoryId}
+            onChange={(value) => { setCategoryId(value); setCatalogPage(1); }}
+            options={(categories.data ?? []).map((item) => ({ value: item.id, label: item.name }))}
+          />
+          <Table
+            className="sale-product-table"
+            rowKey="id"
+            size="small"
+            loading={search.isFetching}
+            dataSource={search.data?.items ?? []}
+            pagination={{ current: catalogPage, pageSize: 15, total: search.data?.pagination.total ?? 0, showSizeChanger: false, onChange: setCatalogPage, showTotal: (total) => `${total} thuốc` }}
+            locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Không tìm thấy thuốc phù hợp" /> }}
+            columns={[
+              { title: "STT", width: 52, render: (_: unknown, _product: ProductListItem, index: number) => index + 1 },
+              { title: "Tên thuốc", dataIndex: "name", render: (value: string, product: ProductListItem) => <Space direction="vertical" size={0}><Typography.Text strong>{value}</Typography.Text><Typography.Text type="secondary" style={{ fontSize: 11 }}>{product.code}</Typography.Text></Space> },
+              { title: "Hoạt chất / hàm lượng", width: 170, render: (_: unknown, product: ProductListItem) => <Space direction="vertical" size={0}><Typography.Text ellipsis>{product.ingredients.map((item) => item.name).join(", ") || "—"}</Typography.Text><Typography.Text type="secondary" style={{ fontSize: 11 }}>{product.strengthText ?? (product.ingredients.map((item) => item.strengthText).filter(Boolean).join(", ") || product.dosageForm || "—")}</Typography.Text></Space> },
+              { title: "Dạng bào chế", dataIndex: "dosageForm", width: 115, ellipsis: true, render: (value: string | null) => value ?? "—" },
+              { title: "Tồn kho", width: 82, align: "right", render: (_: unknown, product: ProductListItem) => <Typography.Text className={(product.stock?.sellable ?? 0) > 0 ? "sale-stock" : "sale-stock low"}>{product.stock?.sellable ?? 0}</Typography.Text> },
+              { title: "Giá bán", width: 108, align: "right", render: (_: unknown, product: ProductListItem) => <Typography.Text strong>{formatVnd(product.currentPrice?.salePrice)}</Typography.Text> },
+              { width: 82, render: (_: unknown, product: ProductListItem) => <Button type="primary" size="small" icon={<PlusOutlined />} onClick={() => void addProduct(product.id)}>Thêm</Button> },
+            ]}
+          />
+          <Divider style={{ margin: "18px 0 12px" }}>Đơn bán đang soạn</Divider>
+          <div className="sale-cart-on-left">
           <Space direction="vertical" style={{ width: "100%", marginBottom: 12 }}>
             {customer ? (
               <Alert
@@ -516,6 +607,7 @@ export function SalePage() {
               ]}
             />
           )}
+          </div>
         </Card>
 
         {cart.length > 0 ? (
@@ -592,9 +684,34 @@ export function SalePage() {
         ) : null}
       </Col>
 
-      <Col xs={24} lg={9}>
-        <Card title="Thanh toán">
+      <Col xs={24} lg={9} className="sale-checkout">
+        <Card title="Đơn bán hiện tại" extra={cart.length > 0 ? <Button danger type="text" size="small" onClick={() => setCart([])}>Xóa tất cả</Button> : null}>
           <Space direction="vertical" style={{ width: "100%" }} size="middle">
+            <Space.Compact style={{ width: "100%" }}>
+            <AutoComplete
+              style={{ width: "100%" }}
+              value={customerSearch}
+              onChange={setCustomerSearch}
+              options={(customerSearchResults.data ?? []).map((item) => ({
+                value: item.id,
+                label: `${item.fullName ?? "Chưa rõ tên"}${item.phone ? ` — ${item.phone}` : ""}`,
+              }))}
+              onSelect={(id) => {
+                const found = customerSearchResults.data?.find((item) => item.id === id);
+                if (found) setCustomer(found);
+                setCustomerSearch("");
+              }}
+            >
+              <Input.Search placeholder={customer ? customer.fullName ?? "Khách đã chọn" : "Khách lẻ · tìm tên hoặc số điện thoại"} allowClear onSearch={() => customer && setCustomer(null)} />
+            </AutoComplete>
+            {can("customer.manage") ? <Button icon={<UserAddOutlined />} onClick={() => setNewCustomerOpen(true)}>Khách mới</Button> : null}
+            </Space.Compact>
+            {prescription ? <Alert type="info" showIcon message={`Đơn thuốc ${prescription.code}${prescription.customer?.fullName ? ` · ${prescription.customer.fullName}` : ""}`} action={<Button size="small" onClick={() => { setPrescription(null); setCart((current) => current.map((line) => ({ ...line, prescriptionItemId: null }))); }}>Bỏ chọn</Button>} /> : <AutoComplete style={{ width: "100%" }} value={prescriptionSearch} onChange={setPrescriptionSearch} filterOption={(input, option) => typeof option?.label === "string" && option.label.toLowerCase().includes(input.toLowerCase())} options={(verifiedPrescriptions.data ?? []).map((item) => ({ value: item.id, label: `${item.code} — ${item.customer?.fullName ?? "Khách lẻ"}` }))} onSelect={async (id) => { const response = await http.get<Envelope<PrescriptionDetail>>(`/prescriptions/${id}`); setPrescription(response.data.data); setPrescriptionSearch(""); if (!customer && response.data.data.customer) setCustomer(response.data.data.customer); }}><Input.Search placeholder="Chọn đơn thuốc đã xác nhận (nếu có)" allowClear /></AutoComplete>}
+            {cart.length === 0 ? <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có thuốc trong đơn" /> : <Table className="sale-cart-table" rowKey="key" size="small" pagination={false} dataSource={cart} columns={[
+              { title: "Tên thuốc", render: (_: unknown, line: CartLine) => <Space direction="vertical" size={3}><Typography.Text strong>{line.product.name}</Typography.Text><Select size="small" value={line.unitId} onChange={(unitId) => setCart((current) => current.map((item) => item.key === line.key ? { ...item, unitId } : item))} options={line.product.units.map((unit) => ({ value: unit.id, label: unit.name }))} />{needsPrescription(line.product.drugClass) ? (() => { const candidates = matchingPrescriptionItems(line.product.id); return candidates.length === 0 ? <Typography.Text type="danger" style={{ fontSize: 11 }}>{prescription ? "Không có trong đơn" : "Cần chọn đơn thuốc"}</Typography.Text> : <Select size="small" value={line.prescriptionItemId ?? undefined} placeholder="Dòng đơn thuốc" onChange={(prescriptionItemId) => setCart((current) => current.map((item) => item.key === line.key ? { ...item, prescriptionItemId } : item))} options={candidates.map((item) => ({ value: item.id, label: `${item.quantity - item.dispensedBaseQuantity} ${item.unitName ?? ""} còn lại` }))} />; })() : null}</Space> },
+              { title: "SL", width: 74, render: (_: unknown, line: CartLine) => <InputNumber size="small" min={1} value={line.quantity} onChange={(quantity) => setCart((current) => current.map((item) => item.key === line.key ? { ...item, quantity: quantity ?? 1 } : item))} style={{ width: "100%" }} /> },
+              { title: "Thành tiền", width: 100, align: "right", render: (_: unknown, line: CartLine) => <Space direction="vertical" size={2}><Typography.Text strong>{formatVnd(lineTotal(line))}</Typography.Text><Button size="small" type="text" danger icon={<DeleteOutlined />} onClick={() => setCart((current) => current.filter((item) => item.key !== line.key))}>Xóa</Button></Space> },
+            ]} />}
             <div>
               <Typography.Text type="secondary">Giảm giá</Typography.Text>
               <Space.Compact style={{ width: "100%", marginTop: 4 }}>
@@ -648,6 +765,9 @@ export function SalePage() {
                 onChange={setTendered}
                 placeholder="Để trống nếu không cần tính tiền thừa"
               />
+              <div className="sale-quick-tender">
+                {[estimatedTotal, 100_000, 200_000, 500_000].filter((value, index, values) => value > 0 && values.indexOf(value) === index).map((value) => <Button key={value} size="small" onClick={() => setTendered(value)}>{formatVnd(value)}</Button>)}
+              </div>
             </div>
 
             <Divider style={{ margin: 0 }} />
@@ -696,12 +816,29 @@ export function SalePage() {
               loading={checkout.isPending}
               onClick={() => checkout.mutate()}
             >
-              Thanh toán
+              Thanh toán · {formatVnd(estimatedTotal)}
             </Button>
+            <Checkbox checked={printAfterPayment} onChange={(event) => setPrintAfterPayment(event.target.checked)}>In hóa đơn sau thanh toán</Checkbox>
           </Space>
         </Card>
       </Col>
 
+      <Modal
+        open={newCustomerOpen}
+        title="Thêm khách hàng mới"
+        okText="Tạo và chọn"
+        cancelText="Hủy"
+        confirmLoading={createCustomer.isPending}
+        okButtonProps={{ disabled: !newCustomerName.trim() && !newCustomerPhone.trim() }}
+        onOk={() => createCustomer.mutate()}
+        onCancel={() => setNewCustomerOpen(false)}
+      >
+        <Space direction="vertical" style={{ width: "100%" }}>
+          <Typography.Text type="secondary">Nhập ít nhất họ tên hoặc số điện thoại. Thông tin sức khỏe chỉ được bổ sung khi khách đồng ý.</Typography.Text>
+          <Input placeholder="Họ và tên" value={newCustomerName} onChange={(event) => setNewCustomerName(event.target.value)} autoFocus />
+          <Input placeholder="Số điện thoại" inputMode="tel" value={newCustomerPhone} onChange={(event) => setNewCustomerPhone(event.target.value)} />
+        </Space>
+      </Modal>
       <Modal
         open={done !== null}
         onCancel={() => setDone(null)}
@@ -758,5 +895,6 @@ export function SalePage() {
         ) : null}
       </Modal>
     </Row>
+    </div>
   );
 }
