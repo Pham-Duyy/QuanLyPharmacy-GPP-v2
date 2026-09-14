@@ -1,4 +1,4 @@
-import { DeleteOutlined, WarningOutlined } from "@ant-design/icons";
+import { DeleteOutlined, PrinterOutlined, WarningOutlined } from "@ant-design/icons";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   Alert,
@@ -32,6 +32,7 @@ import {
   type ProductListItem,
   type SafetyResult,
 } from "../../api/types.js";
+import { printInvoice } from "./print-invoice.js";
 
 type CartLine = {
   key: string;
@@ -513,10 +514,17 @@ export function SalePage() {
       <Modal
         open={done !== null}
         onCancel={() => setDone(null)}
-        onOk={() => setDone(null)}
-        okText="Đóng"
-        cancelButtonProps={{ style: { display: "none" } }}
         title={`Đã bán — ${done?.code ?? ""}`}
+        footer={
+          <Space>
+            <Button icon={<PrinterOutlined />} onClick={() => void printInvoice(done!.id, "k80")}>
+              In hóa đơn
+            </Button>
+            <Button type="primary" onClick={() => setDone(null)}>
+              Đóng
+            </Button>
+          </Space>
+        }
       >
         {done ? (
           <Space direction="vertical" style={{ width: "100%" }}>

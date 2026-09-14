@@ -656,6 +656,37 @@ describe("Xem và hủy hóa đơn", () => {
       .expect(404);
   });
 
+  it("in được khổ K80 và A5, có đủ số hóa đơn và tổng tiền", async () => {
+    const { invoiceId } = await sellOne();
+
+    const k80 = await api()
+      .get(`/api/v1/invoices/${invoiceId}/print`)
+      .set(authHeaders(pharmacistToken, fixture.storeId))
+      .expect(200);
+    expect(k80.headers["content-type"]).toContain("text/html");
+    expect(k80.text).toContain("HD-NT01");
+    expect(k80.text).toContain("Paracetamol 500mg");
+
+    const a5 = await api()
+      .get(`/api/v1/invoices/${invoiceId}/print`)
+      .query({ format: "a5" })
+      .set(authHeaders(pharmacistToken, fixture.storeId))
+      .expect(200);
+    expect(a5.text).toContain("size: A5");
+  });
+
+  it("khổ mặc định là K80 khi format không hợp lệ", async () => {
+    const { invoiceId } = await sellOne();
+
+    const response = await api()
+      .get(`/api/v1/invoices/${invoiceId}/print`)
+      .query({ format: "khong-hop-le" })
+      .set(authHeaders(pharmacistToken, fixture.storeId))
+      .expect(200);
+
+    expect(response.text).toContain("size: 80mm auto");
+  });
+
   it("hủy hóa đơn thì hoàn tồn về đúng lô đã xuất", async () => {
     const { invoiceId, batchId } = await sellOne();
 

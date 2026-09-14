@@ -9,6 +9,7 @@ import { idempotency } from "../../middlewares/idempotency.js";
 import { requirePermission } from "../../middlewares/require-permission.js";
 import { requireStore, storeContext } from "../../middlewares/store-context.js";
 import { resolveCartLines } from "./cart.js";
+import { renderInvoicePrintHtml } from "./invoice-print.js";
 import * as service from "./invoices.service.js";
 import { runSafetyCheck } from "./safety-check.service.js";
 import { createInvoiceSchema, safetyCheckSchema, voidInvoiceSchema } from "./sales.schema.js";
@@ -114,6 +115,19 @@ invoicesRouter.post(
     sendData(res, await service.getDetail(storeId, id), 201);
   },
 );
+
+invoicesRouter.get("/invoices/:id/print", requirePermission("invoice.read"), async (req, res) => {
+  const storeId = req.auth!.storeId!;
+  const format = req.query["format"] === "a5" ? "a5" : "k80";
+  const [invoice, store] = await Promise.all([
+    service.getDetail(storeId, String(req.params.id)),
+    prisma.store.findUniqueOrThrow({
+      where: { id: storeId },
+      select: { name: true, address: true, phone: true },
+    }),
+  ]);
+  res.type("html").send(renderInvoicePrintHtml(invoice, store, format));
+});
 
 invoicesRouter.post(
   "/invoices/:id/void",
