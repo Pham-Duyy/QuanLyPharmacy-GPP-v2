@@ -1,6 +1,6 @@
 import { DeleteOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AutoComplete, Button, DatePicker, Input, Modal, Space, Table, message } from "antd";
+import { App, AutoComplete, Button, DatePicker, Input, Modal, Space, Table } from "antd";
 import dayjs, { type Dayjs } from "dayjs";
 import { useEffect, useState } from "react";
 import { getErrorMessage, http } from "../../api/http.js";
@@ -61,6 +61,7 @@ export function PrescriptionFormModal({
   /** Có giá trị thì là sửa đơn nháp đã có; không thì tạo mới. */
   editing: PrescriptionDetail | null;
 }) {
+  const { message } = App.useApp();
   const queryClient = useQueryClient();
   const [prescriberName, setPrescriberName] = useState("");
   const [facilityName, setFacilityName] = useState("");
@@ -170,7 +171,7 @@ export function PrescriptionFormModal({
       width={760}
       title={editing ? `Sửa đơn thuốc — ${editing.code}` : "Tạo đơn thuốc"}
     >
-      <Space direction="vertical" style={{ width: "100%" }} size="middle">
+      <Space orientation="vertical" style={{ width: "100%" }} size="middle">
         <Space wrap>
           <Input
             style={{ width: 220 }}
@@ -220,7 +221,7 @@ export function PrescriptionFormModal({
             {
               title: "Tên thuốc",
               render: (_, row: Row) => (
-                <Space direction="vertical" size={0} style={{ width: "100%" }}>
+                <Space orientation="vertical" size={0} style={{ width: "100%" }}>
                   <Input
                     size="small"
                     value={row.drugNameText}

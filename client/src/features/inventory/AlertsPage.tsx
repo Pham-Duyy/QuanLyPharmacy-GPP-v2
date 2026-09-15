@@ -1,22 +1,25 @@
-import { BellOutlined, ExclamationCircleOutlined, InboxOutlined, WarningOutlined } from "@ant-design/icons";
+import { BellOutlined, CheckCircleOutlined, ExclamationCircleOutlined, InboxOutlined, WarningOutlined } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
-import { Alert, Button, Card, Col, Descriptions, Empty, Row, Space, Tag, Typography } from "antd";
+import { Alert, Button, Card, Empty, Skeleton, Tag } from "antd";
 import { useMemo, useState } from "react";
-import type { ReactNode } from "react";
 import { useNavigate } from "react-router";
 import { http } from "../../api/http.js";
-import { type BatchListItem, type Envelope, type InventoryOverviewItem, type Paged } from "../../api/types.js";
+import { type BatchListItem, type DashboardData, type Envelope, type InventoryOverviewItem, type Paged } from "../../api/types.js";
+import { daysUntil, formatDate, formatNumber } from "../../ui/format.js";
+import { PageHeader } from "../../ui/PageHeader.js";
+import { PanelEmpty } from "../../ui/PanelEmpty.js";
+import { StatCard, StatGrid } from "../../ui/StatCard.js";
+import { useAuth } from "../auth/AuthProvider.js";
 
 type Level = "danger" | "warning" | "info";
 type AlertRow = { key: string; level: Level; kind: string; productName: string; detail: string; batch?: BatchListItem };
 
-const daysToExpiry = (date: string) => Math.ceil((new Date(date).getTime() - Date.now()) / 86_400_000);
-const dateText = (date: string) => new Date(date).toLocaleDateString("vi-VN");
 const LEVEL_COLOR: Record<Level, string> = { danger: "red", warning: "orange", info: "blue" };
 const LEVEL_ALERT_TYPE: Record<Level, "error" | "warning" | "info"> = { danger: "error", warning: "warning", info: "info" };
 
 /** Cảnh báo vận hành lấy trực tiếp từ tồn theo lô và mức tồn tối thiểu, không có số liệu minh họa. */
 export function AlertsPage() {
+  const { storeId } = useAuth();
   const navigate = useNavigate();
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
 
@@ -28,15 +31,31 @@ export function AlertsPage() {
     queryKey: ["alert-overview"],
     queryFn: async () => (await http.get<Envelope<Paged<InventoryOverviewItem>>>("/inventory", { params: { page: 1, limit: 100, belowMinStock: "true" } })).data.data.items,
   });
+  // Số đếm lấy từ máy chủ (toàn bộ lô), danh sách bên dưới giới hạn 100 dòng mỗi loại.
+  const dashboard = useQuery({
+    queryKey: ["dashboard", storeId, 7],
+    queryFn: async () => (await http.get<Envelope<DashboardData>>("/dashboard", { params: { days: 7 } })).data.data,
+    enabled: Boolean(storeId),
+    staleTime: 60_000,
+  });
+  const counts = dashboard.data?.inventory.counts;
 
   const alerts = useMemo<AlertRow[]>(() => {
     const batchAlerts: AlertRow[] = [];
     for (const batch of batches.data ?? []) {
-      const days = daysToExpiry(batch.expiryDate);
+      if (batch.quantityOnHand <= 0) continue;
+      const days = daysUntil(batch.expiryDate);
       if (days < 0) batchAlerts.push({ key: `expired-${batch.id}`, level: "danger", kind: "Đã hết hạn", productName: batch.productName, detail: `Lô ${batch.batchNumber} đã hết hạn ${Math.abs(days)} ngày`, batch });
-      else if (days <= 90) batchAlerts.push({ key: `near-${batch.id}`, level: "warning", kind: "Sắp hết hạn", productName: batch.productName, detail: `Lô ${batch.batchNumber} còn ${days} ngày · HSD ${dateText(batch.expiryDate)}`, batch });
+      else if (days <= 90) batchAlerts.push({ key: `near-${batch.id}`, level: "warning", kind: "Sắp hết hạn", productName: batch.productName, detail: `Lô ${batch.batchNumber} còn ${days} ngày · HSD ${formatDate(batch.expiryDate)}`, batch });
     }
-    const lowStock: AlertRow[] = (overview.data ?? []).map((item) => ({ key: `low-${item.productId}`, level: "info", kind: "Tồn thấp", productName: item.name, detail: `Còn ${item.stock.sellable}, mức tối thiểu ${item.minStockBaseQuantity}` }));
+    batchAlerts.sort((a, b) => daysUntil(a.batch!.expiryDate) - daysUntil(b.batch!.expiryDate));
+    const lowStock: AlertRow[] = (overview.data ?? []).map((item) => ({
+      key: `low-${item.productId}`,
+      level: "info",
+      kind: "Tồn thấp",
+      productName: item.name,
+      detail: `Còn ${formatNumber(item.stock.sellable)}, mức tối thiểu ${formatNumber(item.minStockBaseQuantity)}`,
+    }));
     return [...batchAlerts, ...lowStock];
   }, [batches.data, overview.data]);
 
@@ -48,54 +67,34 @@ export function AlertsPage() {
   const loading = batches.isLoading || overview.isLoading;
 
   return (
-    <div className="alerts-page">
-      <div className="page-heading">
-        <div>
-          <Typography.Title level={2}><BellOutlined /> Cảnh báo</Typography.Title>
-          <Typography.Text>Theo dõi và xử lý kịp thời các cảnh báo về thuốc và tồn kho.</Typography.Text>
-        </div>
-        <Tag color="blue">Cập nhật theo dữ liệu kho</Tag>
-      </div>
-      <Row gutter={[16, 16]} className="alert-stats">
-        <AlertStat icon={<ExclamationCircleOutlined />} color="red" label="Hết hạn" value={expired.length} />
-        <AlertStat icon={<WarningOutlined />} color="orange" label="Sắp hết hạn" value={nearExpiry.length} />
-        <AlertStat icon={<InboxOutlined />} color="blue" label="Tồn thấp" value={lowStock.length} />
-      </Row>
-      <Row gutter={[16, 16]}>
-        <Col xs={24} xl={15}>
-          <Card className="alerts-list-card" title="Cảnh báo cần xử lý" loading={loading}>
-            {!loading && alerts.length === 0 ? (
-              <Empty description="Chưa có cảnh báo nào từ dữ liệu kho hiện tại" />
-            ) : (
-              <Space direction="vertical" size="large" style={{ width: "100%" }}>
-                <AlertGroup title="Nguy cấp — cần xử lý ngay" level="danger" items={expired} selectedKey={effectiveKey} onSelect={setSelectedKey} />
-                <AlertGroup title="Cảnh báo — cần xử lý sớm" level="warning" items={nearExpiry} selectedKey={effectiveKey} onSelect={setSelectedKey} />
-                <AlertGroup title="Thông tin" level="info" items={lowStock} selectedKey={effectiveKey} onSelect={setSelectedKey} />
-              </Space>
-            )}
-          </Card>
-        </Col>
-        <Col xs={24} xl={9}>
-          <AlertDetail alert={selected} navigate={navigate} />
-        </Col>
-      </Row>
-    </div>
-  );
-}
+    <div>
+      <PageHeader icon={<BellOutlined />} title="Cảnh báo" description="Lô hết hạn, sắp hết hạn và mặt hàng dưới mức tồn tối thiểu — tính trực tiếp từ dữ liệu kho." />
 
-function AlertStat({ icon, color, label, value }: { icon: ReactNode; color: string; label: string; value: number }) {
-  return (
-    <Col xs={24} md={8}>
-      <Card>
-        <Space>
-          <span className="alert-icon" style={{ background: color }}>{icon}</span>
-          <div>
-            <Typography.Text strong>{label}</Typography.Text>
-            <Typography.Title level={3}>{value}</Typography.Title>
-          </div>
-        </Space>
-      </Card>
-    </Col>
+      <StatGrid>
+        <StatCard tone="red" icon={<ExclamationCircleOutlined />} label="Lô đã hết hạn" value={formatNumber(counts?.expired)} loading={dashboard.isLoading} hint="Nguy cấp — xử lý ngay" />
+        <StatCard tone="orange" icon={<WarningOutlined />} label="Lô sắp hết hạn" value={formatNumber(counts?.expiring)} loading={dashboard.isLoading} hint="Trong 90 ngày tới" />
+        <StatCard tone="blue" icon={<InboxOutlined />} label="Dưới tồn tối thiểu" value={formatNumber(counts?.lowStock)} loading={dashboard.isLoading} hint="Mặt hàng nên nhập thêm" />
+      </StatGrid>
+
+      <div className="split-layout">
+        <Card title="Cảnh báo cần xử lý">
+          {loading ? (
+            <Skeleton active paragraph={{ rows: 6 }} />
+          ) : alerts.length === 0 ? (
+            <PanelEmpty icon={<CheckCircleOutlined />} title="Không có cảnh báo nào" description="Mọi lô còn hạn dài và tồn kho đều trên mức tối thiểu." />
+          ) : (
+            <div className="detail-stack">
+              <AlertGroup title="Nguy cấp — cần xử lý ngay" level="danger" items={expired} selectedKey={effectiveKey} onSelect={setSelectedKey} />
+              <AlertGroup title="Cảnh báo — cần xử lý sớm" level="warning" items={nearExpiry} selectedKey={effectiveKey} onSelect={setSelectedKey} />
+              <AlertGroup title="Thông tin — tồn thấp" level="info" items={lowStock} selectedKey={effectiveKey} onSelect={setSelectedKey} />
+            </div>
+          )}
+        </Card>
+        <aside className="split-aside">
+          <AlertDetail alert={selected} navigate={navigate} />
+        </aside>
+      </div>
+    </div>
   );
 }
 
@@ -122,41 +121,62 @@ function AlertGroup({ title, level, items, selectedKey, onSelect }: { title: str
 }
 
 function AlertDetail({ alert, navigate }: { alert: AlertRow | null; navigate: (path: string) => void }) {
-  return (
-    <Card className="alert-detail-card" title="Chi tiết cảnh báo">
-      {!alert ? (
+  if (!alert) {
+    return (
+      <Card title="Chi tiết cảnh báo">
         <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chọn một cảnh báo bên trái để xem chi tiết" />
-      ) : (
-        <Space direction="vertical" size="middle" style={{ width: "100%" }}>
-          <Space direction="vertical" size={4}>
-            <Tag color={LEVEL_COLOR[alert.level]}>{alert.kind}</Tag>
-            <Typography.Title level={4} style={{ margin: 0 }}>{alert.productName}</Typography.Title>
-          </Space>
-          <Alert type={LEVEL_ALERT_TYPE[alert.level]} showIcon message={alert.detail} />
-          {alert.batch ? (
-            <Descriptions
-              size="small"
-              column={1}
-              items={[
-                { key: "batch", label: "Số lô", children: alert.batch.batchNumber },
-                { key: "expiry", label: "Hạn dùng", children: dateText(alert.batch.expiryDate) },
-                { key: "qty", label: "Tồn kho", children: `${alert.batch.quantityOnHand} ${alert.batch.baseUnitName}` },
-                { key: "location", label: "Vị trí", children: alert.batch.shelfLocation ?? "—" },
-              ]}
-            />
-          ) : null}
-          <div className="alert-tips">
-            <Typography.Text type="secondary">Gợi ý xử lý</Typography.Text>
-            <ul>
-              <li>Đối chiếu số lượng tồn thực tế tại quầy/kho.</li>
-              <li>{alert.level === "info" ? "Cân nhắc lập phiếu nhập bổ sung nếu vẫn còn nhu cầu bán." : "Cách ly hoặc xử lý lô theo đúng quy trình hàng hết hạn/sắp hết hạn của nhà thuốc."}</li>
-            </ul>
-          </div>
-          <Button type="primary" block onClick={() => navigate(alert.batch ? "/ton-kho" : "/phieu-nhap")}>
-            {alert.batch ? "Xem lô thuốc" : "Tạo phiếu nhập"}
-          </Button>
-        </Space>
-      )}
+      </Card>
+    );
+  }
+  return (
+    <Card title="Chi tiết cảnh báo">
+      <div className="detail-stack">
+        <div>
+          <Tag color={LEVEL_COLOR[alert.level]}>{alert.kind}</Tag>
+          <h3 className="detail-title" style={{ marginTop: 8 }}>
+            {alert.productName}
+          </h3>
+        </div>
+        <Alert type={LEVEL_ALERT_TYPE[alert.level]} showIcon title={alert.detail} />
+        {alert.batch ? (
+          <dl className="kv-list">
+            <div>
+              <dt>Số lô</dt>
+              <dd className="mono">{alert.batch.batchNumber}</dd>
+            </div>
+            <div>
+              <dt>Hạn dùng</dt>
+              <dd>{formatDate(alert.batch.expiryDate)}</dd>
+            </div>
+            <div>
+              <dt>Tồn kho</dt>
+              <dd>
+                {formatNumber(alert.batch.quantityOnHand)} {alert.batch.baseUnitName}
+              </dd>
+            </div>
+            <div>
+              <dt>Vị trí kệ</dt>
+              <dd>{alert.batch.shelfLocation ?? "—"}</dd>
+            </div>
+          </dl>
+        ) : null}
+        <div className="alert-tips">
+          <strong>Gợi ý xử lý</strong>
+          <ul>
+            <li>Đối chiếu số lượng tồn thực tế tại quầy/kho.</li>
+            {alert.level === "info" ? (
+              <li>Cân nhắc lập phiếu nhập bổ sung nếu vẫn còn nhu cầu bán.</li>
+            ) : alert.level === "warning" ? (
+              <li>Ưu tiên bán lô này trước (FEFO đã tự áp dụng khi bán), cân nhắc biệt trữ nếu còn quá ít ngày.</li>
+            ) : (
+              <li>Biệt trữ ngay để chặn bán, sau đó xử lý hủy theo quy trình hàng hết hạn của nhà thuốc.</li>
+            )}
+          </ul>
+        </div>
+        <Button type="primary" block onClick={() => navigate(alert.batch ? "/ton-kho" : "/phieu-nhap")}>
+          {alert.batch ? "Mở Tồn kho để xử lý lô" : "Tạo phiếu nhập"}
+        </Button>
+      </div>
     </Card>
   );
 }
