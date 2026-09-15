@@ -167,12 +167,19 @@ export async function changePassword(auth: AuthContext, input: ChangePasswordInp
 
 /** Dữ liệu cho GET /auth/me: người dùng, cửa hàng vào được, quyền từng nơi. */
 export async function describeMe(auth: AuthContext) {
-  const stores = auth.hasChainRole
-    ? await prisma.store.findMany({ where: { isActive: true }, orderBy: { code: "asc" } })
-    : await prisma.store.findMany({
-        where: { isActive: true, id: { in: auth.assignedStoreIds } },
-        orderBy: { code: "asc" },
-      });
+  const [stores, assignments] = await Promise.all([
+    auth.hasChainRole
+      ? prisma.store.findMany({ where: { isActive: true }, orderBy: { code: "asc" } })
+      : prisma.store.findMany({
+          where: { isActive: true, id: { in: auth.assignedStoreIds } },
+          orderBy: { code: "asc" },
+        }),
+    prisma.userRole.findMany({
+      where: { userId: auth.userId },
+      include: { role: { select: { code: true, name: true } } },
+      orderBy: { assignedAt: "asc" },
+    }),
+  ]);
 
   return {
     user: {
@@ -183,6 +190,11 @@ export async function describeMe(auth: AuthContext) {
       defaultStoreId: auth.defaultStoreId,
     },
     chainPermissions: [...auth.chainPermissions].sort(),
+    roles: assignments.map((item) => ({
+      code: item.role.code,
+      name: item.role.name,
+      storeId: item.storeId,
+    })),
     stores: stores.map((store) => ({
       id: store.id,
       code: store.code,

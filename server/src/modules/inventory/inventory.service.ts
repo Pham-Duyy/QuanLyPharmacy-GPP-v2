@@ -5,6 +5,7 @@ export type InventoryOverviewQuery = {
   productId?: string;
   categoryId?: string;
   belowMinStock?: boolean;
+  search?: string;
 };
 
 type OverviewRow = {
@@ -48,6 +49,12 @@ export async function getInventoryOverview(storeId: string, query: InventoryOver
     WHERE p.is_active = true
       ${query.productId ? Prisma.sql`AND p.id = ${query.productId}::uuid` : Prisma.empty}
       ${query.categoryId ? Prisma.sql`AND p.category_id = ${query.categoryId}::uuid` : Prisma.empty}
+      ${
+        query.search
+          ? Prisma.sql`AND (f_unaccent(lower(p.name)) LIKE '%' || f_unaccent(lower(${query.search})) || '%'
+              OR lower(p.code) LIKE '%' || lower(${query.search}) || '%')`
+          : Prisma.empty
+      }
     GROUP BY p.id, c.name
     ${
       query.belowMinStock

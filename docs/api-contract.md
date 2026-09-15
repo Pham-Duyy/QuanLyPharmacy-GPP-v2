@@ -598,7 +598,7 @@ Không có khoảnh khắc nào hàng chưa qua kiểm nhập ở trạng thái 
 
 | Method | Endpoint | Mô tả | Quyền |
 |---|---|---|---|
-| GET | `/inventory` | Tồn theo sản phẩm; lọc `productId`, `categoryId`, `belowMinStock=true` | `stock.read` |
+| GET | `/inventory` | Tồn theo sản phẩm; lọc `productId`, `categoryId`, `belowMinStock=true`, `search` (tên không phân biệt dấu hoặc mã) | `stock.read` |
 
 Mỗi sản phẩm trả về số lượng theo đơn vị nhỏ nhất, tách thành: bán được, biệt trữ, bị thu hồi, đã hết hạn.
 
@@ -756,7 +756,7 @@ Response:
 | Method | Endpoint | Mô tả | Quyền |
 |---|---|---|---|
 | POST | `/invoices` | Tạo hóa đơn `COMPLETED`; cần `Idempotency-Key` | `invoice.create` |
-| GET | `/invoices` | Lọc `from`, `to`, `customerId`, `sellerId`, `status` | `invoice.read` |
+| GET | `/invoices` | Lọc `from`, `to`, `customerId`, `sellerId`, `status`, `code` (chứa chuỗi, không phân biệt hoa thường) | `invoice.read` |
 | GET | `/invoices/{id}` | Chi tiết, các dòng, **lô thực tế đã xuất**, phiếu trả liên quan | `invoice.read` |
 | POST | `/invoices/{id}/void` | Hủy hóa đơn; bắt buộc `reason`; cần `Idempotency-Key` | `invoice.void` |
 | GET | `/invoices/{id}/print` | `?format=k80` (máy in nhiệt 80 mm) hoặc `?format=a5` | `invoice.read` |
