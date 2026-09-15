@@ -1,15 +1,14 @@
-import { DollarCircleOutlined, FileSearchOutlined, FileTextOutlined, PrinterOutlined, RollbackOutlined, StopOutlined } from "@ant-design/icons";
+import { DollarCircleOutlined, EyeOutlined, FileSearchOutlined, FileTextOutlined, MoreOutlined, PlusOutlined, PrinterOutlined, RollbackOutlined, StopOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { App, Button, Card, DatePicker, Dropdown, Empty, Input, Modal, Segmented, Skeleton, Table, Tag, Typography } from "antd";
 import type { Dayjs } from "dayjs";
 import { useState } from "react";
-import { useSearchParams } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 import { getErrorMessage, http } from "../../api/http.js";
 import { formatVnd, type DashboardData, type Envelope, type Invoice, type InvoiceListItem, type Paged } from "../../api/types.js";
-import { formatDate, formatDateTime, formatNumber } from "../../ui/format.js";
+import { formatDate, formatDateTime, formatNumber, vnDateKey } from "../../ui/format.js";
 import { paymentMethodLabel } from "../../ui/labels.js";
 import { PageHeader } from "../../ui/PageHeader.js";
-import { PanelEmpty } from "../../ui/PanelEmpty.js";
 import { StatCard, StatGrid, Trend } from "../../ui/StatCard.js";
 import { useDebounced } from "../../ui/useDebounced.js";
 import { useAuth } from "../auth/AuthProvider.js";
@@ -22,6 +21,92 @@ const RETURN_STATUS: Record<string, { text: string; color: string } | undefined>
   PARTIAL: { text: "Trả một phần", color: "gold" },
   FULL: { text: "Đã trả hết", color: "purple" },
 };
+
+/** Sáu cột dữ liệu chia đều phần còn lại sau cột thao tác (88px). */
+const COLUMN_WIDTH = "calc((100% - 88px) / 6)";
+
+/**
+ * Hóa đơn không có sửa/xóa (contract §14): "sửa" là nhận trả hàng, "xóa" là hủy có lý do
+ * và hoàn tồn về lô. Nút không dùng được vẫn hiện nhưng khóa, kèm lý do.
+ */
+function InvoiceRowActions({
+  row,
+  canReturn,
+  canVoid,
+  onView,
+  onReturn,
+  onVoid,
+}: {
+  row: InvoiceListItem;
+  canReturn: boolean;
+  canVoid: boolean;
+  onView: () => void;
+  onReturn: () => void;
+  onVoid: () => void;
+}) {
+  const completed = row.status === "COMPLETED";
+  const returnBlock = !canReturn ? "Vai trò không có quyền nhận trả hàng" : !completed ? "Hóa đơn đã hủy" : row.returnStatus === "FULL" ? "Hóa đơn đã trả hết" : null;
+  // Máy chủ mới là nơi quyết định; ở đây chỉ khóa sớm theo quy tắc hủy trong ngày bán.
+  const voidBlock = !canVoid
+    ? "Vai trò không có quyền hủy hóa đơn"
+    : !completed
+      ? "Hóa đơn đã hủy"
+      : row.returnStatus !== "NONE"
+        ? "Hóa đơn đã có phiếu trả, không hủy được"
+        : vnDateKey(new Date(row.soldAt)) !== vnDateKey()
+          ? "Chỉ hủy được hóa đơn trong ngày bán"
+          : null;
+
+  const withReason = (label: string, reason: string | null) =>
+    reason ? (
+      <span className="menu-item-stack">
+        {label}
+        <small>{reason}</small>
+      </span>
+    ) : (
+      label
+    );
+
+  return (
+    <span onClick={(event) => event.stopPropagation()}>
+      <Dropdown
+        trigger={["click"]}
+        placement="bottomRight"
+        menu={{
+          items: [
+            { key: "view", icon: <EyeOutlined />, label: "Xem chi tiết" },
+            { key: "k80", icon: <PrinterOutlined />, label: "In khổ K80" },
+            { key: "a5", icon: <PrinterOutlined />, label: "In khổ A5" },
+            { type: "divider" },
+            { key: "return", icon: <RollbackOutlined />, label: withReason("Nhận trả hàng", returnBlock), disabled: returnBlock !== null },
+            { key: "void", icon: <StopOutlined />, label: withReason("Hủy hóa đơn", voidBlock), danger: voidBlock === null, disabled: voidBlock !== null },
+          ],
+          onClick: ({ key, domEvent }) => {
+            domEvent.stopPropagation();
+            if (key === "view") onView();
+            if (key === "k80" || key === "a5") void printInvoice(row.id, key);
+            if (key === "return") onReturn();
+            if (key === "void") onVoid();
+          },
+        }}
+      >
+        <Button type="text" className="more-btn" icon={<MoreOutlined />} aria-label={`Thao tác với ${row.code}`} />
+      </Dropdown>
+    </span>
+  );
+}
+
+/** Số hóa đơn dạng HD-NT01-20260915-0003: tách tiền tố cửa hàng xuống dòng phụ để cột hẹp vẫn đọc đủ. */
+function DocCode({ code }: { code: string }) {
+  const parts = code.split("-");
+  if (parts.length < 3) return <strong className="doc-code">{code}</strong>;
+  return (
+    <span className="doc-code-stack" title={code}>
+      <strong>{parts.slice(2).join("-")}</strong>
+      <span>{parts.slice(0, 2).join("-")}</span>
+    </span>
+  );
+}
 
 function StatusTags({ status, returnStatus }: { status: string; returnStatus: string }) {
   const returned = RETURN_STATUS[returnStatus];
@@ -36,6 +121,7 @@ function StatusTags({ status, returnStatus }: { status: string; returnStatus: st
 export function InvoicesPage() {
   const { storeId, can } = useAuth();
   const { message } = App.useApp();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [params, setParams] = useSearchParams();
   const openId = params.get("id");
@@ -100,7 +186,18 @@ export function InvoicesPage() {
 
   return (
     <div>
-      <PageHeader icon={<FileTextOutlined />} title="Hóa đơn" description="Tra cứu hóa đơn bán hàng, in lại, nhận trả hàng hoặc hủy hóa đơn trong ngày." />
+      <PageHeader
+        icon={<FileTextOutlined />}
+        title="Hóa đơn"
+        description="Tra cứu hóa đơn bán hàng, in lại, nhận trả hàng hoặc hủy hóa đơn trong ngày."
+        extra={
+          can("invoice.create") ? (
+            <Button type="primary" icon={<PlusOutlined />} onClick={() => void navigate("/ban-hang")}>
+              Tạo hóa đơn
+            </Button>
+          ) : null
+        }
+      />
 
       {today ? (
         <StatGrid>
@@ -110,7 +207,7 @@ export function InvoicesPage() {
         </StatGrid>
       ) : null}
 
-      <div className="split-layout">
+      <div className={openId !== null ? "split-layout" : undefined}>
         <Card>
           <div className="toolbar">
             <Segmented
@@ -149,7 +246,9 @@ export function InvoicesPage() {
             rowKey="id"
             loading={list.isFetching}
             dataSource={list.data?.items ?? []}
-            scroll={{ x: 720 }}
+            tableLayout="fixed"
+            className="compact-cells"
+            scroll={{ x: 980 }}
             onRow={(row) => ({ onClick: () => setParams({ id: row.id }), style: { cursor: "pointer" } })}
             rowClassName={(row) => (row.id === openId ? "row-selected" : "")}
             locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Không có hóa đơn phù hợp" /> }}
@@ -162,57 +261,64 @@ export function InvoicesPage() {
               showTotal: (total) => `${total} hóa đơn`,
             }}
             columns={[
+              { title: "Số hóa đơn", key: "code", width: COLUMN_WIDTH, render: (_: unknown, row: InvoiceListItem) => <DocCode code={row.code} /> },
+              { title: "Thời điểm", key: "soldAt", width: COLUMN_WIDTH, render: (_: unknown, row: InvoiceListItem) => formatDateTime(row.soldAt) },
+              { title: "Khách hàng", key: "customer", width: COLUMN_WIDTH, ellipsis: true, render: (_: unknown, row: InvoiceListItem) => row.customerName ?? <span className="text-secondary">Khách lẻ</span> },
+              { title: "Người bán", key: "seller", width: COLUMN_WIDTH, ellipsis: true, render: (_: unknown, row: InvoiceListItem) => row.sellerName },
+              { title: "Tổng tiền", key: "total", width: COLUMN_WIDTH, align: "right", render: (_: unknown, row: InvoiceListItem) => <Typography.Text strong>{formatVnd(row.totalAmount)}</Typography.Text> },
+              { title: "Trạng thái", key: "status", width: COLUMN_WIDTH, render: (_: unknown, row: InvoiceListItem) => <StatusTags status={row.status} returnStatus={row.returnStatus} /> },
               {
-                title: "Hóa đơn",
-                key: "code",
+                title: "Thao tác",
+                key: "actions",
+                width: 88,
+                align: "center",
+                fixed: "right",
                 render: (_: unknown, row: InvoiceListItem) => (
-                  <div className="cell-main">
-                    <strong className="mono">{row.code}</strong>
-                    <span>{formatDateTime(row.soldAt)}</span>
-                  </div>
+                  <InvoiceRowActions
+                    row={row}
+                    canReturn={can("return.create")}
+                    canVoid={can("invoice.void")}
+                    onView={() => setParams({ id: row.id })}
+                    onReturn={() => {
+                      setParams({ id: row.id });
+                      setReturning(true);
+                    }}
+                    onVoid={() => {
+                      setParams({ id: row.id });
+                      setVoiding(true);
+                    }}
+                  />
                 ),
               },
-              {
-                title: "Khách · Người bán",
-                key: "people",
-                ellipsis: true,
-                render: (_: unknown, row: InvoiceListItem) => (
-                  <div className="cell-main">
-                    <strong>{row.customerName ?? "Khách lẻ"}</strong>
-                    <span>{row.sellerName}</span>
-                  </div>
-                ),
-              },
-              { title: "Tổng tiền", key: "total", width: 120, align: "right", render: (_: unknown, row: InvoiceListItem) => <Typography.Text strong>{formatVnd(row.totalAmount)}</Typography.Text> },
-              { title: "Trạng thái", key: "status", width: 150, render: (_: unknown, row: InvoiceListItem) => <StatusTags status={row.status} returnStatus={row.returnStatus} /> },
             ]}
           />
         </Card>
 
-        <aside className="split-aside">
-          {openId === null ? (
-            <Card title="Chi tiết hóa đơn">
-              <PanelEmpty icon={<FileSearchOutlined />} title="Chưa chọn hóa đơn" description="Bấm vào một hóa đơn để xem dòng hàng, lô đã xuất và thao tác." />
-            </Card>
-          ) : (
+        {openId !== null ? (
+          <aside className="split-aside">
             <Card
               title={detail.data ? <span className="mono">{detail.data.code}</span> : "Chi tiết hóa đơn"}
               extra={
-                detail.data ? (
-                  <Dropdown
-                    menu={{
-                      items: [
-                        { key: "k80", label: "Khổ K80 (máy in nhiệt)" },
-                        { key: "a5", label: "Khổ A5" },
-                      ],
-                      onClick: ({ key }) => void printInvoice(detail.data!.id, key as "k80" | "a5"),
-                    }}
-                  >
-                    <Button size="small" icon={<PrinterOutlined />}>
-                      In
-                    </Button>
-                  </Dropdown>
-                ) : null
+                <span className="row-actions">
+                  {detail.data ? (
+                    <Dropdown
+                      menu={{
+                        items: [
+                          { key: "k80", label: "Khổ K80 (máy in nhiệt)" },
+                          { key: "a5", label: "Khổ A5" },
+                        ],
+                        onClick: ({ key }) => void printInvoice(detail.data!.id, key as "k80" | "a5"),
+                      }}
+                    >
+                      <Button size="small" icon={<PrinterOutlined />}>
+                        In
+                      </Button>
+                    </Dropdown>
+                  ) : null}
+                  <Button type="text" size="small" onClick={() => setParams({})}>
+                    Đóng
+                  </Button>
+                </span>
               }
             >
               {detail.isLoading || !detail.data ? (
@@ -221,8 +327,8 @@ export function InvoicesPage() {
                 <InvoiceDetail invoice={detail.data} canReturn={can("return.create")} canVoid={can("invoice.void")} onReturn={() => setReturning(true)} onVoid={() => setVoiding(true)} />
               )}
             </Card>
-          )}
-        </aside>
+          </aside>
+        ) : null}
       </div>
 
       {detail.data ? <ReturnModal invoice={detail.data} open={returning} onClose={() => setReturning(false)} /> : null}

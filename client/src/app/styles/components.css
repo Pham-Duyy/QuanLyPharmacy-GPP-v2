@@ -720,6 +720,30 @@
   background: var(--tone-red);
 }
 
+.more-btn.ant-btn {
+  width: 32px;
+  height: 32px;
+  color: var(--c-ink-500);
+  font-size: 18px;
+}
+
+.more-btn.ant-btn:hover,
+.more-btn.ant-btn.ant-dropdown-open {
+  color: var(--c-primary) !important;
+  background: var(--c-primary-50) !important;
+}
+
+.menu-item-stack {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.35;
+}
+
+.menu-item-stack small {
+  color: var(--c-ink-400);
+  font-size: 11.5px;
+}
+
 .row-actions {
   display: inline-flex;
   gap: 4px;
@@ -794,4 +818,42 @@
 .detail-sub {
   color: var(--c-ink-500);
   font-size: 13px;
+}
+
+.doc-code {
+  display: block;
+  overflow: hidden;
+  color: var(--c-ink-900);
+  font-size: 12.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.015em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.compact-cells .ant-table-thead > tr > th,
+.compact-cells .ant-table-tbody > tr > td {
+  padding-inline: 10px !important;
+}
+
+.doc-code-stack {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.35;
+}
+
+.doc-code-stack strong {
+  overflow: hidden;
+  color: var(--c-ink-900);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.doc-code-stack span {
+  color: var(--c-ink-400);
+  font-size: 12px;
 }
