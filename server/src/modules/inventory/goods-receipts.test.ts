@@ -556,3 +556,82 @@ describe("Sửa phiếu nhập", () => {
     expect(response.body.error.code).toBe("NOT_FOUND");
   });
 });
+
+describe("Danh sách, tổng hợp và chi tiết cho màn Nhập hàng", () => {
+  async function confirmDraft(body = draftBody()) {
+    const draft = await createDraft(body).expect(201);
+    await api()
+      .post(`/api/v1/goods-receipts/${draft.body.data.id}/confirm`)
+      .set({ ...authHeaders(token, fixture.storeId), ...idem() })
+      .send(passedAll(draft.body.data))
+      .expect(200);
+    return draft.body.data.id as string;
+  }
+
+  it("tổng hợp phiếu nháp, số phiếu và giá trị đã kiểm nhập trong tháng so với tháng trước", async () => {
+    await createDraft().expect(201);
+    await confirmDraft(draftBody({ lines: [{ productId, unitId, quantity: 20, unitCost: 82000, batchNumber: "L-THANG-NAY", expiryDate: "2027-01-09" }] }));
+    const lastMonthId = await confirmDraft(draftBody({ lines: [{ productId, unitId, quantity: 10, unitCost: 82000, batchNumber: "L-THANG-TRUOC", expiryDate: "2027-01-09" }] }));
+
+    // Đặt ngày nhận của một phiếu về 5 ngày trước ngày đầu tháng hiện tại theo giờ Việt Nam.
+    const vnToday = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Ho_Chi_Minh" }).format(new Date());
+    const [year, month] = vnToday.split("-").map(Number) as [number, number];
+    const lastMonthDay = new Date(Date.UTC(year, month - 1, 1) - 7 * 3600_000 - 5 * 86_400_000);
+    await prisma.goodsReceipt.update({ where: { id: lastMonthId }, data: { receivedAt: lastMonthDay } });
+
+    const response = await api()
+      .get("/api/v1/goods-receipts/summary")
+      .set(authHeaders(token, fixture.storeId))
+      .expect(200);
+
+    expect(response.body.data).toMatchObject({
+      draftCount: 1,
+      confirmedCount: 1,
+      confirmedCountChangePercent: 0,
+      confirmedValue: 1_640_000,
+      confirmedValueChangePercent: 100,
+    });
+  });
+
+  it("tìm theo một phần tên nhà cung cấp hoặc mã phiếu, sắp xếp theo tổng tiền", async () => {
+    const other = await prisma.supplier.create({ data: { name: "Công ty Dược phẩm Hậu Giang" } });
+    const small = await createDraft(draftBody({ supplierId: other.id, lines: [{ productId, unitId, quantity: 1, unitCost: 1000, batchNumber: "L-NHO", expiryDate: "2027-01-09" }] })).expect(201);
+    const big = await createDraft().expect(201);
+
+    const bySupplier = await api()
+      .get("/api/v1/goods-receipts")
+      .query({ search: "hậu giang" })
+      .set(authHeaders(token, fixture.storeId))
+      .expect(200);
+    expect(bySupplier.body.data.items.map((item: { id: string }) => item.id)).toEqual([small.body.data.id]);
+
+    const byCode = await api()
+      .get("/api/v1/goods-receipts")
+      .query({ search: big.body.data.code.slice(-6) })
+      .set(authHeaders(token, fixture.storeId))
+      .expect(200);
+    expect(byCode.body.data.items.map((item: { id: string }) => item.id)).toEqual([big.body.data.id]);
+
+    const sorted = await api()
+      .get("/api/v1/goods-receipts")
+      .query({ sortBy: "totalCost", order: "desc" })
+      .set(authHeaders(token, fixture.storeId))
+      .expect(200);
+    expect(sorted.body.data.items.map((item: { id: string }) => item.id)).toEqual([big.body.data.id, small.body.data.id]);
+  });
+
+  it("chi tiết có liên hệ nhà cung cấp, người lập, người xác nhận và trạng thái lô", async () => {
+    await prisma.supplier.update({ where: { id: supplierId }, data: { phone: "02473001234", address: "Cầu Giấy, Hà Nội" } });
+    const id = await confirmDraft();
+
+    const response = await api()
+      .get(`/api/v1/goods-receipts/${id}`)
+      .set(authHeaders(token, fixture.storeId))
+      .expect(200);
+
+    expect(response.body.data.supplier).toMatchObject({ phone: "02473001234", address: "Cầu Giấy, Hà Nội" });
+    expect(response.body.data.createdBy.fullName).toBeTruthy();
+    expect(response.body.data.confirmedBy.fullName).toBeTruthy();
+    expect(response.body.data.lines[0].batchStatus).toBe("AVAILABLE");
+  });
+});

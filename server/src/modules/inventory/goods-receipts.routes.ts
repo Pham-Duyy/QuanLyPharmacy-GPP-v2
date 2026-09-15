@@ -30,15 +30,25 @@ goodsReceiptsRouter.get(
   requirePermission("goods_receipt.read"),
   async (req, res) => {
     const page = parsePageQuery(req.query, {
-      sortable: ["receivedAt", "createdAt", "code"],
+      sortable: ["receivedAt", "createdAt", "code", "totalCost"],
       defaultSort: "receivedAt",
     });
     const query = req.query as Record<string, string | undefined>;
+    const search = query["search"]?.trim();
 
     const where = {
       storeId: req.auth!.storeId!,
       ...(query["status"] ? { status: query["status"] } : {}),
       ...(query["supplierId"] ? { supplierId: query["supplierId"] } : {}),
+      ...(search
+        ? {
+            OR: [
+              { code: { contains: search, mode: "insensitive" as const } },
+              { supplier: { name: { contains: search, mode: "insensitive" as const } } },
+              { supplierInvoiceNumber: { contains: search, mode: "insensitive" as const } },
+            ],
+          }
+        : {}),
       ...(query["from"] || query["to"]
         ? {
             receivedAt: {
@@ -76,6 +86,15 @@ goodsReceiptsRouter.get(
         page,
       ),
     );
+  },
+);
+
+// Đăng ký trước "/goods-receipts/:id" để "summary" không bị hiểu là một id.
+goodsReceiptsRouter.get(
+  "/goods-receipts/summary",
+  requirePermission("goods_receipt.read"),
+  async (req, res) => {
+    sendData(res, await service.getSummary(req.auth!.storeId!));
   },
 );
 

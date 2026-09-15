@@ -857,3 +857,197 @@
   color: var(--c-ink-400);
   font-size: 12px;
 }
+
+/* ---------- Bộ lọc dạng thẻ + danh sách chứng từ ---------- */
+
+.filter-card .ant-card-body {
+  padding: 16px 20px;
+}
+
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px 14px;
+}
+
+.filter-bar > .field {
+  flex: 1 1 170px;
+}
+
+.filter-bar .field .ant-select,
+.filter-bar .field .ant-picker {
+  width: 100%;
+}
+
+.filter-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+@media (max-width: 900px) {
+}
+
+.card-search.ant-input-affix-wrapper {
+  width: min(320px, 46vw);
+}
+
+.bulk-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--c-primary-100);
+  border-radius: var(--r-md);
+  background: var(--c-primary-50);
+  color: var(--c-ink-700);
+  font-size: 13px;
+}
+
+.bulk-bar > span {
+  margin-right: auto;
+}
+
+.doc-link.ant-typography {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-decoration: underline;
+  text-decoration-color: var(--c-primary-100);
+  text-underline-offset: 3px;
+}
+
+/* ---------- Panel chi tiết phiếu nhập ---------- */
+
+.panel-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.panel-title .anticon {
+  color: var(--c-primary);
+}
+
+.receipt-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+}
+
+.receipt-head strong {
+  color: var(--c-primary);
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+
+.receipt-head span {
+  color: var(--c-ink-500);
+  font-size: 13px;
+}
+
+.panel-section {
+  padding-top: 14px;
+  border-top: 1px solid var(--c-border);
+}
+
+.panel-section h4 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+  color: var(--c-ink-900);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.panel-section h4 .anticon {
+  color: var(--c-primary);
+}
+
+.panel-section-row {
+  justify-content: space-between;
+}
+
+.panel-section-row > span:first-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.kv-list > .kv-strong dd {
+  font-weight: 600;
+}
+
+.check-list {
+  display: grid;
+  gap: 8px;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.check-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--c-ink-700);
+  font-size: 13px;
+}
+
+.check-list li > span:not(.anticon) {
+  flex: 1;
+}
+
+.check-list li em {
+  color: var(--c-ink-400);
+  font-size: 12px;
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+}
+
+.check-list li.done .anticon {
+  color: var(--tone-green);
+}
+
+.check-list li.warn .anticon {
+  color: var(--tone-orange);
+}
+
+.check-list li.fail .anticon {
+  color: var(--tone-red);
+}
+
+.check-list li > span:not(.anticon) {
+  text-align: left;
+}
+
+.doc-code-stack .doc-link.ant-typography {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.doc-code-stack > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.check-list li .anticon {
+  flex: 0 0 auto;
+}
+
+.filter-actions {
+  justify-content: flex-end;
+}
+
+.panel-section .section-note {
+  margin: 10px 0 0;
+}

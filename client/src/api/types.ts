@@ -184,6 +184,17 @@ export type GoodsReceiptLine = {
   manufactureDate: string | null;
   expiryDate: string;
   batchId: string | null;
+  /** Trạng thái hiện tại của lô đã tạo/liên kết; null khi phiếu còn nháp. */
+  batchStatus?: "AVAILABLE" | "QUARANTINED" | "RECALLED" | null;
+};
+
+export type GoodsReceiptSummary = {
+  monthStart: string;
+  draftCount: number;
+  confirmedCount: number;
+  confirmedCountChangePercent: number | null;
+  confirmedValue: Money;
+  confirmedValueChangePercent: number | null;
 };
 
 export type GoodsReceiptDetail = {
@@ -191,15 +202,19 @@ export type GoodsReceiptDetail = {
   type: "PURCHASE" | "OPENING_BALANCE";
   code: string;
   status: "DRAFT" | "CONFIRMED" | "CANCELLED";
-  supplier: { id: string; name: string } | null;
+  supplier: { id: string; name: string; phone?: string | null; address?: string | null; taxCode?: string | null } | null;
   supplierInvoiceNumber: string | null;
   supplierInvoiceDate: string | null;
   receivedAt: string;
   note: string | null;
   totalCost: Money;
   version: number;
+  createdAt?: string;
+  createdBy?: { id: string; fullName: string };
   confirmedAt: string | null;
+  confirmedBy?: { id: string; fullName: string } | null;
   cancelledAt: string | null;
+  cancelledBy?: { id: string; fullName: string } | null;
   cancelReason: string | null;
   lines: GoodsReceiptLine[];
 };
