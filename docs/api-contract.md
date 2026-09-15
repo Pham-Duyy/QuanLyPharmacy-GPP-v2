@@ -528,8 +528,9 @@ Phiếu nhập ghi nhận hàng **thực nhận** từ nhà cung cấp. Đơn đ
 
 | Method | Endpoint | Mô tả | Quyền |
 |---|---|---|---|
-| GET | `/goods-receipts` | Lọc `supplierId`, `status`, `from`, `to` | `goods_receipt.read` |
-| GET | `/goods-receipts/{id}` | Chi tiết, các dòng, lô đã tạo hoặc liên kết | `goods_receipt.read` |
+| GET | `/goods-receipts` | Lọc `supplierId`, `status`, `from`, `to`, `search` (mã phiếu, tên nhà cung cấp, số hóa đơn NCC); sắp xếp `receivedAt`, `createdAt`, `code`, `totalCost` | `goods_receipt.read` |
+| GET | `/goods-receipts/summary` | Số phiếu nháp đang chờ; số phiếu và giá trị đã kiểm nhập trong tháng hiện tại (giờ Việt Nam, theo ngày nhận hàng) kèm % so với tháng trước (`null` khi tháng trước bằng 0) | `goods_receipt.read` |
+| GET | `/goods-receipts/{id}` | Chi tiết, các dòng, lô đã tạo hoặc liên kết kèm trạng thái hiện tại của lô; liên hệ nhà cung cấp; người lập, người xác nhận, người hủy | `goods_receipt.read` |
 | POST | `/goods-receipts` | Tạo phiếu `DRAFT`; cần `Idempotency-Key` | `goods_receipt.create` |
 | PATCH | `/goods-receipts/{id}` | Sửa khi còn `DRAFT`; cần `version` | `goods_receipt.create` |
 | POST | `/goods-receipts/{id}/confirm` | Kiểm nhập và xác nhận; cần `Idempotency-Key` | `goods_receipt.confirm` |

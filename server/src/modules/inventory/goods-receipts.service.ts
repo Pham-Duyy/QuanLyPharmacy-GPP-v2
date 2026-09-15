@@ -359,12 +359,16 @@ export async function getDetail(storeId: string, receiptId: string) {
   const receipt = await prisma.goodsReceipt.findFirst({
     where: { id: receiptId, storeId },
     include: {
-      supplier: { select: { id: true, name: true } },
+      supplier: { select: { id: true, name: true, phone: true, address: true, taxCode: true } },
+      createdByUser: { select: { id: true, fullName: true } },
+      confirmedByUser: { select: { id: true, fullName: true } },
+      cancelledByUser: { select: { id: true, fullName: true } },
       lines: {
         orderBy: { lineNo: "asc" },
         include: {
           product: { select: { code: true, name: true } },
           productUnit: { select: { name: true, conversionToBase: true } },
+          batch: { select: { status: true } },
         },
       },
     },
@@ -384,8 +388,12 @@ export async function getDetail(storeId: string, receiptId: string) {
     note: receipt.note,
     totalCost: receipt.totalCost,
     version: receipt.version,
+    createdAt: receipt.createdAt,
+    createdBy: receipt.createdByUser,
     confirmedAt: receipt.confirmedAt,
+    confirmedBy: receipt.confirmedByUser,
     cancelledAt: receipt.cancelledAt,
+    cancelledBy: receipt.cancelledByUser,
     cancelReason: receipt.cancelReason,
     lines: receipt.lines.map((line) => ({
       id: line.id,
@@ -404,6 +412,52 @@ export async function getDetail(storeId: string, receiptId: string) {
       manufactureDate: line.manufactureDate,
       expiryDate: line.expiryDate,
       batchId: line.batchId,
+      /** Trạng thái hiện tại của lô (không phải kết quả kiểm nhập lúc đó): lô có thể bị biệt trữ về sau. */
+      batchStatus: line.batch?.status ?? null,
     })),
+  };
+}
+
+/** Ngày đầu tháng theo giờ Việt Nam, trả về mốc UTC tương ứng. */
+function vnMonthStart(year: number, monthIndex: number): Date {
+  return new Date(Date.UTC(year, monthIndex, 1) - 7 * 60 * 60 * 1000);
+}
+
+/**
+ * Số liệu đầu trang Nhập hàng: phiếu nháp đang chờ, phiếu đã kiểm nhập và giá trị nhập
+ * trong tháng hiện tại so với tháng trước (theo ngày nhận hàng, giờ Việt Nam).
+ */
+export async function getSummary(storeId: string, now = new Date()) {
+  const vnNow = new Date(now.getTime() + 7 * 60 * 60 * 1000);
+  const year = vnNow.getUTCFullYear();
+  const month = vnNow.getUTCMonth();
+  const thisMonthStart = vnMonthStart(year, month);
+  const nextMonthStart = vnMonthStart(year, month + 1);
+  const previousMonthStart = vnMonthStart(year, month - 1);
+
+  const confirmedBetween = (from: Date, to: Date) =>
+    prisma.goodsReceipt.aggregate({
+      where: { storeId, status: "CONFIRMED", receivedAt: { gte: from, lt: to } },
+      _count: true,
+      _sum: { totalCost: true },
+    });
+
+  const [draftCount, current, previous] = await Promise.all([
+    prisma.goodsReceipt.count({ where: { storeId, status: "DRAFT" } }),
+    confirmedBetween(thisMonthStart, nextMonthStart),
+    confirmedBetween(previousMonthStart, thisMonthStart),
+  ]);
+
+  const changePercent = (value: number, base: number) => (base === 0 ? null : Math.round(((value - base) / base) * 1000) / 10);
+  const currentValue = Number(current._sum.totalCost ?? 0n);
+  const previousValue = Number(previous._sum.totalCost ?? 0n);
+
+  return {
+    monthStart: thisMonthStart,
+    draftCount,
+    confirmedCount: current._count,
+    confirmedCountChangePercent: changePercent(current._count, previous._count),
+    confirmedValue: currentValue,
+    confirmedValueChangePercent: changePercent(currentValue, previousValue),
   };
 }
