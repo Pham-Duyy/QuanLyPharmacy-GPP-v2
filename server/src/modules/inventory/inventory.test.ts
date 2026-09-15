@@ -127,6 +127,33 @@ describe("Tồn tổng hợp theo sản phẩm", () => {
     expect(ids).not.toContain(other.id);
   });
 
+  it("tìm theo tên không dấu hoặc mã sản phẩm", async () => {
+    await prisma.product.create({
+      data: {
+        code: "TH0009",
+        name: "Thuốc ho Bảo Thanh",
+        productType: "DRUG",
+        drugClass: "OTC",
+        categoryId,
+        units: { create: { name: "Chai", conversionToBase: 1 } },
+      },
+    });
+
+    const byName = await api()
+      .get("/api/v1/inventory")
+      .query({ search: "thuoc ho" })
+      .set(authHeaders(adminToken, fixture.storeId))
+      .expect(200);
+    expect(byName.body.data.items.map((row: { code: string }) => row.code)).toEqual(["TH0009"]);
+
+    const byCode = await api()
+      .get("/api/v1/inventory")
+      .query({ search: "th0001" })
+      .set(authHeaders(adminToken, fixture.storeId))
+      .expect(200);
+    expect(byCode.body.data.items.map((row: { code: string }) => row.code)).toEqual(["TH0001"]);
+  });
+
   it("không tính tồn của cửa hàng khác", async () => {
     await makeBatch("AVAILABLE", 30, 365, fixture.otherStoreId);
 

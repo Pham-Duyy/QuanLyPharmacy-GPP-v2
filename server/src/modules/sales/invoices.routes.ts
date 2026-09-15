@@ -55,6 +55,9 @@ invoicesRouter.get("/invoices", requirePermission("invoice.read"), async (req, r
     ...(query["status"] ? { status: query["status"] } : {}),
     ...(query["customerId"] ? { customerId: query["customerId"] } : {}),
     ...(query["sellerId"] ? { sellerId: query["sellerId"] } : {}),
+    ...(query["code"]?.trim()
+      ? { code: { contains: query["code"].trim(), mode: "insensitive" as const } }
+      : {}),
     ...(query["from"] || query["to"]
       ? {
           soldAt: {

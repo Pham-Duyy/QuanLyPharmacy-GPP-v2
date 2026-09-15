@@ -742,4 +742,27 @@ describe("Xem và hủy hóa đơn", () => {
       .expect(200);
     expect(other.body.data.items).toHaveLength(0);
   });
+
+  it("tìm hóa đơn theo một phần số hóa đơn", async () => {
+    const { invoiceId } = await sellOne();
+    const detail = await api()
+      .get(`/api/v1/invoices/${invoiceId}`)
+      .set(authHeaders(pharmacistToken, fixture.storeId))
+      .expect(200);
+    const code: string = detail.body.data.code;
+
+    const found = await api()
+      .get("/api/v1/invoices")
+      .query({ code: code.slice(-6).toLowerCase() })
+      .set(authHeaders(pharmacistToken, fixture.storeId))
+      .expect(200);
+    expect(found.body.data.items.map((item: { code: string }) => item.code)).toEqual([code]);
+
+    const missing = await api()
+      .get("/api/v1/invoices")
+      .query({ code: "KHONG-CO" })
+      .set(authHeaders(pharmacistToken, fixture.storeId))
+      .expect(200);
+    expect(missing.body.data.items).toHaveLength(0);
+  });
 });

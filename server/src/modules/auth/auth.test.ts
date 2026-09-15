@@ -65,6 +65,18 @@ describe("Đăng nhập", () => {
     expect(response.body.data.chainPermissions).toEqual([]);
     expect(response.body.data.stores).toHaveLength(1);
     expect(response.body.data.stores[0].permissions).toContain("sale.prescription_drug");
+    expect(response.body.data.roles).toEqual([
+      { code: "pharmacist", name: expect.any(String), storeId: fixture.storeId },
+    ]);
+  });
+
+  it("vai trò toàn chuỗi có storeId rỗng", async () => {
+    const { token } = await login("admin");
+    const response = await api().get("/api/v1/auth/me").set(authHeaders(token)).expect(200);
+
+    expect(response.body.data.roles).toEqual([
+      { code: "admin", name: expect.any(String), storeId: null },
+    ]);
   });
 });
 

@@ -22,6 +22,7 @@ const overviewQuerySchema = z.object({
   productId: z.uuid().optional(),
   categoryId: z.uuid().optional(),
   belowMinStock: z.enum(["true", "false"]).optional(),
+  search: z.string().trim().max(100).optional(),
   page: z.coerce.number().int().positive().default(1),
   limit: z.coerce.number().int().positive().max(MAX_LIMIT).default(20),
 });
@@ -32,6 +33,7 @@ inventoryRouter.get("/inventory", requirePermission("stock.read"), async (req, r
     productId: query.productId,
     categoryId: query.categoryId,
     belowMinStock: query.belowMinStock === "true",
+    search: query.search || undefined,
   });
 
   const skip = (query.page - 1) * query.limit;
