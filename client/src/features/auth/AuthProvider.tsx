@@ -17,6 +17,7 @@ type AuthState = {
   logout: () => Promise<void>;
   selectStore: (storeId: string) => void;
   can: (permission: string) => boolean;
+  reloadMe: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -99,6 +100,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setCurrentStoreId(next);
   }, []);
 
+  // Chỉ làm mới hồ sơ, giữ nguyên cửa hàng đang chọn.
+  const reloadMe = useCallback(async () => {
+    const response = await http.get<{ data: Me }>("/auth/me");
+    setMe(response.data.data);
+  }, []);
+
   const can = useCallback(
     (permission: string) => {
       if (!me) return false;
@@ -110,8 +117,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo<AuthState>(
-    () => ({ status, me, storeId, login, logout, selectStore, can }),
-    [status, me, storeId, login, logout, selectStore, can],
+    () => ({ status, me, storeId, login, logout, selectStore, can, reloadMe }),
+    [status, me, storeId, login, logout, selectStore, can, reloadMe],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

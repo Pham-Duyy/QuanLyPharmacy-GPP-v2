@@ -2,11 +2,13 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { ConfigProvider } from "antd";
+import { App as AntApp, ConfigProvider } from "antd";
 import viVN from "antd/locale/vi_VN";
+import "@fontsource-variable/inter";
 import "antd/dist/reset.css";
 import "./app/app.css";
 import App from "./App.js";
+import { appTheme } from "./app/theme.js";
 import { AuthProvider } from "./features/auth/AuthProvider.js";
 
 const queryClient = new QueryClient({
@@ -15,14 +17,16 @@ const queryClient = new QueryClient({
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <ConfigProvider locale={viVN} theme={{ token: { colorPrimary: "#0876eb", borderRadius: 8, fontFamily: 'Inter, "Segoe UI", Arial, sans-serif' } }}>
-      <QueryClientProvider client={queryClient}>
-        <BrowserRouter>
-          <AuthProvider>
-            <App />
-          </AuthProvider>
-        </BrowserRouter>
-      </QueryClientProvider>
+    <ConfigProvider locale={viVN} theme={appTheme}>
+      <AntApp>
+        <QueryClientProvider client={queryClient}>
+          <BrowserRouter>
+            <AuthProvider>
+              <App />
+            </AuthProvider>
+          </BrowserRouter>
+        </QueryClientProvider>
+      </AntApp>
     </ConfigProvider>
   </StrictMode>,
 );

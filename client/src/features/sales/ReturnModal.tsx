@@ -9,7 +9,7 @@ import {
   Space,
   Table,
   Typography,
-  message,
+  App,
 } from "antd";
 import { useState } from "react";
 import { getErrorMessage, http } from "../../api/http.js";
@@ -30,6 +30,7 @@ export function ReturnModal({
   open: boolean;
   onClose: () => void;
 }) {
+  const { message } = App.useApp();
   const queryClient = useQueryClient();
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [disposition, setDisposition] = useState<"RESTOCK" | "DISPOSE">("RESTOCK");
@@ -96,7 +97,7 @@ export function ReturnModal({
       title={`Nhận trả hàng — ${invoice.code}`}
       width={760}
     >
-      <Space direction="vertical" style={{ width: "100%" }} size="middle">
+      <Space orientation="vertical" style={{ width: "100%" }} size="middle">
         <Table
           size="small"
           pagination={false}
@@ -105,7 +106,7 @@ export function ReturnModal({
             {
               title: "Sản phẩm",
               render: (_, row) => (
-                <Space direction="vertical" size={0}>
+                <Space orientation="vertical" size={0}>
                   <Typography.Text strong>{row.line.productName}</Typography.Text>
                   <Typography.Text type="secondary">
                     Lô {row.allocation.batchNumber} · hạn{" "}
@@ -162,7 +163,7 @@ export function ReturnModal({
           <Alert
             type="warning"
             showIcon
-            message="Chỉ chọn nhập lại kho khi dược sĩ đã kiểm tra hàng còn nguyên vẹn và bảo quản đúng điều kiện. Thuốc kê đơn không được nhập lại kho."
+            title="Chỉ chọn nhập lại kho khi dược sĩ đã kiểm tra hàng còn nguyên vẹn và bảo quản đúng điều kiện. Thuốc kê đơn không được nhập lại kho."
           />
         ) : null}
 

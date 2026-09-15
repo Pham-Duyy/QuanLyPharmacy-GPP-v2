@@ -1,0 +1,61 @@
+/* Giá trị gốc của hệ thiết kế. Đồng bộ với src/app/theme.ts (antd đọc ở đó). */
+:root {
+  --c-primary: #0876eb;
+  --c-primary-hover: #0667d1;
+  --c-primary-50: #eef6ff;
+  --c-primary-100: #dbeafe;
+  --c-accent: #10b58a;
+
+  --c-ink-900: #0b2447;
+  --c-ink-700: #243b5e;
+  --c-ink-500: #5a6f8f;
+  --c-ink-400: #8496b0;
+  --c-ink-300: #b4c1d3;
+
+  --c-bg: #f4f7fb;
+  --c-surface: #ffffff;
+  --c-surface-2: #f8fafd;
+  --c-border: #e4eaf2;
+  --c-border-strong: #d3dce8;
+  --c-row-selected: #eaf3ff;
+
+  --c-nav-bg: #0b1e3b;
+  --c-nav-bg-2: #081830;
+  --c-nav-text: #b9c7dc;
+  --c-nav-muted: #6f84a3;
+  --c-nav-line: rgba(255, 255, 255, 0.08);
+
+  --tone-blue: #0876eb;
+  --tone-blue-bg: #eaf3ff;
+  --tone-green: #0e9f6e;
+  --tone-green-bg: #e3f6ee;
+  --tone-orange: #d97706;
+  --tone-orange-bg: #fff3df;
+  --tone-purple: #7c4ddb;
+  --tone-purple-bg: #f1ebfd;
+  --tone-red: #dc3a4b;
+  --tone-red-bg: #fdecee;
+  --tone-cyan: #0891b2;
+  --tone-cyan-bg: #e0f4f8;
+  --tone-slate: #5a6f8f;
+  --tone-slate-bg: #eef2f7;
+
+  --r-sm: 6px;
+  --r-md: 8px;
+  --r-lg: 12px;
+
+  --shadow-xs: 0 1px 2px rgba(15, 35, 70, 0.05);
+  --shadow-sm: 0 1px 3px rgba(15, 35, 70, 0.07), 0 1px 2px rgba(15, 35, 70, 0.04);
+  --shadow-md: 0 12px 32px rgba(15, 35, 70, 0.12);
+
+  --font-mono: ui-monospace, "Cascadia Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+
+  --header-h: 64px;
+  --gutter: 24px;
+}
+
+@media (max-width: 768px) {
+  :root {
+    --gutter: 16px;
+  }
+}

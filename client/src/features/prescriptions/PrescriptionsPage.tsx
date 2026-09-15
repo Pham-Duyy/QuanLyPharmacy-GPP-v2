@@ -1,28 +1,12 @@
-import { FilePdfOutlined, UploadOutlined } from "@ant-design/icons";
+import { CheckOutlined, CloseOutlined, EditOutlined, FilePdfOutlined, FileProtectOutlined, FileSearchOutlined, PlusOutlined, SendOutlined, UploadOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  Button,
-  Card,
-  Descriptions,
-  Drawer,
-  Image,
-  Input,
-  Modal,
-  Select,
-  Space,
-  Table,
-  Tag,
-  Typography,
-  message,
-} from "antd";
+import { App, Button, Card, Empty, Image, Input, Modal, Segmented, Skeleton, Table, Tag, Typography } from "antd";
 import { useRef, useState } from "react";
 import { getErrorMessage, http } from "../../api/http.js";
-import type {
-  Envelope,
-  PrescriptionDetail,
-  PrescriptionListItem,
-  PrescriptionStatus,
-} from "../../api/types.js";
+import type { Envelope, PrescriptionDetail, PrescriptionListItem, PrescriptionStatus } from "../../api/types.js";
+import { daysUntil, formatDate, formatNumber } from "../../ui/format.js";
+import { PageHeader } from "../../ui/PageHeader.js";
+import { PanelEmpty } from "../../ui/PanelEmpty.js";
 import { useAuth } from "../auth/AuthProvider.js";
 import { PrescriptionFormModal } from "./PrescriptionFormModal.js";
 
@@ -31,53 +15,44 @@ const STATUS_TAG: Record<PrescriptionStatus, { text: string; color: string }> = 
   PENDING_REVIEW: { text: "Chờ xác nhận", color: "gold" },
   VERIFIED: { text: "Đã xác nhận", color: "green" },
   PARTIALLY_DISPENSED: { text: "Đã bán một phần", color: "blue" },
-  DISPENSED: { text: "Đã bán hết", color: "blue" },
+  DISPENSED: { text: "Đã bán hết", color: "purple" },
   REJECTED: { text: "Đã từ chối", color: "red" },
 };
 
+function StatusTag({ status }: { status: PrescriptionStatus }) {
+  return <Tag color={STATUS_TAG[status].color}>{STATUS_TAG[status].text}</Tag>;
+}
+
 export function PrescriptionsPage() {
   const { can } = useAuth();
+  const { message } = App.useApp();
   const queryClient = useQueryClient();
-  const [status, setStatus] = useState<string | undefined>(undefined);
+  const [status, setStatus] = useState<PrescriptionStatus | "ALL">("ALL");
   const [openId, setOpenId] = useState<string | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<PrescriptionDetail | null>(null);
   const [rejecting, setRejecting] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const list = useQuery({
     queryKey: ["prescriptions", status],
-    queryFn: async () => {
-      const response = await http.get<Envelope<PrescriptionListItem[]>>("/prescriptions", {
-        params: { status },
-      });
-      return response.data.data;
-    },
+    queryFn: async () => (await http.get<Envelope<PrescriptionListItem[]>>("/prescriptions", { params: { status: status === "ALL" ? undefined : status } })).data.data,
+    placeholderData: (previous) => previous,
   });
 
   const detail = useQuery({
     queryKey: ["prescription", openId],
     enabled: openId !== null,
-    queryFn: async () => {
-      const response = await http.get<Envelope<PrescriptionDetail>>(`/prescriptions/${openId}`);
-      return response.data.data;
-    },
+    queryFn: async () => (await http.get<Envelope<PrescriptionDetail>>(`/prescriptions/${openId}`)).data.data,
   });
 
   function afterAction() {
-    return Promise.all([
-      queryClient.invalidateQueries({ queryKey: ["prescriptions"] }),
-      queryClient.invalidateQueries({ queryKey: ["prescription", openId] }),
-    ]);
+    return Promise.all([queryClient.invalidateQueries({ queryKey: ["prescriptions"] }), queryClient.invalidateQueries({ queryKey: ["prescription", openId] })]);
   }
 
   const submit = useMutation({
-    mutationFn: () =>
-      http.post(
-        `/prescriptions/${openId}/submit`,
-        {},
-        { headers: { "Idempotency-Key": crypto.randomUUID() } },
-      ),
+    mutationFn: () => http.post(`/prescriptions/${openId}/submit`, {}, { headers: { "Idempotency-Key": crypto.randomUUID() } }),
     onSuccess: async () => {
       void message.success("Đã nộp đơn chờ dược sĩ xác nhận");
       await afterAction();
@@ -86,12 +61,7 @@ export function PrescriptionsPage() {
   });
 
   const verify = useMutation({
-    mutationFn: () =>
-      http.post(
-        `/prescriptions/${openId}/verify`,
-        {},
-        { headers: { "Idempotency-Key": crypto.randomUUID() } },
-      ),
+    mutationFn: () => http.post(`/prescriptions/${openId}/verify`, {}, { headers: { "Idempotency-Key": crypto.randomUUID() } }),
     onSuccess: async () => {
       void message.success("Đã xác nhận đơn thuốc");
       await afterAction();
@@ -100,12 +70,7 @@ export function PrescriptionsPage() {
   });
 
   const reject = useMutation({
-    mutationFn: () =>
-      http.post(
-        `/prescriptions/${openId}/reject`,
-        { reason: rejectReason },
-        { headers: { "Idempotency-Key": crypto.randomUUID() } },
-      ),
+    mutationFn: () => http.post(`/prescriptions/${openId}/reject`, { reason: rejectReason }, { headers: { "Idempotency-Key": crypto.randomUUID() } }),
     onSuccess: async () => {
       void message.success("Đã từ chối đơn thuốc");
       setRejecting(false);
@@ -114,8 +79,6 @@ export function PrescriptionsPage() {
     },
     onError: (error) => void message.error(getErrorMessage(error, "Không từ chối được đơn")),
   });
-
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const uploadImage = useMutation({
     mutationFn: async (file: File) => {
@@ -134,25 +97,19 @@ export function PrescriptionsPage() {
   const data = detail.data;
   const canEdit = data && can("prescription.create") && ["DRAFT", "PENDING_REVIEW"].includes(data.status);
   const canSubmit = data && can("prescription.create") && data.status === "DRAFT";
-  const canVerify =
-    data && can("prescription.verify") && ["DRAFT", "PENDING_REVIEW"].includes(data.status);
+  const canVerify = data && can("prescription.verify") && ["DRAFT", "PENDING_REVIEW"].includes(data.status);
 
   return (
-    <Card
-      title="Đơn thuốc"
-      extra={
-        <Space>
-          <Select
-            allowClear
-            placeholder="Lọc theo trạng thái"
-            style={{ width: 180 }}
-            value={status}
-            onChange={setStatus}
-            options={Object.entries(STATUS_TAG).map(([value, { text }]) => ({ value, label: text }))}
-          />
-          {can("prescription.create") ? (
+    <div>
+      <PageHeader
+        icon={<FileProtectOutlined />}
+        title="Đơn thuốc"
+        description="Nhập đơn thuốc, dược sĩ xác nhận rồi mới bán được thuốc kê đơn theo đơn."
+        extra={
+          can("prescription.create") ? (
             <Button
               type="primary"
+              icon={<PlusOutlined />}
               onClick={() => {
                 setEditing(null);
                 setFormOpen(true);
@@ -160,213 +117,229 @@ export function PrescriptionsPage() {
             >
               Tạo đơn thuốc
             </Button>
-          ) : null}
-        </Space>
-      }
-    >
-      <Table
-        rowKey="id"
-        size="small"
-        loading={list.isLoading}
-        dataSource={list.data ?? []}
-        pagination={false}
-        onRow={(row) => ({ onClick: () => setOpenId(row.id), style: { cursor: "pointer" } })}
-        columns={[
-          { title: "Số đơn", dataIndex: "code", width: 200 },
-          {
-            title: "Khách",
-            render: (_, row: PrescriptionListItem) => row.customer?.fullName ?? "—",
-          },
-          {
-            title: "Ngày kê",
-            width: 110,
-            render: (_, row: PrescriptionListItem) =>
-              new Date(row.prescribedDate).toLocaleDateString("vi-VN"),
-          },
-          {
-            title: "Hết hạn",
-            width: 110,
-            render: (_, row: PrescriptionListItem) =>
-              new Date(row.validUntil).toLocaleDateString("vi-VN"),
-          },
-          { title: "Số dòng", dataIndex: ["_count", "items"], width: 80, align: "right" },
-          {
-            title: "Trạng thái",
-            width: 130,
-            render: (_, row: PrescriptionListItem) => {
-              const info = STATUS_TAG[row.status];
-              return <Tag color={info.color}>{info.text}</Tag>;
-            },
-          },
-        ]}
-      />
-
-      <Drawer
-        width={640}
-        open={openId !== null}
-        onClose={() => setOpenId(null)}
-        title={data?.code ?? "Chi tiết đơn thuốc"}
-        extra={
-          data ? (
-            <Space>
-              {canEdit ? (
-                <Button
-                  onClick={() => {
-                    setEditing(data);
-                    setFormOpen(true);
-                  }}
-                >
-                  Sửa
-                </Button>
-              ) : null}
-              {canSubmit ? (
-                <Button onClick={() => submit.mutate()} loading={submit.isPending}>
-                  Nộp duyệt
-                </Button>
-              ) : null}
-              {canVerify ? (
-                <>
-                  <Button danger onClick={() => setRejecting(true)}>
-                    Từ chối
-                  </Button>
-                  <Button type="primary" onClick={() => verify.mutate()} loading={verify.isPending}>
-                    Xác nhận
-                  </Button>
-                </>
-              ) : null}
-            </Space>
           ) : null
         }
-      >
-        {data ? (
-          <Space direction="vertical" style={{ width: "100%" }} size="middle">
-            <Descriptions
-              size="small"
-              column={1}
-              items={[
-                {
-                  key: "s",
-                  label: "Trạng thái",
-                  children: <Tag color={STATUS_TAG[data.status].color}>{STATUS_TAG[data.status].text}</Tag>,
-                },
-                { key: "bs", label: "Bác sĩ kê đơn", children: data.prescriberName ?? "—" },
-                { key: "cs", label: "Cơ sở khám", children: data.facilityName ?? "—" },
-                { key: "cd", label: "Chẩn đoán", children: data.diagnosisText ?? "—" },
-                {
-                  key: "pd",
-                  label: "Ngày kê",
-                  children: new Date(data.prescribedDate).toLocaleDateString("vi-VN"),
-                },
-                {
-                  key: "vu",
-                  label: "Hết hạn",
-                  children: new Date(data.validUntil).toLocaleDateString("vi-VN"),
-                },
-                ...(data.verifiedBy
-                  ? [{ key: "vb", label: "Người xác nhận", children: data.verifiedBy.fullName }]
-                  : []),
-                ...(data.rejectedReason
-                  ? [{ key: "rr", label: "Lý do từ chối", children: data.rejectedReason }]
-                  : []),
-              ]}
+      />
+
+      <div className="split-layout">
+        <Card>
+          <div className="toolbar">
+            <Segmented
+              value={status}
+              onChange={(value) => setStatus(value as typeof status)}
+              options={[{ value: "ALL", label: "Tất cả" }, ...(["PENDING_REVIEW", "VERIFIED", "PARTIALLY_DISPENSED", "DRAFT", "REJECTED"] as PrescriptionStatus[]).map((value) => ({ value, label: STATUS_TAG[value].text }))]}
             />
-
-            <Table
-              rowKey="id"
-              size="small"
-              pagination={false}
-              dataSource={data.items}
-              columns={[
-                {
-                  title: "Thuốc",
-                  render: (_, item) => (
-                    <Space direction="vertical" size={0}>
-                      <Typography.Text strong>{item.drugNameText}</Typography.Text>
-                      {item.productId ? (
-                        <Typography.Text type="secondary">
-                          Khớp: {item.productName} ({item.productCode})
-                        </Typography.Text>
-                      ) : (
-                        <Typography.Text type="warning">Chưa khớp sản phẩm</Typography.Text>
-                      )}
-                    </Space>
-                  ),
+          </div>
+          <Table
+            rowKey="id"
+            loading={list.isFetching}
+            dataSource={list.data ?? []}
+            pagination={{ pageSize: 20, showSizeChanger: false, hideOnSinglePage: true }}
+            scroll={{ x: 620 }}
+            onRow={(row) => ({ onClick: () => setOpenId(row.id), style: { cursor: "pointer" } })}
+            rowClassName={(row) => (row.id === openId ? "row-selected" : "")}
+            locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có đơn thuốc" /> }}
+            columns={[
+              {
+                title: "Đơn thuốc",
+                key: "code",
+                render: (_: unknown, row: PrescriptionListItem) => (
+                  <div className="cell-main">
+                    <strong className="mono">{row.code}</strong>
+                    <span>
+                      {row.customer?.fullName ?? "Khách lẻ"} · {row._count.items} thuốc
+                    </span>
+                  </div>
+                ),
+              },
+              { title: "Ngày kê", key: "date", width: 110, render: (_: unknown, row: PrescriptionListItem) => formatDate(row.prescribedDate) },
+              {
+                title: "Hiệu lực",
+                key: "valid",
+                width: 130,
+                render: (_: unknown, row: PrescriptionListItem) => {
+                  const days = daysUntil(row.validUntil);
+                  return (
+                    <div className="cell-main">
+                      <strong>{formatDate(row.validUntil)}</strong>
+                      <span className={days < 0 ? "text-danger" : undefined}>{days < 0 ? "Đã hết hạn" : `Còn ${days} ngày`}</span>
+                    </div>
+                  );
                 },
-                {
-                  title: "SL",
-                  width: 100,
-                  align: "right",
-                  render: (_, item) => `${item.quantity} ${item.unitName ?? ""}`,
-                },
-                {
-                  title: "Đã bán",
-                  width: 90,
-                  align: "right",
-                  render: (_, item) =>
-                    item.baseQuantity !== null ? `${item.dispensedBaseQuantity}/${item.baseQuantity}` : "—",
-                },
-                { title: "Liều dùng", dataIndex: "dosageInstruction" },
-              ]}
-            />
+              },
+              { title: "Trạng thái", key: "status", width: 140, render: (_: unknown, row: PrescriptionListItem) => <StatusTag status={row.status} /> },
+            ]}
+          />
+        </Card>
 
-            <div>
-              <Space align="center" style={{ marginBottom: 8 }}>
-                <Typography.Text type="secondary">Ảnh đơn thuốc</Typography.Text>
-                {can("prescription.create") ? (
-                  <>
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/jpeg,image/png,application/pdf"
-                      hidden
-                      onChange={(event) => {
-                        const file = event.target.files?.[0];
-                        if (file) uploadImage.mutate(file);
-                        event.target.value = "";
-                      }}
-                    />
-                    <Button
-                      size="small"
-                      icon={<UploadOutlined />}
-                      loading={uploadImage.isPending}
-                      onClick={() => fileInputRef.current?.click()}
-                    >
-                      Tải ảnh lên
-                    </Button>
-                  </>
-                ) : null}
-              </Space>
-
-              {data.images.length === 0 ? (
-                <Typography.Text type="secondary">Chưa có ảnh nào.</Typography.Text>
+        <aside className="split-aside">
+          {openId === null ? (
+            <Card title="Chi tiết đơn thuốc">
+              <PanelEmpty icon={<FileSearchOutlined />} title="Chưa chọn đơn thuốc" description="Bấm vào một đơn để xem thuốc trong đơn, ảnh đơn và xác nhận." />
+            </Card>
+          ) : (
+            <Card
+              title={data ? <span className="mono">{data.code}</span> : "Chi tiết đơn thuốc"}
+              extra={
+                <Button type="text" size="small" onClick={() => setOpenId(null)}>
+                  Đóng
+                </Button>
+              }
+            >
+              {detail.isLoading || !data ? (
+                <Skeleton active paragraph={{ rows: 8 }} />
               ) : (
-                <Space wrap>
-                  {data.images.map((image) =>
-                    image.contentType === "application/pdf" ? (
-                      <Button
-                        key={image.id}
-                        icon={<FilePdfOutlined />}
-                        onClick={() => window.open(image.url, "_blank")}
-                      >
-                        Phiên bản {image.versionNo} (PDF)
-                      </Button>
-                    ) : (
-                      <div key={image.id} style={{ textAlign: "center" }}>
-                        <Image src={image.url} width={90} height={90} style={{ objectFit: "cover" }} />
-                        <div>
-                          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                            Phiên bản {image.versionNo}
-                          </Typography.Text>
+                <div className="detail-stack">
+                  <div>
+                    <StatusTag status={data.status} />
+                    <h3 className="detail-title" style={{ marginTop: 8 }}>
+                      {data.customer?.fullName ?? "Khách lẻ"}
+                    </h3>
+                    {data.externalCode ? <span className="detail-sub">Mã đơn quốc gia: <span className="mono">{data.externalCode}</span></span> : null}
+                  </div>
+                  <dl className="kv-list">
+                    <div>
+                      <dt>Bác sĩ kê đơn</dt>
+                      <dd>{data.prescriberName ?? "—"}</dd>
+                    </div>
+                    <div>
+                      <dt>Cơ sở khám</dt>
+                      <dd>{data.facilityName ?? "—"}</dd>
+                    </div>
+                    <div>
+                      <dt>Chẩn đoán</dt>
+                      <dd>{data.diagnosisText ?? "—"}</dd>
+                    </div>
+                    <div>
+                      <dt>Ngày kê · hết hạn</dt>
+                      <dd>
+                        {formatDate(data.prescribedDate)} · {formatDate(data.validUntil)}
+                      </dd>
+                    </div>
+                    {data.verifiedBy ? (
+                      <div>
+                        <dt>Dược sĩ xác nhận</dt>
+                        <dd>{data.verifiedBy.fullName}</dd>
+                      </div>
+                    ) : null}
+                    {data.rejectedReason ? (
+                      <div>
+                        <dt>Lý do từ chối</dt>
+                        <dd className="text-danger">{data.rejectedReason}</dd>
+                      </div>
+                    ) : null}
+                  </dl>
+
+                  {canEdit || canSubmit || canVerify ? (
+                    <div className="panel-actions">
+                      {canVerify ? (
+                        <div className="panel-actions-row">
+                          <Button type="primary" icon={<CheckOutlined />} onClick={() => verify.mutate()} loading={verify.isPending}>
+                            Xác nhận đơn
+                          </Button>
+                          <Button danger icon={<CloseOutlined />} onClick={() => setRejecting(true)}>
+                            Từ chối
+                          </Button>
+                        </div>
+                      ) : null}
+                      {canEdit || canSubmit ? (
+                        <div className="panel-actions-row">
+                          {canEdit ? (
+                            <Button
+                              icon={<EditOutlined />}
+                              onClick={() => {
+                                setEditing(data);
+                                setFormOpen(true);
+                              }}
+                            >
+                              Sửa đơn
+                            </Button>
+                          ) : null}
+                          {canSubmit ? (
+                            <Button icon={<SendOutlined />} onClick={() => submit.mutate()} loading={submit.isPending}>
+                              Nộp duyệt
+                            </Button>
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+
+                  <div className="line-list">
+                    <div className="line-list-head">
+                      <span>{data.items.length} thuốc trong đơn</span>
+                      <span>Đã bán / theo đơn</span>
+                    </div>
+                    {data.items.map((item) => (
+                      <div className="line-item" key={item.id}>
+                        <div className="line-item-main">
+                          <strong>{item.drugNameText}</strong>
+                          {item.productId ? (
+                            <span>
+                              Khớp: {item.productName} ({item.productCode})
+                            </span>
+                          ) : (
+                            <Typography.Text type="warning" style={{ fontSize: 12 }}>
+                              Chưa khớp sản phẩm trong danh mục
+                            </Typography.Text>
+                          )}
+                          {item.dosageInstruction ? <span>Liều dùng: {item.dosageInstruction}</span> : null}
+                        </div>
+                        <div className="line-item-side">
+                          <strong>
+                            {formatNumber(item.quantity)} {item.unitName ?? ""}
+                          </strong>
+                          <span>{item.baseQuantity !== null ? `${formatNumber(item.dispensedBaseQuantity)}/${formatNumber(item.baseQuantity)}` : "—"}</span>
                         </div>
                       </div>
-                    ),
-                  )}
-                </Space>
+                    ))}
+                  </div>
+
+                  <div className="field">
+                    <span>Ảnh đơn thuốc</span>
+                    {data.images.length === 0 ? (
+                      <Typography.Text type="secondary">Chưa có ảnh nào.</Typography.Text>
+                    ) : (
+                      <div className="image-grid">
+                        {data.images.map((image) =>
+                          image.contentType === "application/pdf" ? (
+                            <Button key={image.id} icon={<FilePdfOutlined />} onClick={() => window.open(image.url, "_blank", "noopener")}>
+                              Bản {image.versionNo} (PDF)
+                            </Button>
+                          ) : (
+                            <figure key={image.id}>
+                              <Image src={image.url} width={88} height={88} style={{ objectFit: "cover", borderRadius: 8 }} />
+                              <figcaption>Bản {image.versionNo}</figcaption>
+                            </figure>
+                          ),
+                        )}
+                      </div>
+                    )}
+                    {can("prescription.create") ? (
+                      <>
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept="image/jpeg,image/png,application/pdf"
+                          hidden
+                          onChange={(event) => {
+                            const file = event.target.files?.[0];
+                            if (file) uploadImage.mutate(file);
+                            event.target.value = "";
+                          }}
+                        />
+                        <Button icon={<UploadOutlined />} loading={uploadImage.isPending} onClick={() => fileInputRef.current?.click()}>
+                          Tải ảnh / PDF đơn thuốc
+                        </Button>
+                      </>
+                    ) : null}
+                  </div>
+                </div>
               )}
-            </div>
-          </Space>
-        ) : null}
-      </Drawer>
+            </Card>
+          )}
+        </aside>
+      </div>
 
       <PrescriptionFormModal open={formOpen} onClose={() => setFormOpen(false)} editing={editing} />
 
@@ -374,18 +347,14 @@ export function PrescriptionsPage() {
         open={rejecting}
         title="Từ chối đơn thuốc"
         okText="Xác nhận từ chối"
+        cancelText="Đóng"
         okButtonProps={{ danger: true, disabled: rejectReason.trim().length === 0 }}
         confirmLoading={reject.isPending}
         onOk={() => reject.mutate()}
         onCancel={() => setRejecting(false)}
       >
-        <Input.TextArea
-          rows={3}
-          placeholder="Lý do từ chối (bắt buộc)"
-          value={rejectReason}
-          onChange={(event) => setRejectReason(event.target.value)}
-        />
+        <Input.TextArea rows={3} placeholder="Lý do từ chối (bắt buộc)" value={rejectReason} onChange={(event) => setRejectReason(event.target.value)} />
       </Modal>
-    </Card>
+    </div>
   );
 }

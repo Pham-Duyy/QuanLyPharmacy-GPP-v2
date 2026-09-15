@@ -1,38 +1,248 @@
-import { AppstoreOutlined, AuditOutlined, BarChartOutlined, BellOutlined, CalendarOutlined, DatabaseOutlined, ExperimentOutlined, FileProtectOutlined, FileTextOutlined, MedicineBoxOutlined, MenuFoldOutlined, MenuUnfoldOutlined, PlusOutlined, RollbackOutlined, SearchOutlined, SettingOutlined, ShopOutlined, ShoppingCartOutlined, SwapOutlined, TeamOutlined, TruckOutlined, UserSwitchOutlined } from "@ant-design/icons";
-import { Avatar, Badge, Button, Input, Layout, Menu, Select } from "antd";
-import type { ReactNode } from "react";
-import { useState } from "react";
+import {
+  CalendarOutlined,
+  DownOutlined,
+  ExclamationCircleFilled,
+  KeyOutlined,
+  LogoutOutlined,
+  MenuFoldOutlined,
+  MenuOutlined,
+  MenuUnfoldOutlined,
+  PlusOutlined,
+  SearchOutlined,
+  ShopOutlined,
+} from "@ant-design/icons";
+import { Avatar, Button, Drawer, Dropdown, Grid, Layout, Menu, Select, Skeleton, Tooltip } from "antd";
+import type { MenuProps } from "antd";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router";
 import { useAuth } from "../features/auth/AuthProvider.js";
+import { ChangePasswordModal } from "../features/auth/ChangePasswordModal.js";
+import { CommandPalette } from "./CommandPalette.js";
+import { isAllowed, NAV_GROUPS, NAV_ITEMS } from "./navigation.js";
+import { NotificationBell } from "./NotificationBell.js";
 
-const ITEMS: Array<{ key: string; icon: ReactNode; label: string; permission: string | string[] }> = [
-  { key: "/tai-khoan", icon: <AppstoreOutlined />, label: "Tổng quan", permission: "catalog.read" },
-  { key: "/ban-hang", icon: <ShoppingCartOutlined />, label: "Bán thuốc", permission: "invoice.create" },
-  { key: "/phieu-nhap", icon: <TruckOutlined />, label: "Nhập hàng", permission: "goods_receipt.read" },
-  { key: "/ton-kho", icon: <DatabaseOutlined />, label: "Quản lý kho", permission: "stock.read" },
-  { key: "/san-pham", icon: <MedicineBoxOutlined />, label: "Quản lý thuốc", permission: "catalog.read" },
-  { key: "/khach-hang", icon: <TeamOutlined />, label: "Khách hàng", permission: "customer.read" },
-  { key: "/hoa-don", icon: <FileTextOutlined />, label: "Hóa đơn", permission: "invoice.read" },
-  { key: "/tra-hang", icon: <RollbackOutlined />, label: "Trả hàng", permission: "invoice.read" },
-  { key: "/don-thuoc", icon: <FileProtectOutlined />, label: "Đơn thuốc", permission: "prescription.read" },
-  { key: "/nha-cung-cap", icon: <TruckOutlined />, label: "Nhà cung cấp", permission: "catalog.read" },
-  { key: "/danh-muc", icon: <AppstoreOutlined />, label: "Danh mục nền", permission: "catalog.read" },
-  { key: "/dieu-chinh-ton", icon: <SwapOutlined />, label: "Điều chỉnh tồn", permission: ["stock.adjust.create", "stock.adjust.approve"] },
-  { key: "/so-nhiet-do", icon: <ExperimentOutlined />, label: "Sổ nhiệt độ", permission: "storage_log.read" },
-  { key: "/canh-bao", icon: <BellOutlined />, label: "Cảnh báo", permission: "stock.read" },
-  { key: "/bao-cao", icon: <BarChartOutlined />, label: "Báo cáo", permission: "report.sales" },
-  { key: "/nhan-vien", icon: <UserSwitchOutlined />, label: "Nhân viên", permission: "user.manage" },
-  { key: "/cua-hang", icon: <ShopOutlined />, label: "Cửa hàng", permission: "store.manage" },
-  { key: "/audit-log", icon: <AuditOutlined />, label: "Audit log", permission: "audit.read" },
-];
+const COLLAPSED_KEY = "gpp.sider.collapsed";
+
+function readCollapsed(): boolean {
+  try {
+    return window.localStorage.getItem(COLLAPSED_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function initialsOf(fullName: string): string {
+  const words = fullName.trim().split(/\s+/);
+  return (words.at(-1)?.[0] ?? "?").toUpperCase();
+}
+
+const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
 
 export function AppLayout() {
   const { me, storeId, selectStore, logout, can } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const [sidebarHidden, setSidebarHidden] = useState(false);
+  const screens = Grid.useBreakpoint();
+  const isDesktop = screens.lg ?? true;
+  const [collapsed, setCollapsed] = useState(readCollapsed);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [passwordOpen, setPasswordOpen] = useState(false);
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setPaletteOpen(true);
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
+  const menuItems = useMemo<MenuProps["items"]>(
+    () =>
+      NAV_GROUPS.flatMap((group) => {
+        const visible = group.items.filter((item) => isAllowed(item, can));
+        if (visible.length === 0) return [];
+        return [
+          {
+            type: "group" as const,
+            key: group.key,
+            label: group.label,
+            children: visible.map((item) => ({ key: item.path, icon: item.icon, label: item.label })),
+          },
+        ];
+      }),
+    [can],
+  );
+
   if (!me) return null;
-  const visible = ITEMS.filter((item) => Array.isArray(item.permission) ? item.permission.some(can) : can(item.permission));
+
   const store = me.stores.find((item) => item.id === storeId);
-  return <Layout className="pharmacy-app"><Layout.Sider width={300} className="pharmacy-sider" collapsed={sidebarHidden} collapsedWidth={0} trigger={null}><div className="brand"><div className="brand-mark"><PlusOutlined /></div><div><div className="brand-name">Pharmacy GPP</div><div className="brand-tagline">An toàn · Hiệu quả · Vì sức khỏe cộng đồng</div></div></div><Menu className="sidebar-menu" theme="dark" mode="inline" selectedKeys={[visible.find((item) => location.pathname.startsWith(item.key))?.key ?? ""]} onClick={({ key }) => void navigate(key)} items={visible.map((item) => ({ key: item.key, icon: item.icon, label: item.label }))} /><div className="sidebar-bottom"><div className="ai-promo"><strong>AI Trợ lý nhà thuốc</strong><p>Hỗ trợ tìm thuốc, tư vấn và tra cứu thông tin nhanh chóng.</p><Button size="small" type="primary">Chat với AI →</Button></div><div className="sidebar-footer"><strong>Thông tin nhà thuốc</strong><p>{store?.name ?? "Chưa chọn cửa hàng"}</p><p>Hệ thống quản lý nhà thuốc GPP</p></div></div></Layout.Sider><Layout><Layout.Header className="topbar"><Button className="sidebar-toggle" type="text" icon={sidebarHidden ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />} onClick={() => setSidebarHidden((value) => !value)} aria-label={sidebarHidden ? "Mở thanh điều hướng" : "Ẩn thanh điều hướng"} /><Input className="global-search" prefix={<SearchOutlined />} suffix={<span style={{ color: "#7993bd", fontSize: 12 }}>Ctrl + K</span>} placeholder="Tìm kiếm thuốc, mã vạch, hóa đơn, khách hàng..." /><div className="header-actions"><Badge count={0} size="small"><BellOutlined className="header-icon" /></Badge><div className="header-date"><CalendarOutlined /> &nbsp; Hôm nay<strong>{new Intl.DateTimeFormat("vi-VN", { dateStyle: "medium" }).format(new Date())}</strong></div><Select value={storeId ?? undefined} onChange={selectStore} variant="borderless" style={{ minWidth: 100 }} options={me.stores.map((item) => ({ value: item.id, label: item.code }))} /><div className="user-panel"><Avatar style={{ background: "#0876eb" }}>{me.user.fullName.slice(0, 1).toUpperCase()}</Avatar><div><div className="name">{me.user.fullName}</div><div className="role">Quản lý nhà thuốc</div></div><Button type="text" icon={<SettingOutlined />} onClick={() => void logout()} aria-label="Đăng xuất" /></div></div></Layout.Header><Layout.Content className="app-content"><Outlet /></Layout.Content></Layout></Layout>;
+  const selectedKey =
+    NAV_ITEMS.filter((item) => location.pathname.startsWith(item.path)).sort((a, b) => b.path.length - a.path.length)[0]
+      ?.path ?? "";
+  const roleNames = me.roles.filter((role) => role.storeId === null || role.storeId === storeId).map((role) => role.name);
+  const roleText = roleNames.length === 0 ? "Chưa được gán vai trò" : roleNames.join(" · ");
+
+  function toggleCollapsed() {
+    setCollapsed((value) => {
+      const next = !value;
+      try {
+        window.localStorage.setItem(COLLAPSED_KEY, next ? "1" : "0");
+      } catch {
+        // Trình duyệt chặn lưu trữ: vẫn thu gọn được trong phiên hiện tại.
+      }
+      return next;
+    });
+  }
+
+  const sidebar = (compact: boolean) => (
+    <div className="sider-inner">
+      <div className="brand">
+        <span className="brand-mark" aria-hidden>
+          <PlusOutlined />
+        </span>
+        {compact ? null : (
+          <span className="brand-text">
+            <span className="brand-name">Pharmacy GPP</span>
+            <span className="brand-tagline">Quản lý nhà thuốc đạt chuẩn</span>
+          </span>
+        )}
+      </div>
+      <nav className="sider-nav" aria-label="Điều hướng chính">
+        <Menu
+          theme="dark"
+          mode="inline"
+          inlineCollapsed={compact}
+          selectedKeys={[selectedKey]}
+          items={menuItems}
+          onClick={({ key }) => {
+            setDrawerOpen(false);
+            void navigate(key);
+          }}
+        />
+      </nav>
+    </div>
+  );
+
+  const userMenu: MenuProps = {
+    items: [
+      {
+        key: "profile",
+        type: "group",
+        label: (
+          <div className="user-menu-head">
+            <strong>{me.user.fullName}</strong>
+            <span>@{me.user.username}</span>
+          </div>
+        ),
+      },
+      { type: "divider" },
+      { key: "password", icon: <KeyOutlined />, label: "Đổi mật khẩu" },
+      { key: "logout", icon: <LogoutOutlined />, label: "Đăng xuất", danger: true },
+    ],
+    onClick: ({ key }) => {
+      if (key === "password") setPasswordOpen(true);
+      if (key === "logout") void logout();
+    },
+  };
+
+  return (
+    <Layout hasSider className="app-shell">
+      {isDesktop ? (
+        <Layout.Sider width={248} collapsedWidth={72} collapsed={collapsed} trigger={null} className="app-sider">
+          {sidebar(collapsed)}
+        </Layout.Sider>
+      ) : (
+        <Drawer
+          open={drawerOpen}
+          onClose={() => setDrawerOpen(false)}
+          placement="left"
+          size={272}
+          closable={false}
+          className="app-drawer"
+          styles={{ body: { padding: 0 } }}
+        >
+          {sidebar(false)}
+        </Drawer>
+      )}
+      <Layout className="app-main">
+        <Layout.Header className="app-header">
+          <Tooltip title={isDesktop ? (collapsed ? "Mở rộng menu" : "Thu gọn menu") : null}>
+            <Button
+              type="text"
+              className="header-icon-btn"
+              icon={isDesktop ? collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined /> : <MenuOutlined />}
+              onClick={() => (isDesktop ? toggleCollapsed() : setDrawerOpen(true))}
+              aria-label={isDesktop ? (collapsed ? "Mở rộng menu" : "Thu gọn menu") : "Mở menu"}
+            />
+          </Tooltip>
+          <button type="button" className="search-trigger" onClick={() => setPaletteOpen(true)}>
+            <SearchOutlined />
+            <span className="search-trigger-text">Tìm thuốc, khách hàng, hóa đơn…</span>
+            <kbd>{isMac ? "⌘ K" : "Ctrl K"}</kbd>
+          </button>
+          <div className="header-actions">
+            {me.stores.length > 1 ? (
+              <Select
+                value={storeId ?? undefined}
+                onChange={selectStore}
+                className="store-select"
+                popupMatchSelectWidth={false}
+                suffixIcon={<DownOutlined />}
+                options={me.stores.map((item) => ({
+                  value: item.id,
+                  label: (
+                    <span className="store-option">
+                      <ShopOutlined /> {item.code} · {item.name}
+                    </span>
+                  ),
+                }))}
+              />
+            ) : store ? (
+              <span className="store-chip" title={store.name}>
+                <ShopOutlined /> <span>{store.name}</span>
+              </span>
+            ) : null}
+            <span className="header-date">
+              <CalendarOutlined /> {new Intl.DateTimeFormat("vi-VN", { weekday: "short", day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date())}
+            </span>
+            <NotificationBell />
+            <Dropdown menu={userMenu} trigger={["click"]} placement="bottomRight">
+              <button type="button" className="user-trigger" aria-label="Tài khoản">
+                <Avatar size={34} className="user-avatar">
+                  {initialsOf(me.user.fullName)}
+                </Avatar>
+                <span className="user-trigger-text">
+                  <strong>{me.user.fullName}</strong>
+                  <span>{roleText}</span>
+                </span>
+                <DownOutlined className="user-trigger-caret" />
+              </button>
+            </Dropdown>
+          </div>
+        </Layout.Header>
+        <Layout.Content className="app-content">
+          {me.user.mustChangePassword ? (
+            <div className="app-banner" role="status">
+              <ExclamationCircleFilled />
+              <span className="app-banner-text">
+                <strong>Tài khoản đang dùng mật khẩu tạm.</strong> Hãy đổi mật khẩu trước khi làm việc với dữ liệu thật.
+              </span>
+              <Button size="small" type="primary" onClick={() => setPasswordOpen(true)}>
+                Đổi mật khẩu
+              </Button>
+            </div>
+          ) : null}
+          <Suspense fallback={<Skeleton active paragraph={{ rows: 8 }} className="page-skeleton" />}>
+            <Outlet />
+          </Suspense>
+        </Layout.Content>
+      </Layout>
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
+      <ChangePasswordModal open={passwordOpen} onClose={() => setPasswordOpen(false)} />
+    </Layout>
+  );
 }
