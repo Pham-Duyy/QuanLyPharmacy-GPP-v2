@@ -14,6 +14,8 @@ import {
   createReceiptSchema,
   patchReceiptSchema,
 } from "./goods-receipts.schema.js";
+import { loadGoodsReceiptDocument } from "../printing/documents.js";
+import { sendDocumentPrint } from "../printing/send-print.js";
 import * as service from "./goods-receipts.service.js";
 
 export const goodsReceiptsRouter = Router();
@@ -156,5 +158,14 @@ goodsReceiptsRouter.post(
     const input = parseOrThrow(cancelSchema, req.body);
     await service.cancel(storeId, id, req.auth!.userId, input.reason);
     sendData(res, await service.getDetail(storeId, id));
+  },
+);
+
+/** GET /api/v1/goods-receipts/{id}/print: in phiếu nhập kho theo mẫu của cửa hàng. */
+goodsReceiptsRouter.get(
+  "/goods-receipts/:id/print",
+  requirePermission("goods_receipt.read"),
+  async (req, res) => {
+    await sendDocumentPrint(req, res, "goodsReceipt", loadGoodsReceiptDocument);
   },
 );

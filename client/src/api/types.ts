@@ -665,11 +665,12 @@ export type ReportsSummary = {
   staffPerformance: Array<{ userId: string; fullName: string; revenue: Money; invoiceCount: number }>;
 };
 
-export type PaperSize = "K80" | "K58" | "A5";
+export type InvoicePaperSize = "K80" | "K58" | "A5";
+export type PaperSize = InvoicePaperSize | "A4";
 
 /** Mẫu in hóa đơn của cửa hàng (Cài đặt → Bán hàng & hóa đơn → Mẫu in hóa đơn). */
 export type PrintTemplate = {
-  paperSize: PaperSize;
+  paperSize: InvoicePaperSize;
   logo: string | null;
   companyName: string;
   storeName: string;
@@ -690,3 +691,19 @@ export type PrintTemplate = {
 };
 
 export type PrintTemplateState = { template: PrintTemplate; isDefault: boolean; updatedAt: string | null };
+
+export type DocumentPrintType = "goodsReceipt" | "return" | "stockAdjustment";
+
+export type DocumentPrintConfig = {
+  paperSize: PaperSize;
+  title: string;
+  footer: string;
+  showSignatures: boolean;
+  showAmountInWords: boolean;
+  showNote: boolean;
+};
+
+/** Cài đặt in phiếu nhập, phiếu trả, phiếu điều chỉnh (Cài đặt → Kho & chứng từ). */
+export type DocumentPrintSettings = Record<DocumentPrintType, DocumentPrintConfig>;
+
+export type DocumentPrintState = { settings: DocumentPrintSettings; isDefault: boolean; updatedAt: string | null };

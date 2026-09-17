@@ -1,21 +1,20 @@
 import { DeleteOutlined, InfoCircleOutlined, PictureOutlined, PrinterOutlined, SaveOutlined, ShopOutlined, UndoOutlined, UploadOutlined } from "@ant-design/icons";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, App, AutoComplete, Button, Card, Checkbox, Form, Grid, Input, Radio, Result, Segmented, Skeleton, Tag, Upload } from "antd";
-import { AxiosError } from "axios";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { ReactNode } from "react";
 import { getErrorMessage, http } from "../../api/http.js";
-import type { Envelope, PaperSize, PrintTemplate, PrintTemplateState } from "../../api/types.js";
-import { registerLeaveGuard } from "../../app/leave-guard.js";
+import type { Envelope, InvoicePaperSize, PrintTemplate, PrintTemplateState } from "../../api/types.js";
 import { formatDateTime } from "../../ui/format.js";
 import { useDebounced } from "../../ui/useDebounced.js";
 import { useAuth } from "../auth/AuthProvider.js";
-import { PRINT_TEMPLATE_QUERY, printHtml, usePrintTemplate } from "../sales/print-invoice.js";
-import { PrintPaper } from "../sales/PrintPaper.js";
+import { PRINT_TEMPLATE_QUERY, printHtml, usePrintTemplate } from "../printing/printing.js";
+import { PrintPaper } from "../printing/PrintPaper.js";
+import { readApiError, useUnsavedGuard } from "./settings-shared.js";
 
 const MAX_LOGO_BYTES = 300 * 1024;
 
-const PAPER_OPTIONS: Array<{ value: PaperSize; label: string; hint: string }> = [
+const PAPER_OPTIONS: Array<{ value: InvoicePaperSize; label: string; hint: string }> = [
   { value: "K80", label: "80 mm", hint: "Máy in nhiệt phổ biến" },
   { value: "K58", label: "58 mm", hint: "Máy in nhiệt mini" },
   { value: "A5", label: "A5", hint: "Máy in văn phòng" },
@@ -42,20 +41,6 @@ async function renderPreview(template: PrintTemplate, sample: Sample): Promise<s
     { responseType: "text" },
   );
   return response.data;
-}
-
-/** Lỗi trả về khi gọi với responseType "text" vẫn là JSON dạng chuỗi — đọc lại để lấy đúng thông điệp. */
-function readApiError(error: unknown): { message: string; details: Array<{ field: string; message: string }> } {
-  if (error instanceof AxiosError && typeof error.response?.data === "string") {
-    try {
-      const payload = JSON.parse(error.response.data) as { error?: { message?: string; details?: Array<{ field: string; message: string }> } };
-      return { message: payload.error?.message ?? error.message, details: payload.error?.details ?? [] };
-    } catch {
-      return { message: error.message, details: [] };
-    }
-  }
-  const payload = error instanceof AxiosError ? (error.response?.data as { error?: { details?: Array<{ field: string; message: string }> } } | undefined) : undefined;
-  return { message: getErrorMessage(error, "Có lỗi xảy ra"), details: payload?.error?.details ?? [] };
 }
 
 function readAsDataUrl(file: File): Promise<string> {
@@ -160,7 +145,7 @@ export function InvoiceTemplateSettings() {
 }
 
 function TemplateEditor({ state }: { state: PrintTemplateState }) {
-  const { message, modal } = App.useApp();
+  const { message } = App.useApp();
   const { me, storeId } = useAuth();
   const queryClient = useQueryClient();
   const screens = Grid.useBreakpoint();
@@ -184,26 +169,7 @@ function TemplateEditor({ state }: { state: PrintTemplateState }) {
     queryFn: () => renderPreview(debounced, sample),
   });
 
-  useEffect(() => {
-    if (!dirty) return undefined;
-    const onBeforeUnload = (event: BeforeUnloadEvent) => event.preventDefault();
-    window.addEventListener("beforeunload", onBeforeUnload);
-    const unregister = registerLeaveGuard((proceed) => {
-      modal.confirm({
-        title: "Mẫu in chưa được lưu",
-        content: "Các thay đổi trên mẫu in hóa đơn sẽ bị bỏ nếu rời trang. Bạn vẫn muốn rời đi?",
-        okText: "Rời trang, bỏ thay đổi",
-        okButtonProps: { danger: true },
-        cancelText: "Ở lại",
-        onOk: proceed,
-      });
-      return true;
-    });
-    return () => {
-      window.removeEventListener("beforeunload", onBeforeUnload);
-      unregister();
-    };
-  }, [dirty, modal]);
+  useUnsavedGuard(dirty, "Mẫu in hóa đơn");
 
   function applyServerErrors(error: unknown): string {
     const { message: text, details } = readApiError(error);

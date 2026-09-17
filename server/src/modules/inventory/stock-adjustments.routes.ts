@@ -7,6 +7,8 @@ import { idempotency } from "../../middlewares/idempotency.js";
 import { requirePermission } from "../../middlewares/require-permission.js";
 import { requireStore, storeContext } from "../../middlewares/store-context.js";
 import { createAdjustmentSchema, rejectAdjustmentSchema } from "./stock-adjustments.schema.js";
+import { loadStockAdjustmentDocument } from "../printing/documents.js";
+import { sendDocumentPrint } from "../printing/send-print.js";
 import * as service from "./stock-adjustments.service.js";
 
 export const stockAdjustmentsRouter = Router();
@@ -86,5 +88,14 @@ stockAdjustmentsRouter.post(
     const id = String(req.params.id);
     await service.cancel(storeId, id, req.auth!);
     sendData(res, await service.getDetail(storeId, id));
+  },
+);
+
+/** GET /api/v1/stock-adjustments/{id}/print: in phiếu điều chỉnh tồn theo mẫu của cửa hàng. */
+stockAdjustmentsRouter.get(
+  "/stock-adjustments/:id/print",
+  requirePermission("stock.read"),
+  async (req, res) => {
+    await sendDocumentPrint(req, res, "stockAdjustment", loadStockAdjustmentDocument);
   },
 );

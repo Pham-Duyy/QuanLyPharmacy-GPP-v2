@@ -1,12 +1,20 @@
-import { FileTextOutlined, RightOutlined, SettingOutlined, ShoppingCartOutlined } from "@ant-design/icons";
+import { FileTextOutlined, InboxOutlined, PrinterOutlined, RightOutlined, SettingOutlined, ShoppingCartOutlined } from "@ant-design/icons";
 import { Breadcrumb, Card } from "antd";
 import type { ReactNode } from "react";
 import { useSearchParams } from "react-router";
 import { confirmLeave } from "../../app/leave-guard.js";
 import { PageHeader } from "../../ui/PageHeader.js";
+import { DocumentTemplateSettings } from "./DocumentTemplateSettings.js";
 import { InvoiceTemplateSettings } from "./InvoiceTemplateSettings.js";
 
-type SettingSection = { key: string; label: string; description: string; icon: ReactNode; render: () => ReactNode };
+type SettingSection = {
+  key: string;
+  label: string;
+  description: string;
+  icon: ReactNode;
+  /** `open` chuyển sang mục cài đặt khác (vẫn hỏi lại nếu còn thay đổi chưa lưu). */
+  render: (open: (key: string) => void) => ReactNode;
+};
 type SettingGroup = { key: string; label: string; icon: ReactNode; sections: SettingSection[] };
 
 /**
@@ -28,6 +36,20 @@ const GROUPS: SettingGroup[] = [
       },
     ],
   },
+  {
+    key: "kho-chung-tu",
+    label: "Kho & chứng từ",
+    icon: <InboxOutlined />,
+    sections: [
+      {
+        key: "mau-in-phieu",
+        label: "Mẫu in phiếu",
+        description: "Phiếu nhập kho, phiếu trả hàng, phiếu điều chỉnh tồn: tiêu đề, khổ giấy, chữ ký",
+        icon: <PrinterOutlined />,
+        render: (open) => <DocumentTemplateSettings onOpenInvoiceTemplate={() => open("mau-in-hoa-don")} />,
+      },
+    ],
+  },
 ];
 
 const ALL = GROUPS.flatMap((group) => group.sections.map((section) => ({ group, section })));
@@ -36,6 +58,10 @@ const ALL = GROUPS.flatMap((group) => group.sections.map((section) => ({ group, 
 export function SettingsPage() {
   const [params, setParams] = useSearchParams();
   const active = ALL.find((entry) => entry.section.key === params.get("muc")) ?? ALL[0]!;
+
+  function open(key: string) {
+    if (key !== active.section.key) confirmLeave(() => setParams({ muc: key }));
+  }
 
   return (
     <div>
@@ -55,11 +81,7 @@ export function SettingsPage() {
                         type="button"
                         className={section.key === active.section.key ? "settings-nav-item active" : "settings-nav-item"}
                         aria-current={section.key === active.section.key ? "page" : undefined}
-                        onClick={() => {
-                          if (section.key !== active.section.key) {
-                            confirmLeave(() => setParams({ muc: section.key }));
-                          }
-                        }}
+                        onClick={() => open(section.key)}
                       >
                         {section.icon}
                         <span>
@@ -80,7 +102,7 @@ export function SettingsPage() {
             className="settings-breadcrumb"
             items={[{ title: "Cài đặt" }, { title: active.group.label }, { title: active.section.label }]}
           />
-          {active.section.render()}
+          {active.section.render(open)}
         </section>
       </div>
     </div>

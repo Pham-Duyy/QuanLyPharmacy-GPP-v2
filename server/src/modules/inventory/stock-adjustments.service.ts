@@ -289,6 +289,7 @@ export async function getDetail(storeId: string, adjustmentId: string) {
     approvedAt: adjustment.approvedAt,
     rejectedReason: adjustment.rejectedReason,
     version: adjustment.version,
+    createdAt: adjustment.createdAt,
     lines: adjustment.lines.map((line) => ({
       id: line.id,
       lineNo: line.lineNo,

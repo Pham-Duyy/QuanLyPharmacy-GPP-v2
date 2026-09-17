@@ -67,6 +67,8 @@ export function createApp() {
     cors({
       origin: env.CORS_ORIGIN.split(",").map((value) => value.trim()),
       credentials: true,
+      // Giao diện đọc khổ giấy của trang in để hiển thị bản xem trước đúng kích thước.
+      exposedHeaders: ["X-Paper-Size"],
     }),
   );
   app.use(express.json({ limit: "1mb" }));

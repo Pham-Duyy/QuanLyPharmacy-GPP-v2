@@ -80,7 +80,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { path: "/nhan-vien", icon: <UserSwitchOutlined />, label: "Nhân viên", permission: "user.manage", keywords: "tai khoan vai tro" },
       { path: "/cua-hang", icon: <ShopOutlined />, label: "Cửa hàng", permission: "store.manage" },
       { path: "/audit-log", icon: <AuditOutlined />, label: "Nhật ký hệ thống", permission: "audit.read", keywords: "audit log" },
-      { path: "/cai-dat", icon: <SettingOutlined />, label: "Cài đặt", permission: "settings.manage", keywords: "thiet lap mau in hoa don kho giay logo" },
+      { path: "/cai-dat", icon: <SettingOutlined />, label: "Cài đặt", permission: "settings.manage", keywords: "thiet lap mau in hoa don phieu nhap tra hang dieu chinh kho giay logo" },
     ],
   },
 ];

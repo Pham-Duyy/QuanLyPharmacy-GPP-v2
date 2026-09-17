@@ -1,6 +1,6 @@
-import { FileSearchOutlined, RollbackOutlined } from "@ant-design/icons";
+import { FileSearchOutlined, PrinterOutlined, RollbackOutlined } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
-import { Card, Empty, Skeleton, Table, Tag, Typography } from "antd";
+import { App, Button, Card, Empty, Skeleton, Table, Tag, Typography } from "antd";
 import { useState } from "react";
 import { useNavigate } from "react-router";
 import { http } from "../../api/http.js";
@@ -9,6 +9,8 @@ import { formatDate, formatDateTime, formatNumber } from "../../ui/format.js";
 import { paymentMethodLabel } from "../../ui/labels.js";
 import { PageHeader } from "../../ui/PageHeader.js";
 import { PanelEmpty } from "../../ui/PanelEmpty.js";
+import { printDocument, printUrl } from "../printing/printing.js";
+import { PrintPreviewModal } from "../printing/PrintPreviewModal.js";
 
 function DispositionTag({ value }: { value: ReturnListItem["disposition"] }) {
   return value === "RESTOCK" ? <Tag color="green">Nhập lại kho</Tag> : <Tag color="red">Xuất hủy</Tag>;
@@ -16,8 +18,10 @@ function DispositionTag({ value }: { value: ReturnListItem["disposition"] }) {
 
 export function ReturnsPage() {
   const navigate = useNavigate();
+  const { message } = App.useApp();
   const [page, setPage] = useState(1);
   const [openId, setOpenId] = useState<string | null>(null);
+  const [previewing, setPreviewing] = useState(false);
 
   const list = useQuery({
     queryKey: ["returns", page],
@@ -88,7 +92,20 @@ export function ReturnsPage() {
               <PanelEmpty icon={<FileSearchOutlined />} title="Chưa chọn phiếu trả" description="Bấm vào một phiếu để xem dòng hàng, lô và tiền hoàn." />
             </Card>
           ) : (
-            <Card title={detail.data ? <span className="mono">{detail.data.code}</span> : "Chi tiết phiếu trả"} extra={detail.data ? <DispositionTag value={detail.data.disposition} /> : null}>
+            <Card title={detail.data ? <span className="mono">{detail.data.code}</span> : "Chi tiết phiếu trả"} extra={
+                detail.data ? (
+                  <span className="row-actions">
+                    <DispositionTag value={detail.data.disposition} />
+                    <Button size="small" icon={<FileSearchOutlined />} onClick={() => setPreviewing(true)}>
+                      Xem trước
+                    </Button>
+                    <Button size="small" icon={<PrinterOutlined />} onClick={() => void printDocument(printUrl.return(detail.data!.id), message)}>
+                      In phiếu
+                    </Button>
+                  </span>
+                ) : null
+              }
+            >
               {detail.isLoading || !detail.data ? (
                 <Skeleton active paragraph={{ rows: 6 }} />
               ) : (
@@ -154,6 +171,7 @@ export function ReturnsPage() {
           )}
         </aside>
       </div>
+      <PrintPreviewModal url={previewing && openId ? printUrl.return(openId) : null} title={`Xem trước phiếu trả ${detail.data?.code ?? ""}`} onClose={() => setPreviewing(false)} />
     </div>
   );
 }

@@ -11,10 +11,12 @@ import {
   ExclamationCircleFilled,
   EyeOutlined,
   FileDoneOutlined,
+  FileSearchOutlined,
   FileTextOutlined,
   InboxOutlined,
   MoreOutlined,
   PlusOutlined,
+  PrinterOutlined,
   ReloadOutlined,
   SafetyCertificateOutlined,
   SearchOutlined,
@@ -41,6 +43,8 @@ import { PageHeader } from "../../ui/PageHeader.js";
 import { StatCard, StatGrid, Trend } from "../../ui/StatCard.js";
 import { useDebounced } from "../../ui/useDebounced.js";
 import { useAuth } from "../auth/AuthProvider.js";
+import { printDocument, printUrl } from "../printing/printing.js";
+import { PrintPreviewModal } from "../printing/PrintPreviewModal.js";
 import { ReceiptFormModal } from "./ReceiptFormModal.js";
 
 const STATUS: Record<GoodsReceiptDetail["status"], { text: string; color: string }> = {
@@ -67,6 +71,8 @@ function downloadCsv(filename: string, rows: GoodsReceiptListItem[]): void {
 /** Danh sách phiếu nhập của cửa hàng đang chọn. */
 export function GoodsReceiptsPage() {
   const { can } = useAuth();
+  const { message } = App.useApp();
+  const [previewing, setPreviewing] = useState<{ id: string; code: string } | null>(null);
   const canCreate = can("goods_receipt.create");
   const canConfirm = can("goods_receipt.confirm");
   const queryClient = useQueryClient();
@@ -353,6 +359,8 @@ export function GoodsReceiptsPage() {
                             items: [
                               { key: "view", icon: <EyeOutlined />, label: "Xem chi tiết" },
                               { key: "lines", icon: <AppstoreOutlined />, label: "Xem chi tiết hàng hóa" },
+                              { key: "preview", icon: <FileSearchOutlined />, label: "Xem trước bản in" },
+                              { key: "print", icon: <PrinterOutlined />, label: "In phiếu nhập" },
                               ...(draft
                                 ? [
                                     { type: "divider" as const },
@@ -364,7 +372,9 @@ export function GoodsReceiptsPage() {
                             ],
                             onClick: ({ key, domEvent }) => {
                               domEvent.stopPropagation();
-                              openWith(row.id, key === "view" ? null : (key as PanelAction));
+                              if (key === "preview") setPreviewing({ id: row.id, code: row.code });
+                              else if (key === "print") void printDocument(printUrl.goodsReceipt(row.id), message);
+                              else openWith(row.id, key === "view" ? null : (key as PanelAction));
                             },
                           }}
                         >
@@ -401,6 +411,11 @@ export function GoodsReceiptsPage() {
           await refreshAll();
           openWith(id, options.inspect ? "inspect" : null);
         }}
+      />
+      <PrintPreviewModal
+        url={previewing ? printUrl.goodsReceipt(previewing.id) : null}
+        title={`Xem trước phiếu nhập ${previewing?.code ?? ""}`}
+        onClose={() => setPreviewing(null)}
       />
     </div>
   );
@@ -448,6 +463,7 @@ function ReceiptDetailPanel({
   const [inspecting, setInspecting] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [viewingLines, setViewingLines] = useState(false);
+  const [previewingPrint, setPreviewingPrint] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
   const keys = useRef<Record<string, string>>({});
   const queryClient = useQueryClient();
@@ -660,6 +676,14 @@ function ReceiptDetailPanel({
             <Button size="large" block icon={<AppstoreOutlined />} onClick={() => setViewingLines(true)}>
               Xem chi tiết hàng hóa
             </Button>
+            <div className="panel-actions-row">
+              <Button icon={<FileSearchOutlined />} onClick={() => setPreviewingPrint(true)}>
+                Xem trước bản in
+              </Button>
+              <Button icon={<PrinterOutlined />} onClick={() => void printDocument(printUrl.goodsReceipt(receipt.id), message)}>
+                In phiếu nhập
+              </Button>
+            </div>
             {isDraft ? (
               <div className="panel-actions-row">
                 <Button icon={<EditOutlined />} disabled={!can("goods_receipt.create")} onClick={() => setEditing(true)}>
@@ -680,6 +704,7 @@ function ReceiptDetailPanel({
       </Card>
 
       <ReceiptLinesModal open={linesOpen} receipt={receipt} onClose={closeDialogs} />
+      <PrintPreviewModal url={previewingPrint ? printUrl.goodsReceipt(receipt.id) : null} title={`Xem trước phiếu nhập ${receipt.code}`} onClose={() => setPreviewingPrint(false)} />
       <ReceiptFormModal
         open={editOpen}
         receipt={receipt}

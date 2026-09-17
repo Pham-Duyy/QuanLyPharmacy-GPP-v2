@@ -1223,6 +1223,45 @@
   display: none;
 }
 
+.doc-type-tabs .ant-segmented-item-label {
+  padding-inline: 6px;
+}
+
+.doc-type-option {
+  display: inline-flex;
+  max-width: 100%;
+  align-items: center;
+  gap: 6px;
+}
+
+.doc-type-option > span:not(.anticon):not(.doc-type-dot) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.doc-type-dot {
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--tone-orange);
+}
+
+.doc-type-desc {
+  margin: 10px 0 12px;
+  color: var(--c-ink-500);
+  font-size: 13px;
+}
+
+.doc-issuer-alert {
+  margin-bottom: 4px;
+}
+
+.inline-link.ant-btn {
+  height: auto;
+  padding: 0;
+}
+
 .tpl-default-alert {
   margin: 0;
 }
@@ -1268,6 +1307,10 @@
 
   .tpl-actionbar {
     padding: 10px 12px;
+  }
+
+  .doc-type-option .anticon {
+    display: none;
   }
 
   .tpl-updated,
