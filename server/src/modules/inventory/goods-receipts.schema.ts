@@ -1,16 +1,33 @@
 import { z } from "zod";
 
-const lineSchema = z.object({
-  productId: z.uuid("productId không hợp lệ"),
-  unitId: z.uuid("unitId không hợp lệ"),
-  quantity: z.coerce.number().int().positive("Số lượng phải lớn hơn 0"),
-  unitCost: z.coerce.number().int().min(0, "Giá nhập không được âm"),
-  batchNumber: z.string().trim().min(1, "Thiếu số lô").max(50),
-  manufactureDate: z.coerce.date().nullish(),
-  expiryDate: z.coerce
-    .date()
-    .refine((value) => value.getTime() > Date.now(), "Hạn dùng phải sau hôm nay"),
-});
+/** Tuổi thọ tối thiểu hợp lý giữa ngày sản xuất và hạn dùng; ngắn hơn gần như chắc chắn là nhập nhầm. */
+export const MIN_SHELF_LIFE_DAYS = 30;
+const DAY_MS = 86_400_000;
+
+const lineSchema = z
+  .object({
+    productId: z.uuid("productId không hợp lệ"),
+    unitId: z.uuid("unitId không hợp lệ"),
+    quantity: z.coerce.number().int().positive("Số lượng phải lớn hơn 0"),
+    unitCost: z.coerce.number().int().min(0, "Giá nhập không được âm"),
+    batchNumber: z.string().trim().min(1, "Thiếu số lô").max(50),
+    manufactureDate: z.coerce
+      .date()
+      .refine((value) => value.getTime() <= Date.now(), "Ngày sản xuất không được ở tương lai")
+      .nullish(),
+    expiryDate: z.coerce
+      .date()
+      .refine((value) => value.getTime() > Date.now(), "Hạn dùng phải sau hôm nay"),
+  })
+  .refine(
+    (line) =>
+      !line.manufactureDate ||
+      line.expiryDate.getTime() - line.manufactureDate.getTime() >= MIN_SHELF_LIFE_DAYS * DAY_MS,
+    {
+      message: `Hạn dùng phải sau ngày sản xuất ít nhất ${MIN_SHELF_LIFE_DAYS} ngày — kiểm tra lại NSX/HSD trên bao bì`,
+      path: ["expiryDate"],
+    },
+  );
 
 export const createReceiptSchema = z.object({
   supplierId: z.uuid("supplierId không hợp lệ"),
