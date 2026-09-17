@@ -7,6 +7,7 @@
 export const PERMISSIONS: Array<{ code: string; description: string }> = [
   { code: "store.manage", description: "Tạo, sửa, ngừng hoạt động cửa hàng trong chuỗi" },
   { code: "user.manage", description: "Quản lý tài khoản, vai trò" },
+  { code: "settings.manage", description: "Sửa cài đặt cửa hàng, gồm mẫu in hóa đơn" },
   { code: "report.chain", description: "Xem báo cáo hợp nhất toàn chuỗi" },
   {
     code: "catalog.read",
@@ -54,6 +55,7 @@ export const ROLES: Array<{ code: string; name: string; permissions: string[] }>
     permissions: [
       "store.manage",
       "user.manage",
+      "settings.manage",
       "report.chain",
       "catalog.read",
       "catalog.manage",

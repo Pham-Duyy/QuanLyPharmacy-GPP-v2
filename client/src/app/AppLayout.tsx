@@ -18,6 +18,7 @@ import { Outlet, useLocation, useNavigate } from "react-router";
 import { useAuth } from "../features/auth/AuthProvider.js";
 import { ChangePasswordModal } from "../features/auth/ChangePasswordModal.js";
 import { CommandPalette } from "./CommandPalette.js";
+import { confirmLeave } from "./leave-guard.js";
 import { isAllowed, NAV_GROUPS, NAV_ITEMS } from "./navigation.js";
 import { NotificationBell } from "./NotificationBell.js";
 
@@ -120,7 +121,7 @@ export function AppLayout() {
           items={menuItems}
           onClick={({ key }) => {
             setDrawerOpen(false);
-            void navigate(key);
+            if (key !== location.pathname) confirmLeave(() => void navigate(key));
           }}
         />
       </nav>
@@ -145,7 +146,7 @@ export function AppLayout() {
     ],
     onClick: ({ key }) => {
       if (key === "password") setPasswordOpen(true);
-      if (key === "logout") void logout();
+      if (key === "logout") confirmLeave(() => void logout());
     },
   };
 
@@ -188,7 +189,7 @@ export function AppLayout() {
             {me.stores.length > 1 ? (
               <Select
                 value={storeId ?? undefined}
-                onChange={selectStore}
+                onChange={(next: string) => confirmLeave(() => selectStore(next))}
                 className="store-select"
                 popupMatchSelectWidth={false}
                 suffixIcon={<DownOutlined />}

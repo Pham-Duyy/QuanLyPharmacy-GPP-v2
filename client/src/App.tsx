@@ -29,6 +29,7 @@ const StorageLogsPage = page(() => import("./features/inventory/StorageLogsPage.
 const UsersPage = page(() => import("./features/users/UsersPage.js"), "UsersPage");
 const StoresPage = page(() => import("./features/stores/StoresPage.js"), "StoresPage");
 const AuditLogPage = page(() => import("./features/audit/AuditLogPage.js"), "AuditLogPage");
+const SettingsPage = page(() => import("./features/settings/SettingsPage.js"), "SettingsPage");
 const ReportsPage = page(() => import("./features/reports/ReportsPage.js"), "ReportsPage");
 
 const ROUTES: Array<{ path: string; element: ReactNode }> = [
@@ -50,6 +51,7 @@ const ROUTES: Array<{ path: string; element: ReactNode }> = [
   { path: "/nhan-vien", element: <UsersPage /> },
   { path: "/cua-hang", element: <StoresPage /> },
   { path: "/audit-log", element: <AuditLogPage /> },
+  { path: "/cai-dat", element: <SettingsPage /> },
 ];
 
 /** Vào thẳng URL của trang không có quyền thì báo rõ, không để trang tự gọi API rồi lỗi 403. */

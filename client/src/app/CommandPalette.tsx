@@ -9,6 +9,7 @@ import { http } from "../api/http.js";
 import { formatVnd, type CustomerSearchItem, type Envelope, type InvoiceListItem, type Paged, type ProductListItem } from "../api/types.js";
 import { useAuth } from "../features/auth/AuthProvider.js";
 import { useDebounced } from "../ui/useDebounced.js";
+import { confirmLeave } from "./leave-guard.js";
 import { foldText, isAllowed, NAV_ITEMS } from "./navigation.js";
 
 type Result = { key: string; icon: ReactNode; title: string; subtitle?: string; path: string };
@@ -115,7 +116,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
   function choose(result: Result | undefined) {
     if (!result) return;
     close();
-    void navigate(result.path);
+    confirmLeave(() => void navigate(result.path));
   }
 
   return (

@@ -687,6 +687,55 @@ describe("Xem và hủy hóa đơn", () => {
     expect(response.text).toContain("size: 80mm auto");
   });
 
+  it("in theo mẫu in đã lưu và in lại không làm thay đổi hóa đơn hay tồn kho", async () => {
+    const { invoiceId, batchId } = await sellOne();
+    await api()
+      .put("/api/v1/settings/invoice-print-template")
+      .set(authHeaders(adminToken, fixture.storeId))
+      .send({
+        paperSize: "K58",
+        logo: null,
+        companyName: "",
+        storeName: "Nhà thuốc Mẫu In",
+        address: "",
+        phone: "",
+        taxCode: "",
+        title: "PHIẾU THANH TOÁN",
+        footer: "",
+        display: {
+          logo: false,
+          customer: true,
+          seller: false,
+          unit: true,
+          discount: true,
+          paymentMethod: true,
+          cashChange: true,
+        },
+      })
+      .expect(200);
+
+    const before = await prisma.invoice.findUniqueOrThrow({ where: { id: invoiceId } });
+    const batchBefore = await prisma.batch.findUniqueOrThrow({ where: { id: batchId } });
+
+    for (let i = 0; i < 2; i++) {
+      const printed = await api()
+        .get(`/api/v1/invoices/${invoiceId}/print`)
+        .query({ autoprint: "0" })
+        .set(authHeaders(pharmacistToken, fixture.storeId))
+        .expect(200);
+      expect(printed.text).toContain("size: 58mm auto");
+      expect(printed.text).toContain("Nhà thuốc Mẫu In");
+      expect(printed.text).toContain("PHIẾU THANH TOÁN");
+      expect(printed.text).toContain("Khách lẻ");
+      expect(printed.text).not.toContain("Nhân viên:");
+      expect(printed.text).not.toContain("window.print()");
+    }
+
+    expect(await prisma.invoice.findUniqueOrThrow({ where: { id: invoiceId } })).toEqual(before);
+    expect(await prisma.batch.findUniqueOrThrow({ where: { id: batchId } })).toEqual(batchBefore);
+    expect(await prisma.stockMovement.count({ where: { sourceId: invoiceId } })).toBe(1);
+  });
+
   it("hủy hóa đơn thì hoàn tồn về đúng lô đã xuất", async () => {
     const { invoiceId, batchId } = await sellOne();
 

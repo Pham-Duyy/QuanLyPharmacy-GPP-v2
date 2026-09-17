@@ -239,7 +239,7 @@ export function SalePage() {
       return response.data.data;
     },
     onSuccess: (invoice) => {
-      if (printAfterPayment) void printInvoice(invoice.id, "k80");
+      if (printAfterPayment) void printInvoice(invoice.id, message);
       setDone(invoice);
       setCart([]);
       setCustomer(null);
@@ -741,7 +741,7 @@ export function SalePage() {
         width={460}
         footer={
           <div className="sale-done-actions">
-            <Button icon={<PrinterOutlined />} onClick={() => done && void printInvoice(done.id, "k80")}>
+            <Button icon={<PrinterOutlined />} onClick={() => done && void printInvoice(done.id, message)}>
               In lại hóa đơn
             </Button>
             <Button type="primary" autoFocus onClick={() => setDone(null)}>
