@@ -670,3 +670,32 @@ describe("Chiết khấu phiếu và thuế theo hóa đơn", () => {
     expect(response.body.data.lines).toHaveLength(1);
   });
 });
+
+describe("Kiểm tra ngày sản xuất và hạn dùng", () => {
+  it("chặn hạn dùng cách ngày sản xuất dưới 30 ngày", async () => {
+    const soon = new Date(Date.now() + 20 * 86_400_000).toISOString().slice(0, 10);
+    const response = await createDraft(
+      draftBody({
+        lines: [{ productId, unitId, quantity: 1, unitCost: 1000, batchNumber: "L-NGAN", manufactureDate: new Date().toISOString().slice(0, 10), expiryDate: soon }],
+      }),
+    ).expect(422);
+    expect(response.body.error.code).toBe("VALIDATION_ERROR");
+  });
+
+  it("chặn ngày sản xuất ở tương lai", async () => {
+    const future = new Date(Date.now() + 5 * 86_400_000).toISOString().slice(0, 10);
+    await createDraft(
+      draftBody({
+        lines: [{ productId, unitId, quantity: 1, unitCost: 1000, batchNumber: "L-TL", manufactureDate: future, expiryDate: "2028-01-01" }],
+      }),
+    ).expect(422);
+  });
+
+  it("chấp nhận NSX và HSD hợp lý", async () => {
+    await createDraft(
+      draftBody({
+        lines: [{ productId, unitId, quantity: 1, unitCost: 1000, batchNumber: "L-OK", manufactureDate: "2026-01-01", expiryDate: "2028-01-01" }],
+      }),
+    ).expect(201);
+  });
+});

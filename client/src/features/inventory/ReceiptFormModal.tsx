@@ -56,6 +56,15 @@ export type ReceiptSavedOptions = { inspect: boolean };
 
 const DATE_FORMAT = "DD/MM/YYYY";
 const NEAR_EXPIRY_DAYS = 90;
+/** Khớp MIN_SHELF_LIFE_DAYS ở backend: HSD cách NSX ít hơn mức này là nhập nhầm. */
+const MIN_SHELF_LIFE_DAYS = 30;
+/** Hầu hết thuốc có tuổi thọ 12–60 tháng; ngoài khoảng này chỉ nhắc đối chiếu lại bao bì. */
+const SHORT_SHELF_LIFE_DAYS = 180;
+const LONG_SHELF_LIFE_DAYS = 5 * 365 + 1;
+
+function shelfLifeDays(line: { manufactureDate: string; expiryDate: string }): number | null {
+  return line.manufactureDate && line.expiryDate ? dayjs(line.expiryDate).diff(dayjs(line.manufactureDate), "day") : null;
+}
 const CSV_TEMPLATE = "ma_san_pham,don_vi,so_luong,don_gia_nhap,so_lo,ngay_san_xuat,han_dung\nTH0001,Hộp,20,30000,PA260901,01/09/2026,01/09/2028\n";
 
 function toDateKey(value: string | null | undefined): string {
@@ -98,7 +107,14 @@ function lineIssues(line: DraftLine, duplicate: boolean): Issue[] {
   else if (line.expiryDate <= today) issues.push({ level: "error", text: "Hạn dùng đã qua" });
   else if (daysUntil(line.expiryDate) <= NEAR_EXPIRY_DAYS) issues.push({ level: "warning", text: `Hạn dùng chỉ còn ${daysUntil(line.expiryDate)} ngày` });
   if (line.manufactureDate && line.manufactureDate > today) issues.push({ level: "error", text: "Ngày sản xuất ở tương lai" });
-  if (line.manufactureDate && line.expiryDate && line.manufactureDate >= line.expiryDate) issues.push({ level: "error", text: "Ngày sản xuất phải trước hạn dùng" });
+  const shelfLife = shelfLifeDays(line);
+  if (shelfLife !== null && shelfLife < MIN_SHELF_LIFE_DAYS) {
+    issues.push({ level: "error", text: shelfLife <= 0 ? "Ngày sản xuất phải trước hạn dùng" : `Hạn dùng chỉ cách ngày sản xuất ${shelfLife} ngày — gần như chắc chắn nhập nhầm` });
+  } else if (shelfLife !== null && shelfLife < SHORT_SHELF_LIFE_DAYS) {
+    issues.push({ level: "warning", text: `Tuổi thọ chỉ khoảng ${Math.round(shelfLife / 30)} tháng — đối chiếu lại NSX/HSD trên bao bì` });
+  } else if (shelfLife !== null && shelfLife > LONG_SHELF_LIFE_DAYS) {
+    issues.push({ level: "warning", text: `Tuổi thọ hơn 5 năm (${(shelfLife / 365).toFixed(1)} năm) — đối chiếu lại NSX/HSD` });
+  }
   if (line.unitCost === 0) issues.push({ level: "warning", text: "Đơn giá bằng 0 (hàng tặng?)" });
   return issues;
 }
@@ -193,7 +209,7 @@ export function ReceiptFormModal({
     { label: supplier ? "Đã chọn nhà cung cấp" : "Chưa chọn nhà cung cấp", state: supplier ? "ok" : "error" },
     { label: lines.length === 0 ? "Chưa có dòng hàng" : `${completeLines}/${lines.length} dòng đủ số lô và hạn dùng`, state: lines.length > 0 && completeLines === lines.length ? "ok" : "error" },
     ...(errorLines > 0 ? [{ label: `${errorLines} dòng còn lỗi — di chuột vào biểu tượng đỏ để xem`, state: "error" as const }] : []),
-    ...(warningLines > 0 ? [{ label: `${warningLines} dòng cần lưu ý (cận hạn, đơn giá 0)`, state: "warning" as const }] : []),
+    ...(warningLines > 0 ? [{ label: `${warningLines} dòng cần lưu ý (cận hạn, tuổi thọ bất thường, đơn giá 0)`, state: "warning" as const }] : []),
     ...(discountTooHigh ? [{ label: "Chiết khấu lớn hơn tổng tiền hàng", state: "error" as const }] : []),
     ...(receivedAt > today || supplierInvoiceDate > today ? [{ label: "Ngày nhận hàng / ngày hóa đơn ở tương lai", state: "error" as const }] : []),
     ...(invoiceGapDays > 30 ? [{ label: `Ngày hóa đơn và ngày nhận lệch ${invoiceGapDays} ngày — kiểm tra lại`, state: "warning" as const }] : []),
@@ -655,9 +671,9 @@ export function ReceiptFormModal({
                   <DatePicker
                     format={DATE_FORMAT}
                     placeholder="dd/mm/yyyy"
-                    status={line.manufactureDate && (line.manufactureDate > today || (line.expiryDate && line.manufactureDate >= line.expiryDate)) ? "error" : undefined}
+                    status={line.manufactureDate && (line.manufactureDate > today || (shelfLifeDays(line) ?? MIN_SHELF_LIFE_DAYS) < MIN_SHELF_LIFE_DAYS) ? "error" : undefined}
                     value={line.manufactureDate ? dayjs(line.manufactureDate) : null}
-                    disabledDate={(date) => date.isAfter(dayjs(), "day")}
+                    disabledDate={(date) => date.isAfter(dayjs(), "day") || (Boolean(line.expiryDate) && date.isAfter(dayjs(line.expiryDate).subtract(MIN_SHELF_LIFE_DAYS, "day"), "day"))}
                     onChange={(value) => changeLine(line.key, { manufactureDate: value ? value.format("YYYY-MM-DD") : "" })}
                   />
                 ),
@@ -671,7 +687,7 @@ export function ReceiptFormModal({
                 key: "exp",
                 width: 136,
                 render: (_: unknown, line: DraftLine) => {
-                  const invalid = !line.expiryDate || line.expiryDate <= today;
+                  const invalid = !line.expiryDate || line.expiryDate <= today || (shelfLifeDays(line) ?? MIN_SHELF_LIFE_DAYS) < MIN_SHELF_LIFE_DAYS;
                   const near = !invalid && daysUntil(line.expiryDate) <= NEAR_EXPIRY_DAYS;
                   return (
                     <DatePicker
@@ -679,7 +695,7 @@ export function ReceiptFormModal({
                       placeholder="dd/mm/yyyy"
                       status={invalid ? "error" : near ? "warning" : undefined}
                       value={line.expiryDate ? dayjs(line.expiryDate) : null}
-                      disabledDate={(date) => !date.isAfter(dayjs(), "day")}
+                      disabledDate={(date) => !date.isAfter(dayjs(), "day") || (Boolean(line.manufactureDate) && date.isBefore(dayjs(line.manufactureDate).add(MIN_SHELF_LIFE_DAYS, "day"), "day"))}
                       onChange={(value) => changeLine(line.key, { expiryDate: value ? value.format("YYYY-MM-DD") : "" })}
                     />
                   );
