@@ -159,8 +159,12 @@ export function ReceiptFormModal({
   const warningLines = lines.filter((line) => issuesByLine.get(line.key)?.some((issue) => issue.level === "warning")).length;
 
   const headerIssues: string[] = [];
-  if (supplierInvoiceDate && supplierInvoiceDate > receivedAt) headerIssues.push("Ngày hóa đơn nhà cung cấp không được sau ngày nhận hàng");
   if (receivedAt > vnDateKey()) headerIssues.push("Ngày nhận hàng không được ở tương lai");
+  if (supplierInvoiceDate > vnDateKey()) headerIssues.push("Ngày hóa đơn không được ở tương lai");
+  // Hóa đơn có thể xuất trước khi hàng về (hàng đi đường) hoặc sau khi giao (hóa đơn điện tử
+  // gửi sau), nên không chặn theo thứ tự; chỉ nhắc khi hai ngày lệch nhau bất thường.
+  const invoiceGapDays = supplierInvoiceDate ? Math.abs(dayjs(supplierInvoiceDate).diff(dayjs(receivedAt), "day")) : 0;
+  const headerWarning = invoiceGapDays > 30 ? `Ngày hóa đơn và ngày nhận hàng lệch nhau ${invoiceGapDays} ngày — kiểm tra lại có nhập nhầm không` : null;
 
   async function addProduct(productId: string): Promise<void> {
     const product = (await http.get<Envelope<ProductDetail>>(`/products/${productId}`)).data.data;
@@ -331,6 +335,20 @@ export function ReceiptFormModal({
               ) : null}
             </div>
             <label className="field">
+              <span>Số hóa đơn</span>
+              <Input placeholder="Ghi theo hóa đơn NCC" value={supplierInvoiceNumber} onChange={(event) => setSupplierInvoiceNumber(event.target.value)} maxLength={50} />
+            </label>
+            <label className="field">
+              <span>Ngày hóa đơn</span>
+              <DatePicker
+                format={DATE_FORMAT}
+                placeholder="Ngày in trên hóa đơn"
+                value={supplierInvoiceDate ? dayjs(supplierInvoiceDate) : null}
+                disabledDate={(date) => date.isAfter(dayjs(), "day")}
+                onChange={(value) => setSupplierInvoiceDate(value ? value.format("YYYY-MM-DD") : "")}
+              />
+            </label>
+            <label className="field">
               <span>Ngày nhận hàng *</span>
               <DatePicker
                 format={DATE_FORMAT}
@@ -338,20 +356,6 @@ export function ReceiptFormModal({
                 value={receivedAt ? dayjs(receivedAt) : null}
                 disabledDate={(date) => date.isAfter(dayjs(), "day")}
                 onChange={(value) => value && setReceivedAt(value.format("YYYY-MM-DD"))}
-              />
-            </label>
-            <label className="field">
-              <span>Số hóa đơn nhà cung cấp</span>
-              <Input placeholder="Ví dụ: 0001234" value={supplierInvoiceNumber} onChange={(event) => setSupplierInvoiceNumber(event.target.value)} maxLength={50} />
-            </label>
-            <label className="field">
-              <span>Ngày hóa đơn</span>
-              <DatePicker
-                format={DATE_FORMAT}
-                placeholder="dd/mm/yyyy"
-                value={supplierInvoiceDate ? dayjs(supplierInvoiceDate) : null}
-                disabledDate={(date) => date.isAfter(dayjs(receivedAt), "day")}
-                onChange={(value) => setSupplierInvoiceDate(value ? value.format("YYYY-MM-DD") : "")}
               />
             </label>
             <label className="field note-field">
@@ -364,6 +368,14 @@ export function ReceiptFormModal({
               <ExclamationCircleFilled /> {issue}
             </Typography.Text>
           ))}
+          {headerWarning ? (
+            <Typography.Text type="warning" style={{ display: "block", marginTop: 6 }}>
+              <WarningFilled /> {headerWarning}
+            </Typography.Text>
+          ) : null}
+          <p className="section-note" style={{ margin: "8px 0 0" }}>
+            Ngày hóa đơn là ngày in trên hóa đơn của nhà cung cấp; ngày nhận hàng là ngày hàng thực tế về nhà thuốc — dùng để tính tồn và báo cáo theo tháng. Hai ngày có thể khác nhau.
+          </p>
         </section>
 
         <section className="form-section">
