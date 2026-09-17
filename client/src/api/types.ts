@@ -664,3 +664,29 @@ export type ReportsSummary = {
   paymentMethods: Array<{ method: string; amount: Money; count: number; percent: number }>;
   staffPerformance: Array<{ userId: string; fullName: string; revenue: Money; invoiceCount: number }>;
 };
+
+export type PaperSize = "K80" | "K58" | "A5";
+
+/** Mẫu in hóa đơn của cửa hàng (Cài đặt → Bán hàng & hóa đơn → Mẫu in hóa đơn). */
+export type PrintTemplate = {
+  paperSize: PaperSize;
+  logo: string | null;
+  companyName: string;
+  storeName: string;
+  address: string;
+  phone: string;
+  taxCode: string;
+  title: string;
+  footer: string;
+  display: {
+    logo: boolean;
+    customer: boolean;
+    seller: boolean;
+    unit: boolean;
+    discount: boolean;
+    paymentMethod: boolean;
+    cashChange: boolean;
+  };
+};
+
+export type PrintTemplateState = { template: PrintTemplate; isDefault: boolean; updatedAt: string | null };

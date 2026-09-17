@@ -6,6 +6,7 @@ import { useNavigate } from "react-router";
 import { http } from "../api/http.js";
 import type { DashboardData, Envelope } from "../api/types.js";
 import { useAuth } from "../features/auth/AuthProvider.js";
+import { confirmLeave } from "./leave-guard.js";
 
 /**
  * Dùng chung truy vấn với trang Tổng quan (cùng queryKey, days = 7) nên không
@@ -52,7 +53,7 @@ export function NotificationBell() {
                 className={`notif-item notif-${item.severity}`}
                 onClick={() => {
                   setOpen(false);
-                  void navigate(item.href);
+                  confirmLeave(() => void navigate(item.href));
                 }}
               >
                 <span className="notif-dot" aria-hidden />

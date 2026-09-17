@@ -9,6 +9,8 @@ import { idempotency } from "../../middlewares/idempotency.js";
 import { requirePermission } from "../../middlewares/require-permission.js";
 import { requireStore, storeContext } from "../../middlewares/store-context.js";
 import { resolveCartLines } from "./cart.js";
+import type { PaperSize } from "../settings/print-template.schema.js";
+import { getEffectiveTemplate } from "../settings/print-template.service.js";
 import { renderInvoicePrintHtml } from "./invoice-print.js";
 import * as service from "./invoices.service.js";
 import { runSafetyCheck } from "./safety-check.service.js";
@@ -119,17 +121,27 @@ invoicesRouter.post(
   },
 );
 
+const FORMAT_TO_PAPER: Record<string, PaperSize> = { k80: "K80", k58: "K58", a5: "A5" };
+
+/**
+ * In hóa đơn theo mẫu in đã lưu của cửa hàng (Cài đặt → Mẫu in hóa đơn).
+ * `format` là tùy chọn để ghi đè khổ giấy; `autoprint=0` để xem trước mà
+ * không bật hộp thoại in. Chỉ đọc dữ liệu — in bao nhiêu lần cũng không đụng
+ * tới hóa đơn, tồn kho hay thanh toán.
+ */
 invoicesRouter.get("/invoices/:id/print", requirePermission("invoice.read"), async (req, res) => {
   const storeId = req.auth!.storeId!;
-  const format = req.query["format"] === "a5" ? "a5" : "k80";
-  const [invoice, store] = await Promise.all([
+  const format = FORMAT_TO_PAPER[String(req.query["format"] ?? "").toLowerCase()];
+  const [invoice, effective] = await Promise.all([
     service.getDetail(storeId, String(req.params.id)),
-    prisma.store.findUniqueOrThrow({
-      where: { id: storeId },
-      select: { name: true, address: true, phone: true },
-    }),
+    getEffectiveTemplate(storeId),
   ]);
-  res.type("html").send(renderInvoicePrintHtml(invoice, store, format));
+  res.type("html").send(
+    renderInvoicePrintHtml(invoice, effective.template, {
+      paperSize: format,
+      autoPrint: req.query["autoprint"] !== "0",
+    }),
+  );
 });
 
 invoicesRouter.post(

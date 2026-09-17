@@ -12,6 +12,7 @@ import { PageHeader } from "../../ui/PageHeader.js";
 import { StatCard, StatGrid, Trend } from "../../ui/StatCard.js";
 import { useDebounced } from "../../ui/useDebounced.js";
 import { useAuth } from "../auth/AuthProvider.js";
+import { InvoicePrintPreview } from "./InvoicePrintPreview.js";
 import { printInvoice } from "./print-invoice.js";
 import { ReturnModal } from "./ReturnModal.js";
 
@@ -34,6 +35,8 @@ function InvoiceRowActions({
   canReturn,
   canVoid,
   onView,
+  onPreview,
+  onPrint,
   onReturn,
   onVoid,
 }: {
@@ -41,6 +44,8 @@ function InvoiceRowActions({
   canReturn: boolean;
   canVoid: boolean;
   onView: () => void;
+  onPreview: () => void;
+  onPrint: () => void;
   onReturn: () => void;
   onVoid: () => void;
 }) {
@@ -75,8 +80,8 @@ function InvoiceRowActions({
         menu={{
           items: [
             { key: "view", icon: <EyeOutlined />, label: "Xem chi tiết" },
-            { key: "k80", icon: <PrinterOutlined />, label: "In khổ K80" },
-            { key: "a5", icon: <PrinterOutlined />, label: "In khổ A5" },
+            { key: "preview", icon: <FileSearchOutlined />, label: "Xem trước bản in" },
+            { key: "print", icon: <PrinterOutlined />, label: "In lại hóa đơn" },
             { type: "divider" },
             { key: "return", icon: <RollbackOutlined />, label: withReason("Nhận trả hàng", returnBlock), disabled: returnBlock !== null },
             { key: "void", icon: <StopOutlined />, label: withReason("Hủy hóa đơn", voidBlock), danger: voidBlock === null, disabled: voidBlock !== null },
@@ -84,7 +89,8 @@ function InvoiceRowActions({
           onClick: ({ key, domEvent }) => {
             domEvent.stopPropagation();
             if (key === "view") onView();
-            if (key === "k80" || key === "a5") void printInvoice(row.id, key);
+            if (key === "preview") onPreview();
+            if (key === "print") onPrint();
             if (key === "return") onReturn();
             if (key === "void") onVoid();
           },
@@ -132,6 +138,7 @@ export function InvoicesPage() {
   const [voidReason, setVoidReason] = useState("");
   const [voiding, setVoiding] = useState(false);
   const [returning, setReturning] = useState(false);
+  const [previewing, setPreviewing] = useState<{ id: string; code: string } | null>(null);
   const codeTerm = useDebounced(code.trim(), 300);
 
   const list = useQuery({
@@ -279,6 +286,8 @@ export function InvoicesPage() {
                     canReturn={can("return.create")}
                     canVoid={can("invoice.void")}
                     onView={() => setParams({ id: row.id })}
+                    onPreview={() => setPreviewing({ id: row.id, code: row.code })}
+                    onPrint={() => void printInvoice(row.id, message)}
                     onReturn={() => {
                       setParams({ id: row.id });
                       setReturning(true);
@@ -301,19 +310,14 @@ export function InvoicesPage() {
               extra={
                 <span className="row-actions">
                   {detail.data ? (
-                    <Dropdown
-                      menu={{
-                        items: [
-                          { key: "k80", label: "Khổ K80 (máy in nhiệt)" },
-                          { key: "a5", label: "Khổ A5" },
-                        ],
-                        onClick: ({ key }) => void printInvoice(detail.data!.id, key as "k80" | "a5"),
-                      }}
-                    >
-                      <Button size="small" icon={<PrinterOutlined />}>
-                        In
+                    <>
+                      <Button size="small" icon={<FileSearchOutlined />} onClick={() => setPreviewing({ id: detail.data!.id, code: detail.data!.code })}>
+                        Xem trước
                       </Button>
-                    </Dropdown>
+                      <Button size="small" icon={<PrinterOutlined />} onClick={() => void printInvoice(detail.data!.id, message)}>
+                        In lại
+                      </Button>
+                    </>
                   ) : null}
                   <Button type="text" size="small" onClick={() => setParams({})}>
                     Đóng
@@ -330,6 +334,8 @@ export function InvoicesPage() {
           </aside>
         ) : null}
       </div>
+
+      <InvoicePrintPreview invoiceId={previewing?.id ?? null} code={previewing?.code} onClose={() => setPreviewing(null)} />
 
       {detail.data ? <ReturnModal invoice={detail.data} open={returning} onClose={() => setReturning(false)} /> : null}
 

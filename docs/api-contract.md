@@ -203,6 +203,7 @@ Quy tắc:
 |---|---|
 | `store.manage` | Tạo, sửa, ngừng hoạt động cửa hàng trong chuỗi |
 | `user.manage` | Quản lý tài khoản, vai trò |
+| `settings.manage` | Sửa cài đặt cửa hàng, gồm mẫu in hóa đơn |
 | `report.chain` | Xem báo cáo hợp nhất toàn chuỗi (`?storeId=ALL`) |
 | `catalog.read` | Xem danh mục sản phẩm, nhóm, đơn vị, hoạt chất, nhà cung cấp |
 | `catalog.manage` | Tạo, sửa, ngừng dùng danh mục |
@@ -245,6 +246,7 @@ Quy tắc:
 |---|:-:|:-:|:-:|:-:|:-:|
 | `store.manage` | ✓ | | | | |
 | `user.manage` | ✓ | | | | |
+| `settings.manage` | ✓ | | | | |
 | `report.chain` | ✓ | | | | ✓ |
 | `catalog.read` | ✓ | ✓ | ✓ | ✓ | ✓ |
 | `catalog.manage` | ✓ | ✓ | | | |
@@ -766,7 +768,7 @@ Response:
 | GET | `/invoices` | Lọc `from`, `to`, `customerId`, `sellerId`, `status`, `code` (chứa chuỗi, không phân biệt hoa thường) | `invoice.read` |
 | GET | `/invoices/{id}` | Chi tiết, các dòng, **lô thực tế đã xuất**, phiếu trả liên quan | `invoice.read` |
 | POST | `/invoices/{id}/void` | Hủy hóa đơn; bắt buộc `reason`; cần `Idempotency-Key` | `invoice.void` |
-| GET | `/invoices/{id}/print` | `?format=k80` (máy in nhiệt 80 mm) hoặc `?format=a5` | `invoice.read` |
+| GET | `/invoices/{id}/print` | HTML in theo mẫu in đã lưu của cửa hàng (§21 Cài đặt). Tùy chọn `?format=k80|k58|a5` ghi đè khổ giấy; `?autoprint=0` để xem trước không bật hộp thoại in. Chỉ đọc, không đổi hóa đơn/tồn kho | `invoice.read` |
 
 ### 14.1 Request tạo hóa đơn
 
@@ -982,6 +984,20 @@ Nguyên tắc (giữ từ bản gốc, bổ sung):
 Trường chính: `code` (ví dụ `NT01`, dùng làm tiền tố số chứng từ), `name`, `address`, `phone`, `gppCertificateNumber`, `licenseNumber`, `isActive`.
 
 Cửa hàng đã phát sinh chứng từ thì không xóa, chỉ ngừng hoạt động.
+
+### Cài đặt – Mẫu in hóa đơn
+
+Bắt buộc `X-Store-Id`: mỗi cửa hàng (chi nhánh) có mẫu in riêng, lưu ở bảng `settings` với khóa `invoicePrintTemplate`.
+
+| Method | Endpoint | Mô tả | Quyền |
+|---|---|---|---|
+| GET | `/settings/invoice-print-template` | Mẫu đang áp dụng: `{ template, isDefault, updatedAt }`. Chưa lưu thì trả mẫu mặc định lấy tên/địa chỉ/điện thoại của cửa hàng | `settings.manage` hoặc `invoice.read` |
+| PUT | `/settings/invoice-print-template` | Lưu mẫu; ghi audit `SETTING_UPDATE` | `settings.manage` |
+| POST | `/settings/invoice-print-template/preview` | Body `{ template, sample: "standard"|"long"|"walk_in" }`, trả HTML dựng từ dữ liệu mẫu; không tạo giao dịch | `settings.manage` |
+
+`template`: `paperSize` (`K80` | `K58` | `A5`), `logo` (data URL PNG/JPEG ≤ 300 KB hoặc `null`; kiểm tra theo nội dung byte, xóa EXIF, không nhận SVG), `companyName`, `storeName` (bắt buộc), `address`, `phone`, `taxCode`, `title` (bắt buộc), `footer`, `display` gồm các cờ `logo`, `customer`, `seller`, `unit`, `discount`, `paymentMethod`, `cashChange`.
+
+Xem trước, in thử và in thật dùng chung một hàm render ở server. Bản in là phiếu bán hàng tại quầy, không thay thế hóa đơn điện tử.
 
 ---
 
