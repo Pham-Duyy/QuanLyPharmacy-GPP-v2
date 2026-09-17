@@ -635,3 +635,38 @@ describe("Danh sách, tổng hợp và chi tiết cho màn Nhập hàng", () => 
     expect(response.body.data.lines[0].batchStatus).toBe("AVAILABLE");
   });
 });
+
+describe("Chiết khấu phiếu và thuế theo hóa đơn", () => {
+  it("tổng giá trị = tiền hàng − chiết khấu + thuế và phân bổ vào giá vốn lô", async () => {
+    // 20 hộp × 82.000 = 1.640.000; trừ chiết khấu 140.000, cộng thuế 60.000 → 1.560.000
+    const draft = await createDraft(draftBody({ discountAmount: 140_000, vatAmount: 60_000 })).expect(201);
+    expect(draft.body.data).toMatchObject({ goodsAmount: 1_640_000, discountAmount: 140_000, vatAmount: 60_000, totalCost: 1_560_000 });
+
+    await api()
+      .post(`/api/v1/goods-receipts/${draft.body.data.id}/confirm`)
+      .set({ ...authHeaders(token, fixture.storeId), ...idem() })
+      .send(passedAll(draft.body.data))
+      .expect(200);
+
+    const batch = await prisma.batch.findFirstOrThrow({ where: { batchNumber: "PA250110" } });
+    // 1.560.000 / 2.000 viên = 780 đồng/viên
+    expect(Number(batch.unitCost)).toBe(780);
+  });
+
+  it("chặn chiết khấu lớn hơn tiền hàng", async () => {
+    const response = await createDraft(draftBody({ discountAmount: 2_000_000 })).expect(422);
+    expect(response.body.error.code).toBe("VALIDATION_ERROR");
+  });
+
+  it("sửa riêng chiết khấu thì tính lại tổng, giữ nguyên các dòng", async () => {
+    const draft = await createDraft().expect(201);
+    const response = await api()
+      .patch(`/api/v1/goods-receipts/${draft.body.data.id}`)
+      .set(authHeaders(token, fixture.storeId))
+      .send({ version: draft.body.data.version, discountAmount: 40_000 })
+      .expect(200);
+
+    expect(response.body.data).toMatchObject({ goodsAmount: 1_640_000, discountAmount: 40_000, vatAmount: 0, totalCost: 1_600_000 });
+    expect(response.body.data.lines).toHaveLength(1);
+  });
+});

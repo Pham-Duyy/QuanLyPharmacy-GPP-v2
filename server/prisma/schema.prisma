@@ -479,6 +479,13 @@ model GoodsReceipt {
   supplierInvoiceDate   DateTime? @map("supplier_invoice_date") @db.Date
   receivedAt            DateTime  @map("received_at") @db.Timestamptz(6)
   status                String    @default("DRAFT")
+  /// Tổng tiền hàng = tổng thành tiền các dòng, trước chiết khấu và thuế.
+  goodsAmount           BigInt    @default(0) @map("goods_amount")
+  /// Chiết khấu thương mại trên toàn hóa đơn.
+  discountAmount        BigInt    @default(0) @map("discount_amount")
+  /// Thuế ghi trên hóa đơn nhà cung cấp (nhà thuốc không khấu trừ thì tính vào giá vốn).
+  vatAmount             BigInt    @default(0) @map("vat_amount")
+  /// Tổng giá trị phiếu = tiền hàng − chiết khấu + thuế; phân bổ vào giá vốn lô khi kiểm nhập.
   totalCost             BigInt    @default(0) @map("total_cost")
   note                  String?
   createdBy             String    @map("created_by") @db.Uuid

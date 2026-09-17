@@ -1054,6 +1054,302 @@
 
 /* ---------- Form phiếu nhập ---------- */
 
+.receipt-form-title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.receipt-form-title > div {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--c-ink-900);
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.receipt-form-title small {
+  color: var(--c-ink-500);
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.required-mark {
+  color: var(--tone-red);
+}
+
+.receipt-form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.form-section h4,
+.receipt-checks h4 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+  color: var(--c-ink-900);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.form-section h4 .anticon {
+  color: var(--c-primary);
+}
+
+.form-section + .form-section {
+  padding-top: 16px;
+  border-top: 1px solid var(--c-border);
+}
+
+.form-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.receipt-form-grid {
+  display: grid;
+  grid-template-columns: minmax(260px, 1.4fr) repeat(3, minmax(150px, 1fr));
+  gap: 14px 16px;
+  align-items: start;
+}
+
+.receipt-form-grid .ant-picker,
+.receipt-form-grid .ant-select {
+  width: 100%;
+}
+
+.receipt-note-field {
+  grid-column: 2 / -1;
+}
+
+.field-hint {
+  margin: 6px 0 0;
+  color: var(--c-ink-400);
+  font-size: 12px;
+  font-style: italic;
+}
+
+.supplier-picker {
+  display: flex;
+  gap: 8px;
+}
+
+.supplier-picker .ant-select {
+  flex: 1;
+  min-width: 0;
+}
+
+.select-footer-btn.ant-btn {
+  justify-content: flex-start;
+  color: var(--c-primary);
+}
+
+.receipt-search-row {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.receipt-product-search {
+  flex: 1;
+  min-width: 0;
+}
+
+.product-option {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.35;
+  padding: 2px 0;
+}
+
+.product-option strong {
+  color: var(--c-ink-900);
+  font-weight: 600;
+}
+
+.product-option span {
+  color: var(--c-ink-400);
+  font-size: 12px;
+}
+
+.receipt-lines .ant-table-thead > tr > th {
+  background: var(--c-surface-2);
+}
+
+.receipt-lines .ant-table-tbody > tr > td {
+  padding-block: 8px !important;
+  vertical-align: middle;
+}
+
+.receipt-lines .ant-picker {
+  width: 100%;
+}
+
+.receipt-lines .ant-table-tbody > tr.line-has-error > td:first-child {
+  box-shadow: inset 3px 0 0 var(--tone-red);
+}
+
+.line-product {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.line-product-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.line-product-name strong {
+  overflow: hidden;
+  color: var(--c-ink-900);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: help;
+}
+
+.extra-batch-tag.ant-tag {
+  margin: 0;
+  border-color: var(--c-primary-100);
+  background: var(--c-primary-50);
+  color: var(--c-primary);
+  font-size: 11px;
+  line-height: 18px;
+}
+
+.line-product-meta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--c-ink-400);
+  font-size: 12px;
+}
+
+.line-product-meta .ant-btn-link {
+  height: auto;
+  padding: 0 2px;
+  font-size: 12px;
+}
+
+.receipt-add-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.receipt-add-row .field-hint {
+  margin: 0;
+}
+
+.receipt-bottom {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(320px, 1fr);
+  gap: 16px;
+}
+
+.receipt-checks,
+.receipt-totals {
+  padding: 16px 18px;
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-lg);
+}
+
+.receipt-checks h4 .text-success {
+  color: var(--tone-green);
+}
+
+.check-list li.info .anticon {
+  color: var(--c-ink-400);
+}
+
+.check-list li.info span {
+  color: var(--c-ink-500);
+}
+
+.receipt-totals {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: var(--c-surface-2);
+}
+
+.receipt-totals > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--c-ink-700);
+  font-size: 13.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.receipt-totals > div > strong {
+  color: var(--c-ink-900);
+}
+
+.receipt-totals .ant-input-number {
+  width: 200px;
+}
+
+.receipt-totals .ant-input-number-input {
+  text-align: right;
+}
+
+.receipt-grand-total {
+  padding-top: 10px;
+  border-top: 1px solid var(--c-border);
+}
+
+.receipt-grand-total strong:last-child {
+  color: var(--c-primary) !important;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.receipt-totals .field-hint {
+  margin: 0;
+}
+
+.receipt-form-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.receipt-form-footer > span:first-child {
+  margin-right: auto;
+  font-size: 13px;
+}
+
+@media (max-width: 900px) {
+  .receipt-form-grid,
+  .receipt-bottom {
+    grid-template-columns: 1fr;
+  }
+
+  .receipt-note-field {
+    grid-column: auto;
+  }
+}
+
+.panel-section .section-note {
+  margin: 10px 0 0;
+}
+
+/* ---------- Form phiếu nhập ---------- */
+
 .receipt-form {
   display: flex;
   flex-direction: column;

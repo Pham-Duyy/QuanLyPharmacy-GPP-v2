@@ -214,6 +214,11 @@ export type GoodsReceiptDetail = {
   supplierInvoiceDate: string | null;
   receivedAt: string;
   note: string | null;
+  /** Tổng thành tiền các dòng, trước chiết khấu và thuế. */
+  goodsAmount?: Money;
+  discountAmount?: Money;
+  vatAmount?: Money;
+  /** Tổng giá trị phiếu = tiền hàng − chiết khấu + thuế. */
   totalCost: Money;
   version: number;
   createdAt?: string;

@@ -91,6 +91,7 @@ export async function createOpeningBalance(
           status: "CONFIRMED",
           confirmedBy: userId,
           confirmedAt: now,
+          goodsAmount: totalCost,
           totalCost,
           createdBy: userId,
           lines: { create: lines },
