@@ -1051,3 +1051,191 @@
 .panel-section .section-note {
   margin: 10px 0 0;
 }
+
+/* ---------- Form phiếu nhập ---------- */
+
+.receipt-form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.form-section h4 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+  color: var(--c-ink-900);
+  font-size: 14.5px;
+  font-weight: 600;
+}
+
+.form-section h4 .anticon {
+  color: var(--c-primary);
+}
+
+.receipt-form-header {
+  display: grid;
+  grid-template-columns: minmax(280px, 2fr) repeat(3, minmax(150px, 1fr));
+  gap: 14px 16px;
+  align-items: start;
+}
+
+.receipt-form-header .note-field {
+  grid-column: 2 / -1;
+}
+
+.supplier-field {
+  grid-row: span 2;
+}
+
+.receipt-form-header .ant-picker {
+  width: 100%;
+}
+
+.supplier-picker {
+  display: flex;
+  gap: 8px;
+}
+
+.supplier-picker .ant-select {
+  flex: 1;
+  min-width: 0;
+}
+
+.supplier-card {
+  display: flex;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-md);
+  background: var(--c-surface-2);
+}
+
+.supplier-card > .anticon {
+  margin-top: 3px;
+  color: var(--c-primary);
+}
+
+.supplier-card > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  font-size: 12.5px;
+  color: var(--c-ink-500);
+}
+
+.supplier-card strong {
+  color: var(--c-ink-900);
+  font-size: 13.5px;
+}
+
+.select-footer-btn.ant-btn {
+  justify-content: flex-start;
+  color: var(--c-primary);
+}
+
+.receipt-product-search {
+  width: 100%;
+  margin-bottom: 12px;
+}
+
+.product-option {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.35;
+  padding: 2px 0;
+}
+
+.product-option strong {
+  color: var(--c-ink-900);
+  font-weight: 600;
+}
+
+.product-option span {
+  color: var(--c-ink-400);
+  font-size: 12px;
+}
+
+.receipt-lines .ant-table-tbody > tr > td {
+  vertical-align: top;
+}
+
+.receipt-lines .ant-picker {
+  width: 100%;
+}
+
+.receipt-lines .cell-main .text-danger,
+.receipt-lines .cell-main .text-warning {
+  font-size: 12px;
+}
+
+.receipt-lines .ant-table-tbody > tr.line-has-error > td:first-child {
+  box-shadow: inset 3px 0 0 var(--tone-red);
+}
+
+.receipt-form-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  margin-top: 12px;
+  padding: 12px 16px;
+  border-radius: var(--r-md);
+  background: var(--c-surface-2);
+}
+
+.summary-stats {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--c-ink-500);
+  font-size: 13.5px;
+}
+
+.summary-stats strong {
+  color: var(--c-ink-900);
+}
+
+.summary-total {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  color: var(--c-ink-500);
+  font-size: 13.5px;
+}
+
+.summary-total strong {
+  color: var(--c-ink-900);
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.receipt-form-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.receipt-form-footer > span:first-child {
+  margin-right: auto;
+  font-size: 13px;
+}
+
+@media (max-width: 900px) {
+  .receipt-form-header {
+    grid-template-columns: 1fr;
+  }
+
+  .receipt-form-header .note-field,
+  .supplier-field {
+    grid-column: auto;
+    grid-row: auto;
+  }
+}

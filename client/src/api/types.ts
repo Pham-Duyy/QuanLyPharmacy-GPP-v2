@@ -132,6 +132,13 @@ export type ProductDetail = {
   name: string;
   productType: string;
   drugClass: string | null;
+  registrationNumber?: string | null;
+  dosageForm?: string | null;
+  strengthText?: string | null;
+  packagingText?: string | null;
+  manufacturer?: string | null;
+  countryOfOrigin?: string | null;
+  storageCondition?: string | null;
   category: { id: string; name: string };
   minStockBaseQuantity: number;
   version: number;

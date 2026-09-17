@@ -5,7 +5,6 @@ import {
   ClockCircleOutlined,
   CloseCircleOutlined,
   DatabaseOutlined,
-  DeleteOutlined,
   DollarCircleOutlined,
   DownloadOutlined,
   EditOutlined,
@@ -22,9 +21,9 @@ import {
   ShopOutlined,
 } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, App, AutoComplete, Button, Card, DatePicker, Dropdown, Empty, Input, InputNumber, Modal, Progress, Segmented, Select, Skeleton, Table, Tag, Typography } from "antd";
+import { Alert, App, Button, Card, DatePicker, Dropdown, Empty, Input, Modal, Progress, Segmented, Select, Skeleton, Table, Tag, Typography } from "antd";
 import type { Dayjs } from "dayjs";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { getErrorMessage, http } from "../../api/http.js";
 import {
@@ -35,9 +34,6 @@ import {
   type GoodsReceiptListItem,
   type GoodsReceiptSummary,
   type Paged,
-  type ProductDetail,
-  type ProductListItem,
-  type ProductUnit,
   type SupplierListItem,
 } from "../../api/types.js";
 import { daysUntil, formatDate, formatDateTime, formatNumber, vnDateKey } from "../../ui/format.js";
@@ -45,6 +41,7 @@ import { PageHeader } from "../../ui/PageHeader.js";
 import { StatCard, StatGrid, Trend } from "../../ui/StatCard.js";
 import { useDebounced } from "../../ui/useDebounced.js";
 import { useAuth } from "../auth/AuthProvider.js";
+import { ReceiptFormModal } from "./ReceiptFormModal.js";
 
 const STATUS: Record<GoodsReceiptDetail["status"], { text: string; color: string }> = {
   DRAFT: { text: "Chờ kiểm nhập", color: "gold" },
@@ -53,20 +50,6 @@ const STATUS: Record<GoodsReceiptDetail["status"], { text: string; color: string
 };
 
 type SortState = { sortBy: "receivedAt" | "totalCost"; order: "asc" | "desc" };
-
-type DraftLine = {
-  key: string;
-  productId: string;
-  productCode: string;
-  productName: string;
-  unitId: string;
-  units: ProductUnit[];
-  quantity: number;
-  unitCost: number;
-  batchNumber: string;
-  manufactureDate: string;
-  expiryDate: string;
-};
 
 /** Xuất CSV từ các dòng đang chọn, không gọi thêm API. */
 function downloadCsv(filename: string, rows: GoodsReceiptListItem[]): void {
@@ -893,276 +876,6 @@ function InspectionModal({
   );
 }
 
-function ReceiptFormModal({
-  open,
-  receipt,
-  onClose,
-  onSaved,
-}: {
-  open: boolean;
-  receipt: GoodsReceiptDetail | null;
-  onClose: () => void;
-  onSaved: (id: string) => Promise<unknown> | unknown;
-}) {
-  const { message } = App.useApp();
-  const [supplierId, setSupplierId] = useState<string>();
-  const [receivedAt, setReceivedAt] = useState(vnDateKey());
-  const [supplierInvoiceNumber, setSupplierInvoiceNumber] = useState("");
-  const [supplierInvoiceDate, setSupplierInvoiceDate] = useState("");
-  const [note, setNote] = useState("");
-  const [lines, setLines] = useState<DraftLine[]>([]);
-  const [productSearch, setProductSearch] = useState("");
-  const createAttempt = useRef({ signature: "", key: "" });
-
-  const suppliers = useQuery({
-    queryKey: ["receipt-suppliers"],
-    enabled: open,
-    queryFn: async () => {
-      const response = await http.get<Envelope<Paged<SupplierListItem>>>("/suppliers", { params: { page: 1, limit: 100 } });
-      return response.data.data.items;
-    },
-  });
-  const products = useQuery({
-    queryKey: ["receipt-products", productSearch],
-    enabled: open && productSearch.trim().length > 0,
-    queryFn: async () => {
-      const response = await http.get<Envelope<Paged<ProductListItem>>>("/products", { params: { search: productSearch, page: 1, limit: 15 } });
-      return response.data.data.items;
-    },
-  });
-
-  useEffect(() => {
-    if (!open) return;
-    setSupplierId(receipt?.supplier?.id);
-    setReceivedAt(toDateInput(receipt?.receivedAt) || vnDateKey());
-    setSupplierInvoiceNumber(receipt?.supplierInvoiceNumber ?? "");
-    setSupplierInvoiceDate(toDateInput(receipt?.supplierInvoiceDate));
-    setNote(receipt?.note ?? "");
-    setLines((receipt?.lines ?? []).map(toDraftLine));
-    setProductSearch("");
-  }, [open, receipt]);
-
-  const total = useMemo(() => lines.reduce((sum, line) => sum + line.quantity * line.unitCost, 0), [lines]);
-
-  async function addProduct(productId: string): Promise<void> {
-    const response = await http.get<Envelope<ProductDetail>>(`/products/${productId}`);
-    const product = response.data.data;
-    const unit = product.units[0];
-    if (!unit) {
-      void message.error("Sản phẩm chưa có đơn vị tính");
-      return;
-    }
-    setLines((current) => [
-      ...current,
-      {
-        key: crypto.randomUUID(),
-        productId: product.id,
-        productCode: product.code,
-        productName: product.name,
-        unitId: unit.id,
-        units: product.units,
-        quantity: 1,
-        unitCost: 0,
-        batchNumber: "",
-        manufactureDate: "",
-        expiryDate: "",
-      },
-    ]);
-    setProductSearch("");
-  }
-  function changeLine(key: string, patch: Partial<DraftLine>): void {
-    setLines((current) => current.map((line) => (line.key === key ? { ...line, ...patch } : line)));
-  }
-
-  const save = useMutation({
-    mutationFn: async () => {
-      const body = {
-        supplierId,
-        receivedAt,
-        supplierInvoiceNumber: supplierInvoiceNumber || null,
-        supplierInvoiceDate: supplierInvoiceDate || null,
-        note: note || null,
-        lines: lines.map((line) => ({
-          productId: line.productId,
-          unitId: line.unitId,
-          quantity: line.quantity,
-          unitCost: line.unitCost,
-          batchNumber: line.batchNumber,
-          manufactureDate: line.manufactureDate || null,
-          expiryDate: line.expiryDate,
-        })),
-      };
-      if (receipt) {
-        const response = await http.patch<Envelope<GoodsReceiptDetail>>(`/goods-receipts/${receipt.id}`, { ...body, version: receipt.version });
-        return response.data.data.id;
-      }
-      const signature = JSON.stringify(body);
-      if (createAttempt.current.signature !== signature) createAttempt.current = { signature, key: crypto.randomUUID() };
-      const response = await http.post<Envelope<GoodsReceiptDetail>>("/goods-receipts", body, {
-        headers: { "Idempotency-Key": createAttempt.current.key },
-      });
-      return response.data.data.id;
-    },
-    onSuccess: async (id) => {
-      void message.success(receipt ? "Đã lưu phiếu nháp" : "Đã tạo phiếu nháp");
-      await onSaved(id);
-    },
-    onError: (error) => void message.error(getErrorMessage(error, "Không lưu được phiếu nhập")),
-  });
-  const incomplete = lines.filter((line) => !isCompleteLine(line)).length;
-  const canSave = Boolean(supplierId) && lines.length > 0 && incomplete === 0;
-
-  return (
-    <Modal
-      open={open}
-      width={1120}
-      title={receipt ? `Sửa phiếu ${receipt.code}` : "Tạo phiếu nhập"}
-      okText="Lưu phiếu nháp"
-      cancelText="Đóng"
-      onOk={() => save.mutate()}
-      onCancel={onClose}
-      confirmLoading={save.isPending}
-      okButtonProps={{ disabled: !canSave }}
-    >
-      <div className="detail-stack">
-        <Alert type="info" showIcon title="Lưu nháp chưa tăng tồn. Chỉ khi kiểm nhập và xác nhận mới tạo/cộng lô và ghi thẻ kho." />
-        <div className="form-grid">
-          <label className="field">
-            <span>Nhà cung cấp *</span>
-            <Select
-              showSearch
-              optionFilterProp="label"
-              placeholder="Chọn nhà cung cấp"
-              value={supplierId}
-              onChange={setSupplierId}
-              options={(suppliers.data ?? []).map((supplier) => ({ value: supplier.id, label: supplier.name }))}
-            />
-          </label>
-          <label className="field">
-            <span>Ngày nhận hàng *</span>
-            <Input type="date" value={receivedAt} onChange={(event) => setReceivedAt(event.target.value)} />
-          </label>
-          <label className="field">
-            <span>Số hóa đơn nhà cung cấp</span>
-            <Input placeholder="Ví dụ: 0001234" value={supplierInvoiceNumber} onChange={(event) => setSupplierInvoiceNumber(event.target.value)} />
-          </label>
-          <label className="field">
-            <span>Ngày hóa đơn nhà cung cấp</span>
-            <Input type="date" value={supplierInvoiceDate} onChange={(event) => setSupplierInvoiceDate(event.target.value)} />
-          </label>
-        </div>
-        <label className="field">
-          <span>Ghi chú</span>
-          <Input.TextArea rows={2} placeholder="Không bắt buộc" value={note} onChange={(event) => setNote(event.target.value)} />
-        </label>
-
-        <div className="field">
-          <span>Dòng hàng</span>
-          <AutoComplete
-            value={productSearch}
-            onChange={setProductSearch}
-            onSelect={(id) => void addProduct(String(id))}
-            options={(products.data ?? []).map((product) => ({ value: product.id, label: `${product.code} — ${product.name}` }))}
-          >
-            <Input prefix={<PlusOutlined />} placeholder="Gõ tên hoặc mã sản phẩm để thêm dòng nhập" />
-          </AutoComplete>
-        </div>
-        <Table
-          rowKey="key"
-          size="small"
-          pagination={false}
-          dataSource={lines}
-          scroll={{ x: 1040 }}
-          locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có dòng hàng — tìm sản phẩm ở ô phía trên" /> }}
-          columns={[
-            {
-              title: "Sản phẩm",
-              width: 210,
-              render: (_: unknown, line: DraftLine) => (
-                <div className="cell-main">
-                  <strong>{line.productName}</strong>
-                  <span>{line.productCode}</span>
-                </div>
-              ),
-            },
-            {
-              title: "Đơn vị",
-              width: 110,
-              render: (_: unknown, line: DraftLine) => (
-                <Select style={{ width: "100%" }} value={line.unitId} onChange={(unitId) => changeLine(line.key, { unitId })} options={line.units.map((unit) => ({ value: unit.id, label: unit.name }))} />
-              ),
-            },
-            {
-              title: "Số lượng",
-              width: 100,
-              render: (_: unknown, line: DraftLine) => <InputNumber style={{ width: "100%" }} min={1} precision={0} value={line.quantity} onChange={(value) => changeLine(line.key, { quantity: value ?? 0 })} />,
-            },
-            {
-              title: "Giá nhập",
-              width: 120,
-              render: (_: unknown, line: DraftLine) => <InputNumber style={{ width: "100%" }} min={0} precision={0} value={line.unitCost} onChange={(value) => changeLine(line.key, { unitCost: value ?? 0 })} />,
-            },
-            {
-              title: "Số lô *",
-              width: 120,
-              render: (_: unknown, line: DraftLine) => (
-                <Input value={line.batchNumber} status={line.batchNumber.trim() ? undefined : "warning"} onChange={(event) => changeLine(line.key, { batchNumber: event.target.value })} />
-              ),
-            },
-            {
-              title: "NSX",
-              width: 136,
-              render: (_: unknown, line: DraftLine) => <Input type="date" value={line.manufactureDate} onChange={(event) => changeLine(line.key, { manufactureDate: event.target.value })} />,
-            },
-            {
-              title: "HSD *",
-              width: 136,
-              render: (_: unknown, line: DraftLine) => (
-                <Input type="date" value={line.expiryDate} status={line.expiryDate ? undefined : "warning"} onChange={(event) => changeLine(line.key, { expiryDate: event.target.value })} />
-              ),
-            },
-            { title: "Thành tiền", width: 120, align: "right" as const, render: (_: unknown, line: DraftLine) => <strong>{formatVnd(line.quantity * line.unitCost)}</strong> },
-            {
-              title: "",
-              width: 48,
-              render: (_: unknown, line: DraftLine) => (
-                <Button type="text" danger icon={<DeleteOutlined />} aria-label="Xóa dòng" onClick={() => setLines((current) => current.filter((item) => item.key !== line.key))} />
-              ),
-            },
-          ]}
-        />
-        <div className="form-summary">
-          <span>{incomplete > 0 ? <Typography.Text type="warning">{incomplete} dòng còn thiếu số lô hoặc hạn dùng</Typography.Text> : `${lines.length} dòng hàng`}</span>
-          <span>
-            Tổng giá trị <strong>{formatVnd(total)}</strong>
-          </span>
-        </div>
-      </div>
-    </Modal>
-  );
-}
-
-function toDraftLine(line: GoodsReceiptLine): DraftLine {
-  return {
-    key: line.id,
-    productId: line.productId,
-    productCode: line.productCode,
-    productName: line.productName,
-    unitId: line.unitId,
-    units: [{ id: line.unitId, name: line.unitName, conversionToBase: line.conversionToBase }],
-    quantity: line.quantity,
-    unitCost: line.unitCost,
-    batchNumber: line.batchNumber,
-    manufactureDate: toDateInput(line.manufactureDate),
-    expiryDate: toDateInput(line.expiryDate),
-  };
-}
-function isCompleteLine(line: DraftLine): boolean {
-  return line.quantity > 0 && line.unitCost >= 0 && line.batchNumber.trim().length > 0 && line.expiryDate.length > 0;
-}
-function toDateInput(value: string | null | undefined): string {
-  return value ? value.slice(0, 10) : "";
-}
 function StatusTag({ status }: { status: GoodsReceiptDetail["status"] }) {
   const item = STATUS[status];
   return <Tag color={item.color}>{item.text}</Tag>;
