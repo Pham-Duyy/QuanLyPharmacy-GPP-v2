@@ -1,17 +1,21 @@
 import {
+  ArrowRightOutlined,
   BarcodeOutlined,
-  CopyOutlined,
+  CheckCircleFilled,
   DeleteOutlined,
+  DownOutlined,
   ExclamationCircleFilled,
+  FileExcelOutlined,
   FileTextOutlined,
   InboxOutlined,
+  InfoCircleOutlined,
   PlusOutlined,
   SearchOutlined,
-  ShopOutlined,
   WarningFilled,
 } from "@ant-design/icons";
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, App, AutoComplete, Button, DatePicker, Divider, Empty, Form, Input, InputNumber, Modal, Select, Table, Tag, Tooltip, Typography } from "antd";
+import { Alert, App, AutoComplete, Button, DatePicker, Divider, Dropdown, Empty, Form, Input, InputNumber, Modal, Select, Table, Tag, Tooltip, Typography } from "antd";
+import type { RefSelectProps } from "antd";
 import dayjs from "dayjs";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getErrorMessage, http } from "../../api/http.js";
@@ -42,18 +46,31 @@ type DraftLine = {
   batchNumber: string;
   manufactureDate: string;
   expiryDate: string;
+  /** Dòng tách thêm cho cùng sản phẩm nhưng khác lô. */
+  extraBatch: boolean;
 };
 
 type Issue = { level: "error" | "warning"; text: string };
 
+export type ReceiptSavedOptions = { inspect: boolean };
+
 const DATE_FORMAT = "DD/MM/YYYY";
 const NEAR_EXPIRY_DAYS = 90;
+const CSV_TEMPLATE = "ma_san_pham,don_vi,so_luong,don_gia_nhap,so_lo,ngay_san_xuat,han_dung\nTH0001,Hộp,20,30000,PA260901,01/09/2026,01/09/2028\n";
 
 function toDateKey(value: string | null | undefined): string {
   return value ? value.slice(0, 10) : "";
 }
 
-function toDraftLine(line: GoodsReceiptLine): DraftLine {
+/** Nhận ngày dạng dd/mm/yyyy hoặc yyyy-mm-dd từ file CSV. */
+function parseCsvDate(value: string): string {
+  const text = value.trim();
+  const vn = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(text);
+  if (vn) return `${vn[3]}-${vn[2]!.padStart(2, "0")}-${vn[1]!.padStart(2, "0")}`;
+  return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : "";
+}
+
+function toDraftLine(line: GoodsReceiptLine, index: number, lines: GoodsReceiptLine[]): DraftLine {
   return {
     key: line.id,
     productId: line.productId,
@@ -66,6 +83,7 @@ function toDraftLine(line: GoodsReceiptLine): DraftLine {
     batchNumber: line.batchNumber,
     manufactureDate: toDateKey(line.manufactureDate),
     expiryDate: toDateKey(line.expiryDate),
+    extraBatch: lines.slice(0, index).some((previous) => previous.productId === line.productId),
   };
 }
 
@@ -73,15 +91,15 @@ function toDraftLine(line: GoodsReceiptLine): DraftLine {
 function lineIssues(line: DraftLine, duplicate: boolean): Issue[] {
   const issues: Issue[] = [];
   const today = vnDateKey();
-  if (duplicate) issues.push({ level: "error", text: "Trùng sản phẩm, đơn vị và số lô với dòng khác — gộp số lượng lại" });
+  if (duplicate) issues.push({ level: "error", text: "Trùng sản phẩm, đơn vị và số lô với dòng khác" });
   if (!line.batchNumber.trim()) issues.push({ level: "error", text: "Thiếu số lô" });
   if (line.quantity <= 0) issues.push({ level: "error", text: "Số lượng phải lớn hơn 0" });
   if (!line.expiryDate) issues.push({ level: "error", text: "Thiếu hạn dùng" });
-  else if (line.expiryDate <= today) issues.push({ level: "error", text: "Hạn dùng đã qua, không được nhập" });
+  else if (line.expiryDate <= today) issues.push({ level: "error", text: "Hạn dùng đã qua" });
   else if (daysUntil(line.expiryDate) <= NEAR_EXPIRY_DAYS) issues.push({ level: "warning", text: `Hạn dùng chỉ còn ${daysUntil(line.expiryDate)} ngày` });
   if (line.manufactureDate && line.manufactureDate > today) issues.push({ level: "error", text: "Ngày sản xuất ở tương lai" });
   if (line.manufactureDate && line.expiryDate && line.manufactureDate >= line.expiryDate) issues.push({ level: "error", text: "Ngày sản xuất phải trước hạn dùng" });
-  if (line.unitCost === 0) issues.push({ level: "warning", text: "Giá nhập bằng 0 — chỉ dùng cho hàng tặng/khuyến mại" });
+  if (line.unitCost === 0) issues.push({ level: "warning", text: "Đơn giá bằng 0 (hàng tặng?)" });
   return issues;
 }
 
@@ -94,20 +112,26 @@ export function ReceiptFormModal({
   open: boolean;
   receipt: GoodsReceiptDetail | null;
   onClose: () => void;
-  onSaved: (id: string) => Promise<unknown> | unknown;
+  onSaved: (id: string, options: ReceiptSavedOptions) => Promise<unknown> | unknown;
 }) {
   const { message } = App.useApp();
-  const { can } = useAuth();
+  const { can, me, storeId } = useAuth();
+  const searchRef = useRef<RefSelectProps>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
   const [supplierId, setSupplierId] = useState<string>();
   const [receivedAt, setReceivedAt] = useState(vnDateKey());
   const [supplierInvoiceNumber, setSupplierInvoiceNumber] = useState("");
   const [supplierInvoiceDate, setSupplierInvoiceDate] = useState("");
   const [note, setNote] = useState("");
+  const [discountAmount, setDiscountAmount] = useState(0);
+  const [vatAmount, setVatAmount] = useState(0);
   const [lines, setLines] = useState<DraftLine[]>([]);
   const [productSearch, setProductSearch] = useState("");
   const [addingSupplier, setAddingSupplier] = useState(false);
+  const [importing, setImporting] = useState(false);
   const createAttempt = useRef({ signature: "", key: "" });
   const productTerm = useDebounced(productSearch.trim(), 250);
+  const store = me?.stores.find((item) => item.id === storeId);
 
   const suppliers = useQuery({
     queryKey: ["receipt-suppliers"],
@@ -139,58 +163,76 @@ export function ReceiptFormModal({
     setSupplierInvoiceNumber(receipt?.supplierInvoiceNumber ?? "");
     setSupplierInvoiceDate(toDateKey(receipt?.supplierInvoiceDate));
     setNote(receipt?.note ?? "");
+    setDiscountAmount(receipt?.discountAmount ?? 0);
+    setVatAmount(receipt?.vatAmount ?? 0);
     setLines((receipt?.lines ?? []).map(toDraftLine));
     setProductSearch("");
   }, [open, receipt]);
 
   const supplier = suppliers.data?.find((item) => item.id === supplierId) ?? null;
-  const total = lines.reduce((sum, line) => sum + line.quantity * line.unitCost, 0);
+  const goodsAmount = lines.reduce((sum, line) => sum + line.quantity * line.unitCost, 0);
+  const totalAmount = goodsAmount - discountAmount + vatAmount;
+  const productCount = productIds.length;
 
   const duplicateKeys = useMemo(() => {
-    const seen = new Map<string, number>();
-    for (const line of lines) {
-      const key = `${line.productId}|${line.unitId}|${line.batchNumber.trim().toUpperCase()}`;
-      seen.set(key, (seen.get(key) ?? 0) + 1);
-    }
-    return new Set(lines.filter((line) => line.batchNumber.trim() && (seen.get(`${line.productId}|${line.unitId}|${line.batchNumber.trim().toUpperCase()}`) ?? 0) > 1).map((line) => line.key));
+    const keyOf = (line: DraftLine) => `${line.productId}|${line.unitId}|${line.batchNumber.trim().toUpperCase()}`;
+    const counts = new Map<string, number>();
+    for (const line of lines) counts.set(keyOf(line), (counts.get(keyOf(line)) ?? 0) + 1);
+    return new Set(lines.filter((line) => line.batchNumber.trim() && (counts.get(keyOf(line)) ?? 0) > 1).map((line) => line.key));
   }, [lines]);
   const issuesByLine = new Map(lines.map((line) => [line.key, lineIssues(line, duplicateKeys.has(line.key))]));
   const errorLines = lines.filter((line) => issuesByLine.get(line.key)?.some((issue) => issue.level === "error")).length;
   const warningLines = lines.filter((line) => issuesByLine.get(line.key)?.some((issue) => issue.level === "warning")).length;
+  const completeLines = lines.filter((line) => line.batchNumber.trim() && line.expiryDate).length;
 
-  const headerIssues: string[] = [];
-  if (receivedAt > vnDateKey()) headerIssues.push("Ngày nhận hàng không được ở tương lai");
-  if (supplierInvoiceDate > vnDateKey()) headerIssues.push("Ngày hóa đơn không được ở tương lai");
-  // Hóa đơn có thể xuất trước khi hàng về (hàng đi đường) hoặc sau khi giao (hóa đơn điện tử
-  // gửi sau), nên không chặn theo thứ tự; chỉ nhắc khi hai ngày lệch nhau bất thường.
+  const today = vnDateKey();
   const invoiceGapDays = supplierInvoiceDate ? Math.abs(dayjs(supplierInvoiceDate).diff(dayjs(receivedAt), "day")) : 0;
-  const headerWarning = invoiceGapDays > 30 ? `Ngày hóa đơn và ngày nhận hàng lệch nhau ${invoiceGapDays} ngày — kiểm tra lại có nhập nhầm không` : null;
+  const discountTooHigh = discountAmount > goodsAmount;
+
+  const checks: Array<{ label: string; state: "ok" | "error" | "warning" }> = [
+    { label: supplier ? "Đã chọn nhà cung cấp" : "Chưa chọn nhà cung cấp", state: supplier ? "ok" : "error" },
+    { label: lines.length === 0 ? "Chưa có dòng hàng" : `${completeLines}/${lines.length} dòng đủ số lô và hạn dùng`, state: lines.length > 0 && completeLines === lines.length ? "ok" : "error" },
+    ...(errorLines > 0 ? [{ label: `${errorLines} dòng còn lỗi — di chuột vào biểu tượng đỏ để xem`, state: "error" as const }] : []),
+    ...(warningLines > 0 ? [{ label: `${warningLines} dòng cần lưu ý (cận hạn, đơn giá 0)`, state: "warning" as const }] : []),
+    ...(discountTooHigh ? [{ label: "Chiết khấu lớn hơn tổng tiền hàng", state: "error" as const }] : []),
+    ...(receivedAt > today || supplierInvoiceDate > today ? [{ label: "Ngày nhận hàng / ngày hóa đơn ở tương lai", state: "error" as const }] : []),
+    ...(invoiceGapDays > 30 ? [{ label: `Ngày hóa đơn và ngày nhận lệch ${invoiceGapDays} ngày — kiểm tra lại`, state: "warning" as const }] : []),
+    ...(supplier && !supplier.licenseNumber ? [{ label: "Nhà cung cấp chưa lưu số giấy phép kinh doanh dược", state: "warning" as const }] : []),
+  ];
+  const blocked = checks.some((check) => check.state === "error");
+
+  async function productToLine(productId: string, preferredUnitName?: string): Promise<DraftLine | null> {
+    const product = (await http.get<Envelope<ProductDetail>>(`/products/${productId}`)).data.data;
+    const activeUnits = product.units.filter((unit) => unit.isActive !== false);
+    // Nhà thuốc nhập theo quy cách đóng gói (hộp, chai…) nên chọn sẵn đơn vị lớn nhất còn dùng.
+    const unit =
+      (preferredUnitName ? activeUnits.find((item) => item.name.toLowerCase() === preferredUnitName.trim().toLowerCase()) : undefined) ??
+      [...activeUnits].sort((a, b) => b.conversionToBase - a.conversionToBase)[0] ??
+      product.units[0];
+    if (!unit) return null;
+    return {
+      key: crypto.randomUUID(),
+      productId: product.id,
+      productCode: product.code,
+      productName: product.name,
+      unitId: unit.id,
+      fallbackUnit: { id: unit.id, name: unit.name, conversionToBase: unit.conversionToBase },
+      quantity: 1,
+      unitCost: 0,
+      batchNumber: "",
+      manufactureDate: "",
+      expiryDate: "",
+      extraBatch: false,
+    };
+  }
 
   async function addProduct(productId: string): Promise<void> {
-    const product = (await http.get<Envelope<ProductDetail>>(`/products/${productId}`)).data.data;
-    // Nhà thuốc nhập theo quy cách đóng gói (hộp, chai…) nên chọn sẵn đơn vị lớn nhất còn dùng.
-    const activeUnits = product.units.filter((unit) => unit.isActive !== false);
-    const unit = [...activeUnits].sort((a, b) => b.conversionToBase - a.conversionToBase)[0] ?? product.units[0];
-    if (!unit) {
+    const line = await productToLine(productId);
+    if (!line) {
       void message.error("Sản phẩm chưa có đơn vị tính");
       return;
     }
-    setLines((current) => [
-      ...current,
-      {
-        key: crypto.randomUUID(),
-        productId: product.id,
-        productCode: product.code,
-        productName: product.name,
-        unitId: unit.id,
-        fallbackUnit: { id: unit.id, name: unit.name, conversionToBase: unit.conversionToBase },
-        quantity: 1,
-        unitCost: 0,
-        batchNumber: "",
-        manufactureDate: "",
-        expiryDate: "",
-      },
-    ]);
+    setLines((current) => [...current, { ...line, extraBatch: current.some((item) => item.productId === productId) }]);
     setProductSearch("");
   }
 
@@ -202,27 +244,88 @@ export function ReceiptFormModal({
     else if (found.length === 0) void message.warning(`Không tìm thấy sản phẩm “${value}”`);
   }
 
+  /** Nhập nhiều dòng từ file CSV (Excel lưu dạng CSV UTF-8), khớp sản phẩm theo mã. */
+  async function importCsv(file: File): Promise<void> {
+    setImporting(true);
+    try {
+      const rows = (await file.text())
+        .replace(/^﻿/, "")
+        .split(/\r?\n/)
+        .map((row) => row.split(/[,;\t]/).map((cell) => cell.trim().replace(/^"|"$/g, "")))
+        .filter((cells) => cells.some(Boolean));
+      const dataRows = rows[0]?.[0]?.toLowerCase().includes("ma") ? rows.slice(1) : rows;
+      const added: DraftLine[] = [];
+      const failed: string[] = [];
+      for (const [index, cells] of dataRows.entries()) {
+        const [code = "", unitName = "", quantity = "", unitCost = "", batchNumber = "", manufactureDate = "", expiryDate = ""] = cells;
+        const found = (await http.get<Envelope<Paged<ProductListItem>>>("/products", { params: { search: code, page: 1, limit: 20 } })).data.data.items;
+        const product = found.find((item) => item.code.toLowerCase() === code.toLowerCase());
+        const line = product ? await productToLine(product.id, unitName) : null;
+        if (!line) {
+          failed.push(`dòng ${index + 1} (${code || "trống"})`);
+          continue;
+        }
+        added.push({
+          ...line,
+          quantity: Math.max(0, Number(quantity.replace(/\D/g, "")) || 0),
+          unitCost: Number(unitCost.replace(/\D/g, "")) || 0,
+          batchNumber: batchNumber.toUpperCase(),
+          manufactureDate: parseCsvDate(manufactureDate),
+          expiryDate: parseCsvDate(expiryDate),
+        });
+      }
+      setLines((current) =>
+        [...current, ...added].map((line, index, all) => ({ ...line, extraBatch: all.slice(0, index).some((previous) => previous.productId === line.productId) })),
+      );
+      if (added.length > 0) void message.success(`Đã thêm ${added.length} dòng từ file`);
+      if (failed.length > 0) void message.warning(`Không khớp mã sản phẩm ở ${failed.join(", ")}`, 6);
+    } catch (error) {
+      void message.error(getErrorMessage(error, "Không đọc được file"));
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  function downloadTemplate(): void {
+    const url = URL.createObjectURL(new Blob([`﻿${CSV_TEMPLATE}`], { type: "text/csv;charset=utf-8;" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "mau-nhap-hang.csv";
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
   function changeLine(key: string, patch: Partial<DraftLine>): void {
     setLines((current) => current.map((line) => (line.key === key ? { ...line, ...patch } : line)));
   }
 
-  /** Cùng một sản phẩm về nhiều lô khác nhau: tách thêm dòng giữ nguyên sản phẩm, đơn vị, giá. */
-  function splitBatch(line: DraftLine): void {
+  /** Cùng một sản phẩm về nhiều lô khác nhau: thêm dòng giữ nguyên sản phẩm, đơn vị, giá. */
+  function addBatch(line: DraftLine): void {
     setLines((current) => {
-      const index = current.findIndex((item) => item.key === line.key);
-      const copy: DraftLine = { ...line, key: crypto.randomUUID(), quantity: 1, batchNumber: "", manufactureDate: "", expiryDate: "" };
-      return [...current.slice(0, index + 1), copy, ...current.slice(index + 1)];
+      const lastIndex = current.map((item) => item.productId).lastIndexOf(line.productId);
+      const copy: DraftLine = { ...line, key: crypto.randomUUID(), quantity: 1, batchNumber: "", manufactureDate: "", expiryDate: "", extraBatch: true };
+      return [...current.slice(0, lastIndex + 1), copy, ...current.slice(lastIndex + 1)];
     });
   }
 
+  function removeLine(key: string): void {
+    setLines((current) =>
+      current
+        .filter((item) => item.key !== key)
+        .map((line, index, all) => ({ ...line, extraBatch: all.slice(0, index).some((previous) => previous.productId === line.productId) })),
+    );
+  }
+
   const save = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (options: ReceiptSavedOptions) => {
       const body = {
         supplierId,
         receivedAt,
         supplierInvoiceNumber: supplierInvoiceNumber.trim() || null,
         supplierInvoiceDate: supplierInvoiceDate || null,
         note: note.trim() || null,
+        discountAmount,
+        vatAmount,
         lines: lines.map((line) => ({
           productId: line.productId,
           unitId: line.unitId,
@@ -235,58 +338,74 @@ export function ReceiptFormModal({
       };
       if (receipt) {
         const response = await http.patch<Envelope<GoodsReceiptDetail>>(`/goods-receipts/${receipt.id}`, { ...body, version: receipt.version });
-        return response.data.data.id;
+        return { id: response.data.data.id, options };
       }
       const signature = JSON.stringify(body);
       if (createAttempt.current.signature !== signature) createAttempt.current = { signature, key: crypto.randomUUID() };
       const response = await http.post<Envelope<GoodsReceiptDetail>>("/goods-receipts", body, { headers: { "Idempotency-Key": createAttempt.current.key } });
-      return response.data.data.id;
+      return { id: response.data.data.id, options };
     },
-    onSuccess: async (id) => {
-      void message.success(receipt ? "Đã lưu phiếu nháp" : "Đã tạo phiếu nháp, chờ kiểm nhập");
-      await onSaved(id);
+    onSuccess: async ({ id, options }) => {
+      void message.success(options.inspect ? "Đã lưu nháp — tiếp tục kiểm nhận hàng" : receipt ? "Đã lưu phiếu nháp" : "Đã tạo phiếu nháp");
+      await onSaved(id, options);
     },
     onError: (error) => void message.error(getErrorMessage(error, "Không lưu được phiếu nhập")),
   });
 
-  const canSave = Boolean(supplierId) && lines.length > 0 && errorLines === 0 && headerIssues.length === 0;
-  const blockReason = !supplierId ? "Chọn nhà cung cấp" : lines.length === 0 ? "Thêm ít nhất một dòng hàng" : errorLines > 0 ? `${errorLines} dòng còn lỗi` : headerIssues[0] ?? null;
+  const summaryText = `${productCount} mặt hàng • ${lines.length} dòng lô`;
 
   return (
     <Modal
       open={open}
-      width="min(1320px, 96vw)"
-      style={{ top: 24 }}
-      title={receipt ? `Sửa phiếu nhập ${receipt.code}` : "Tạo phiếu nhập hàng"}
+      width="min(1280px, 96vw)"
+      style={{ top: 20 }}
       onCancel={onClose}
       destroyOnHidden
+      className="receipt-form-modal"
+      title={
+        <div className="receipt-form-title">
+          <div>
+            <span>{receipt ? `Sửa phiếu nhập ${receipt.code}` : "Tạo phiếu nhập hàng"}</span>
+            <Tag color="blue">Bản nháp</Tag>
+          </div>
+          <small>Nhập chứng từ và hàng hóa từ nhà cung cấp</small>
+        </div>
+      }
       footer={
         <div className="receipt-form-footer">
-          <span className={blockReason ? "text-secondary" : "text-success"}>{blockReason ?? "Sẵn sàng lưu phiếu nháp"}</span>
+          <span className="text-secondary">
+            {summaryText} &nbsp;·&nbsp; <span className="required-mark">*</span> Thông tin bắt buộc
+          </span>
           <Button onClick={onClose}>Đóng</Button>
-          <Tooltip title={blockReason}>
-            <Button type="primary" disabled={!canSave} loading={save.isPending} onClick={() => save.mutate()}>
-              Lưu phiếu nháp
+          <Button disabled={blocked} loading={save.isPending && !save.variables?.inspect} onClick={() => save.mutate({ inspect: false })}>
+            Lưu nháp
+          </Button>
+          {can("goods_receipt.confirm") ? (
+            <Button type="primary" disabled={blocked} loading={save.isPending && save.variables?.inspect} onClick={() => save.mutate({ inspect: true })}>
+              Lưu nháp &amp; kiểm nhận <ArrowRightOutlined />
             </Button>
-          </Tooltip>
+          ) : null}
         </div>
       }
     >
       <div className="receipt-form">
-        <Alert type="info" showIcon title="Lưu nháp chưa cộng tồn. Sau khi hàng về, dược sĩ kiểm nhập cảm quan từng dòng rồi xác nhận mới tạo lô và ghi thẻ kho." />
+        <Alert type="info" showIcon title="Lưu nháp chưa cộng tồn kho. Kiểm nhận từng dòng trước khi xác nhận nhập kho." />
 
         <section className="form-section">
           <h4>
             <FileTextOutlined /> Thông tin chứng từ
           </h4>
-          <div className="receipt-form-header">
-            <div className="field supplier-field">
-              <span>Nhà cung cấp *</span>
+          <div className="receipt-form-grid">
+            <div className="field">
+              <span>
+                Nhà cung cấp <span className="required-mark">*</span>
+              </span>
               <div className="supplier-picker">
                 <Select
                   showSearch
+                  prefix={<SearchOutlined />}
                   optionFilterProp="label"
-                  placeholder="Tìm và chọn nhà cung cấp"
+                  placeholder="Tìm nhà cung cấp"
                   loading={suppliers.isLoading}
                   value={supplierId}
                   onChange={setSupplierId}
@@ -313,43 +432,29 @@ export function ReceiptFormModal({
                 ) : null}
               </div>
               {supplier ? (
-                <div className="supplier-card">
-                  <ShopOutlined />
-                  <div>
-                    <strong>{supplier.name}</strong>
-                    <span>
-                      MST {supplier.taxCode ?? "—"} · GPKD {supplier.licenseNumber ?? "—"} · ĐT {supplier.phone ?? "—"}
-                    </span>
-                    {supplier.address ? <span>{supplier.address}</span> : null}
-                    {!supplier.licenseNumber ? (
-                      <span className="text-warning">
-                        <WarningFilled /> Chưa lưu số giấy phép kinh doanh dược của nhà cung cấp — nên bổ sung để chứng minh nguồn gốc hợp pháp.
-                      </span>
-                    ) : null}
-                  </div>
-                </div>
-              ) : !can("catalog.manage") ? (
-                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                  Chưa có nhà cung cấp cần dùng? Nhờ quản lý thêm ở trang Nhà cung cấp.
-                </Typography.Text>
+                <span className="field-hint">
+                  MST {supplier.taxCode ?? "—"} · GPKD {supplier.licenseNumber ?? "—"} · ĐT {supplier.phone ?? "—"}
+                </span>
               ) : null}
             </div>
             <label className="field">
               <span>Số hóa đơn</span>
-              <Input placeholder="Ghi theo hóa đơn NCC" value={supplierInvoiceNumber} onChange={(event) => setSupplierInvoiceNumber(event.target.value)} maxLength={50} />
+              <Input placeholder="Theo hóa đơn NCC" value={supplierInvoiceNumber} onChange={(event) => setSupplierInvoiceNumber(event.target.value)} maxLength={50} />
             </label>
             <label className="field">
               <span>Ngày hóa đơn</span>
               <DatePicker
                 format={DATE_FORMAT}
-                placeholder="Ngày in trên hóa đơn"
+                placeholder="dd/mm/yyyy"
                 value={supplierInvoiceDate ? dayjs(supplierInvoiceDate) : null}
                 disabledDate={(date) => date.isAfter(dayjs(), "day")}
                 onChange={(value) => setSupplierInvoiceDate(value ? value.format("YYYY-MM-DD") : "")}
               />
             </label>
             <label className="field">
-              <span>Ngày nhận hàng *</span>
+              <span>
+                Ngày nhận hàng <span className="required-mark">*</span>
+              </span>
               <DatePicker
                 format={DATE_FORMAT}
                 allowClear={false}
@@ -358,60 +463,84 @@ export function ReceiptFormModal({
                 onChange={(value) => value && setReceivedAt(value.format("YYYY-MM-DD"))}
               />
             </label>
-            <label className="field note-field">
+            <label className="field">
+              <span>
+                Kho nhận <span className="required-mark">*</span>
+              </span>
+              <Tooltip title="Hàng nhập vào kho của cửa hàng đang chọn ở thanh trên cùng">
+                <Select disabled value={storeId ?? undefined} options={store ? [{ value: store.id, label: `${store.name}` }] : []} />
+              </Tooltip>
+            </label>
+            <label className="field receipt-note-field">
               <span>Ghi chú</span>
-              <Input placeholder="Không bắt buộc — ví dụ: nhập hàng định kỳ, người giao hàng…" value={note} onChange={(event) => setNote(event.target.value)} maxLength={500} />
+              <Input placeholder="Nhập ghi chú cho phiếu…" value={note} onChange={(event) => setNote(event.target.value)} maxLength={500} />
             </label>
           </div>
-          {headerIssues.map((issue) => (
-            <Typography.Text key={issue} type="danger" style={{ display: "block", marginTop: 6 }}>
-              <ExclamationCircleFilled /> {issue}
-            </Typography.Text>
-          ))}
-          {headerWarning ? (
-            <Typography.Text type="warning" style={{ display: "block", marginTop: 6 }}>
-              <WarningFilled /> {headerWarning}
-            </Typography.Text>
-          ) : null}
-          <p className="section-note" style={{ margin: "8px 0 0" }}>
-            Ngày hóa đơn là ngày in trên hóa đơn của nhà cung cấp; ngày nhận hàng là ngày hàng thực tế về nhà thuốc — dùng để tính tồn và báo cáo theo tháng. Hai ngày có thể khác nhau.
-          </p>
+          <p className="field-hint">Ngày hóa đơn theo chứng từ; ngày nhận hàng theo thực tế hàng về.</p>
         </section>
 
         <section className="form-section">
-          <h4>
-            <InboxOutlined /> Hàng hóa nhập
-          </h4>
-          <AutoComplete
-            className="receipt-product-search"
-            value={productSearch}
-            onChange={setProductSearch}
-            onSelect={(id) => void addProduct(String(id))}
-            options={(products.data ?? []).map((product) => ({
-              value: product.id,
-              label: (
-                <div className="product-option">
-                  <strong>{product.name}</strong>
-                  <span>{[product.code, product.dosageForm, product.strengthText, product.stock ? `tồn ${formatNumber(product.stock.sellable)}` : null].filter(Boolean).join(" · ")}</span>
-                </div>
-              ),
-            }))}
-            notFoundContent={productTerm && !products.isFetching ? "Không tìm thấy sản phẩm — thêm mới ở trang Thuốc & sản phẩm" : null}
-          >
-            <Input
-              size="large"
-              prefix={<SearchOutlined />}
-              suffix={<BarcodeOutlined />}
-              placeholder="Quét mã vạch hoặc gõ tên, mã, hoạt chất để thêm hàng vào phiếu"
-              onPressEnter={(event) => {
-                // Để AutoComplete xử lý Enter khi đang có gợi ý được chọn.
-                if (!(products.data?.length ?? 0) || (products.data?.length ?? 0) === 1) {
-                  event.preventDefault();
-                  void addFromSearchEnter();
-                }
+          <div className="form-section-head">
+            <h4>
+              <InboxOutlined /> Hàng hóa nhập
+            </h4>
+            <span className="text-secondary">{summaryText}</span>
+          </div>
+          <div className="receipt-search-row">
+            <AutoComplete
+              ref={searchRef}
+              className="receipt-product-search"
+              value={productSearch}
+              onChange={setProductSearch}
+              onSelect={(id) => void addProduct(String(id))}
+              options={(products.data ?? []).map((product) => ({
+                value: product.id,
+                label: (
+                  <div className="product-option">
+                    <strong>{product.name}</strong>
+                    <span>{[product.code, product.dosageForm, product.strengthText, product.stock ? `tồn ${formatNumber(product.stock.sellable)}` : null].filter(Boolean).join(" · ")}</span>
+                  </div>
+                ),
+              }))}
+              notFoundContent={productTerm && !products.isFetching ? "Không tìm thấy — thêm sản phẩm mới ở trang Thuốc & sản phẩm" : null}
+            >
+              <Input
+                prefix={<SearchOutlined />}
+                suffix={<BarcodeOutlined />}
+                placeholder="Quét mã vạch, tìm tên thuốc, mã hoặc hoạt chất…"
+                onPressEnter={(event) => {
+                  if ((products.data?.length ?? 0) <= 1) {
+                    event.preventDefault();
+                    void addFromSearchEnter();
+                  }
+                }}
+              />
+            </AutoComplete>
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".csv,text/csv"
+              hidden
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) void importCsv(file);
+                event.target.value = "";
               }}
             />
-          </AutoComplete>
+            <Dropdown
+              menu={{
+                items: [
+                  { key: "pick", label: "Chọn file CSV (lưu từ Excel)" },
+                  { key: "template", label: "Tải file mẫu" },
+                ],
+                onClick: ({ key }) => (key === "pick" ? fileRef.current?.click() : downloadTemplate()),
+              }}
+            >
+              <Button icon={<FileExcelOutlined />} loading={importing}>
+                Nhập Excel <DownOutlined />
+              </Button>
+            </Dropdown>
+          </div>
 
           <Table
             rowKey="key"
@@ -419,7 +548,7 @@ export function ReceiptFormModal({
             className="receipt-lines"
             pagination={false}
             dataSource={lines}
-            scroll={{ x: 1200 }}
+            scroll={{ x: 1100 }}
             rowClassName={(line) => (issuesByLine.get(line.key)?.some((issue) => issue.level === "error") ? "line-has-error" : "")}
             locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có hàng — quét mã vạch hoặc tìm sản phẩm ở ô phía trên" /> }}
             columns={[
@@ -427,24 +556,38 @@ export function ReceiptFormModal({
               {
                 title: "Sản phẩm",
                 key: "product",
-                width: 260,
+                width: 250,
                 render: (_: unknown, line: DraftLine) => {
                   const product = productById.get(line.productId);
                   const issues = issuesByLine.get(line.key) ?? [];
-                  const meta = [line.productCode, product?.registrationNumber ? `SĐK ${product.registrationNumber}` : null].filter(Boolean).join(" · ");
-                  const origin = [product?.manufacturer, product?.countryOfOrigin].filter(Boolean).join(" · ");
+                  const hasError = issues.some((issue) => issue.level === "error");
+                  const units = product?.units ?? [line.fallbackUnit];
+                  const current = units.find((unit) => unit.id === line.unitId) ?? line.fallbackUnit;
+                  const base = units.find((unit) => unit.conversionToBase === 1);
+                  const info = [
+                    product?.registrationNumber ? `SĐK: ${product.registrationNumber}` : product?.productType === "DRUG" ? "Chưa có số đăng ký" : null,
+                    [product?.manufacturer, product?.countryOfOrigin].filter(Boolean).join(" · ") || null,
+                    product?.storageCondition ? `Bảo quản: ${product.storageCondition}` : null,
+                  ].filter(Boolean);
                   return (
-                    <div className="cell-main">
-                      <strong>{line.productName}</strong>
-                      <span>{meta}</span>
-                      {origin ? <span>{origin}</span> : null}
-                      {product?.storageCondition ? <span>Bảo quản: {product.storageCondition}</span> : null}
-                      {product && !product.registrationNumber && product.productType === "DRUG" ? <span className="text-warning">Thuốc chưa có số đăng ký trong danh mục</span> : null}
-                      {issues.map((issue) => (
-                        <span key={issue.text} className={issue.level === "error" ? "text-danger" : "text-warning"}>
-                          {issue.level === "error" ? <ExclamationCircleFilled /> : <WarningFilled />} {issue.text}
-                        </span>
-                      ))}
+                    <div className="line-product">
+                      <div className="line-product-name">
+                        <Tooltip title={info.length ? info.map((text) => <div key={text}>{text}</div>) : line.productCode}>
+                          <strong>{line.productName}</strong>
+                        </Tooltip>
+                        {line.extraBatch ? <Tag className="extra-batch-tag">Lô bổ sung</Tag> : null}
+                        {issues.length > 0 ? (
+                          <Tooltip title={issues.map((issue) => <div key={issue.text}>{issue.text}</div>)}>
+                            {hasError ? <ExclamationCircleFilled className="text-danger" /> : <WarningFilled className="text-warning" />}
+                          </Tooltip>
+                        ) : null}
+                      </div>
+                      <div className="line-product-meta">
+                        <span>{current.conversionToBase > 1 ? `1 ${current.name.toLowerCase()} = ${formatNumber(current.conversionToBase)} ${(base?.name ?? "đơn vị lẻ").toLowerCase()}` : line.productCode}</span>
+                        <Button type="link" size="small" onClick={() => addBatch(line)}>
+                          + Thêm lô
+                        </Button>
+                      </div>
                     </div>
                   );
                 },
@@ -452,34 +595,30 @@ export function ReceiptFormModal({
               {
                 title: "Đơn vị",
                 key: "unit",
-                width: 130,
+                width: 96,
                 render: (_: unknown, line: DraftLine) => {
                   const units = productById.get(line.productId)?.units.filter((unit) => unit.isActive !== false || unit.id === line.unitId) ?? [line.fallbackUnit];
-                  const current = units.find((unit) => unit.id === line.unitId) ?? line.fallbackUnit;
-                  const base = units.find((unit) => unit.conversionToBase === 1);
-                  return (
-                    <div className="cell-main">
-                      <Select size="small" style={{ width: "100%" }} value={line.unitId} onChange={(unitId) => changeLine(line.key, { unitId })} options={units.map((unit) => ({ value: unit.id, label: unit.name }))} />
-                      {current.conversionToBase > 1 ? <span>= {formatNumber(current.conversionToBase)} {base?.name ?? "đơn vị lẻ"}</span> : null}
-                    </div>
-                  );
+                  return <Select style={{ width: "100%" }} value={line.unitId} onChange={(unitId) => changeLine(line.key, { unitId })} options={units.map((unit) => ({ value: unit.id, label: unit.name }))} popupMatchSelectWidth={false} />;
                 },
               },
               {
-                title: "Số lượng",
+                title: (
+                  <span>
+                    SL nhập <span className="required-mark">*</span>
+                  </span>
+                ),
                 key: "qty",
-                width: 100,
+                width: 96,
                 render: (_: unknown, line: DraftLine) => (
-                  <InputNumber<number> size="small" style={{ width: "100%" }} min={1} precision={0} value={line.quantity} onChange={(value) => changeLine(line.key, { quantity: value ?? 0 })} />
+                  <InputNumber<number> style={{ width: "100%" }} min={1} precision={0} value={line.quantity} status={line.quantity > 0 ? undefined : "error"} onChange={(value) => changeLine(line.key, { quantity: value ?? 0 })} />
                 ),
               },
               {
                 title: "Đơn giá nhập",
                 key: "cost",
-                width: 130,
+                width: 120,
                 render: (_: unknown, line: DraftLine) => (
                   <InputNumber<number>
-                    size="small"
                     style={{ width: "100%" }}
                     min={0}
                     precision={0}
@@ -491,12 +630,15 @@ export function ReceiptFormModal({
                 ),
               },
               {
-                title: "Số lô *",
+                title: (
+                  <span>
+                    Số lô <span className="required-mark">*</span>
+                  </span>
+                ),
                 key: "batch",
-                width: 130,
+                width: 126,
                 render: (_: unknown, line: DraftLine) => (
                   <Input
-                    size="small"
                     value={line.batchNumber}
                     placeholder="Theo bao bì"
                     status={line.batchNumber.trim() && !duplicateKeys.has(line.key) ? undefined : "error"}
@@ -508,12 +650,12 @@ export function ReceiptFormModal({
               {
                 title: "Ngày SX",
                 key: "mfg",
-                width: 140,
+                width: 136,
                 render: (_: unknown, line: DraftLine) => (
                   <DatePicker
-                    size="small"
                     format={DATE_FORMAT}
                     placeholder="dd/mm/yyyy"
+                    status={line.manufactureDate && (line.manufactureDate > today || (line.expiryDate && line.manufactureDate >= line.expiryDate)) ? "error" : undefined}
                     value={line.manufactureDate ? dayjs(line.manufactureDate) : null}
                     disabledDate={(date) => date.isAfter(dayjs(), "day")}
                     onChange={(value) => changeLine(line.key, { manufactureDate: value ? value.format("YYYY-MM-DD") : "" })}
@@ -521,15 +663,18 @@ export function ReceiptFormModal({
                 ),
               },
               {
-                title: "Hạn dùng *",
+                title: (
+                  <span>
+                    Hạn dùng <span className="required-mark">*</span>
+                  </span>
+                ),
                 key: "exp",
-                width: 140,
+                width: 136,
                 render: (_: unknown, line: DraftLine) => {
-                  const invalid = !line.expiryDate || line.expiryDate <= vnDateKey();
+                  const invalid = !line.expiryDate || line.expiryDate <= today;
                   const near = !invalid && daysUntil(line.expiryDate) <= NEAR_EXPIRY_DAYS;
                   return (
                     <DatePicker
-                      size="small"
                       format={DATE_FORMAT}
                       placeholder="dd/mm/yyyy"
                       status={invalid ? "error" : near ? "warning" : undefined}
@@ -540,46 +685,85 @@ export function ReceiptFormModal({
                   );
                 },
               },
-              {
-                title: "Thành tiền",
-                key: "total",
-                width: 120,
-                align: "right",
-                render: (_: unknown, line: DraftLine) => <strong>{formatVnd(line.quantity * line.unitCost)}</strong>,
-              },
+              { title: "Thành tiền", key: "total", width: 110, align: "right", render: (_: unknown, line: DraftLine) => <strong>{formatNumber(line.quantity * line.unitCost)}</strong> },
               {
                 title: "",
-                key: "actions",
-                width: 76,
-                fixed: "right",
+                key: "remove",
+                width: 44,
+                align: "center",
                 render: (_: unknown, line: DraftLine) => (
-                  <span className="row-actions">
-                    <Tooltip title="Tách thêm lô cho sản phẩm này">
-                      <Button type="text" size="small" icon={<CopyOutlined />} aria-label="Tách lô" onClick={() => splitBatch(line)} />
-                    </Tooltip>
-                    <Tooltip title="Xóa dòng">
-                      <Button type="text" size="small" danger icon={<DeleteOutlined />} aria-label="Xóa dòng" onClick={() => setLines((current) => current.filter((item) => item.key !== line.key))} />
-                    </Tooltip>
-                  </span>
+                  <Tooltip title="Xóa dòng">
+                    <Button type="text" danger icon={<DeleteOutlined />} aria-label="Xóa dòng" onClick={() => removeLine(line.key)} />
+                  </Tooltip>
                 ),
               },
             ]}
           />
-
-          <div className="receipt-form-summary">
-            <div className="summary-stats">
-              <span>
-                <strong>{new Set(lines.map((line) => line.productId)).size}</strong> mặt hàng · <strong>{lines.length}</strong> dòng lô
-              </span>
-              {errorLines > 0 ? <Tag color="red">{errorLines} dòng cần sửa</Tag> : null}
-              {warningLines > 0 ? <Tag color="orange">{warningLines} dòng cần lưu ý</Tag> : null}
-            </div>
-            <div className="summary-total">
-              <span>Tổng tiền hàng</span>
-              <strong>{formatVnd(total)}</strong>
-            </div>
+          <div className="receipt-add-row">
+            <Button icon={<PlusOutlined />} onClick={() => searchRef.current?.focus()}>
+              Thêm sản phẩm
+            </Button>
+            <span className="field-hint">Mỗi số lô / hạn dùng là một dòng riêng.</span>
           </div>
         </section>
+
+        <div className="receipt-bottom">
+          <div className="receipt-checks">
+            <h4>
+              {blocked ? <ExclamationCircleFilled className="text-danger" /> : <CheckCircleFilled className="text-success" />} Kiểm tra trước khi lưu
+            </h4>
+            <ul className="check-list">
+              {checks.map((check) => (
+                <li key={check.label} className={check.state === "ok" ? "done" : check.state === "warning" ? "warn" : "fail"}>
+                  {check.state === "ok" ? <CheckCircleFilled /> : check.state === "warning" ? <WarningFilled /> : <ExclamationCircleFilled />}
+                  <span>{check.label}</span>
+                </li>
+              ))}
+              <li className="info">
+                <InfoCircleOutlined />
+                <span>Kiểm nhận thực tế (bao bì, cảm quan) thực hiện sau khi lưu nháp.</span>
+              </li>
+            </ul>
+          </div>
+          <div className="receipt-totals">
+            <div>
+              <strong>Tổng tiền hàng</strong>
+              <strong>{formatVnd(goodsAmount)}</strong>
+            </div>
+            <div>
+              <span>Chiết khấu phiếu</span>
+              <InputNumber<number>
+                min={0}
+                precision={0}
+                value={discountAmount}
+                status={discountTooHigh ? "error" : undefined}
+                suffix="₫"
+                formatter={(value) => (value ? Number(value).toLocaleString("vi-VN") : "0")}
+                parser={(value) => Number((value ?? "").replace(/\D/g, ""))}
+                onChange={(value) => setDiscountAmount(value ?? 0)}
+              />
+            </div>
+            <div>
+              <span>Thuế theo hóa đơn</span>
+              <InputNumber<number>
+                min={0}
+                precision={0}
+                value={vatAmount}
+                suffix="₫"
+                formatter={(value) => (value ? Number(value).toLocaleString("vi-VN") : "0")}
+                parser={(value) => Number((value ?? "").replace(/\D/g, ""))}
+                onChange={(value) => setVatAmount(value ?? 0)}
+              />
+            </div>
+            <div className="receipt-grand-total">
+              <strong>Tổng giá trị phiếu</strong>
+              <strong>{formatVnd(totalAmount)}</strong>
+            </div>
+            <Typography.Text type="secondary" className="field-hint">
+              Chiết khấu và thuế được phân bổ vào giá vốn từng lô theo tỷ lệ thành tiền.
+            </Typography.Text>
+          </div>
+        </div>
       </div>
 
       <QuickSupplierModal

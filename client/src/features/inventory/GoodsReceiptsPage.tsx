@@ -396,10 +396,10 @@ export function GoodsReceiptsPage() {
         open={creating}
         receipt={null}
         onClose={() => setCreating(false)}
-        onSaved={async (id) => {
+        onSaved={async (id, options) => {
           setCreating(false);
           await refreshAll();
-          setOpenId(id);
+          openWith(id, options.inspect ? "inspect" : null);
         }}
       />
     </div>
@@ -580,6 +580,14 @@ function ReceiptDetailPanel({
                   <strong>{formatVnd(receipt.totalCost)}</strong> · {lineCount} mặt hàng
                 </dd>
               </div>
+              {receipt.discountAmount || receipt.vatAmount ? (
+                <div>
+                  <dt>Tiền hàng / CK / thuế</dt>
+                  <dd>
+                    {formatVnd(receipt.goodsAmount)} − {formatVnd(receipt.discountAmount)} + {formatVnd(receipt.vatAmount)}
+                  </dd>
+                </div>
+              ) : null}
               <div>
                 <dt>Người lập</dt>
                 <dd>{receipt.createdBy ? `${receipt.createdBy.fullName}${receipt.createdAt ? ` · ${formatDateTime(receipt.createdAt)}` : ""}` : "—"}</dd>
@@ -676,9 +684,10 @@ function ReceiptDetailPanel({
         open={editOpen}
         receipt={receipt}
         onClose={closeDialogs}
-        onSaved={async () => {
+        onSaved={async (_id, options) => {
           closeDialogs();
           await refresh();
+          if (options.inspect) setInspecting(true);
         }}
       />
       <InspectionModal

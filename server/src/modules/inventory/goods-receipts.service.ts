@@ -24,6 +24,19 @@ type ResolvedLine = {
 };
 
 /**
+ * Tổng giá trị phiếu = tiền hàng − chiết khấu + thuế. Chiết khấu không vượt tiền hàng
+ * (CSDL cũng có CHECK tương ứng).
+ */
+function receiptAmounts(goodsAmount: bigint, discount: number, vat: number) {
+  const discountAmount = BigInt(discount);
+  const vatAmount = BigInt(vat);
+  if (discountAmount > goodsAmount) {
+    throw AppError.validation("Chiết khấu phiếu không được lớn hơn tổng tiền hàng");
+  }
+  return { goodsAmount, discountAmount, vatAmount, totalCost: goodsAmount - discountAmount + vatAmount };
+}
+
+/**
  * Kiểm tra và quy đổi các dòng của phiếu nhập: sản phẩm phải đang kinh
  * doanh, đơn vị phải thuộc đúng sản phẩm. Dùng chung cho tạo mới và sửa,
  * để hai chỗ không lệch luật với nhau.
@@ -93,7 +106,11 @@ export async function createDraft(
 
   const receipt = await prisma.$transaction(async (tx) => {
     const lines = await resolveLines(tx, input.lines);
-    const totalCost = lines.reduce((sum, line) => sum + line.lineCost, 0n);
+    const amounts = receiptAmounts(
+      lines.reduce((sum, line) => sum + line.lineCost, 0n),
+      input.discountAmount,
+      input.vatAmount,
+    );
 
     return tx.goodsReceipt.create({
       data: {
@@ -105,7 +122,7 @@ export async function createDraft(
         supplierInvoiceDate: input.supplierInvoiceDate ?? null,
         receivedAt: input.receivedAt,
         note: input.note ?? null,
-        totalCost,
+        ...amounts,
         createdBy: userId,
         lines: { create: lines },
       },
@@ -130,7 +147,19 @@ export async function updateDraft(
     // Kiểm tra và quy đổi dòng mới trước, để lỗi dữ liệu dừng sớm, chưa
     // đụng gì tới phiếu.
     const lines = input.lines ? await resolveLines(tx, input.lines) : null;
-    const totalCost = lines ? lines.reduce((sum, line) => sum + line.lineCost, 0n) : undefined;
+    // Đổi dòng, chiết khấu hay thuế đều phải tính lại tổng; phần không gửi lấy theo phiếu hiện tại.
+    const current = await tx.goodsReceipt.findFirst({
+      where: { id: receiptId, storeId },
+      select: { goodsAmount: true, discountAmount: true, vatAmount: true },
+    });
+    const amounts =
+      current && (lines || input.discountAmount !== undefined || input.vatAmount !== undefined)
+        ? receiptAmounts(
+            lines ? lines.reduce((sum, line) => sum + line.lineCost, 0n) : current.goodsAmount,
+            input.discountAmount ?? Number(current.discountAmount),
+            input.vatAmount ?? Number(current.vatAmount),
+          )
+        : undefined;
 
     const moved = await tx.goodsReceipt.updateMany({
       where: { id: receiptId, storeId, status: "DRAFT", version: input.version },
@@ -144,7 +173,7 @@ export async function updateDraft(
           : {}),
         ...(input.receivedAt !== undefined ? { receivedAt: input.receivedAt } : {}),
         ...(input.note !== undefined ? { note: input.note } : {}),
-        ...(totalCost !== undefined ? { totalCost } : {}),
+        ...(amounts ?? {}),
         version: { increment: 1 },
       },
     });
@@ -216,6 +245,12 @@ export async function confirm(
         where: { goodsReceiptId: receiptId },
         orderBy: { lineNo: "asc" },
       });
+      // Chiết khấu và thuế của cả hóa đơn phân bổ vào giá vốn từng dòng theo tỷ lệ thành tiền.
+      const header = await tx.goodsReceipt.findUniqueOrThrow({
+        where: { id: receiptId },
+        select: { goodsAmount: true, totalCost: true },
+      });
+      const costFactor = header.goodsAmount > 0n ? Number(header.totalCost) / Number(header.goodsAmount) : 1;
 
       const resultByLineId = new Map(input.lines.map((line) => [line.lineId, line]));
       for (const line of lines) {
@@ -280,7 +315,7 @@ export async function confirm(
               manufactureDate: line.manufactureDate,
               expiryDate: line.expiryDate,
               quantityOnHand: line.baseQuantity,
-              unitCost: (Number(line.lineCost) / line.baseQuantity).toFixed(4),
+              unitCost: ((Number(line.lineCost) * costFactor) / line.baseQuantity).toFixed(4),
               status: result.passed ? "AVAILABLE" : "QUARANTINED",
               note: result.passed ? null : result.rejectReason,
               sourceType: "GOODS_RECEIPT",
@@ -386,6 +421,9 @@ export async function getDetail(storeId: string, receiptId: string) {
     supplierInvoiceDate: receipt.supplierInvoiceDate,
     receivedAt: receipt.receivedAt,
     note: receipt.note,
+    goodsAmount: receipt.goodsAmount,
+    discountAmount: receipt.discountAmount,
+    vatAmount: receipt.vatAmount,
     totalCost: receipt.totalCost,
     version: receipt.version,
     createdAt: receipt.createdAt,

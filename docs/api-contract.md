@@ -561,6 +561,12 @@ Ví dụ tạo phiếu:
 
 Khi tạo hoặc sửa, backend kiểm tra: sản phẩm đang kinh doanh, `unitId` thuộc sản phẩm, `expiryDate` sau ngày hiện tại, số lượng là số nguyên dương. Backend tự tính số lượng theo đơn vị nhỏ nhất và thành tiền từng dòng.
 
+### Chiết khấu phiếu và thuế theo hóa đơn
+
+- `POST`/`PATCH /goods-receipts` nhận thêm `discountAmount` và `vatAmount` (số nguyên đồng, ≥ 0, mặc định 0).
+- Phiếu lưu `goodsAmount` (tổng thành tiền các dòng), `discountAmount`, `vatAmount` và `totalCost = goodsAmount − discountAmount + vatAmount`. Chiết khấu vượt tiền hàng → `422 VALIDATION_ERROR`.
+- Khi confirm, giá vốn lô mới = thành tiền dòng × `totalCost / goodsAmount` ÷ số lượng quy đổi: chiết khấu và thuế phân bổ theo tỷ lệ giá trị từng dòng (nhà thuốc không khấu trừ thuế nên thuế tính vào giá vốn).
+
 ### Kiểm nhập cảm quan khi confirm [Đã chốt]
 
 Thực hành GPP yêu cầu người xác nhận (dược sĩ phụ trách) kiểm tra hạn dùng, bao bì và chất lượng cảm quan **trước khi** hàng được coi là bán được — không chỉ là trách nhiệm ngầm định. Vì vậy `POST /goods-receipts/{id}/confirm` bắt buộc gửi kèm kết quả kiểm nhập từng dòng:

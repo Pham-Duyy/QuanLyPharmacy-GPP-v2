@@ -18,6 +18,8 @@ export const createReceiptSchema = z.object({
   supplierInvoiceDate: z.coerce.date().nullish(),
   receivedAt: z.coerce.date().default(() => new Date()),
   note: z.string().trim().max(500).nullish(),
+  discountAmount: z.coerce.number().int().min(0, "Chiết khấu không được âm").default(0),
+  vatAmount: z.coerce.number().int().min(0, "Thuế không được âm").default(0),
   lines: z.array(lineSchema).min(1, "Phiếu nhập phải có ít nhất một dòng"),
 });
 
@@ -60,6 +62,8 @@ export const patchReceiptSchema = z.object({
   supplierInvoiceDate: z.coerce.date().nullish(),
   receivedAt: z.coerce.date().optional(),
   note: z.string().trim().max(500).nullish(),
+  discountAmount: z.coerce.number().int().min(0, "Chiết khấu không được âm").optional(),
+  vatAmount: z.coerce.number().int().min(0, "Thuế không được âm").optional(),
   lines: z.array(lineSchema).min(1, "Phiếu nhập phải có ít nhất một dòng").optional(),
 });
 

@@ -346,7 +346,7 @@ async function seedOpeningBalance(storeId: string, adminId: string) {
         }
       }
 
-      await tx.goodsReceipt.update({ where: { id: receipt.id }, data: { totalCost } });
+      await tx.goodsReceipt.update({ where: { id: receipt.id }, data: { goodsAmount: totalCost, totalCost } });
     },
     { timeout: 30_000 },
   );
