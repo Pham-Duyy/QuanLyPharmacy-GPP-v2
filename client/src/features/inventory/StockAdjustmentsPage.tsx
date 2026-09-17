@@ -1,4 +1,4 @@
-import { CheckOutlined, CloseOutlined, DeleteOutlined, FileSearchOutlined, PlusOutlined, StopOutlined, SwapOutlined } from "@ant-design/icons";
+import { CheckOutlined, CloseOutlined, DeleteOutlined, FileSearchOutlined, PlusOutlined, PrinterOutlined, StopOutlined, SwapOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, App, AutoComplete, Button, Card, Empty, Input, InputNumber, Modal, Segmented, Select, Skeleton, Table, Tag } from "antd";
 import { useEffect, useState } from "react";
@@ -8,6 +8,8 @@ import { formatDateTime, formatNumber } from "../../ui/format.js";
 import { PageHeader } from "../../ui/PageHeader.js";
 import { PanelEmpty } from "../../ui/PanelEmpty.js";
 import { useAuth } from "../auth/AuthProvider.js";
+import { printDocument, printUrl } from "../printing/printing.js";
+import { PrintPreviewModal } from "../printing/PrintPreviewModal.js";
 
 const STATUS: Record<StockAdjustmentListItem["status"], { text: string; color: string }> = {
   DRAFT: { text: "Chờ duyệt", color: "gold" },
@@ -118,6 +120,7 @@ function AdjustmentPanel({ id, onClose, onChanged }: { id: string | null; onClos
   const { can } = useAuth();
   const { message } = App.useApp();
   const [rejecting, setRejecting] = useState(false);
+  const [previewing, setPreviewing] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const queryClient = useQueryClient();
 
@@ -171,11 +174,20 @@ function AdjustmentPanel({ id, onClose, onChanged }: { id: string | null; onClos
 
   return (
     <>
+      <PrintPreviewModal url={previewing ? printUrl.stockAdjustment(id) : null} title={`Xem trước phiếu ${adjustment?.code ?? ""}`} onClose={() => setPreviewing(false)} />
       <Card
         title={adjustment ? <span className="mono">{adjustment.code}</span> : "Chi tiết phiếu điều chỉnh"}
         extra={
           <span className="row-actions">
             {adjustment ? <Tag color={STATUS[adjustment.status].color}>{STATUS[adjustment.status].text}</Tag> : null}
+            {adjustment ? (
+              <>
+                <Button size="small" icon={<FileSearchOutlined />} onClick={() => setPreviewing(true)} aria-label="Xem trước bản in" title="Xem trước bản in" />
+                <Button size="small" icon={<PrinterOutlined />} onClick={() => void printDocument(printUrl.stockAdjustment(adjustment.id), message)}>
+                  In
+                </Button>
+              </>
+            ) : null}
             <Button type="text" size="small" onClick={onClose}>
               Đóng
             </Button>

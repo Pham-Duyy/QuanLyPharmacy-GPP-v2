@@ -84,7 +84,11 @@ describe("Mẫu in hóa đơn", () => {
     expect(audit?.storeId).toBe(fixture.storeId);
 
     // Lưu lần hai cập nhật đúng bản ghi cũ, không sinh bản ghi trùng.
-    await api().put(URL).set(h()).send(template({ title: "PHIẾU THANH TOÁN" })).expect(200);
+    await api()
+      .put(URL)
+      .set(h())
+      .send(template({ title: "PHIẾU THANH TOÁN" }))
+      .expect(200);
     expect(await prisma.setting.count({ where: { key: "invoicePrintTemplate" } })).toBe(1);
   });
 
@@ -124,7 +128,9 @@ describe("Mẫu in hóa đơn", () => {
       .send(template({ logo: `data:image/png;base64,${PNG_1PX}` }))
       .expect(200);
 
-    const svg = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>');
+    const svg = Buffer.from(
+      '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>',
+    );
     await api()
       .put(URL)
       .set(h())

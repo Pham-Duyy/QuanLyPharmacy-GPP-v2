@@ -12,8 +12,8 @@ import { PageHeader } from "../../ui/PageHeader.js";
 import { StatCard, StatGrid, Trend } from "../../ui/StatCard.js";
 import { useDebounced } from "../../ui/useDebounced.js";
 import { useAuth } from "../auth/AuthProvider.js";
-import { InvoicePrintPreview } from "./InvoicePrintPreview.js";
-import { printInvoice } from "./print-invoice.js";
+import { printInvoice, printUrl } from "../printing/printing.js";
+import { PrintPreviewModal } from "../printing/PrintPreviewModal.js";
 import { ReturnModal } from "./ReturnModal.js";
 
 type StatusFilter = "ALL" | "COMPLETED" | "VOIDED";
@@ -335,7 +335,7 @@ export function InvoicesPage() {
         ) : null}
       </div>
 
-      <InvoicePrintPreview invoiceId={previewing?.id ?? null} code={previewing?.code} onClose={() => setPreviewing(null)} />
+      <PrintPreviewModal url={previewing ? printUrl.invoice(previewing.id) : null} title={`Xem trước hóa đơn ${previewing?.code ?? ""}`} onClose={() => setPreviewing(null)} />
 
       {detail.data ? <ReturnModal invoice={detail.data} open={returning} onClose={() => setReturning(false)} /> : null}
 

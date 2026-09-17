@@ -52,7 +52,7 @@ import {
 import { PageHeader } from "../../ui/PageHeader.js";
 import { useDebounced } from "../../ui/useDebounced.js";
 import { useAuth } from "../auth/AuthProvider.js";
-import { printInvoice } from "./print-invoice.js";
+import { printInvoice } from "../printing/printing.js";
 
 type CartLine = {
   key: string;

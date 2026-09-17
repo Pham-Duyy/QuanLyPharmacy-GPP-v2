@@ -136,12 +136,15 @@ invoicesRouter.get("/invoices/:id/print", requirePermission("invoice.read"), asy
     service.getDetail(storeId, String(req.params.id)),
     getEffectiveTemplate(storeId),
   ]);
-  res.type("html").send(
-    renderInvoicePrintHtml(invoice, effective.template, {
-      paperSize: format,
-      autoPrint: req.query["autoprint"] !== "0",
-    }),
-  );
+  res
+    .set("X-Paper-Size", format ?? effective.template.paperSize)
+    .type("html")
+    .send(
+      renderInvoicePrintHtml(invoice, effective.template, {
+        paperSize: format,
+        autoPrint: req.query["autoprint"] !== "0",
+      }),
+    );
 });
 
 invoicesRouter.post(

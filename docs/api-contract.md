@@ -537,6 +537,7 @@ Phiếu nhập ghi nhận hàng **thực nhận** từ nhà cung cấp. Đơn đ
 | PATCH | `/goods-receipts/{id}` | Sửa khi còn `DRAFT`; cần `version` | `goods_receipt.create` |
 | POST | `/goods-receipts/{id}/confirm` | Kiểm nhập và xác nhận; cần `Idempotency-Key` | `goods_receipt.confirm` |
 | POST | `/goods-receipts/{id}/cancel` | Hủy phiếu `DRAFT`; bắt buộc `reason` | `goods_receipt.confirm` |
+| GET | `/goods-receipts/{id}/print` | HTML phiếu nhập kho theo mẫu in của cửa hàng (xem §21 Cài đặt – Mẫu in phiếu) | `goods_receipt.read` |
 
 Ví dụ tạo phiếu:
 
@@ -998,6 +999,29 @@ Bắt buộc `X-Store-Id`: mỗi cửa hàng (chi nhánh) có mẫu in riêng, l
 `template`: `paperSize` (`K80` | `K58` | `A5`), `logo` (data URL PNG/JPEG ≤ 300 KB hoặc `null`; kiểm tra theo nội dung byte, xóa EXIF, không nhận SVG), `companyName`, `storeName` (bắt buộc), `address`, `phone`, `taxCode`, `title` (bắt buộc), `footer`, `display` gồm các cờ `logo`, `customer`, `seller`, `unit`, `discount`, `paymentMethod`, `cashChange`.
 
 Xem trước, in thử và in thật dùng chung một hàm render ở server. Bản in là phiếu bán hàng tại quầy, không thay thế hóa đơn điện tử.
+
+### Cài đặt – Mẫu in phiếu
+
+Phần đầu (logo, tên đơn vị, địa chỉ, điện thoại, MST) của mọi chứng từ lấy từ Mẫu in hóa đơn. Cài đặt riêng từng loại phiếu lưu ở khóa `documentPrintSettings`, theo cửa hàng.
+
+| Method | Endpoint | Mô tả | Quyền |
+|---|---|---|---|
+| GET | `/settings/document-print` | `{ settings, isDefault, updatedAt }`; loại phiếu chưa lưu hoặc lưu hỏng dùng mặc định | `settings.manage` |
+| PUT | `/settings/document-print` | Lưu cả ba loại phiếu; ghi audit `SETTING_UPDATE` | `settings.manage` |
+| POST | `/settings/document-print/preview` | Body `{ type, settings }`, trả HTML phiếu mẫu; không tạo chứng từ | `settings.manage` |
+
+`settings` gồm `goodsReceipt`, `return`, `stockAdjustment`; mỗi loại có `paperSize`, `title` (bắt buộc), `footer`, `showSignatures`, `showAmountInWords`, `showNote`. Khổ giấy cho phép: phiếu nhập và phiếu điều chỉnh `A4`/`A5`; phiếu trả `K80`/`K58`/`A5`/`A4`.
+
+Trang in của từng chứng từ:
+
+| Method | Endpoint | Quyền |
+|---|---|---|
+| GET | `/invoices/{id}/print` | `invoice.read` |
+| GET | `/goods-receipts/{id}/print` | `goods_receipt.read` |
+| GET | `/returns/{id}/print` | `invoice.read` |
+| GET | `/stock-adjustments/{id}/print` | `stock.read` |
+
+Mọi trang in bắt buộc `X-Store-Id`, chỉ đọc dữ liệu (in lại bao nhiêu lần cũng không đổi chứng từ, tồn kho, thanh toán), nhận `?autoprint=0` để không tự bật hộp thoại in, và trả header `X-Paper-Size` cho giao diện hiển thị đúng khổ. Phiếu nháp, đã hủy, đã từ chối được in kèm dòng cảnh báo trạng thái ở đầu phiếu.
 
 ---
 

@@ -9,6 +9,8 @@ import { idempotency } from "../../middlewares/idempotency.js";
 import { requirePermission } from "../../middlewares/require-permission.js";
 import { requireStore, storeContext } from "../../middlewares/store-context.js";
 import { createReturnSchema } from "./returns.schema.js";
+import { loadReturnDocument } from "../printing/documents.js";
+import { sendDocumentPrint } from "../printing/send-print.js";
 import * as service from "./returns.service.js";
 
 export const returnsRouter = Router();
@@ -90,4 +92,9 @@ returnsRouter.get("/returns", requirePermission("invoice.read"), async (req, res
 
 returnsRouter.get("/returns/:id", requirePermission("invoice.read"), async (req, res) => {
   sendData(res, await service.getDetail(req.auth!.storeId!, String(req.params.id)));
+});
+
+/** GET /api/v1/returns/{id}/print: in phiếu trả hàng theo mẫu của cửa hàng. */
+returnsRouter.get("/returns/:id/print", requirePermission("invoice.read"), async (req, res) => {
+  await sendDocumentPrint(req, res, "return", loadReturnDocument);
 });

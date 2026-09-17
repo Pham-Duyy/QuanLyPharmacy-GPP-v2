@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import type { PaperSize } from "../../api/types.js";
 
 /** Bề rộng khổ giấy theo px CSS (96dpi): 1mm = 3.7795px. */
-const PAPER_PX: Record<PaperSize, number> = { K80: 302, K58: 219, A5: 559 };
+const PAPER_PX: Record<PaperSize, number> = { K80: 302, K58: 219, A5: 559, A4: 794 };
 
 type PrintPaperProps = {
   html: string | undefined;
