@@ -91,6 +91,7 @@ model User {
   prescriptionsCreated   Prescription[]          @relation("PrescriptionCreatedBy")
   prescriptionsVerified  Prescription[]          @relation("PrescriptionVerifiedBy")
   prescriptionImages     PrescriptionImage[]
+  productImages          ProductImage[]
   storageLogs            StorageLog[]
   healthProfilesUpdated  CustomerHealthProfile[]
   stockMovements         StockMovement[]
@@ -302,10 +303,33 @@ model Product {
   prescriptionItems  PrescriptionItem[]
   stockMovements     StockMovement[]
   recallItems        RecallItem[]
+  images             ProductImage[]
 
   @@index([categoryId])
   @@index([productType, drugClass])
   @@map("products")
+}
+
+/// Ảnh nhận diện sản phẩm (danh mục dùng chung toàn chuỗi). Tệp nằm ở
+/// storage/products, không phục vụ tĩnh; chỉ xem qua URL có chữ ký.
+/// Chỉ mục duy nhất từng phần bảo đảm mỗi sản phẩm có tối đa một ảnh chính.
+model ProductImage {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  productId   String   @map("product_id") @db.Uuid
+  storageKey  String   @map("storage_key")
+  thumbKey    String   @map("thumb_key")
+  contentType String   @map("content_type")
+  sizeBytes   Int      @map("size_bytes")
+  isPrimary   Boolean  @default(false) @map("is_primary")
+  sortOrder   Int      @default(0) @map("sort_order")
+  uploadedBy  String   @map("uploaded_by") @db.Uuid
+  uploadedAt  DateTime @default(now()) @map("uploaded_at") @db.Timestamptz(6)
+
+  product        Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  uploadedByUser User    @relation(fields: [uploadedBy], references: [id])
+
+  @@index([productId, sortOrder])
+  @@map("product_images")
 }
 
 model ProductIngredient {

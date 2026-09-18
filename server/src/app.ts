@@ -16,6 +16,7 @@ import { ingredientsRouter } from "./modules/catalog/ingredients.routes.js";
 import { suppliersRouter } from "./modules/catalog/suppliers.routes.js";
 import { customersRouter } from "./modules/customers/customers.routes.js";
 import { productsRouter } from "./modules/catalog/products.routes.js";
+import { productImagesRouter } from "./modules/catalog/product-images.routes.js";
 import { unitsRouter } from "./modules/catalog/units.routes.js";
 import { pricesRouter } from "./modules/catalog/prices.routes.js";
 import { goodsReceiptsRouter } from "./modules/inventory/goods-receipts.routes.js";
@@ -82,6 +83,7 @@ export function createApp() {
   app.use("/api/v1", suppliersRouter);
   app.use("/api/v1", customersRouter);
   app.use("/api/v1", productsRouter);
+  app.use("/api/v1", productImagesRouter);
   app.use("/api/v1", unitsRouter);
   app.use("/api/v1", pricesRouter);
   app.use("/api/v1", goodsReceiptsRouter);
