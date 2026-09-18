@@ -1,4 +1,5 @@
 import { Router } from "express";
+import multer from "multer";
 import { z } from "zod";
 import { prisma } from "../../db/prisma.js";
 import { AppError } from "../../lib/app-error.js";
@@ -11,11 +12,19 @@ import { authenticate } from "../../middlewares/authenticate.js";
 import { requirePermission } from "../../middlewares/require-permission.js";
 import { storeContext } from "../../middlewares/store-context.js";
 import { searchProductIds } from "./search.js";
+import * as images from "./product-images.service.js";
 import { getCurrentPrices, getStockSummary } from "./products.service.js";
 
 export const productsRouter = Router();
 // Giới hạn theo tiền tố thật sự dùng, cùng lý do đã ghi ở categories.routes.ts.
 productsRouter.use("/products", authenticate, storeContext);
+
+const EMPTY_STOCK = { sellable: 0, quarantined: 0, recalled: 0, expired: 0 };
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: images.MAX_IMAGE_BYTES, files: 2 },
+});
 
 const PRODUCT_TYPES = ["DRUG", "SUPPLEMENT", "MEDICAL_DEVICE", "COSMETIC", "OTHER"] as const;
 const DRUG_CLASSES = ["OTC", "RX", "CONTROLLED"] as const;
@@ -76,7 +85,8 @@ productsRouter.get("/products", requirePermission("catalog.read"), async (req, r
     ...(ids ? { id: { in: ids } } : {}),
     ...(query["categoryId"] ? { categoryId: query["categoryId"] } : {}),
     ...(query["productType"] ? { productType: query["productType"] } : {}),
-    ...(query["drugClass"] ? { drugClass: query["drugClass"] } : {}),
+    // "RX,CONTROLLED" để lọc chung nhóm thuốc phải có đơn.
+    ...(query["drugClass"] ? { drugClass: { in: query["drugClass"].split(",") } } : {}),
   };
 
   const [products, total] = await Promise.all([
@@ -96,7 +106,7 @@ productsRouter.get("/products", requirePermission("catalog.read"), async (req, r
 
   const storeId = req.auth?.storeId ?? null;
   const unitIds = products.flatMap((product) => product.units.map((unit) => unit.id));
-  const [prices, stock] = await Promise.all([
+  const [prices, stock, primaryImages] = await Promise.all([
     getCurrentPrices(unitIds, storeId),
     storeId
       ? getStockSummary(
@@ -104,6 +114,7 @@ productsRouter.get("/products", requirePermission("catalog.read"), async (req, r
           storeId,
         )
       : new Map(),
+    images.primaryImagesFor(products.map((p) => p.id)),
   ]);
 
   const items = products.map((product) => {
@@ -111,6 +122,9 @@ productsRouter.get("/products", requirePermission("catalog.read"), async (req, r
       product.units.find((unit) => unit.isDefaultSaleUnit) ??
       product.units.find((unit) => unit.conversionToBase === 1);
     const price = defaultUnit ? prices.get(defaultUnit.id) : undefined;
+    const baseUnit = product.units.find((unit) => unit.conversionToBase === 1);
+    // Có chọn cửa hàng mà chưa có lô nào thì tồn thật sự là 0, không phải "không rõ".
+    const productStock = stock.get(product.id) ?? (storeId ? EMPTY_STOCK : null);
 
     return {
       id: product.id,
@@ -142,7 +156,14 @@ productsRouter.get("/products", requirePermission("catalog.read"), async (req, r
             isStoreOverride: price.isStoreOverride,
           }
         : null,
-      stock: stock.get(product.id) ?? null,
+      baseUnit: baseUnit ? { id: baseUnit.id, name: baseUnit.name } : null,
+      stock: productStock,
+      // Cùng quy tắc với cảnh báo tồn thấp ở Tồn kho / Tổng quan.
+      isBelowMinStock:
+        productStock !== null &&
+        product.minStockBaseQuantity > 0 &&
+        productStock.sellable < product.minStockBaseQuantity,
+      primaryImage: primaryImages.get(product.id) ?? null,
     };
   });
 
@@ -162,12 +183,13 @@ productsRouter.get("/products/:id", requirePermission("catalog.read"), async (re
   if (!product) throw AppError.notFound("Không tìm thấy sản phẩm");
 
   const storeId = req.auth?.storeId ?? null;
-  const [prices, stock] = await Promise.all([
+  const [prices, stock, productImages] = await Promise.all([
     getCurrentPrices(
       product.units.map((unit) => unit.id),
       storeId,
     ),
     storeId ? getStockSummary([product.id], storeId) : new Map(),
+    images.listImages(product.id),
   ]);
 
   sendData(res, {
@@ -188,7 +210,8 @@ productsRouter.get("/products/:id", requirePermission("catalog.read"), async (re
       barcodes: unit.barcodes.map((barcode) => barcode.barcode),
       currentPrice: prices.get(unit.id) ?? null,
     })),
-    stock: stock.get(product.id) ?? null,
+    stock: stock.get(product.id) ?? (storeId ? EMPTY_STOCK : null),
+    images: productImages,
   });
 });
 
@@ -280,3 +303,56 @@ for (const [action, isActive] of [
     },
   );
 }
+
+/** POST /api/v1/products/{id}/images: tải ảnh (field `file`, tùy chọn `thumb` đã thu nhỏ). */
+productsRouter.post(
+  "/products/:id/images",
+  requirePermission("catalog.manage"),
+  upload.fields([
+    { name: "file", maxCount: 1 },
+    { name: "thumb", maxCount: 1 },
+  ]),
+  async (req, res) => {
+    const files = req.files as Record<string, Express.Multer.File[] | undefined> | undefined;
+    const file = files?.["file"]?.[0];
+    if (!file) {
+      throw new AppError(
+        400,
+        "BAD_REQUEST",
+        "Thiếu tệp, gửi dạng multipart/form-data với field file",
+      );
+    }
+    // Hai lượt tải ảnh đầu tiên cùng lúc có thể cùng muốn làm ảnh chính: trả 409 thay vì 500.
+    const image = await withMappedErrors(
+      () =>
+        images.uploadImage(
+          String(req.params.id),
+          req.auth!.userId,
+          file.buffer,
+          files?.["thumb"]?.[0]?.buffer,
+        ),
+      { conflictMessage: "Ảnh vừa được cập nhật ở nơi khác, hãy thử lại" },
+    );
+    sendData(res, image, 201);
+  },
+);
+
+productsRouter.post(
+  "/products/:id/images/:imageId/primary",
+  requirePermission("catalog.manage"),
+  async (req, res) => {
+    const productId = String(req.params.id);
+    await images.setPrimary(productId, String(req.params.imageId), req.auth!.userId);
+    sendData(res, await images.listImages(productId));
+  },
+);
+
+productsRouter.delete(
+  "/products/:id/images/:imageId",
+  requirePermission("catalog.manage"),
+  async (req, res) => {
+    const productId = String(req.params.id);
+    await images.removeImage(productId, String(req.params.imageId), req.auth!.userId);
+    sendData(res, await images.listImages(productId));
+  },
+);

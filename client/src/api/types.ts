@@ -111,6 +111,17 @@ export type StockLedgerEntry = {
 
 export type StockLedgerPage = { items: StockLedgerEntry[]; nextCursor: string | null };
 
+/** Ảnh sản phẩm; URL đã ký sẵn ở server, dùng thẳng trong thẻ <img>. */
+export type ProductImage = {
+  id: string;
+  isPrimary: boolean;
+  sortOrder: number;
+  sizeBytes: number;
+  uploadedAt: string;
+  url: string;
+  thumbUrl: string;
+};
+
 export type ProductListItem = {
   id: string;
   code: string;
@@ -121,9 +132,15 @@ export type ProductListItem = {
   dosageForm: string | null;
   strengthText: string | null;
   ingredients: Array<{ name: string; strengthText: string | null }>;
+  minStockBaseQuantity: number;
+  isActive: boolean;
   defaultUnit: ProductUnit | null;
+  baseUnit: { id: string; name: string } | null;
   currentPrice: CurrentPrice | null;
+  /** `null` khi chưa chọn cửa hàng; đã chọn cửa hàng mà chưa có lô thì là 0. */
   stock: StockSummary | null;
+  isBelowMinStock: boolean;
+  primaryImage: ProductImage | null;
 };
 
 export type ProductDetail = {
@@ -141,10 +158,12 @@ export type ProductDetail = {
   storageCondition?: string | null;
   category: { id: string; name: string };
   minStockBaseQuantity: number;
+  isActive: boolean;
   version: number;
   units: ProductUnit[];
   ingredients: Array<{ ingredientId: string; name: string; strengthText: string | null }>;
   stock: StockSummary | null;
+  images: ProductImage[];
 };
 
 export type CategoryItem = {

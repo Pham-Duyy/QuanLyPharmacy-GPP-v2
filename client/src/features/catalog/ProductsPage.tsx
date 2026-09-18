@@ -1,87 +1,345 @@
-import { BarcodeOutlined, DollarOutlined, EditOutlined, FileSearchOutlined, MedicineBoxOutlined, PlusOutlined } from "@ant-design/icons";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { App, Button, Card, Col, Empty, Form, Input, InputNumber, Modal, Row, Segmented, Select, Skeleton, Table, Tag, Typography } from "antd";
+import { AppstoreOutlined, FilterOutlined, MedicineBoxOutlined, PlusOutlined, SearchOutlined, UnorderedListOutlined, WarningFilled } from "@ant-design/icons";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { Badge, Button, Drawer, Empty, Grid, Input, Pagination, Popover, Result, Select, Skeleton, Switch, Tooltip } from "antd";
 import { useState } from "react";
+import type { ReactNode } from "react";
 import { useSearchParams } from "react-router";
 import { getErrorMessage, http } from "../../api/http.js";
-import { formatVnd, type ActiveIngredientItem, type CategoryItem, type Envelope, type Paged, type ProductDetail, type ProductListItem, type ProductUnit } from "../../api/types.js";
-import { formatNumber } from "../../ui/format.js";
+import type { CategoryItem, Envelope, Paged, ProductListItem } from "../../api/types.js";
 import { PageHeader } from "../../ui/PageHeader.js";
-import { PanelEmpty } from "../../ui/PanelEmpty.js";
 import { useDebounced } from "../../ui/useDebounced.js";
 import { useAuth } from "../auth/AuthProvider.js";
+import { ClassBadge } from "./products/ClassBadge.js";
+import { priceText, stockText, subtitle } from "./products/product-labels.js";
+import { ProductDetailPanel } from "./products/ProductDetailPanel.js";
+import { ProductFormModal } from "./products/ProductModals.js";
+import { ProductThumb } from "./products/ProductThumb.js";
 
-const DRUG_CLASS: Record<string, { text: string; color: string }> = {
-  OTC: { text: "Không kê đơn", color: "green" },
-  RX: { text: "Kê đơn", color: "orange" },
-  CONTROLLED: { text: "Kiểm soát đặc biệt", color: "red" },
+type Tab = "ALL" | "RX" | "OTC" | "SUPPLEMENT" | "MEDICAL_DEVICE";
+type View = "list" | "grid";
+type Sort = "name" | "code" | "newest";
+
+const TABS: Array<{ key: Tab; label: string }> = [
+  { key: "ALL", label: "Tất cả" },
+  { key: "RX", label: "Kê đơn" },
+  { key: "OTC", label: "Không kê đơn" },
+  { key: "SUPPLEMENT", label: "TPCN" },
+  { key: "MEDICAL_DEVICE", label: "Thiết bị y tế" },
+];
+
+const TAB_PARAMS: Record<Tab, Record<string, string>> = {
+  ALL: {},
+  // "Kê đơn" gồm cả thuốc kiểm soát đặc biệt — đều phải có đơn.
+  RX: { productType: "DRUG", drugClass: "RX,CONTROLLED" },
+  OTC: { productType: "DRUG", drugClass: "OTC" },
+  SUPPLEMENT: { productType: "SUPPLEMENT" },
+  MEDICAL_DEVICE: { productType: "MEDICAL_DEVICE" },
 };
 
-const PRODUCT_TYPE: Record<string, string> = {
-  DRUG: "Thuốc",
-  SUPPLEMENT: "Thực phẩm bảo vệ sức khỏe",
-  MEDICAL_DEVICE: "Thiết bị y tế",
-  COSMETIC: "Mỹ phẩm",
-  OTHER: "Khác",
+const SORTS: Record<Sort, { label: string; sortBy: string; order: "asc" | "desc" }> = {
+  name: { label: "Tên A → Z", sortBy: "name", order: "asc" },
+  code: { label: "Mã sản phẩm", sortBy: "code", order: "asc" },
+  newest: { label: "Mới thêm gần đây", sortBy: "createdAt", order: "desc" },
 };
 
-type TypeFilter = "ALL" | "RX" | "OTC" | "SUPPLEMENT" | "MEDICAL_DEVICE";
+const PAGE_SIZE = 20;
+const VIEW_KEY = "gpp.products.view";
 
-type ProductForm = {
-  code: string;
-  name: string;
-  productType: "DRUG" | "SUPPLEMENT" | "MEDICAL_DEVICE" | "COSMETIC" | "OTHER";
-  drugClass?: "OTC" | "RX" | "CONTROLLED";
-  categoryId: string;
-  baseUnitName: string;
-  minStockBaseQuantity?: number;
-  ingredients?: string[];
-};
+function readView(): View {
+  try {
+    return window.localStorage.getItem(VIEW_KEY) === "grid" ? "grid" : "list";
+  } catch {
+    return "list";
+  }
+}
 
-function ClassTag({ productType, drugClass }: { productType: string; drugClass: string | null }) {
-  const info = drugClass ? DRUG_CLASS[drugClass] : null;
-  return info ? <Tag color={info.color}>{info.text}</Tag> : <Tag>{PRODUCT_TYPE[productType] ?? "Không phải thuốc"}</Tag>;
+function PriceCell({ item }: { item: ProductListItem }) {
+  const text = priceText(item.currentPrice?.salePrice, item.defaultUnit?.name);
+  if (!item.defaultUnit) return <span className="muted">Chưa có đơn vị bán</span>;
+  return text ? <span className="price-text">{text}</span> : <span className="muted">Chưa đặt giá</span>;
+}
+
+function StockCell({ item }: { item: ProductListItem }) {
+  if (!item.stock) return <span className="muted">—</span>;
+  const quantity = item.stock.sellable;
+  return (
+    <span className="stock-cell">
+      <strong className={quantity === 0 || item.isBelowMinStock ? "is-warning" : undefined}>{stockText(quantity, item.baseUnit?.name)}</strong>
+      {quantity === 0 ? (
+        <span className="stock-flag">
+          <WarningFilled aria-hidden /> Hết hàng
+        </span>
+      ) : item.isBelowMinStock ? (
+        <span className="stock-flag">
+          <WarningFilled aria-hidden /> Tồn thấp
+        </span>
+      ) : null}
+    </span>
+  );
 }
 
 /** Danh mục dùng chung toàn chuỗi. Tồn kho hiển thị theo cửa hàng đang chọn. */
 export function ProductsPage() {
-  const { can } = useAuth();
+  const { can, storeId, me } = useAuth();
+  const screens = Grid.useBreakpoint();
+  const wide = screens.xl ?? true;
+  const compact = !(screens.md ?? true);
   const [params, setParams] = useSearchParams();
   const [search, setSearch] = useState("");
-  const [typeFilter, setTypeFilter] = useState<TypeFilter>("ALL");
+  const [tab, setTab] = useState<Tab>("ALL");
+  const [active, setActive] = useState(true);
+  const [categoryId, setCategoryId] = useState<string | undefined>();
+  const [sort, setSort] = useState<Sort>("name");
+  const [view, setViewState] = useState<View>(readView);
   const [page, setPage] = useState(1);
+  const [filterOpen, setFilterOpen] = useState(false);
   const [creating, setCreating] = useState(false);
-  const queryClient = useQueryClient();
   const term = useDebounced(search.trim(), 300);
-  // Chọn sản phẩm lưu trên URL để mở thẳng từ ô tìm nhanh và gửi link được.
+  // Sản phẩm đang xem nằm trên URL để mở thẳng từ ô tìm nhanh và gửi link được.
   const selectedId = params.get("id");
+  const storeName = me?.stores.find((store) => store.id === storeId)?.name;
 
+  function select(id: string | null) {
+    setParams(
+      (current) => {
+        const next = new URLSearchParams(current);
+        if (id) next.set("id", id);
+        else next.delete("id");
+        return next;
+      },
+      { replace: true },
+    );
+  }
+
+  function setView(next: View) {
+    setViewState(next);
+    try {
+      window.localStorage.setItem(VIEW_KEY, next);
+    } catch {
+      // Không lưu được thì chỉ mất lựa chọn ở lần mở sau.
+    }
+  }
+
+  const categories = useQuery({
+    queryKey: ["product-categories"],
+    queryFn: async () => (await http.get<Envelope<Paged<CategoryItem>>>("/categories", { params: { limit: 100 } })).data.data.items,
+    staleTime: 5 * 60_000,
+  });
+
+  const filterKey = { term, tab, active, categoryId, sort, page };
   const products = useQuery({
-    queryKey: ["products-page", term, typeFilter, page],
-    queryFn: async () =>
+    // storeId nằm trong khóa: tồn kho thuộc về cửa hàng đang chọn.
+    queryKey: ["products-page", storeId, filterKey],
+    queryFn: async ({ signal }) =>
       (
         await http.get<Envelope<Paged<ProductListItem>>>("/products", {
+          signal,
           params: {
             search: term || undefined,
             page,
-            limit: 20,
-            ...(typeFilter === "RX" || typeFilter === "OTC" ? { productType: "DRUG", drugClass: typeFilter } : {}),
-            ...(typeFilter === "SUPPLEMENT" || typeFilter === "MEDICAL_DEVICE" ? { productType: typeFilter } : {}),
+            limit: PAGE_SIZE,
+            isActive: active,
+            categoryId,
+            sortBy: SORTS[sort].sortBy,
+            order: SORTS[sort].order,
+            ...TAB_PARAMS[tab],
           },
         })
       ).data.data,
-    placeholderData: (previous) => previous,
+    // Giữ kết quả cũ khi đổi trang/bộ lọc cho mượt, nhưng KHÔNG giữ qua khi đổi cửa hàng
+    // để không hiện tồn của cửa hàng cũ.
+    placeholderData: (previous, previousQuery) => (previousQuery?.queryKey[1] === storeId ? keepPreviousData(previous) : undefined),
   });
-  async function refresh(): Promise<void> {
-    await queryClient.invalidateQueries({ queryKey: ["products-page"] });
+
+  const filterCount = (categoryId ? 1 : 0) + (sort !== "name" ? 1 : 0);
+  const hasFilters = Boolean(term) || tab !== "ALL" || !active || filterCount > 0;
+  const items = products.data?.items ?? [];
+  const total = products.data?.pagination.total ?? 0;
+  const from = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+  const to = Math.min(total, page * PAGE_SIZE);
+
+  function resetFilters() {
+    setSearch("");
+    setTab("ALL");
+    setActive(true);
+    setCategoryId(undefined);
+    setSort("name");
+    setPage(1);
   }
+
+  const filterPanel = (
+    <div className="product-filter-panel">
+      <label>
+        <span>Nhóm hàng</span>
+        <Select
+          allowClear
+          showSearch
+          optionFilterProp="label"
+          placeholder="Tất cả nhóm hàng"
+          loading={categories.isLoading}
+          value={categoryId}
+          onChange={(value) => {
+            setCategoryId(value);
+            setPage(1);
+          }}
+          options={categories.data?.map((item) => ({ value: item.id, label: item.name }))}
+        />
+      </label>
+      <label>
+        <span>Sắp xếp</span>
+        <Select
+          value={sort}
+          onChange={(value) => {
+            setSort(value);
+            setPage(1);
+          }}
+          options={Object.entries(SORTS).map(([value, info]) => ({ value, label: info.label }))}
+        />
+      </label>
+      <div className="product-filter-actions">
+        <Button
+          size="small"
+          disabled={filterCount === 0}
+          onClick={() => {
+            setCategoryId(undefined);
+            setSort("name");
+            setPage(1);
+          }}
+        >
+          Đặt lại
+        </Button>
+        <Button size="small" type="primary" onClick={() => setFilterOpen(false)}>
+          Xong
+        </Button>
+      </div>
+    </div>
+  );
+
+  let body: ReactNode;
+  if (products.isError && !products.data) {
+    body = <Result status="warning" title="Không tải được danh mục" subTitle={getErrorMessage(products.error, "Kiểm tra kết nối rồi thử lại.")} extra={<Button onClick={() => void products.refetch()}>Thử lại</Button>} />;
+  } else if (products.isPending) {
+    body = (
+      <div className="product-skeleton" aria-busy="true" aria-label="Đang tải danh mục">
+        {Array.from({ length: 6 }, (_, index) => (
+          <div key={index} className="product-skeleton-row">
+            <Skeleton.Avatar active shape="square" size={56} />
+            <Skeleton active title={false} paragraph={{ rows: 2, width: ["60%", "35%"] }} />
+          </div>
+        ))}
+      </div>
+    );
+  } else if (items.length === 0) {
+    body = hasFilters ? (
+      <Empty className="product-empty" image={Empty.PRESENTED_IMAGE_SIMPLE} description="Không tìm thấy sản phẩm phù hợp">
+        <Button onClick={resetFilters}>Xóa bộ lọc</Button>
+      </Empty>
+    ) : (
+      <Empty className="product-empty" image={Empty.PRESENTED_IMAGE_SIMPLE} description="Danh mục chưa có sản phẩm">
+        {can("catalog.manage") ? (
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreating(true)}>
+            Thêm sản phẩm đầu tiên
+          </Button>
+        ) : null}
+      </Empty>
+    );
+  } else if (view === "grid") {
+    body = (
+      <ul className="product-grid">
+        {items.map((item) => (
+          <li key={item.id}>
+            <button type="button" className={item.id === selectedId ? "product-card is-selected" : "product-card"} aria-pressed={item.id === selectedId} onClick={() => select(item.id)}>
+              <ProductThumb src={item.primaryImage?.thumbUrl} alt={item.name} size={120} className="product-card-image" />
+              <span className="product-card-name">{item.name}</span>
+              <span className="product-card-code mono">{item.code}</span>
+              <ClassBadge productType={item.productType} drugClass={item.drugClass} />
+              <span className="product-card-foot">
+                <PriceCell item={item} />
+                <StockCell item={item} />
+              </span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    );
+  } else if (compact) {
+    body = (
+      <ul className="product-cards">
+        {items.map((item) => (
+          <li key={item.id}>
+            <button type="button" className={item.id === selectedId ? "product-row-card is-selected" : "product-row-card"} aria-pressed={item.id === selectedId} onClick={() => select(item.id)}>
+              <ProductThumb src={item.primaryImage?.thumbUrl} alt={item.name} size={64} />
+              <span className="product-row-card-main">
+                <strong>{item.name}</strong>
+                <span className="muted">{subtitle(item)}</span>
+                <ClassBadge productType={item.productType} drugClass={item.drugClass} />
+                <span className="product-row-card-foot">
+                  <PriceCell item={item} />
+                  <StockCell item={item} />
+                </span>
+              </span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    );
+  } else {
+    body = (
+      <div className="product-table" role="table" aria-label="Danh sách sản phẩm">
+        <div className="product-table-head" role="row">
+          <span role="columnheader">Sản phẩm</span>
+          <span role="columnheader" className="col-class">
+            Phân loại
+          </span>
+          <span role="columnheader" className="col-num">
+            Giá bán
+          </span>
+          <span role="columnheader" className="col-num">
+            Tồn bán được
+          </span>
+        </div>
+        {items.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            role="row"
+            className={item.id === selectedId ? "product-table-row is-selected" : "product-table-row"}
+            aria-current={item.id === selectedId ? "true" : undefined}
+            onClick={() => select(item.id)}
+          >
+            <span role="cell" className="product-cell-main">
+              <ProductThumb src={item.primaryImage?.thumbUrl} alt={item.name} size={56} />
+              <span className="product-cell-text">
+                <strong>{item.name}</strong>
+                <span className="muted">{subtitle(item)}</span>
+                <span className="product-cell-badge-inline">
+                  <ClassBadge productType={item.productType} drugClass={item.drugClass} />
+                </span>
+              </span>
+            </span>
+            <span role="cell" className="col-class">
+              <ClassBadge productType={item.productType} drugClass={item.drugClass} />
+            </span>
+            <span role="cell" className="col-num">
+              <PriceCell item={item} />
+            </span>
+            <span role="cell" className="col-num">
+              <StockCell item={item} />
+            </span>
+          </button>
+        ))}
+      </div>
+    );
+  }
+
+  const detail = selectedId ? <ProductDetailPanel key={selectedId} id={selectedId} onClose={() => select(null)} /> : null;
 
   return (
     <div>
       <PageHeader
         icon={<MedicineBoxOutlined />}
         title="Thuốc & sản phẩm"
-        description="Danh mục dùng chung toàn chuỗi: đơn vị tính, mã vạch, giá bán. Tồn kho tính theo cửa hàng đang chọn."
+        description={`Danh mục toàn chuỗi · Tồn kho tại ${storeName ?? "cửa hàng đang chọn"}`}
         extra={
           can("catalog.manage") ? (
             <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreating(true)}>
@@ -91,441 +349,98 @@ export function ProductsPage() {
         }
       />
 
-      <div className="split-layout">
-        <Card>
-          <div className="toolbar">
-            <Segmented
-              value={typeFilter}
-              onChange={(value) => {
-                setTypeFilter(value as TypeFilter);
-                setPage(1);
-              }}
-              options={[
-                { label: "Tất cả", value: "ALL" },
-                { label: "Kê đơn", value: "RX" },
-                { label: "Không kê đơn", value: "OTC" },
-                { label: "TPCN", value: "SUPPLEMENT" },
-                { label: "Thiết bị y tế", value: "MEDICAL_DEVICE" },
-              ]}
-            />
-            <Input.Search
+      <div className={detail && wide ? "products-layout has-detail" : "products-layout"}>
+        <section className="products-main" aria-label="Danh mục sản phẩm">
+          <div className="products-toolbar">
+            <Input
               allowClear
-              className="toolbar-grow"
-              placeholder="Tên thuốc, hoạt chất, mã hoặc mã vạch"
+              size="large"
+              className="products-search"
+              prefix={<SearchOutlined />}
+              placeholder="Tìm tên thuốc, hoạt chất, mã hoặc mã vạch"
+              aria-label="Tìm sản phẩm"
               value={search}
               onChange={(event) => {
                 setSearch(event.target.value);
                 setPage(1);
               }}
             />
+            <div className="products-toolbar-actions">
+              <Popover open={filterOpen} onOpenChange={setFilterOpen} trigger="click" placement="bottomRight" content={filterPanel} title="Bộ lọc">
+                <Badge count={filterCount} size="small">
+                  <Button size="large" icon={<FilterOutlined />}>
+                    Bộ lọc
+                  </Button>
+                </Badge>
+              </Popover>
+              <div className="view-switch" role="group" aria-label="Chế độ hiển thị">
+                <Tooltip title="Dạng danh sách">
+                  <Button size="large" type={view === "list" ? "primary" : "default"} icon={<UnorderedListOutlined />} aria-label="Dạng danh sách" aria-pressed={view === "list"} onClick={() => setView("list")} />
+                </Tooltip>
+                <Tooltip title="Dạng lưới">
+                  <Button size="large" type={view === "grid" ? "primary" : "default"} icon={<AppstoreOutlined />} aria-label="Dạng lưới" aria-pressed={view === "grid"} onClick={() => setView("grid")} />
+                </Tooltip>
+              </div>
+              <label className="active-switch">
+                <Switch
+                  checked={active}
+                  onChange={(checked) => {
+                    setActive(checked);
+                    setPage(1);
+                  }}
+                />
+                <span>{active ? "Đang kinh doanh" : "Ngừng kinh doanh"}</span>
+              </label>
+            </div>
           </div>
-          <Table
-            rowKey="id"
-            loading={products.isFetching}
-            dataSource={products.data?.items ?? []}
-            scroll={{ x: 640 }}
-            onRow={(row) => ({ onClick: () => setParams({ id: row.id }), style: { cursor: "pointer" } })}
-            rowClassName={(row) => (row.id === selectedId ? "row-selected" : "")}
-            locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Không có sản phẩm phù hợp" /> }}
-            pagination={{
-              current: page,
-              pageSize: products.data?.pagination.limit ?? 20,
-              total: products.data?.pagination.total ?? 0,
-              onChange: setPage,
-              showSizeChanger: false,
-              showTotal: (total) => `${total} sản phẩm`,
-            }}
-            columns={[
-              {
-                title: "Sản phẩm",
-                key: "name",
-                render: (_: unknown, item: ProductListItem) => (
-                  <div className="cell-main">
-                    <strong>{item.name}</strong>
-                    <span>
-                      {item.code} · {item.categoryName}
-                    </span>
-                  </div>
-                ),
-              },
-              { title: "Phân loại", key: "class", width: 150, render: (_: unknown, item: ProductListItem) => <ClassTag productType={item.productType} drugClass={item.drugClass} /> },
-              { title: "Giá bán", key: "price", width: 110, align: "right", render: (_: unknown, item: ProductListItem) => formatVnd(item.currentPrice?.salePrice) },
-              {
-                title: "Tồn bán được",
-                key: "stock",
-                width: 120,
-                align: "right",
-                render: (_: unknown, item: ProductListItem) => (item.stock ? <strong className={item.stock.sellable > 0 ? undefined : "text-danger"}>{formatNumber(item.stock.sellable)}</strong> : "—"),
-              },
-            ]}
-          />
-        </Card>
-        <aside className="split-aside">
-          <ProductDetailPanel id={selectedId} onClose={() => setParams({})} />
-        </aside>
+
+          <div className="product-tabs" role="tablist" aria-label="Phân loại">
+            {TABS.map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                role="tab"
+                aria-selected={tab === item.key}
+                className={tab === item.key ? "product-tab is-active" : "product-tab"}
+                onClick={() => {
+                  setTab(item.key);
+                  setPage(1);
+                }}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+
+          <div className={products.isFetching && products.data ? "products-body is-refreshing" : "products-body"}>{body}</div>
+
+          {total > 0 ? (
+            <div className="products-footer">
+              <span className="muted">
+                Hiển thị {from} – {to} / {total} sản phẩm
+              </span>
+              <Pagination size={compact ? "small" : "middle"} current={page} pageSize={PAGE_SIZE} total={total} showSizeChanger={false} onChange={setPage} />
+            </div>
+          ) : null}
+        </section>
+
+        {detail && wide ? <aside className="products-aside">{detail}</aside> : null}
       </div>
+
+      {!wide ? (
+        <Drawer open={Boolean(detail)} onClose={() => select(null)} placement="right" size={compact ? "100%" : 460} closable={false} rootClassName="product-drawer" styles={{ body: { padding: 0 } }} destroyOnHidden>
+          {detail}
+        </Drawer>
+      ) : null}
 
       <ProductFormModal
         open={creating}
         onClose={() => setCreating(false)}
-        onSaved={async () => {
+        onSaved={async (id) => {
           setCreating(false);
-          await refresh();
+          select(id);
         }}
       />
     </div>
-  );
-}
-
-function ProductDetailPanel({ id, onClose }: { id: string | null; onClose: () => void }) {
-  const { can } = useAuth();
-  const [editingUnit, setEditingUnit] = useState<ProductUnit | null | undefined>(undefined);
-  const [pricingUnit, setPricingUnit] = useState<ProductUnit | null>(null);
-  const [editingProduct, setEditingProduct] = useState(false);
-  const queryClient = useQueryClient();
-  const product = useQuery({ enabled: id !== null, queryKey: ["product", id], queryFn: async () => (await http.get<Envelope<ProductDetail>>(`/products/${id}`)).data.data });
-  const item = product.data;
-  async function refresh(): Promise<void> {
-    await Promise.all([queryClient.invalidateQueries({ queryKey: ["product", id] }), queryClient.invalidateQueries({ queryKey: ["products-page"] })]);
-  }
-
-  if (id === null) {
-    return (
-      <Card title="Chi tiết sản phẩm">
-        <PanelEmpty icon={<FileSearchOutlined />} title="Chưa chọn sản phẩm" description="Bấm vào một dòng để xem đơn vị tính, mã vạch và giá bán." />
-      </Card>
-    );
-  }
-
-  return (
-    <>
-      <Card
-        title="Chi tiết sản phẩm"
-        extra={
-          <Button type="text" size="small" onClick={onClose}>
-            Đóng
-          </Button>
-        }
-      >
-        {product.isLoading || !item ? (
-          product.isError ? (
-            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Không tải được sản phẩm" />
-          ) : (
-            <Skeleton active paragraph={{ rows: 6 }} />
-          )
-        ) : (
-          <div className="detail-stack">
-            <div>
-              <h3 className="detail-title">{item.name}</h3>
-              <span className="detail-sub">
-                <span className="mono">{item.code}</span> · <ClassTag productType={item.productType} drugClass={item.drugClass} />
-              </span>
-            </div>
-            <dl className="kv-list">
-              <div>
-                <dt>Nhóm hàng</dt>
-                <dd>{item.category.name}</dd>
-              </div>
-              <div>
-                <dt>Hoạt chất</dt>
-                <dd>{item.ingredients.length > 0 ? item.ingredients.map((ingredient) => [ingredient.name, ingredient.strengthText].filter(Boolean).join(" ")).join(", ") : "—"}</dd>
-              </div>
-              <div>
-                <dt>Tồn bán được</dt>
-                <dd>
-                  <strong>{item.stock ? formatNumber(item.stock.sellable) : "—"}</strong>
-                </dd>
-              </div>
-              <div>
-                <dt>Tồn tối thiểu</dt>
-                <dd>{formatNumber(item.minStockBaseQuantity)}</dd>
-              </div>
-            </dl>
-            {can("catalog.manage") ? (
-              <Button block icon={<EditOutlined />} onClick={() => setEditingProduct(true)}>
-                Sửa thông tin sản phẩm
-              </Button>
-            ) : null}
-
-            <div className="line-list">
-              <div className="line-list-head">
-                <span>Đơn vị tính & giá bán</span>
-                {can("catalog.manage") ? (
-                  <Button size="small" type="link" icon={<PlusOutlined />} onClick={() => setEditingUnit(null)}>
-                    Thêm đơn vị
-                  </Button>
-                ) : null}
-              </div>
-              {item.units.map((unit) => (
-                <div className="line-item" key={unit.id}>
-                  <div className="line-item-main">
-                    <strong>
-                      {unit.name} {unit.isDefaultSaleUnit ? <Tag color="blue">Mặc định</Tag> : null} {unit.isSellable === false ? <Tag>Không bán</Tag> : null}
-                    </strong>
-                    <span>{unit.conversionToBase === 1 ? "Đơn vị cơ bản" : `1 ${unit.name} = ${formatNumber(unit.conversionToBase)} đơn vị cơ bản`}</span>
-                    <span>
-                      <BarcodeOutlined /> {unit.barcodes?.length ? unit.barcodes.join(", ") : "Chưa có mã vạch"}
-                    </span>
-                  </div>
-                  <div className="line-item-side">
-                    <strong>{formatVnd(unit.currentPrice?.salePrice)}</strong>
-                    <span>
-                      {can("catalog.manage") ? (
-                        <Button size="small" type="link" onClick={() => setEditingUnit(unit)}>
-                          Sửa
-                        </Button>
-                      ) : null}
-                      {can("price.manage") ? (
-                        <Button size="small" type="link" icon={<DollarOutlined />} onClick={() => setPricingUnit(unit)}>
-                          Đặt giá
-                        </Button>
-                      ) : null}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </Card>
-      {item ? <ProductEditModal product={item} open={editingProduct} onClose={() => setEditingProduct(false)} onSaved={refresh} /> : null}
-      {item ? <UnitModal productId={item.id} unit={editingUnit ?? null} open={editingUnit !== undefined} onClose={() => setEditingUnit(undefined)} onSaved={refresh} /> : null}
-      {item && pricingUnit ? <PriceModal productId={item.id} unit={pricingUnit} onClose={() => setPricingUnit(null)} onSaved={refresh} /> : null}
-    </>
-  );
-}
-
-type ProductEditForm = { name: string; categoryId: string; minStockBaseQuantity: number };
-function ProductEditModal({ product, open, onClose, onSaved }: { product: ProductDetail; open: boolean; onClose: () => void; onSaved: () => Promise<void> }) {
-  const { message } = App.useApp();
-  const [form] = Form.useForm<ProductEditForm>();
-  const categories = useQuery({ enabled: open, queryKey: ["product-categories"], queryFn: async () => (await http.get<Envelope<Paged<CategoryItem>>>("/categories", { params: { limit: 100 } })).data.data.items });
-  const save = useMutation({
-    mutationFn: (values: ProductEditForm) => http.patch(`/products/${product.id}`, { ...values, version: product.version }),
-    onSuccess: async () => {
-      void message.success("Đã lưu sản phẩm");
-      await onSaved();
-      onClose();
-    },
-    onError: (error) => void message.error(getErrorMessage(error, "Không lưu được sản phẩm")),
-  });
-  return (
-    <Modal
-      open={open}
-      title="Sửa sản phẩm"
-      okText="Lưu"
-      cancelText="Hủy"
-      onCancel={onClose}
-      onOk={() => void form.validateFields().then((values) => save.mutate(values))}
-      confirmLoading={save.isPending}
-      afterOpenChange={(visible) => {
-        if (visible) form.setFieldsValue({ name: product.name, categoryId: product.category.id, minStockBaseQuantity: product.minStockBaseQuantity });
-      }}
-      destroyOnHidden
-    >
-      <Form form={form} layout="vertical">
-        <Form.Item name="name" label="Tên sản phẩm" rules={[{ required: true, whitespace: true, message: "Nhập tên sản phẩm" }]}>
-          <Input />
-        </Form.Item>
-        <Form.Item name="categoryId" label="Nhóm hàng" rules={[{ required: true, message: "Chọn nhóm hàng" }]}>
-          <Select loading={categories.isLoading} showSearch optionFilterProp="label" options={categories.data?.map((item) => ({ value: item.id, label: item.name }))} />
-        </Form.Item>
-        <Form.Item name="minStockBaseQuantity" label="Tồn tối thiểu (đơn vị cơ bản)">
-          <InputNumber min={0} precision={0} style={{ width: "100%" }} />
-        </Form.Item>
-      </Form>
-    </Modal>
-  );
-}
-
-type UnitForm = { name: string; conversionToBase?: number; isSellable?: boolean; isDefaultSaleUnit?: boolean; barcodesText?: string };
-function UnitModal({ productId, unit, open, onClose, onSaved }: { productId: string; unit: ProductUnit | null; open: boolean; onClose: () => void; onSaved: () => Promise<void> }) {
-  const { message } = App.useApp();
-  const [form] = Form.useForm<UnitForm>();
-  const save = useMutation({
-    mutationFn: async (values: UnitForm) => {
-      const body = { ...values, barcodes: (values.barcodesText ?? "").split(/[\n,]/).map((value) => value.trim()).filter(Boolean) };
-      if (unit) await http.patch(`/products/${productId}/units/${unit.id}`, body);
-      else await http.post(`/products/${productId}/units`, { ...body, conversionToBase: values.conversionToBase });
-    },
-    onSuccess: async () => {
-      void message.success(unit ? "Đã lưu đơn vị tính" : "Đã thêm đơn vị tính");
-      await onSaved();
-      onClose();
-    },
-    onError: (error) => void message.error(getErrorMessage(error, "Không lưu được đơn vị tính")),
-  });
-  return (
-    <Modal
-      open={open}
-      title={unit ? "Sửa đơn vị tính" : "Thêm đơn vị tính"}
-      okText="Lưu"
-      cancelText="Hủy"
-      onCancel={onClose}
-      onOk={() => void form.validateFields().then((values) => save.mutate(values))}
-      confirmLoading={save.isPending}
-      afterOpenChange={(visible) => {
-        if (visible)
-          form.setFieldsValue({
-            name: unit?.name ?? "",
-            conversionToBase: unit?.conversionToBase,
-            isSellable: unit?.isSellable ?? true,
-            isDefaultSaleUnit: unit?.isDefaultSaleUnit ?? false,
-            barcodesText: unit?.barcodes?.join(", ") ?? "",
-          });
-      }}
-      destroyOnHidden
-    >
-      <Form form={form} layout="vertical">
-        <Form.Item name="name" label="Tên đơn vị" rules={[{ required: true, whitespace: true, message: "Nhập tên đơn vị" }]}>
-          <Input placeholder="Ví dụ: Hộp, Vỉ, Viên" />
-        </Form.Item>
-        {unit ? (
-          <Typography.Paragraph type="secondary">Hệ số quy đổi không thể sửa sau khi đã tạo.</Typography.Paragraph>
-        ) : (
-          <Form.Item name="conversionToBase" label="Hệ số quy đổi sang đơn vị cơ bản" rules={[{ required: true, message: "Nhập hệ số quy đổi" }]}>
-            <InputNumber min={1} precision={0} style={{ width: "100%" }} />
-          </Form.Item>
-        )}
-        <Form.Item name="barcodesText" label="Mã vạch">
-          <Input.TextArea rows={2} placeholder="Ngăn cách bằng dấu phẩy hoặc xuống dòng" />
-        </Form.Item>
-        <Row gutter={12}>
-          <Col span={12}>
-            <Form.Item name="isSellable" label="Được phép bán">
-              <Select options={[{ value: true, label: "Có" }, { value: false, label: "Không" }]} />
-            </Form.Item>
-          </Col>
-          <Col span={12}>
-            <Form.Item name="isDefaultSaleUnit" label="Đơn vị bán mặc định">
-              <Select options={[{ value: true, label: "Có" }, { value: false, label: "Không" }]} />
-            </Form.Item>
-          </Col>
-        </Row>
-      </Form>
-    </Modal>
-  );
-}
-
-type PriceForm = { salePrice: number; vatRatePercent: number; scope: "CHAIN" | "STORE" };
-function PriceModal({ productId, unit, onClose, onSaved }: { productId: string; unit: ProductUnit; onClose: () => void; onSaved: () => Promise<void> }) {
-  const { message } = App.useApp();
-  const [form] = Form.useForm<PriceForm>();
-  const save = useMutation({
-    mutationFn: (values: PriceForm) => http.post(`/products/${productId}/prices`, { ...values, unitId: unit.id }),
-    onSuccess: async () => {
-      void message.success("Đã tạo phiên bản giá mới");
-      await onSaved();
-      onClose();
-    },
-    onError: (error) => void message.error(getErrorMessage(error, "Không đặt được giá")),
-  });
-  return (
-    <Modal open title={`Đặt giá — ${unit.name}`} okText="Lưu giá" cancelText="Hủy" onCancel={onClose} onOk={() => void form.validateFields().then((values) => save.mutate(values))} confirmLoading={save.isPending} destroyOnHidden>
-      <Typography.Paragraph type="secondary">Giá cũ không bị sửa; hệ thống tạo một phiên bản giá mới để bảo toàn hóa đơn lịch sử.</Typography.Paragraph>
-      <Form form={form} layout="vertical" initialValues={{ vatRatePercent: 0, scope: "CHAIN", salePrice: unit.currentPrice?.salePrice }}>
-        <Form.Item name="salePrice" label="Giá bán (đồng)" rules={[{ required: true, message: "Nhập giá bán" }]}>
-          <InputNumber<number> min={0} precision={0} style={{ width: "100%" }} formatter={(value) => (value ? Number(value).toLocaleString("vi-VN") : "")} parser={(value) => Number((value ?? "").replace(/\D/g, ""))} />
-        </Form.Item>
-        <Row gutter={12}>
-          <Col span={12}>
-            <Form.Item name="vatRatePercent" label="VAT (%)" rules={[{ required: true }]}>
-              <InputNumber min={0} max={100} style={{ width: "100%" }} />
-            </Form.Item>
-          </Col>
-          <Col span={12}>
-            <Form.Item name="scope" label="Phạm vi giá">
-              <Select options={[{ value: "CHAIN", label: "Toàn chuỗi" }, { value: "STORE", label: "Chỉ cửa hàng đang chọn" }]} />
-            </Form.Item>
-          </Col>
-        </Row>
-      </Form>
-    </Modal>
-  );
-}
-
-function ProductFormModal({ open, onClose, onSaved }: { open: boolean; onClose: () => void; onSaved: () => Promise<void> }) {
-  const { message } = App.useApp();
-  const [form] = Form.useForm<ProductForm>();
-  const productType = Form.useWatch("productType", form);
-  const queryClient = useQueryClient();
-  const categories = useQuery({ enabled: open, queryKey: ["product-categories"], queryFn: async () => (await http.get<Envelope<Paged<CategoryItem>>>("/categories", { params: { limit: 100 } })).data.data.items });
-  const ingredients = useQuery({ enabled: open, queryKey: ["active-ingredients"], queryFn: async () => (await http.get<Envelope<Paged<ActiveIngredientItem>>>("/active-ingredients", { params: { limit: 100 } })).data.data.items });
-  const create = useMutation({
-    mutationFn: async (values: ProductForm) =>
-      http.post("/products", {
-        ...values,
-        drugClass: values.productType === "DRUG" ? values.drugClass : null,
-        minStockBaseQuantity: values.minStockBaseQuantity ?? 0,
-        ingredients: (values.ingredients ?? []).map((ingredientId) => ({ ingredientId })),
-      }),
-    onSuccess: async () => {
-      void message.success("Đã thêm sản phẩm");
-      form.resetFields();
-      await queryClient.invalidateQueries({ queryKey: ["products-page"] });
-      await onSaved();
-    },
-    onError: (error) => void message.error(getErrorMessage(error, "Không thêm được sản phẩm")),
-  });
-  return (
-    <Modal
-      width={680}
-      open={open}
-      title="Thêm sản phẩm"
-      okText="Lưu sản phẩm"
-      cancelText="Hủy"
-      onCancel={() => {
-        form.resetFields();
-        onClose();
-      }}
-      onOk={() => void form.validateFields().then((values) => create.mutate(values))}
-      confirmLoading={create.isPending}
-      destroyOnHidden
-    >
-      <Form form={form} layout="vertical" initialValues={{ productType: "DRUG", baseUnitName: "Viên", minStockBaseQuantity: 0 }}>
-        <Row gutter={12}>
-          <Col xs={24} sm={8}>
-            <Form.Item name="code" label="Mã sản phẩm" rules={[{ required: true, whitespace: true, message: "Nhập mã" }]}>
-              <Input placeholder="TH0001" />
-            </Form.Item>
-          </Col>
-          <Col xs={24} sm={16}>
-            <Form.Item name="name" label="Tên sản phẩm" rules={[{ required: true, whitespace: true, message: "Nhập tên sản phẩm" }]}>
-              <Input placeholder="Ví dụ: Paracetamol 500mg" />
-            </Form.Item>
-          </Col>
-          <Col xs={24} sm={productType === "DRUG" ? 8 : 12}>
-            <Form.Item name="productType" label="Loại hàng" rules={[{ required: true }]}>
-              <Select options={Object.entries(PRODUCT_TYPE).map(([value, label]) => ({ value, label }))} />
-            </Form.Item>
-          </Col>
-          {productType === "DRUG" ? (
-            <Col xs={24} sm={8}>
-              <Form.Item name="drugClass" label="Phân loại thuốc" rules={[{ required: true, message: "Chọn phân loại thuốc" }]}>
-                <Select options={Object.entries(DRUG_CLASS).map(([value, info]) => ({ value, label: info.text }))} />
-              </Form.Item>
-            </Col>
-          ) : null}
-          <Col xs={24} sm={productType === "DRUG" ? 8 : 12}>
-            <Form.Item name="categoryId" label="Nhóm hàng" rules={[{ required: true, message: "Chọn nhóm hàng" }]}>
-              <Select loading={categories.isLoading} showSearch optionFilterProp="label" options={categories.data?.map((item) => ({ value: item.id, label: item.name }))} />
-            </Form.Item>
-          </Col>
-          <Col xs={24} sm={12}>
-            <Form.Item name="baseUnitName" label="Đơn vị cơ bản" rules={[{ required: true, whitespace: true, message: "Nhập đơn vị cơ bản" }]}>
-              <Input placeholder="Ví dụ: Viên, Chai" />
-            </Form.Item>
-          </Col>
-          <Col xs={24} sm={12}>
-            <Form.Item name="minStockBaseQuantity" label="Tồn tối thiểu">
-              <InputNumber min={0} precision={0} style={{ width: "100%" }} />
-            </Form.Item>
-          </Col>
-        </Row>
-        <Form.Item name="ingredients" label="Hoạt chất (nếu có)" extra="Cần gắn hoạt chất để hệ thống kiểm tra trùng hoạt chất và dị ứng khi bán.">
-          <Select mode="multiple" showSearch optionFilterProp="label" loading={ingredients.isLoading} options={ingredients.data?.map((item) => ({ value: item.id, label: item.atcCode ? `${item.name} (${item.atcCode})` : item.name }))} />
-        </Form.Item>
-      </Form>
-    </Modal>
   );
 }

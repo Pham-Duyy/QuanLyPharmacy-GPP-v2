@@ -401,13 +401,19 @@ Sản phẩm gồm cả thuốc và hàng không phải thuốc. Trường chín
 
 | Method | Endpoint | Mô tả | Quyền |
 |---|---|---|---|
-| GET | `/products` | Lọc `categoryId`, `productType`, `drugClass`, `isActive`; tìm theo tên, hoạt chất, mã | `catalog.read` |
-| GET | `/products/{id}` | Chi tiết, đơn vị, giá hiện hành, tồn tổng hợp | `catalog.read` |
+| GET | `/products` | Lọc `categoryId`, `productType`, `drugClass` (nhiều giá trị cách nhau dấu phẩy, ví dụ `RX,CONTROLLED`), `isActive`; tìm theo tên, hoạt chất, mã, mã vạch. Mỗi dòng có `defaultUnit`, `baseUnit`, `currentPrice`, `stock` (theo `X-Store-Id`; đã chọn cửa hàng mà chưa có lô thì là 0, không chọn cửa hàng thì `null`), `isBelowMinStock` (tồn bán được < tồn tối thiểu), `primaryImage` | `catalog.read` |
+| GET | `/products/{id}` | Chi tiết, đơn vị, giá hiện hành, tồn tổng hợp, `images` (ảnh chính đứng đầu) | `catalog.read` |
 | POST | `/products` | Tạo sản phẩm kèm đơn vị cơ bản | `catalog.manage` |
 | PATCH | `/products/{id}` | Sửa (whitelist trường, có `version`) | `catalog.manage` |
 | POST | `/products/{id}/deactivate` | Ngừng kinh doanh; không xóa vật lý | `catalog.manage` |
 | POST | `/products/{id}/activate` | Kinh doanh lại | `catalog.manage` |
 | GET | `/products/{id}/batches` | Các lô của sản phẩm | `stock.read` |
+| POST | `/products/{id}/images` | Tải ảnh, `multipart/form-data`: `file` (bắt buộc, ≤ 5 MB) và `thumb` (tùy chọn, ≤ 512 KB). Chỉ PNG/JPEG theo nội dung byte, xóa EXIF; tối đa 8 ảnh; ảnh đầu tiên là ảnh chính | `catalog.manage` |
+| POST | `/products/{id}/images/{imageId}/primary` | Đặt ảnh chính | `catalog.manage` |
+| DELETE | `/products/{id}/images/{imageId}` | Gỡ ảnh; gỡ ảnh chính thì ảnh kế tiếp thành ảnh chính | `catalog.manage` |
+| GET | `/product-images/{imageId}?v=full\|thumb&expires&sig` | Đọc ảnh qua URL có chữ ký (server trả sẵn trong `url`/`thumbUrl`), không cần đăng nhập; hạn làm tròn theo giờ để trình duyệt cache được | Chữ ký hợp lệ |
+
+Ảnh sản phẩm lưu trong `storage/products` ngoài thư mục public, metadata ở bảng `product_images` (mỗi sản phẩm tối đa một ảnh chính, chỉ mục duy nhất từng phần). Mọi thao tác ảnh ghi audit và không đụng tới tồn kho hay `version` của sản phẩm.
 
 Đã bỏ khỏi bản gốc: `/products/expiring-soon`, `/products/low-stock` (thay bằng bộ lọc ở §8 và §10.1).
 

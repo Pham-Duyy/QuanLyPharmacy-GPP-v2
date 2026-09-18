@@ -15,8 +15,14 @@ import { env } from "../config/env.js";
  */
 const TTL_SECONDS = 5 * 60;
 
-function sign(imageId: string, expiresAt: number): string {
-  return createHmac("sha256", env.JWT_SECRET).update(`${imageId}:${expiresAt}`).digest("hex");
+/**
+ * `scope` tách chữ ký giữa các loại tài nguyên: chữ ký của ảnh sản phẩm
+ * không dùng được để mở ảnh đơn thuốc cùng id và ngược lại. Ảnh đơn thuốc
+ * giữ cách ký cũ (không scope) để URL đang lưu hành không bị vô hiệu.
+ */
+function sign(imageId: string, expiresAt: number, scope = ""): string {
+  const payload = scope ? `${scope}:${imageId}:${expiresAt}` : `${imageId}:${expiresAt}`;
+  return createHmac("sha256", env.JWT_SECRET).update(payload).digest("hex");
 }
 
 /** `ttlSeconds` tùy chọn để test dựng được cả URL đã hết hạn (truyền số âm). */
@@ -28,11 +34,33 @@ export function createSignedImageUrl(
   return { expires, sig: sign(imageId, expires) };
 }
 
-export function verifySignedImageUrl(imageId: string, expires: number, sig: string): boolean {
+export function verifySignedImageUrl(
+  imageId: string,
+  expires: number,
+  sig: string,
+  scope = "",
+): boolean {
   if (!Number.isFinite(expires) || expires < Math.floor(Date.now() / 1000)) return false;
 
-  const expected = Buffer.from(sign(imageId, expires), "hex");
+  const expected = Buffer.from(sign(imageId, expires, scope), "hex");
   const actual = Buffer.from(sig, "hex");
   if (actual.length !== expected.length) return false;
   return timingSafeEqual(actual, expected);
+}
+
+/**
+ * URL ảnh sản phẩm: danh sách tải lại liên tục, nên hạn được làm tròn theo
+ * khung giờ để URL giữ nguyên trong cùng khung — trình duyệt dùng lại ảnh
+ * đã tải thay vì tải lại mỗi lần danh sách làm mới. Hạn luôn còn ít nhất
+ * một giờ kể từ lúc ký.
+ */
+const BUCKET_SECONDS = 60 * 60;
+
+export function createStableSignedUrl(
+  scope: string,
+  id: string,
+  now = Date.now(),
+): { expires: number; sig: string } {
+  const bucketEnd = (Math.floor(now / 1000 / BUCKET_SECONDS) + 2) * BUCKET_SECONDS;
+  return { expires: bucketEnd, sig: sign(id, bucketEnd, scope) };
 }
