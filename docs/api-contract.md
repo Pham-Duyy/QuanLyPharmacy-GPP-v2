@@ -671,7 +671,7 @@ Thẻ kho **chỉ thêm, không sửa, không xóa**. Tồn của một lô luô
 
 | Method | Endpoint | Mô tả | Quyền |
 |---|---|---|---|
-| GET | `/customers` | Tìm theo tên hoặc số điện thoại (tối thiểu 3 ký tự); trả trường tối thiểu, số điện thoại che bớt | `customer.read` |
+| GET | `/customers` | Có `search` (tối thiểu 3 ký tự): tìm theo tên hoặc số điện thoại, trả mảng tối đa 20 khách. Không có `search`: danh sách phân trang (`page`, `limit`, `sortBy=createdAt|fullName`, `order`), không gồm khách đã ẩn danh. Cả hai chỉ trả trường cơ bản, số điện thoại che bớt; hồ sơ sức khỏe và lịch sử mua xem riêng từng khách | `customer.read` |
 | GET | `/customers/{id}` | Thông tin cơ bản | `customer.read` |
 | POST | `/customers` | Tạo khách | `customer.manage` |
 | PATCH | `/customers/{id}` | Sửa thông tin cơ bản | `customer.manage` |

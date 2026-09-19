@@ -87,6 +87,56 @@ describe("Tìm kiếm khách hàng", () => {
   });
 });
 
+describe("Danh sách khách hàng", () => {
+  it("không truyền search thì trả danh sách phân trang, mới tạo trước, số điện thoại che bớt", async () => {
+    const first = await createCustomer({ fullName: "Khách thứ nhất", phone: "0901111222" });
+    const second = await createCustomer({ fullName: "Khách thứ hai", phone: "0903333444" });
+    await prisma.customer.update({
+      where: { id: first },
+      data: { createdAt: new Date("2026-01-01") },
+    });
+
+    const response = await api()
+      .get("/api/v1/customers")
+      .query({ page: 1, limit: 1 })
+      .set(authHeaders(salesToken))
+      .expect(200);
+
+    expect(response.body.data.pagination).toEqual({ page: 1, limit: 1, total: 2 });
+    expect(response.body.data.items).toEqual([
+      expect.objectContaining({
+        id: second,
+        fullName: "Khách thứ hai",
+        phone: "090****444",
+        hasHealthConsent: false,
+      }),
+    ]);
+    // Không trả hồ sơ sức khỏe hay ghi chú trong danh sách.
+    expect(response.body.data.items[0]).not.toHaveProperty("note");
+
+    const page2 = await api()
+      .get("/api/v1/customers")
+      .query({ page: 2, limit: 1 })
+      .set(authHeaders(salesToken))
+      .expect(200);
+    expect(page2.body.data.items[0].id).toBe(first);
+  });
+
+  it("không liệt kê khách đã ẩn danh", async () => {
+    const id = await createCustomer();
+    await prisma.customer.update({
+      where: { id },
+      data: { isAnonymized: true, fullName: null, phone: null },
+    });
+    const response = await api().get("/api/v1/customers").set(authHeaders(salesToken)).expect(200);
+    expect(response.body.data.pagination.total).toBe(0);
+  });
+
+  it("vẫn yêu cầu quyền customer.read", async () => {
+    await api().get("/api/v1/customers").expect(401);
+  });
+});
+
 describe("Tạo và sửa khách hàng", () => {
   it("xem chi tiết thấy đầy đủ số điện thoại, không che", async () => {
     const id = await createCustomer({ phone: "0901234567" });

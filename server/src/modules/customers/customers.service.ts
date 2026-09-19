@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import type { PageQuery } from "../../lib/pagination.js";
 import { Prisma } from "../../generated/prisma/client.js";
 import { prisma } from "../../db/prisma.js";
 import { AppError } from "../../lib/app-error.js";
@@ -44,6 +45,42 @@ export async function search(term: string) {
     fullName: row.full_name,
     phone: maskPhone(row.phone),
   }));
+}
+
+/** Danh sách phân trang cho màn Khách hàng: trường tối thiểu, số điện thoại che bớt. */
+export async function list(page: PageQuery) {
+  const where = { isAnonymized: false };
+  const [rows, total] = await Promise.all([
+    prisma.customer.findMany({
+      where,
+      orderBy: [{ [page.sortBy]: page.order }, { id: "asc" }],
+      skip: page.skip,
+      take: page.limit,
+      select: {
+        id: true,
+        fullName: true,
+        phone: true,
+        birthYear: true,
+        gender: true,
+        createdAt: true,
+        healthDataConsentAt: true,
+      },
+    }),
+    prisma.customer.count({ where }),
+  ]);
+
+  return {
+    total,
+    items: rows.map((row) => ({
+      id: row.id,
+      fullName: row.fullName,
+      phone: maskPhone(row.phone),
+      birthYear: row.birthYear,
+      gender: row.gender,
+      createdAt: row.createdAt,
+      hasHealthConsent: row.healthDataConsentAt !== null,
+    })),
+  };
 }
 
 export async function getDetail(customerId: string) {
