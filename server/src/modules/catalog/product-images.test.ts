@@ -277,4 +277,75 @@ describe("Danh sách sản phẩm cho màn hình mới", () => {
     expect(here.body.data.stock.sellable).toBe(0);
     expect(there.body.data.stock.sellable).toBe(300);
   });
+
+  it("lọc chỉ còn hàng theo đúng tồn bán được của cửa hàng đang chọn", async () => {
+    const expiredOnly = await makeProduct("TH0020", "Thuốc chỉ còn lô hết hạn", "DRUG", "OTC");
+    const quarantined = await makeProduct("TH0021", "Thuốc đang biệt trữ", "DRUG", "OTC");
+    const available = await makeProduct("TH0022", "Thuốc còn hàng", "DRUG", "OTC");
+    const batch = (
+      forProduct: string,
+      status: string,
+      expiryDate: Date,
+      storeId = fixture.storeId,
+    ) =>
+      prisma.batch.create({
+        data: {
+          storeId,
+          productId: forProduct,
+          batchNumber: "L" + forProduct.slice(0, 6),
+          expiryDate,
+          quantityOnHand: 10,
+          status,
+        },
+      });
+    await batch(expiredOnly.id, "AVAILABLE", new Date("2020-01-01"));
+    await batch(quarantined.id, "QUARANTINED", new Date("2030-01-01"));
+    await batch(available.id, "AVAILABLE", new Date("2030-01-01"));
+    // Cửa hàng khác còn hàng không được tính cho cửa hàng này.
+    await batch(productId, "AVAILABLE", new Date("2030-01-01"), fixture.otherStoreId);
+
+    const response = await api()
+      .get("/api/v1/products")
+      .query({ inStock: "true" })
+      .set(h())
+      .expect(200);
+    expect(response.body.data.items.map((item: { code: string }) => item.code)).toEqual(["TH0022"]);
+    expect(response.body.data.pagination.total).toBe(1);
+  });
+
+  it("trả các đơn vị bán được kèm giá hiện hành, chưa đặt giá thì null", async () => {
+    const units = await prisma.productUnit.findMany({
+      where: { productId },
+      orderBy: { conversionToBase: "asc" },
+    });
+    await prisma.productPrice.create({
+      data: {
+        productUnitId: units[0]!.id,
+        salePrice: 1500n,
+        vatRatePercent: 5,
+        effectiveFrom: new Date(Date.now() - 86_400_000),
+      },
+    });
+    await prisma.productUnit.create({
+      data: { productId, name: "Mẫu thử", conversionToBase: 5, isSellable: false },
+    });
+
+    const response = await api().get("/api/v1/products").set(h()).expect(200);
+    expect(response.body.data.items[0].saleUnits).toEqual([
+      {
+        id: units[0]!.id,
+        name: "Viên",
+        conversionToBase: 1,
+        isDefaultSaleUnit: false,
+        salePrice: 1500,
+      },
+      {
+        id: units[1]!.id,
+        name: "Lọ",
+        conversionToBase: 100,
+        isDefaultSaleUnit: true,
+        salePrice: null,
+      },
+    ]);
+  });
 });

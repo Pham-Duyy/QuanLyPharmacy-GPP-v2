@@ -5,6 +5,7 @@ import { prisma } from "../../db/prisma.js";
 import { AppError } from "../../lib/app-error.js";
 import { pageResult, parsePageQuery } from "../../lib/pagination.js";
 import { withMappedErrors } from "../../lib/prisma-errors.js";
+import { businessDateNow } from "../../lib/settings.js";
 import { sendData } from "../../lib/respond.js";
 import { updateWithVersion } from "../../lib/optimistic.js";
 import { parseOrThrow } from "../../lib/validate.js";
@@ -87,6 +88,20 @@ productsRouter.get("/products", requirePermission("catalog.read"), async (req, r
     ...(query["productType"] ? { productType: query["productType"] } : {}),
     // "RX,CONTROLLED" để lọc chung nhóm thuốc phải có đơn.
     ...(query["drugClass"] ? { drugClass: { in: query["drugClass"].split(",") } } : {}),
+    // "Chỉ còn hàng" ở quầy: cùng định nghĩa tồn bán được với getStockSummary
+    // (lô AVAILABLE, còn hạn theo ngày Việt Nam, còn số lượng) tại cửa hàng đang chọn.
+    ...(query["inStock"] === "true" && req.auth?.storeId
+      ? {
+          batches: {
+            some: {
+              storeId: req.auth.storeId,
+              status: "AVAILABLE",
+              quantityOnHand: { gt: 0 },
+              expiryDate: { gt: businessDateNow() },
+            },
+          },
+        }
+      : {}),
   };
 
   const [products, total] = await Promise.all([
@@ -142,6 +157,17 @@ productsRouter.get("/products", requirePermission("catalog.read"), async (req, r
       minStockBaseQuantity: product.minStockBaseQuantity,
       isActive: product.isActive,
       version: product.version,
+      // Các đơn vị bán được kèm giá hiện hành, để quầy chọn đơn vị ngay trên danh sách.
+      saleUnits: product.units
+        .filter((unit) => unit.isSellable)
+        .sort((a, b) => a.conversionToBase - b.conversionToBase)
+        .map((unit) => ({
+          id: unit.id,
+          name: unit.name,
+          conversionToBase: unit.conversionToBase,
+          isDefaultSaleUnit: unit.isDefaultSaleUnit,
+          salePrice: prices.get(unit.id)?.salePrice ?? null,
+        })),
       defaultUnit: defaultUnit
         ? {
             id: defaultUnit.id,

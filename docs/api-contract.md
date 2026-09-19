@@ -401,7 +401,7 @@ Sản phẩm gồm cả thuốc và hàng không phải thuốc. Trường chín
 
 | Method | Endpoint | Mô tả | Quyền |
 |---|---|---|---|
-| GET | `/products` | Lọc `categoryId`, `productType`, `drugClass` (nhiều giá trị cách nhau dấu phẩy, ví dụ `RX,CONTROLLED`), `isActive`; tìm theo tên, hoạt chất, mã, mã vạch. Mỗi dòng có `defaultUnit`, `baseUnit`, `currentPrice`, `stock` (theo `X-Store-Id`; đã chọn cửa hàng mà chưa có lô thì là 0, không chọn cửa hàng thì `null`), `isBelowMinStock` (tồn bán được < tồn tối thiểu), `primaryImage` | `catalog.read` |
+| GET | `/products` | Lọc `categoryId`, `productType`, `drugClass` (nhiều giá trị cách nhau dấu phẩy, ví dụ `RX,CONTROLLED`), `isActive`; tìm theo tên, hoạt chất, mã, mã vạch. Mỗi dòng có `defaultUnit`, `baseUnit`, `currentPrice`, `stock` (theo `X-Store-Id`; đã chọn cửa hàng mà chưa có lô thì là 0, không chọn cửa hàng thì `null`), `isBelowMinStock` (tồn bán được < tồn tối thiểu), `primaryImage`, `saleUnits` (đơn vị bán được kèm giá hiện hành, `salePrice: null` là chưa đặt giá). `inStock=true` chỉ lấy sản phẩm còn tồn bán được tại cửa hàng đang chọn | `catalog.read` |
 | GET | `/products/{id}` | Chi tiết, đơn vị, giá hiện hành, tồn tổng hợp, `images` (ảnh chính đứng đầu) | `catalog.read` |
 | POST | `/products` | Tạo sản phẩm kèm đơn vị cơ bản | `catalog.manage` |
 | PATCH | `/products/{id}` | Sửa (whitelist trường, có `version`) | `catalog.manage` |
