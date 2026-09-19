@@ -4,9 +4,9 @@ import { Alert, App, Button, Card, Checkbox, Empty, Input, InputNumber, Modal, S
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router";
 import { getErrorMessage, http } from "../../api/http.js";
-import type { CustomerDetail, CustomerHealthProfile, CustomerInvoiceHistoryItem, CustomerSearchItem, Envelope, Paged } from "../../api/types.js";
+import type { CustomerDetail, CustomerHealthProfile, CustomerInvoiceHistoryItem, CustomerListItem, CustomerSearchItem, Envelope, Paged } from "../../api/types.js";
 import { formatVnd } from "../../api/types.js";
-import { formatDateTime } from "../../ui/format.js";
+import { formatDate, formatDateTime } from "../../ui/format.js";
 import { PageHeader } from "../../ui/PageHeader.js";
 import { PanelEmpty } from "../../ui/PanelEmpty.js";
 import { useDebounced } from "../../ui/useDebounced.js";
@@ -22,23 +22,42 @@ export function CustomersPage() {
   const openId = params.get("id");
   const [search, setSearch] = useState("");
   const [creating, setCreating] = useState(false);
+  const [page, setPage] = useState(1);
   const term = useDebounced(search.trim(), 300);
+  const searching = term.length >= 3;
 
   const list = useQuery({
     queryKey: ["customers", term],
-    enabled: term.length >= 3,
+    enabled: searching,
     queryFn: async () => {
       const response = await http.get<Envelope<CustomerSearchItem[]>>("/customers", { params: { search: term } });
       return response.data.data;
     },
   });
 
+  // Chưa gõ tìm thì hiện danh sách phân trang, mới tạo trước (số điện thoại đã che bớt).
+  const browse = useQuery({
+    queryKey: ["customers", "browse", page],
+    enabled: !searching,
+    placeholderData: (previous) => previous,
+    queryFn: async () => (await http.get<Envelope<Paged<CustomerListItem>>>("/customers", { params: { page, limit: 20, sortBy: "createdAt", order: "desc" } })).data.data,
+  });
+
+  const nameCell = (row: { fullName: string | null }) => (
+    <div className="person-cell">
+      <span className="person-avatar">
+        <UserOutlined />
+      </span>
+      <strong>{row.fullName ?? "Khách chưa có tên"}</strong>
+    </div>
+  );
+
   return (
     <div>
       <PageHeader
         icon={<TeamOutlined />}
         title="Khách hàng"
-        description="Tìm khách theo tên hoặc số điện thoại. Hồ sơ sức khỏe chỉ lưu khi khách đồng ý."
+        description="Danh sách khách dùng chung toàn chuỗi, số điện thoại được che bớt. Hồ sơ sức khỏe chỉ lưu khi khách đồng ý."
         extra={
           can("customer.manage") ? (
             <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreating(true)}>
@@ -54,17 +73,64 @@ export function CustomersPage() {
             size="large"
             allowClear
             prefix={<SearchOutlined />}
-            placeholder="Gõ ít nhất 3 ký tự — tên hoặc số điện thoại"
+            placeholder="Tìm theo tên hoặc số điện thoại (từ 3 ký tự)"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             style={{ marginBottom: 14 }}
           />
-          {term.length < 3 ? (
-            <PanelEmpty
-              icon={<SearchOutlined />}
-              title="Tìm khách hàng để bắt đầu"
-              description="Danh sách không hiển thị sẵn để bảo vệ thông tin cá nhân của khách. Số điện thoại được che bớt ở kết quả tìm kiếm."
-            />
+          {!searching ? (
+            browse.isError ? (
+              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={getErrorMessage(browse.error, "Không tải được danh sách khách hàng")}>
+                <Button onClick={() => void browse.refetch()}>Thử lại</Button>
+              </Empty>
+            ) : (
+              <Table
+                rowKey="id"
+                loading={browse.isFetching}
+                dataSource={browse.data?.items ?? []}
+                scroll={{ x: 560 }}
+                onRow={(row) => ({ onClick: () => setParams({ id: row.id }), style: { cursor: "pointer" } })}
+                rowClassName={(row) => (row.id === openId ? "row-selected" : "")}
+                locale={{
+                  emptyText: (
+                    <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có khách hàng nào">
+                      {can("customer.manage") ? (
+                        <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreating(true)}>
+                          Thêm khách hàng
+                        </Button>
+                      ) : null}
+                    </Empty>
+                  ),
+                }}
+                pagination={{
+                  current: page,
+                  pageSize: browse.data?.pagination.limit ?? 20,
+                  total: browse.data?.pagination.total ?? 0,
+                  onChange: setPage,
+                  showSizeChanger: false,
+                  showTotal: (total) => `${total} khách hàng`,
+                }}
+                columns={[
+                  { title: "Khách hàng", key: "name", render: (_: unknown, row: CustomerListItem) => nameCell(row) },
+                  { title: "Điện thoại", key: "phone", width: 140, render: (_: unknown, row: CustomerListItem) => <span className="mono">{row.phone ?? "—"}</span> },
+                  {
+                    title: "Năm sinh · Giới tính",
+                    key: "info",
+                    width: 150,
+                    responsive: ["md"],
+                    render: (_: unknown, row: CustomerListItem) => [row.birthYear, row.gender ? GENDER[row.gender] : null].filter(Boolean).join(" · ") || "—",
+                  },
+                  { title: "Ngày tạo", key: "createdAt", width: 110, responsive: ["lg"], render: (_: unknown, row: CustomerListItem) => formatDate(row.createdAt) },
+                  {
+                    title: "Hồ sơ SK",
+                    key: "consent",
+                    width: 100,
+                    responsive: ["xl"],
+                    render: (_: unknown, row: CustomerListItem) => (row.hasHealthConsent ? <Tag color="green">Đã đồng ý</Tag> : <span className="muted">—</span>),
+                  },
+                ]}
+              />
+            )
           ) : (
             <Table
               rowKey="id"
@@ -78,14 +144,7 @@ export function CustomersPage() {
                 {
                   title: "Khách hàng",
                   key: "name",
-                  render: (_: unknown, row: CustomerSearchItem) => (
-                    <div className="person-cell">
-                      <span className="person-avatar">
-                        <UserOutlined />
-                      </span>
-                      <strong>{row.fullName ?? "Khách chưa có tên"}</strong>
-                    </div>
-                  ),
+                  render: (_: unknown, row: CustomerSearchItem) => nameCell(row),
                 },
                 { title: "Điện thoại", key: "phone", width: 160, render: (_: unknown, row: CustomerSearchItem) => <span className="mono">{row.phone ?? "—"}</span> },
               ]}
@@ -134,7 +193,7 @@ function CustomerPanel({ customerId, onClose, onSaved }: { customerId: string | 
   if (customerId === null) {
     return (
       <Card title="Hồ sơ khách hàng">
-        <PanelEmpty icon={<UserOutlined />} title="Chưa chọn khách hàng" description="Chọn một khách trong kết quả tìm kiếm để xem hồ sơ và lịch sử mua." />
+        <PanelEmpty icon={<UserOutlined />} title="Chưa chọn khách hàng" description="Chọn một khách trong danh sách để xem hồ sơ và lịch sử mua." />
       </Card>
     );
   }

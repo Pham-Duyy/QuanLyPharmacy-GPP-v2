@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { pageResult, parsePageQuery } from "../../lib/pagination.js";
 import { withMappedErrors } from "../../lib/prisma-errors.js";
 import { sendData } from "../../lib/respond.js";
 import { parseOrThrow } from "../../lib/validate.js";
@@ -23,7 +24,22 @@ export const customersRouter = Router();
 // lần ở các router khác, rút kinh nghiệm ngay từ đầu).
 customersRouter.use("/customers", authenticate, storeContext);
 
+/**
+ * GET /api/v1/customers:
+ * - có `search` (≥ 3 ký tự): tìm nhanh, trả mảng tối đa 20 khách (quầy bán, ô tìm nhanh);
+ * - không có `search`: danh sách phân trang, mới tạo trước. Chỉ trường cơ bản, số
+ *   điện thoại che bớt — hồ sơ sức khỏe và lịch sử mua vẫn phải mở từng khách.
+ */
 customersRouter.get("/customers", requirePermission("customer.read"), async (req, res) => {
+  if (req.query["search"] === undefined) {
+    const page = parsePageQuery(req.query, {
+      sortable: ["createdAt", "fullName"],
+      defaultSort: "createdAt",
+    });
+    const { items, total } = await service.list(page);
+    sendData(res, pageResult(items, total, page));
+    return;
+  }
   const { search } = parseOrThrow(searchCustomersSchema, req.query);
   sendData(res, await service.search(search));
 });

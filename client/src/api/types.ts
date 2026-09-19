@@ -470,6 +470,18 @@ export type CustomerSearchItem = {
   phone: string | null;
 };
 
+/** Dòng trong danh sách khách hàng (GET /customers không kèm search). */
+export type CustomerListItem = {
+  id: string;
+  fullName: string | null;
+  /** Đã che bớt. */
+  phone: string | null;
+  birthYear: number | null;
+  gender: string | null;
+  createdAt: string;
+  hasHealthConsent: boolean;
+};
+
 export type CustomerDetail = {
   id: string;
   fullName: string | null;
