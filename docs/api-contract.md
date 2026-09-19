@@ -671,15 +671,18 @@ Thẻ kho **chỉ thêm, không sửa, không xóa**. Tồn của một lô luô
 
 | Method | Endpoint | Mô tả | Quyền |
 |---|---|---|---|
-| GET | `/customers` | Có `search` (tối thiểu 3 ký tự): tìm theo tên hoặc số điện thoại, trả mảng tối đa 20 khách. Không có `search`: danh sách phân trang (`page`, `limit`, `sortBy=createdAt|fullName`, `order`), không gồm khách đã ẩn danh. Cả hai chỉ trả trường cơ bản, số điện thoại che bớt; hồ sơ sức khỏe và lịch sử mua xem riêng từng khách | `customer.read` |
-| GET | `/customers/{id}` | Thông tin cơ bản | `customer.read` |
+| GET | `/customers` | Có `search` (tối thiểu 3 ký tự): tìm theo tên hoặc số điện thoại, trả mảng tối đa 20 khách. Không có `search`: danh sách phân trang (`page`, `limit`, `sortBy` là `createdAt`/`fullName`/`totalSpent`/`lastPurchaseAt`, `order`, `q` tìm tên/SĐT/mã KH, `segment` là `LOYAL`/`NEW`/`DORMANT`), không gồm khách đã ẩn danh; mỗi dòng kèm `code`, `totalSpent`, `orderCount`, `lastPurchaseAt`, `segment`. Cả hai chỉ trả trường cơ bản, số điện thoại che bớt; hồ sơ sức khỏe và chi tiết lịch sử mua xem riêng từng khách | `customer.read` |
+| GET | `/customers/summary` | Tổng khách, khách mới tháng này, đã mua trong 30 ngày, số khách mỗi nhóm, kèm quy tắc nhóm | `customer.read` |
+| GET | `/customers/export` | CSV theo bộ lọc `q`, `segment`; có số điện thoại đầy đủ; ghi audit `CUSTOMER_EXPORT` | `customer.sensitive` |
+| GET | `/customers/{id}` | Thông tin cơ bản, mã khách, email, địa chỉ, `stats` (tổng mua, số đơn, lần mua cuối, nhóm) | `customer.read` |
 | POST | `/customers` | Tạo khách | `customer.manage` |
 | PATCH | `/customers/{id}` | Sửa thông tin cơ bản | `customer.manage` |
 | GET | `/customers/{id}/health-profile` | Dị ứng (theo hoạt chất và ghi chú), bệnh nền; ghi audit mỗi lần xem | `customer.sensitive` |
 | PATCH | `/customers/{id}/health-profile` | Cập nhật hồ sơ sức khỏe | `customer.sensitive` |
 | GET | `/customers/{id}/invoices` | Lịch sử mua; ghi audit mỗi lần xem | `customer.sensitive` |
 
-- Thông tin cơ bản: `fullName`, `phone`, `birthYear`, `gender`, `note`.
+- Thông tin cơ bản: `fullName`, `phone`, `email`, `address`, `birthYear`, `gender`, `note` (ghi chú chăm sóc). `code` (KH00001…) do hệ thống tự cấp.
+- Tổng mua tính trên hóa đơn `COMPLETED` toàn chuỗi, trừ tiền đã hoàn khi trả hàng. Nhóm khách tính từ dữ liệu bán, không phải hạng thành viên: **Thân thiết** từ 5 hóa đơn trong 180 ngày; **Khách mới** tạo hồ sơ trong 30 ngày; **Lâu chưa quay lại** lần mua cuối cách hơn 90 ngày. Hệ thống chưa có tích điểm và công nợ khách hàng.
 - Hồ sơ sức khỏe chỉ được lưu khi đã ghi nhận sự đồng ý của khách (`healthDataConsentAt`). **[Đã chốt – P8]**
 - Đã bỏ `GET /customers/{id}/allergy-check`; kiểm tra dị ứng nằm trong `POST /sales/safety-check` (§13).
 - **Lưu trữ và ẩn danh [Đã chốt – P8]:** hóa đơn, đơn thuốc và thẻ kho giữ theo thời hạn lưu trữ quy định, không xóa. Khi khách yêu cầu xóa dữ liệu cá nhân, hệ thống **ẩn danh hồ sơ khách** (xóa họ tên, số điện thoại, hồ sơ sức khỏe, thay bằng mã ẩn danh) và giữ nguyên chứng từ đã phát sinh. Thao tác ẩn danh cần `customer.sensitive`, bắt buộc ghi lý do và ghi audit log.

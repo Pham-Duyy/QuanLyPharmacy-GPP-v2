@@ -13,6 +13,19 @@ const customerFieldsSchema = z.object({
   birthYear: z.coerce.number().int().min(1900).max(CURRENT_YEAR).nullish(),
   gender: z.enum(["MALE", "FEMALE", "OTHER"]).nullish(),
   note: z.string().trim().max(1000).nullish(),
+  email: z
+    .email("Email không hợp lệ")
+    .trim()
+    .max(200)
+    .nullish()
+    .or(z.literal("").transform(() => null)),
+  address: z.string().trim().max(300).nullish(),
+});
+
+/** Danh sách khách hàng (không kèm `search`): tìm theo tên/SĐT/mã và lọc nhóm. */
+export const listCustomersSchema = z.object({
+  q: z.string().trim().max(100).optional(),
+  segment: z.enum(["LOYAL", "NEW", "DORMANT"]).optional(),
 });
 
 /**
