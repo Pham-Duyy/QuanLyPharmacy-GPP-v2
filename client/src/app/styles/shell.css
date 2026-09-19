@@ -162,6 +162,8 @@
   align-items: center;
   gap: 10px;
   width: min(440px, 100%);
+  min-width: 0;
+  flex: 0 1 440px;
   height: 38px;
   padding: 0 8px 0 12px;
   border: 1px solid var(--c-border);
@@ -316,6 +318,13 @@
   }
 }
 
+@media (max-width: 1199px) {
+  .user-trigger-text,
+  .user-trigger-caret {
+    display: none;
+  }
+}
+
 @media (max-width: 992px) {
   .user-trigger-text,
   .user-trigger-caret,
@@ -339,6 +348,7 @@
 
   .search-trigger {
     width: 38px;
+    flex: none;
     padding: 0;
     justify-content: center;
   }

@@ -134,6 +134,8 @@ export type ProductListItem = {
   ingredients: Array<{ name: string; strengthText: string | null }>;
   minStockBaseQuantity: number;
   isActive: boolean;
+  /** Đơn vị bán được (tăng dần theo quy đổi) kèm giá hiện hành; `null` là chưa đặt giá. */
+  saleUnits: Array<{ id: string; name: string; conversionToBase: number; isDefaultSaleUnit: boolean; salePrice: Money | null }>;
   defaultUnit: ProductUnit | null;
   baseUnit: { id: string; name: string } | null;
   currentPrice: CurrentPrice | null;
