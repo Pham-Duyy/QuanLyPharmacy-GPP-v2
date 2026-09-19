@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import type { PageQuery } from "../../lib/pagination.js";
+import { customerStats, listCustomers, type SegmentFilter } from "./customer-insights.js";
 import { Prisma } from "../../generated/prisma/client.js";
 import { prisma } from "../../db/prisma.js";
 import { AppError } from "../../lib/app-error.js";
@@ -47,38 +48,24 @@ export async function search(term: string) {
   }));
 }
 
-/** Danh sách phân trang cho màn Khách hàng: trường tối thiểu, số điện thoại che bớt. */
-export async function list(page: PageQuery) {
-  const where = { isAnonymized: false };
-  const [rows, total] = await Promise.all([
-    prisma.customer.findMany({
-      where,
-      orderBy: [{ [page.sortBy]: page.order }, { id: "asc" }],
-      skip: page.skip,
-      take: page.limit,
-      select: {
-        id: true,
-        fullName: true,
-        phone: true,
-        birthYear: true,
-        gender: true,
-        createdAt: true,
-        healthDataConsentAt: true,
-      },
-    }),
-    prisma.customer.count({ where }),
-  ]);
-
+/** Danh sách phân trang cho màn Khách hàng: trường cơ bản, số điện thoại che bớt, kèm thống kê mua. */
+export async function list(page: PageQuery, filters: { q?: string; segment?: SegmentFilter }) {
+  const { rows, total } = await listCustomers(page, filters);
   return {
     total,
     items: rows.map((row) => ({
       id: row.id,
-      fullName: row.fullName,
+      code: row.code,
+      fullName: row.full_name,
       phone: maskPhone(row.phone),
-      birthYear: row.birthYear,
+      birthYear: row.birth_year,
       gender: row.gender,
-      createdAt: row.createdAt,
-      hasHealthConsent: row.healthDataConsentAt !== null,
+      createdAt: row.created_at,
+      hasHealthConsent: row.health_data_consent_at !== null,
+      totalSpent: Number(row.total_spent),
+      orderCount: row.order_count,
+      lastPurchaseAt: row.last_purchase_at,
+      segment: row.segment,
     })),
   };
 }
@@ -89,14 +76,21 @@ export async function getDetail(customerId: string) {
 
   return {
     id: customer.id,
+    code: customer.code,
     fullName: customer.fullName,
     phone: customer.phone,
+    email: customer.email,
+    address: customer.address,
     birthYear: customer.birthYear,
     gender: customer.gender,
     note: customer.note,
     hasHealthConsent: customer.healthDataConsentAt !== null,
     isAnonymized: customer.isAnonymized,
     version: customer.version,
+    createdAt: customer.createdAt,
+    updatedAt: customer.updatedAt,
+    // Tổng hợp mua hàng (không kèm chi tiết thuốc đã mua — phần đó cần quyền customer.sensitive).
+    stats: await customerStats(customer.id),
   };
 }
 
@@ -108,6 +102,8 @@ export async function create(input: CreateCustomerInput): Promise<string> {
       birthYear: input.birthYear ?? null,
       gender: input.gender ?? null,
       note: input.note ?? null,
+      email: input.email ?? null,
+      address: input.address ?? null,
     },
   });
   return customer.id;
@@ -143,6 +139,8 @@ export async function update(customerId: string, input: PatchCustomerInput): Pro
           ...(input.birthYear !== undefined ? { birthYear: input.birthYear } : {}),
           ...(input.gender !== undefined ? { gender: input.gender } : {}),
           ...(input.note !== undefined ? { note: input.note } : {}),
+          ...(input.email !== undefined ? { email: input.email } : {}),
+          ...(input.address !== undefined ? { address: input.address } : {}),
           version: { increment: 1 },
         },
       }),
@@ -288,9 +286,10 @@ export async function getInvoiceHistory(customerId: string, auth: AuthContext) {
 }
 
 /**
- * Ẩn danh khi khách yêu cầu xóa dữ liệu cá nhân (contract §11, P8). Chỉ xóa
- * đúng ba thứ contract nêu — họ tên, số điện thoại, hồ sơ sức khỏe — không
- * đụng tới birthYear/gender/note vì không nằm trong danh sách đó. Chứng từ
+ * Ẩn danh khi khách yêu cầu xóa dữ liệu cá nhân (contract §11, P8). Xóa họ
+ * tên, số điện thoại, hồ sơ sức khỏe như contract nêu, và cả email, địa chỉ
+ * (thông tin liên hệ thêm sau, cùng tính chất định danh). Không đụng tới
+ * birthYear/gender/note; mã khách hàng giữ nguyên vì không định danh được ai. Chứng từ
  * đã phát sinh (hóa đơn, đơn thuốc, thẻ kho) giữ nguyên, chỉ hiện tên thay
  * bằng mã ẩn danh nên vẫn tra cứu được mà không lộ danh tính.
  */
@@ -313,6 +312,8 @@ export async function anonymize(
       data: {
         fullName: anonymCode,
         phone: null,
+        email: null,
+        address: null,
         healthDataConsentAt: null,
         isAnonymized: true,
         anonymizedAt: new Date(),

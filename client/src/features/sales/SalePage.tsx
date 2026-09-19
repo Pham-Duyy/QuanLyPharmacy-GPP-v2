@@ -23,6 +23,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { App, AutoComplete, Button, Checkbox, Dropdown, Input, InputNumber, Modal, Select, Space, Tag, Typography } from "antd";
 import type { InputRef } from "antd";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router";
 import { getErrorMessage, http } from "../../api/http.js";
 import {
   formatVnd,
@@ -117,6 +118,8 @@ export function SalePage() {
   const [draftCache, setDraftCache] = useState(() => ({ storeId, list: readDrafts(storeId) }));
   const [restoringDraft, setRestoringDraft] = useState(false);
   const customerTerm = useDebounced(customerSearch.trim(), 250);
+  const [params, setParams] = useSearchParams();
+  const preselectId = params.get("khach");
   const drafts = draftCache.storeId === storeId ? draftCache.list : readDrafts(storeId);
 
   // Chỉ tìm khi gõ đủ 3 ký tự, khớp đúng quy tắc GET /customers (contract §11).
@@ -308,6 +311,37 @@ export function SalePage() {
   const canSell = cart.length > 0 && blocking.length === 0 && missingAck.length === 0 && !safety.isFetching;
 
   const nameOf = (productId: string) => cart.find((line) => line.product.id === productId)?.product.name ?? productId;
+
+  // Mở từ màn Khách hàng ("Tạo đơn bán cho khách"): chọn sẵn khách rồi bỏ tham số khỏi URL.
+  useEffect(() => {
+    if (!preselectId) return;
+    let cancelled = false;
+    http
+      .get<Envelope<CustomerDetail>>(`/customers/${preselectId}`)
+      .then((response) => {
+        if (cancelled) return;
+        const found = response.data.data;
+        if (!found.isAnonymized) setCustomer({ id: found.id, fullName: found.fullName, phone: found.phone });
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) void message.error(getErrorMessage(error, "Không mở được khách hàng"));
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setParams(
+            (current) => {
+              const next = new URLSearchParams(current);
+              next.delete("khach");
+              return next;
+            },
+            { replace: true },
+          );
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [preselectId, message, setParams]);
 
   // F2: về ô tìm thuốc; F9: thanh toán. Hai phím này trình duyệt không dùng.
   const { mutate: submitCheckout, isPending: checkoutPending } = checkout;

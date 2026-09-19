@@ -471,8 +471,13 @@ export type CustomerSearchItem = {
 };
 
 /** Dòng trong danh sách khách hàng (GET /customers không kèm search). */
+/** Nhóm khách tính từ lịch sử mua (không phải hạng thành viên). */
+export type CustomerSegment = "LOYAL" | "NEW" | "DORMANT" | "REGULAR";
+
+/** Dòng trong danh sách khách hàng (GET /customers không kèm search). */
 export type CustomerListItem = {
   id: string;
+  code: string;
   fullName: string | null;
   /** Đã che bớt. */
   phone: string | null;
@@ -480,18 +485,36 @@ export type CustomerListItem = {
   gender: string | null;
   createdAt: string;
   hasHealthConsent: boolean;
+  totalSpent: number;
+  orderCount: number;
+  lastPurchaseAt: string | null;
+  segment: CustomerSegment;
+};
+
+export type CustomerSummary = {
+  total: number;
+  newThisMonth: number;
+  purchasedLast30Days: number;
+  segments: Record<"LOYAL" | "NEW" | "DORMANT", number>;
+  rules: { loyalMinOrders: number; loyalWindowDays: number; newWithinDays: number; dormantAfterDays: number };
 };
 
 export type CustomerDetail = {
   id: string;
+  code: string;
   fullName: string | null;
   phone: string | null;
+  email: string | null;
+  address: string | null;
   birthYear: number | null;
   gender: "MALE" | "FEMALE" | "OTHER" | null;
   note: string | null;
   hasHealthConsent: boolean;
   isAnonymized: boolean;
   version: number;
+  createdAt: string;
+  updatedAt: string;
+  stats: { totalSpent: number; orderCount: number; lastPurchaseAt: string | null; segment: CustomerSegment };
 };
 
 export type CustomerAllergyItem = { ingredientId: string; ingredientName: string; note: string | null };

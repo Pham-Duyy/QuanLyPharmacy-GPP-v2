@@ -11,8 +11,11 @@ import {
   createCustomerSchema,
   patchCustomerSchema,
   patchHealthProfileSchema,
+  listCustomersSchema,
   searchCustomersSchema,
 } from "./customers.schema.js";
+import { customerSummary } from "./customer-insights.js";
+import { exportCustomersCsv } from "./customer-export.js";
 import * as service from "./customers.service.js";
 
 export const customersRouter = Router();
@@ -33,16 +36,47 @@ customersRouter.use("/customers", authenticate, storeContext);
 customersRouter.get("/customers", requirePermission("customer.read"), async (req, res) => {
   if (req.query["search"] === undefined) {
     const page = parsePageQuery(req.query, {
-      sortable: ["createdAt", "fullName"],
+      sortable: ["createdAt", "fullName", "totalSpent", "lastPurchaseAt"],
       defaultSort: "createdAt",
     });
-    const { items, total } = await service.list(page);
+    const { q, segment } = parseOrThrow(listCustomersSchema, req.query);
+    const { items, total } = await service.list(page, { q: q || undefined, segment });
     sendData(res, pageResult(items, total, page));
     return;
   }
   const { search } = parseOrThrow(searchCustomersSchema, req.query);
   sendData(res, await service.search(search));
 });
+
+/** GET /api/v1/customers/summary: số liệu đầu trang (tổng, khách mới, đã mua 30 ngày, số khách mỗi nhóm). */
+customersRouter.get("/customers/summary", requirePermission("customer.read"), async (_req, res) => {
+  sendData(res, await customerSummary());
+});
+
+/**
+ * GET /api/v1/customers/export: xuất CSV theo bộ lọc đang xem. Có số điện
+ * thoại đầy đủ để gọi chăm sóc khách, nên cần quyền customer.sensitive và
+ * ghi audit mỗi lần xuất.
+ */
+customersRouter.get(
+  "/customers/export",
+  requirePermission("customer.sensitive"),
+  async (req, res) => {
+    const { q, segment } = parseOrThrow(listCustomersSchema, req.query);
+    const csv = await exportCustomersCsv(
+      req.auth!,
+      { q: q || undefined, segment },
+      res.locals.requestId as string | undefined,
+    );
+    res
+      .set(
+        "Content-Disposition",
+        `attachment; filename="khach-hang-${new Date().toISOString().slice(0, 10)}.csv"`,
+      )
+      .type("text/csv; charset=utf-8")
+      .send(csv);
+  },
+);
 
 customersRouter.get("/customers/:id", requirePermission("customer.read"), async (req, res) => {
   sendData(res, await service.getDetail(String(req.params.id)));

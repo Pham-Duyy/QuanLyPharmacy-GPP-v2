@@ -1,168 +1,355 @@
-import { DeleteOutlined, EditOutlined, EyeInvisibleOutlined, HeartOutlined, PlusOutlined, SearchOutlined, TeamOutlined, UserOutlined } from "@ant-design/icons";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, App, Button, Card, Checkbox, Empty, Input, InputNumber, Modal, Select, Skeleton, Table, Tabs, Tag, Typography } from "antd";
-import { useEffect, useState } from "react";
+import { DownloadOutlined, FilterOutlined, PlusOutlined, SearchOutlined, ShoppingCartOutlined, TeamOutlined, UserAddOutlined, HistoryOutlined, InfoCircleOutlined } from "@ant-design/icons";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
+import { App, Badge, Button, Drawer, Empty, Grid, Input, Pagination, Popover, Result, Select, Skeleton, Tooltip } from "antd";
+import { useState } from "react";
+import type { ReactNode } from "react";
 import { useSearchParams } from "react-router";
 import { getErrorMessage, http } from "../../api/http.js";
-import type { CustomerDetail, CustomerHealthProfile, CustomerInvoiceHistoryItem, CustomerListItem, CustomerSearchItem, Envelope, Paged } from "../../api/types.js";
-import { formatVnd } from "../../api/types.js";
-import { formatDate, formatDateTime } from "../../ui/format.js";
+import type { CustomerListItem, CustomerSummary, Envelope, Paged } from "../../api/types.js";
+import { formatDate } from "../../ui/format.js";
 import { PageHeader } from "../../ui/PageHeader.js";
-import { PanelEmpty } from "../../ui/PanelEmpty.js";
 import { useDebounced } from "../../ui/useDebounced.js";
 import { useAuth } from "../auth/AuthProvider.js";
+import { CustomerFormModal } from "./customer-forms.js";
+import { SEGMENT, avatarTone, initials, money } from "./customer-labels.js";
+import { CustomerDetailPanel } from "./CustomerDetailPanel.js";
 
-const GENDER: Record<string, string> = { MALE: "Nam", FEMALE: "Nữ", OTHER: "Khác" };
+type Tab = "ALL" | "LOYAL" | "NEW" | "DORMANT";
+type Sort = "createdAt" | "totalSpent" | "lastPurchaseAt" | "fullName";
 
-/** Màn hình khách hàng: tìm/tạo/sửa thông tin cơ bản, hồ sơ sức khỏe, lịch sử mua (contract §11). */
+const SORTS: Record<Sort, { label: string; order: "asc" | "desc" }> = {
+  createdAt: { label: "Mới tạo gần đây", order: "desc" },
+  totalSpent: { label: "Tổng mua cao nhất", order: "desc" },
+  lastPurchaseAt: { label: "Mua gần đây nhất", order: "desc" },
+  fullName: { label: "Tên A → Z", order: "asc" },
+};
+
+const PAGE_SIZE = 20;
+
+/** Quản lý khách hàng (contract §11): danh sách toàn chuỗi, nhóm theo lịch sử mua, hồ sơ và chăm sóc. */
 export function CustomersPage() {
   const { can } = useAuth();
+  const { message } = App.useApp();
   const queryClient = useQueryClient();
+  const screens = Grid.useBreakpoint();
+  const wide = screens.xl ?? true;
+  const compact = !(screens.md ?? true);
   const [params, setParams] = useSearchParams();
   const openId = params.get("id");
   const [search, setSearch] = useState("");
-  const [creating, setCreating] = useState(false);
+  const [tab, setTab] = useState<Tab>("ALL");
+  const [sort, setSort] = useState<Sort>("createdAt");
   const [page, setPage] = useState(1);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const term = useDebounced(search.trim(), 300);
-  const searching = term.length >= 3;
 
+  function select(id: string | null) {
+    setParams(
+      (current) => {
+        const next = new URLSearchParams(current);
+        if (id) next.set("id", id);
+        else next.delete("id");
+        return next;
+      },
+      { replace: true },
+    );
+  }
+
+  const summary = useQuery({
+    queryKey: ["customers", "summary"],
+    queryFn: async () => (await http.get<Envelope<CustomerSummary>>("/customers/summary")).data.data,
+  });
+
+  const filters = { q: term || undefined, segment: tab === "ALL" ? undefined : tab, sortBy: sort, order: SORTS[sort].order };
   const list = useQuery({
-    queryKey: ["customers", term],
-    enabled: searching,
-    queryFn: async () => {
-      const response = await http.get<Envelope<CustomerSearchItem[]>>("/customers", { params: { search: term } });
-      return response.data.data;
-    },
+    queryKey: ["customers", "list", filters, page],
+    placeholderData: keepPreviousData,
+    queryFn: async ({ signal }) => (await http.get<Envelope<Paged<CustomerListItem>>>("/customers", { signal, params: { ...filters, page, limit: PAGE_SIZE } })).data.data,
   });
 
-  // Chưa gõ tìm thì hiện danh sách phân trang, mới tạo trước (số điện thoại đã che bớt).
-  const browse = useQuery({
-    queryKey: ["customers", "browse", page],
-    enabled: !searching,
-    placeholderData: (previous) => previous,
-    queryFn: async () => (await http.get<Envelope<Paged<CustomerListItem>>>("/customers", { params: { page, limit: 20, sortBy: "createdAt", order: "desc" } })).data.data,
-  });
+  async function refreshAll() {
+    await queryClient.invalidateQueries({ queryKey: ["customers"] });
+  }
 
-  const nameCell = (row: { fullName: string | null }) => (
-    <div className="person-cell">
-      <span className="person-avatar">
-        <UserOutlined />
-      </span>
-      <strong>{row.fullName ?? "Khách chưa có tên"}</strong>
-    </div>
-  );
+  async function exportCsv() {
+    setExporting(true);
+    try {
+      const response = await http.get<Blob>("/customers/export", { params: { q: filters.q, segment: filters.segment }, responseType: "blob" });
+      const url = URL.createObjectURL(response.data);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `khach-hang-${new Date().toISOString().slice(0, 10)}.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+      void message.success("Đã xuất danh sách khách hàng");
+    } catch (error) {
+      void message.error(getErrorMessage(error, "Không xuất được danh sách"));
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  const rules = summary.data?.rules;
+  const counts = summary.data?.segments;
+  const tabs: Array<{ key: Tab; label: string; count?: number; hint?: string }> = [
+    { key: "ALL", label: "Tất cả", count: summary.data?.total },
+    { key: "LOYAL", label: "Khách thân thiết", count: counts?.LOYAL, hint: rules ? `Từ ${rules.loyalMinOrders} hóa đơn trong ${rules.loyalWindowDays} ngày gần nhất` : undefined },
+    { key: "NEW", label: "Khách mới", count: counts?.NEW, hint: rules ? `Tạo hồ sơ trong ${rules.newWithinDays} ngày gần nhất` : undefined },
+    { key: "DORMANT", label: "Lâu chưa quay lại", count: counts?.DORMANT, hint: rules ? `Lần mua cuối cách hơn ${rules.dormantAfterDays} ngày — nên gọi chăm sóc` : undefined },
+  ];
+
+  const stats: Array<{ key: string; label: string; value: number | undefined; icon: ReactNode; tone: string; tab?: Tab }> = [
+    { key: "total", label: "Tổng khách hàng", value: summary.data?.total, icon: <TeamOutlined />, tone: "blue", tab: "ALL" },
+    { key: "new", label: "Khách mới tháng này", value: summary.data?.newThisMonth, icon: <UserAddOutlined />, tone: "teal" },
+    { key: "bought", label: "Đã mua trong 30 ngày", value: summary.data?.purchasedLast30Days, icon: <ShoppingCartOutlined />, tone: "green" },
+    { key: "dormant", label: "Lâu chưa quay lại", value: counts?.DORMANT, icon: <HistoryOutlined />, tone: "orange", tab: "DORMANT" },
+  ];
+
+  const items = list.data?.items ?? [];
+  const total = list.data?.pagination.total ?? 0;
+  const hasFilters = Boolean(term) || tab !== "ALL";
+
+  let body: ReactNode;
+  if (list.isError && !list.data) {
+    body = <Result status="warning" title="Không tải được danh sách khách hàng" subTitle={getErrorMessage(list.error, "Kiểm tra kết nối rồi thử lại.")} extra={<Button onClick={() => void list.refetch()}>Thử lại</Button>} />;
+  } else if (list.isPending) {
+    body = <Skeleton avatar active paragraph={{ rows: 6 }} />;
+  } else if (items.length === 0) {
+    body = hasFilters ? (
+      <Empty className="product-empty" image={Empty.PRESENTED_IMAGE_SIMPLE} description="Không có khách hàng phù hợp">
+        <Button
+          onClick={() => {
+            setSearch("");
+            setTab("ALL");
+            setPage(1);
+          }}
+        >
+          Xóa bộ lọc
+        </Button>
+      </Empty>
+    ) : (
+      <Empty className="product-empty" image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có khách hàng nào">
+        {can("customer.manage") ? (
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreating(true)}>
+            Thêm khách hàng đầu tiên
+          </Button>
+        ) : null}
+      </Empty>
+    );
+  } else {
+    body = (
+      <div className="cust-table" role="table" aria-label="Danh sách khách hàng">
+        {compact ? null : (
+          <div className="cust-table-head" role="row">
+            <span role="columnheader">Khách hàng</span>
+            <span role="columnheader">Liên hệ</span>
+            <span role="columnheader" className="col-num">
+              Tổng mua
+            </span>
+            <span role="columnheader" className="col-num">
+              Lần mua cuối
+            </span>
+          </div>
+        )}
+        {items.map((row) => {
+          const segment = SEGMENT[row.segment];
+          return (
+            <button
+              key={row.id}
+              type="button"
+              role="row"
+              className={row.id === openId ? "cust-row is-selected" : "cust-row"}
+              aria-current={row.id === openId ? "true" : undefined}
+              onClick={() => select(row.id)}
+            >
+              <span role="cell" className="cust-row-main">
+                <span className={`cust-avatar tone-${avatarTone(row.code)}`} aria-hidden>
+                  {initials(row.fullName)}
+                </span>
+                <span className="cust-row-text">
+                  <strong>{row.fullName ?? "Khách chưa có tên"}</strong>
+                  <span>
+                    <span className="mono muted">{row.code}</span> <span className={`class-badge tone-${segment.tone}`}>{segment.label}</span>
+                  </span>
+                </span>
+              </span>
+              <span role="cell" className="mono cust-row-phone">
+                {row.phone ?? <span className="muted">—</span>}
+              </span>
+              <span role="cell" className="col-num cust-row-money">
+                {row.orderCount > 0 ? money(row.totalSpent) : <span className="muted">Chưa mua</span>}
+                {row.orderCount > 0 ? <small className="muted">{row.orderCount} đơn</small> : null}
+              </span>
+              <span role="cell" className="col-num cust-row-date">
+                {row.lastPurchaseAt ? formatDate(row.lastPurchaseAt) : <span className="muted">—</span>}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
+
+  const detail = openId ? <CustomerDetailPanel key={openId} customerId={openId} onClose={() => select(null)} onChanged={refreshAll} /> : null;
 
   return (
     <div>
       <PageHeader
         icon={<TeamOutlined />}
         title="Khách hàng"
-        description="Danh sách khách dùng chung toàn chuỗi, số điện thoại được che bớt. Hồ sơ sức khỏe chỉ lưu khi khách đồng ý."
+        description="Thông tin liên hệ, lịch sử mua hàng và chăm sóc khách hàng"
         extra={
-          can("customer.manage") ? (
-            <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreating(true)}>
-              Thêm khách hàng
-            </Button>
-          ) : null
+          <>
+            {can("customer.sensitive") ? (
+              <Tooltip title="Xuất CSV theo bộ lọc đang xem (có số điện thoại đầy đủ, được ghi nhật ký)">
+                <Button icon={<DownloadOutlined />} loading={exporting} onClick={() => void exportCsv()}>
+                  Xuất danh sách
+                </Button>
+              </Tooltip>
+            ) : null}
+            {can("customer.manage") ? (
+              <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreating(true)}>
+                Thêm khách hàng
+              </Button>
+            ) : null}
+          </>
         }
       />
 
-      <div className="split-layout">
-        <Card>
-          <Input
-            size="large"
-            allowClear
-            prefix={<SearchOutlined />}
-            placeholder="Tìm theo tên hoặc số điện thoại (từ 3 ký tự)"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            style={{ marginBottom: 14 }}
-          />
-          {!searching ? (
-            browse.isError ? (
-              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={getErrorMessage(browse.error, "Không tải được danh sách khách hàng")}>
-                <Button onClick={() => void browse.refetch()}>Thử lại</Button>
-              </Empty>
-            ) : (
-              <Table
-                rowKey="id"
-                loading={browse.isFetching}
-                dataSource={browse.data?.items ?? []}
-                scroll={{ x: 560 }}
-                onRow={(row) => ({ onClick: () => setParams({ id: row.id }), style: { cursor: "pointer" } })}
-                rowClassName={(row) => (row.id === openId ? "row-selected" : "")}
-                locale={{
-                  emptyText: (
-                    <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có khách hàng nào">
-                      {can("customer.manage") ? (
-                        <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreating(true)}>
-                          Thêm khách hàng
-                        </Button>
-                      ) : null}
-                    </Empty>
-                  ),
-                }}
-                pagination={{
-                  current: page,
-                  pageSize: browse.data?.pagination.limit ?? 20,
-                  total: browse.data?.pagination.total ?? 0,
-                  onChange: setPage,
-                  showSizeChanger: false,
-                  showTotal: (total) => `${total} khách hàng`,
-                }}
-                columns={[
-                  { title: "Khách hàng", key: "name", render: (_: unknown, row: CustomerListItem) => nameCell(row) },
-                  { title: "Điện thoại", key: "phone", width: 140, render: (_: unknown, row: CustomerListItem) => <span className="mono">{row.phone ?? "—"}</span> },
-                  {
-                    title: "Năm sinh · Giới tính",
-                    key: "info",
-                    width: 150,
-                    responsive: ["md"],
-                    render: (_: unknown, row: CustomerListItem) => [row.birthYear, row.gender ? GENDER[row.gender] : null].filter(Boolean).join(" · ") || "—",
-                  },
-                  { title: "Ngày tạo", key: "createdAt", width: 110, responsive: ["lg"], render: (_: unknown, row: CustomerListItem) => formatDate(row.createdAt) },
-                  {
-                    title: "Hồ sơ SK",
-                    key: "consent",
-                    width: 100,
-                    responsive: ["xl"],
-                    render: (_: unknown, row: CustomerListItem) => (row.hasHealthConsent ? <Tag color="green">Đã đồng ý</Tag> : <span className="muted">—</span>),
-                  },
-                ]}
-              />
-            )
+      <div className="cust-stats">
+        {stats.map((stat) => {
+          const content = (
+            <>
+              <span className={`cust-stat-icon tone-${stat.tone}`} aria-hidden>
+                {stat.icon}
+              </span>
+              <span className="cust-stat-text">
+                <span>{stat.label}</span>
+                <strong>{stat.value === undefined ? <Skeleton.Button active size="small" /> : stat.value.toLocaleString("vi-VN")}</strong>
+              </span>
+            </>
+          );
+          return stat.tab ? (
+            <button
+              key={stat.key}
+              type="button"
+              className="cust-stat is-clickable"
+              onClick={() => {
+                setTab(stat.tab!);
+                setPage(1);
+              }}
+            >
+              {content}
+            </button>
           ) : (
-            <Table
-              rowKey="id"
-              loading={list.isFetching}
-              dataSource={list.data ?? []}
-              pagination={false}
-              onRow={(row) => ({ onClick: () => setParams({ id: row.id }), style: { cursor: "pointer" } })}
-              rowClassName={(row) => (row.id === openId ? "row-selected" : "")}
-              locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Không tìm thấy khách hàng nào" /> }}
-              columns={[
-                {
-                  title: "Khách hàng",
-                  key: "name",
-                  render: (_: unknown, row: CustomerSearchItem) => nameCell(row),
-                },
-                { title: "Điện thoại", key: "phone", width: 160, render: (_: unknown, row: CustomerSearchItem) => <span className="mono">{row.phone ?? "—"}</span> },
-              ]}
-            />
-          )}
-        </Card>
-
-        <aside className="split-aside">
-          <CustomerPanel
-            customerId={openId}
-            onClose={() => setParams({})}
-            onSaved={async () => {
-              await queryClient.invalidateQueries({ queryKey: ["customer", openId] });
-              await queryClient.invalidateQueries({ queryKey: ["customers"] });
-            }}
-          />
-        </aside>
+            <div key={stat.key} className="cust-stat">
+              {content}
+            </div>
+          );
+        })}
       </div>
+
+      <div className={detail && wide ? "cust-layout has-detail" : "cust-layout"}>
+        <section className="cust-list-card" aria-label="Danh sách khách hàng">
+          <h2 className="cust-list-title">Danh sách khách hàng</h2>
+          <div className="cust-toolbar">
+            <Input
+              allowClear
+              size="large"
+              prefix={<SearchOutlined />}
+              placeholder="Tìm tên, số điện thoại hoặc mã khách hàng"
+              aria-label="Tìm khách hàng"
+              value={search}
+              onChange={(event) => {
+                setSearch(event.target.value);
+                setPage(1);
+              }}
+            />
+            <Popover
+              open={filterOpen}
+              onOpenChange={setFilterOpen}
+              trigger="click"
+              placement="bottomRight"
+              title="Bộ lọc"
+              content={
+                <div className="product-filter-panel">
+                  <label>
+                    <span>Sắp xếp</span>
+                    <Select
+                      value={sort}
+                      onChange={(value) => {
+                        setSort(value);
+                        setPage(1);
+                      }}
+                      options={Object.entries(SORTS).map(([value, info]) => ({ value, label: info.label }))}
+                    />
+                  </label>
+                  <div className="product-filter-actions">
+                    <Button size="small" disabled={sort === "createdAt"} onClick={() => setSort("createdAt")}>
+                      Đặt lại
+                    </Button>
+                    <Button size="small" type="primary" onClick={() => setFilterOpen(false)}>
+                      Xong
+                    </Button>
+                  </div>
+                </div>
+              }
+            >
+              <Badge count={sort === "createdAt" ? 0 : 1} size="small">
+                <Button size="large" icon={<FilterOutlined />}>
+                  Bộ lọc
+                </Button>
+              </Badge>
+            </Popover>
+          </div>
+
+          <div className="cust-tabs" role="tablist" aria-label="Nhóm khách hàng">
+            {tabs.map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                role="tab"
+                aria-selected={tab === item.key}
+                title={item.hint}
+                className={tab === item.key ? "cust-tab is-active" : "cust-tab"}
+                onClick={() => {
+                  setTab(item.key);
+                  setPage(1);
+                }}
+              >
+                {item.label}
+                {item.count !== undefined ? ` (${item.count.toLocaleString("vi-VN")})` : ""}
+              </button>
+            ))}
+          </div>
+          {tab !== "ALL" ? (
+            <p className="cust-rule">
+              <InfoCircleOutlined /> {tabs.find((item) => item.key === tab)?.hint}
+            </p>
+          ) : null}
+
+          <div className={list.isFetching && list.data ? "products-body is-refreshing" : "products-body"}>{body}</div>
+
+          {total > 0 ? (
+            <div className="products-footer">
+              <span className="muted">
+                Hiển thị {(page - 1) * PAGE_SIZE + 1} – {Math.min(total, page * PAGE_SIZE)} / {total.toLocaleString("vi-VN")} khách hàng
+              </span>
+              <Pagination size={compact ? "small" : "middle"} current={page} pageSize={PAGE_SIZE} total={total} showSizeChanger={false} onChange={setPage} />
+            </div>
+          ) : null}
+        </section>
+
+        {detail && wide ? <aside className="cust-aside">{detail}</aside> : null}
+      </div>
+
+      {!wide ? (
+        <Drawer open={Boolean(detail)} onClose={() => select(null)} placement="right" size={compact ? "100%" : 520} closable={false} rootClassName="product-drawer" styles={{ body: { padding: 0 } }} destroyOnHidden>
+          {detail}
+        </Drawer>
+      ) : null}
 
       <CustomerFormModal
         open={creating}
@@ -170,447 +357,10 @@ export function CustomersPage() {
         onClose={() => setCreating(false)}
         onSaved={async (id) => {
           setCreating(false);
-          await queryClient.invalidateQueries({ queryKey: ["customers"] });
-          setParams({ id });
+          await refreshAll();
+          select(id);
         }}
       />
     </div>
-  );
-}
-
-function CustomerPanel({ customerId, onClose, onSaved }: { customerId: string | null; onClose: () => void; onSaved: () => Promise<unknown> }) {
-  const { can } = useAuth();
-  const [editing, setEditing] = useState(false);
-  const [anonymizing, setAnonymizing] = useState(false);
-
-  const detailQuery = useQuery({
-    queryKey: ["customer", customerId],
-    enabled: customerId !== null,
-    queryFn: async () => (await http.get<Envelope<CustomerDetail>>(`/customers/${customerId}`)).data.data,
-  });
-  const detail = detailQuery.data;
-
-  if (customerId === null) {
-    return (
-      <Card title="Hồ sơ khách hàng">
-        <PanelEmpty icon={<UserOutlined />} title="Chưa chọn khách hàng" description="Chọn một khách trong danh sách để xem hồ sơ và lịch sử mua." />
-      </Card>
-    );
-  }
-
-  return (
-    <Card
-      title="Hồ sơ khách hàng"
-      extra={
-        <Button type="text" size="small" onClick={onClose}>
-          Đóng
-        </Button>
-      }
-    >
-      {detailQuery.isLoading || !detail ? (
-        <Skeleton active paragraph={{ rows: 6 }} />
-      ) : (
-        <div className="detail-stack">
-          <div className="person-head">
-            <span className="person-avatar lg">
-              <UserOutlined />
-            </span>
-            <div>
-              <h3 className="detail-title">{detail.fullName ?? "Khách chưa có tên"}</h3>
-              <span className="detail-sub mono">{detail.phone ?? "Không có số điện thoại"}</span>
-            </div>
-          </div>
-
-          {detail.isAnonymized ? (
-            <Alert
-              type="warning"
-              showIcon
-              title="Khách hàng này đã được ẩn danh"
-              description="Họ tên, số điện thoại và hồ sơ sức khỏe đã bị xóa theo yêu cầu của khách. Chứng từ đã phát sinh vẫn giữ nguyên."
-            />
-          ) : null}
-
-          <dl className="kv-list">
-            <div>
-              <dt>Năm sinh</dt>
-              <dd>{detail.birthYear ?? "—"}</dd>
-            </div>
-            <div>
-              <dt>Giới tính</dt>
-              <dd>{detail.gender ? GENDER[detail.gender] : "—"}</dd>
-            </div>
-            <div>
-              <dt>Ghi chú</dt>
-              <dd>{detail.note ?? "—"}</dd>
-            </div>
-          </dl>
-
-          {!detail.isAnonymized && (can("customer.manage") || can("customer.sensitive")) ? (
-            <div className="panel-actions-row">
-              {can("customer.manage") ? (
-                <Button icon={<EditOutlined />} onClick={() => setEditing(true)}>
-                  Sửa thông tin
-                </Button>
-              ) : null}
-              {can("customer.sensitive") ? (
-                <Button danger icon={<EyeInvisibleOutlined />} onClick={() => setAnonymizing(true)}>
-                  Ẩn danh
-                </Button>
-              ) : null}
-            </div>
-          ) : null}
-
-          {can("customer.sensitive") ? (
-            <Tabs
-              items={[
-                { key: "health", label: "Hồ sơ sức khỏe", children: <HealthProfilePanel customerId={customerId} onSaved={onSaved} /> },
-                { key: "invoices", label: "Lịch sử mua", children: <InvoiceHistoryPanel customerId={customerId} /> },
-              ]}
-            />
-          ) : (
-            <Alert type="info" showIcon title="Vai trò hiện tại không được xem hồ sơ sức khỏe và lịch sử mua của khách." />
-          )}
-        </div>
-      )}
-
-      <CustomerFormModal
-        open={editing}
-        customer={detail ?? null}
-        onClose={() => setEditing(false)}
-        onSaved={async () => {
-          setEditing(false);
-          await onSaved();
-        }}
-      />
-      <AnonymizeModal
-        open={anonymizing}
-        customerId={customerId}
-        onClose={() => setAnonymizing(false)}
-        onSaved={async () => {
-          setAnonymizing(false);
-          await onSaved();
-        }}
-      />
-    </Card>
-  );
-}
-
-function AnonymizeModal({ open, customerId, onClose, onSaved }: { open: boolean; customerId: string | null; onClose: () => void; onSaved: () => Promise<unknown> }) {
-  const { message } = App.useApp();
-  const [reason, setReason] = useState("");
-
-  const anonymize = useMutation({
-    mutationFn: () => http.post(`/customers/${customerId}/anonymize`, { reason }),
-    onSuccess: async () => {
-      void message.success("Đã ẩn danh hồ sơ khách hàng");
-      setReason("");
-      await onSaved();
-    },
-    onError: (error) => void message.error(getErrorMessage(error, "Không ẩn danh được khách hàng")),
-  });
-
-  return (
-    <Modal
-      open={open}
-      title="Ẩn danh hồ sơ khách hàng"
-      okText="Xác nhận ẩn danh"
-      cancelText="Hủy"
-      onCancel={() => {
-        setReason("");
-        onClose();
-      }}
-      onOk={() => anonymize.mutate()}
-      confirmLoading={anonymize.isPending}
-      okButtonProps={{ danger: true, disabled: reason.trim().length === 0 }}
-      destroyOnHidden
-    >
-      <Alert
-        type="warning"
-        showIcon
-        style={{ marginBottom: 16 }}
-        title="Thao tác không thể hoàn tác"
-        description="Họ tên, số điện thoại và hồ sơ sức khỏe sẽ bị xóa vĩnh viễn, thay bằng mã ẩn danh. Hóa đơn và đơn thuốc đã phát sinh vẫn được giữ lại."
-      />
-      <Input.TextArea rows={3} placeholder="Lý do ẩn danh (bắt buộc — ví dụ: khách yêu cầu xóa dữ liệu cá nhân)" value={reason} onChange={(event) => setReason(event.target.value)} autoFocus />
-    </Modal>
-  );
-}
-
-function HealthProfilePanel({ customerId, onSaved }: { customerId: string; onSaved: () => Promise<unknown> }) {
-  const profile = useQuery({
-    queryKey: ["customer-health", customerId],
-    queryFn: async () => (await http.get<Envelope<CustomerHealthProfile>>(`/customers/${customerId}/health-profile`)).data.data,
-  });
-  const [editing, setEditing] = useState(false);
-
-  if (profile.isLoading) return <Skeleton active paragraph={{ rows: 3 }} />;
-
-  return (
-    <div className="detail-stack">
-      {!profile.data?.hasHealthConsent ? (
-        <Alert type="warning" showIcon title="Khách chưa đồng ý lưu hồ sơ sức khỏe" description="Chỉ được ghi dị ứng và bệnh nền sau khi đã hỏi và được khách đồng ý." />
-      ) : null}
-      <dl className="kv-list">
-        <div>
-          <dt>Bệnh nền</dt>
-          <dd>{profile.data?.chronicConditions ?? "—"}</dd>
-        </div>
-        <div>
-          <dt>Dị ứng hoạt chất</dt>
-          <dd>
-            {profile.data?.allergies.length
-              ? profile.data.allergies.map((allergy) => (
-                  <Tag key={allergy.ingredientId} color="red" style={{ marginBottom: 4 }}>
-                    {allergy.ingredientName}
-                    {allergy.note ? ` — ${allergy.note}` : ""}
-                  </Tag>
-                ))
-              : "Chưa ghi nhận"}
-          </dd>
-        </div>
-        {profile.data?.note ? (
-          <div>
-            <dt>Ghi chú</dt>
-            <dd>{profile.data.note}</dd>
-          </div>
-        ) : null}
-      </dl>
-      <Button icon={<HeartOutlined />} onClick={() => setEditing(true)}>
-        {profile.data?.hasHealthConsent ? "Sửa hồ sơ sức khỏe" : "Ghi nhận đồng ý và nhập hồ sơ"}
-      </Button>
-      <HealthProfileFormModal
-        open={editing}
-        customerId={customerId}
-        profile={profile.data ?? null}
-        onClose={() => setEditing(false)}
-        onSaved={async () => {
-          setEditing(false);
-          await profile.refetch();
-          await onSaved();
-        }}
-      />
-    </div>
-  );
-}
-
-function InvoiceHistoryPanel({ customerId }: { customerId: string }) {
-  const history = useQuery({
-    queryKey: ["customer-invoices", customerId],
-    queryFn: async () => (await http.get<Envelope<CustomerInvoiceHistoryItem[]>>(`/customers/${customerId}/invoices`)).data.data,
-  });
-
-  if (history.isLoading) return <Skeleton active paragraph={{ rows: 3 }} />;
-  if ((history.data ?? []).length === 0) return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Khách chưa mua lần nào" />;
-
-  return (
-    <div className="mini-list">
-      {history.data!.map((row) => (
-        <div className="mini-list-item" key={row.id}>
-          <div className="cell-main">
-            <strong className="mono">{row.code}</strong>
-            <span>
-              {formatDateTime(row.soldAt)} · {row.storeCode} · {row.lineCount} dòng
-            </span>
-          </div>
-          <div className="cell-main cell-right">
-            <strong>{formatVnd(row.totalAmount)}</strong>
-            {row.status === "VOIDED" ? <Tag color="red">Đã hủy</Tag> : null}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function CustomerFormModal({
-  open,
-  customer,
-  onClose,
-  onSaved,
-}: {
-  open: boolean;
-  /** Có giá trị thì là sửa; không thì tạo mới. */
-  customer: CustomerDetail | null;
-  onClose: () => void;
-  onSaved: (id: string) => Promise<unknown> | unknown;
-}) {
-  const { message } = App.useApp();
-  const [fullName, setFullName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [birthYear, setBirthYear] = useState<number | null>(null);
-  const [gender, setGender] = useState<string | undefined>(undefined);
-  const [note, setNote] = useState("");
-
-  useEffect(() => {
-    if (!open) return;
-    setFullName(customer?.fullName ?? "");
-    setPhone(customer?.phone ?? "");
-    setBirthYear(customer?.birthYear ?? null);
-    setGender(customer?.gender ?? undefined);
-    setNote(customer?.note ?? "");
-  }, [open, customer]);
-
-  const save = useMutation({
-    mutationFn: async () => {
-      const body = { fullName: fullName || null, phone: phone || null, birthYear, gender: gender ?? null, note: note || null };
-      if (customer) {
-        const response = await http.patch<Envelope<CustomerDetail>>(`/customers/${customer.id}`, { ...body, version: customer.version });
-        return response.data.data.id;
-      }
-      const response = await http.post<Envelope<CustomerDetail>>("/customers", body);
-      return response.data.data.id;
-    },
-    onSuccess: async (id) => {
-      void message.success(customer ? "Đã lưu thông tin khách hàng" : "Đã thêm khách hàng");
-      await onSaved(id);
-    },
-    onError: (error) => void message.error(getErrorMessage(error, "Không lưu được khách hàng")),
-  });
-
-  return (
-    <Modal
-      open={open}
-      onCancel={onClose}
-      onOk={() => save.mutate()}
-      okText="Lưu"
-      cancelText="Hủy"
-      okButtonProps={{ disabled: !fullName.trim() && !phone.trim() }}
-      confirmLoading={save.isPending}
-      title={customer ? "Sửa thông tin khách hàng" : "Thêm khách hàng"}
-    >
-      <div className="detail-stack">
-        <div className="form-grid">
-          <label className="field">
-            <span>Họ và tên</span>
-            <Input placeholder="Nguyễn Văn A" value={fullName} onChange={(event) => setFullName(event.target.value)} autoFocus />
-          </label>
-          <label className="field">
-            <span>Số điện thoại</span>
-            <Input placeholder="09xxxxxxxx" inputMode="tel" value={phone} onChange={(event) => setPhone(event.target.value)} />
-          </label>
-          <label className="field">
-            <span>Năm sinh</span>
-            <InputNumber style={{ width: "100%" }} placeholder="1980" min={1900} max={new Date().getFullYear()} value={birthYear} onChange={setBirthYear} />
-          </label>
-          <label className="field">
-            <span>Giới tính</span>
-            <Select allowClear placeholder="Không rõ" value={gender} onChange={setGender} options={Object.entries(GENDER).map(([value, label]) => ({ value, label }))} />
-          </label>
-        </div>
-        <label className="field">
-          <span>Ghi chú</span>
-          <Input.TextArea rows={2} value={note} onChange={(event) => setNote(event.target.value)} />
-        </label>
-        <Typography.Text type="secondary">Cần ít nhất họ tên hoặc số điện thoại.</Typography.Text>
-      </div>
-    </Modal>
-  );
-}
-
-function HealthProfileFormModal({
-  open,
-  customerId,
-  profile,
-  onClose,
-  onSaved,
-}: {
-  open: boolean;
-  customerId: string;
-  profile: CustomerHealthProfile | null;
-  onClose: () => void;
-  onSaved: () => Promise<unknown>;
-}) {
-  const { message } = App.useApp();
-  const [consent, setConsent] = useState(false);
-  const [chronicConditions, setChronicConditions] = useState("");
-  const [note, setNote] = useState("");
-  const [ingredientSearch, setIngredientSearch] = useState("");
-  const [allergies, setAllergies] = useState<Array<{ ingredientId: string; ingredientName: string; note: string }>>([]);
-
-  useEffect(() => {
-    if (!open) return;
-    setConsent(profile?.hasHealthConsent ?? false);
-    setChronicConditions(profile?.chronicConditions ?? "");
-    setNote(profile?.note ?? "");
-    setAllergies((profile?.allergies ?? []).map((a) => ({ ...a, note: a.note ?? "" })));
-  }, [open, profile]);
-
-  const ingredientSearchQuery = useQuery({
-    queryKey: ["ingredient-search", ingredientSearch],
-    enabled: ingredientSearch.length > 0,
-    queryFn: async () => (await http.get<Envelope<Paged<{ id: string; name: string }>>>("/active-ingredients", { params: { search: ingredientSearch, limit: 10 } })).data.data.items,
-  });
-
-  const save = useMutation({
-    mutationFn: () =>
-      http.patch(`/customers/${customerId}/health-profile`, {
-        consent: profile?.hasHealthConsent ? undefined : consent || undefined,
-        chronicConditions: chronicConditions || null,
-        note: note || null,
-        allergies: allergies.map((a) => ({ ingredientId: a.ingredientId, note: a.note || null })),
-      }),
-    onSuccess: async () => {
-      void message.success("Đã lưu hồ sơ sức khỏe");
-      await onSaved();
-    },
-    onError: (error) => void message.error(getErrorMessage(error, "Không lưu được hồ sơ sức khỏe")),
-  });
-
-  const needsConsent = !profile?.hasHealthConsent;
-
-  return (
-    <Modal open={open} onCancel={onClose} onOk={() => save.mutate()} okText="Lưu" cancelText="Hủy" okButtonProps={{ disabled: needsConsent && !consent }} confirmLoading={save.isPending} title="Hồ sơ sức khỏe" width={600}>
-      <div className="detail-stack">
-        {needsConsent ? (
-          <div className="consent-box">
-            <Checkbox checked={consent} onChange={(event) => setConsent(event.target.checked)}>
-              Tôi đã hỏi và khách đồng ý lưu hồ sơ sức khỏe (dị ứng, bệnh nền)
-            </Checkbox>
-          </div>
-        ) : (
-          <Alert type="success" showIcon title="Khách đã đồng ý lưu hồ sơ sức khỏe" />
-        )}
-        <label className="field">
-          <span>Bệnh nền</span>
-          <Input.TextArea rows={2} placeholder="Ví dụ: tiểu đường, cao huyết áp" value={chronicConditions} onChange={(event) => setChronicConditions(event.target.value)} />
-        </label>
-        <label className="field">
-          <span>Ghi chú khác</span>
-          <Input.TextArea rows={2} value={note} onChange={(event) => setNote(event.target.value)} />
-        </label>
-        <div className="field">
-          <span>Dị ứng theo hoạt chất</span>
-          <Select
-            showSearch
-            placeholder="Tìm hoạt chất để thêm dị ứng"
-            filterOption={false}
-            searchValue={ingredientSearch}
-            onSearch={setIngredientSearch}
-            onSelect={(ingredientId: string | null) => {
-              if (!ingredientId) return;
-              const found = ingredientSearchQuery.data?.find((i) => i.id === ingredientId);
-              if (found && !allergies.some((a) => a.ingredientId === ingredientId)) {
-                setAllergies((current) => [...current, { ingredientId, ingredientName: found.name, note: "" }]);
-              }
-              setIngredientSearch("");
-            }}
-            value={null}
-            options={(ingredientSearchQuery.data ?? []).map((i) => ({ value: i.id, label: i.name }))}
-          />
-          {allergies.map((allergy) => (
-            <div key={allergy.ingredientId} className="allergy-row">
-              <Tag color="red">{allergy.ingredientName}</Tag>
-              <Input
-                size="small"
-                placeholder="Biểu hiện dị ứng…"
-                value={allergy.note}
-                onChange={(event) => setAllergies((current) => current.map((a) => (a.ingredientId === allergy.ingredientId ? { ...a, note: event.target.value } : a)))}
-              />
-              <Button size="small" type="text" danger icon={<DeleteOutlined />} aria-label={`Xóa dị ứng ${allergy.ingredientName}`} onClick={() => setAllergies((current) => current.filter((a) => a.ingredientId !== allergy.ingredientId))} />
-            </div>
-          ))}
-        </div>
-      </div>
-    </Modal>
   );
 }

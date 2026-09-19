@@ -650,8 +650,12 @@ model RecallItem {
 
 model Customer {
   id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// Mã khách hàng KH00001..., sinh tự động từ sequence customer_code_seq.
+  code                 String    @unique @default(dbgenerated("(KH::text || lpad((nextval(customer_code_seq::regclass))::text, 5, 0::text))"))
   fullName             String?   @map("full_name")
   phone                String?
+  email                String?
+  address              String?
   birthYear            Int?      @map("birth_year")
   gender               String?
   note                 String?
