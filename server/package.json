@@ -29,6 +29,7 @@
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
+    "exceljs": "^4.4.0",
     "express": "^5.2.1",
     "helmet": "^8.3.0",
     "jsonwebtoken": "^9.0.3",
@@ -57,5 +58,10 @@
     "typescript": "~6.0",
     "vitest": "^5.0.0"
   },
-  "private": true
+  "private": true,
+  "overrides": {
+    "exceljs": {
+      "uuid": "^11.1.1"
+    }
+  }
 }

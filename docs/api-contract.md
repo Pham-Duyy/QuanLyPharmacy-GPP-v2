@@ -1032,6 +1032,42 @@ Trang in của từng chứng từ:
 
 Mọi trang in bắt buộc `X-Store-Id`, chỉ đọc dữ liệu (in lại bao nhiêu lần cũng không đổi chứng từ, tồn kho, thanh toán), nhận `?autoprint=0` để không tự bật hộp thoại in, và trả header `X-Paper-Size` cho giao diện hiển thị đúng khổ. Phiếu nháp, đã hủy, đã từ chối được in kèm dòng cảnh báo trạng thái ở đầu phiếu.
 
+### Nhập / xuất Excel
+
+Chỉ nhận tệp `.xlsx`: tối đa 5 MB và 5.000 dòng mỗi tệp. Hàng 1 là tiêu đề, được khớp theo tên cột, không phân biệt dấu, hoa thường hay dấu `*`. Thứ tự cột không quan trọng.
+
+| Method | Endpoint | Mô tả | Quyền |
+|---|---|---|---|
+| GET | `/excel/catalog` | Các loại nhập/xuất mà tài khoản được dùng tại cửa hàng đang chọn | Đăng nhập |
+| GET | `/excel/templates/{type}` | Tệp mẫu gồm dòng ví dụ và sheet "Hướng dẫn"; cột bắt buộc có dấu `*` | Theo loại nhập |
+| POST | `/excel/imports/{type}?mode=preview` | Multipart, field `file`. Đọc và kiểm tra toàn bộ tệp, không ghi gì. Trả `totalRows`, `validRows`, `creates`, `updates`, `missingColumns`, `issueCount`, `issues[{row, column, message}]` (tối đa 300), `notes`, `sample` | Theo loại nhập |
+| POST | `/excel/imports/{type}?mode=commit` | Đọc và kiểm tra lại chính tệp đó. Còn một lỗi → `422`, không dòng nào được ghi. Hợp lệ → ghi trong một giao dịch và ghi audit `EXCEL_IMPORT` | Theo loại nhập |
+| GET | `/excel/exports/{type}?from=YYYY-MM-DD&to=YYYY-MM-DD` | Tệp `.xlsx` có định dạng tiền và ngày kiểu Việt Nam. Loại theo kỳ mặc định lấy 30 ngày gần nhất, tối đa 366 ngày | Theo loại xuất |
+
+Loại nhập:
+
+| `type` | Quyền | Cửa hàng | Ghi chú |
+|---|---|---|---|
+| `products` | `catalog.manage` | Không | Khớp theo mã; mã mới thì tạo mới. Không đổi được loại hàng, phân loại thuốc, đơn vị cơ bản hay quy đổi đã có. Nhóm hàng và hoạt chất chưa có thì tự tạo. Giá khác giá hiện hành cần `price.manage` và tạo phiên bản giá mới; giá giữ nguyên thì bỏ qua |
+| `suppliers` | `catalog.manage` | Không | Khớp theo mã số thuế, không có thì theo tên (không dấu) |
+| `customers` | `customer.manage` | Không | Khớp theo Mã KH, không có thì theo số điện thoại. Không nhập hồ sơ sức khỏe |
+| `opening-balance` | `stock.opening_balance` | Có | Cả tệp tạo một phiếu tồn đầu kỳ (§10.4); chặn lô đã có trong kho |
+| `receipt-lines` | `goods_receipt.create` | Có | Chỉ `preview`: trả thêm `lines[]` đã khớp sản phẩm và đơn vị để đổ vào phiếu nhập nháp |
+
+Loại xuất:
+
+| `type` | Quyền | Cửa hàng | Nội dung |
+|---|---|---|---|
+| `products` | `catalog.read` | Không | Đúng cột của mẫu nhập, kèm giá hiện hành và tồn bán được tại cửa hàng đang chọn |
+| `suppliers` | `catalog.read` | Không | Đúng cột của mẫu nhập |
+| `customers` | `customer.sensitive` | Không | Số điện thoại đầy đủ; ghi audit `EXCEL_EXPORT` |
+| `inventory` | `stock.read` | Có | Tồn từng lô theo hạn dùng; cột giá vốn và giá trị tồn chỉ có khi được `stock.cost.read` |
+| `invoices` | `invoice.read` | Có | Sheet "Hóa đơn" và "Chi tiết" (kèm lô xuất) |
+| `goods-receipts` | `goods_receipt.read` | Có | Sheet "Phiếu nhập" và "Chi tiết" (lô, ngày sản xuất, hạn dùng) |
+| `rx-sales` | `prescription.read` | Có | Sổ theo dõi bán thuốc kê đơn và thuốc kiểm soát đặc biệt: người bệnh, đơn thuốc, người kê, cơ sở khám chữa bệnh, chẩn đoán, số lô, hạn dùng, người bán |
+
+Giá trị trong ô luôn được ghi dạng dữ liệu, không bao giờ là công thức. Thời điểm (giờ bán, giờ nhận hàng) ghi theo giờ Việt Nam.
+
 ---
 
 ## 22. Phạm vi MVP

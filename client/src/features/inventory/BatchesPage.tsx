@@ -24,6 +24,7 @@ import {
   type StockLedgerPage,
 } from "../../api/types.js";
 import { daysUntil, formatDate, formatDateTime, formatNumber } from "../../ui/format.js";
+import { ExcelExportButton } from "../excel/ExcelButtons.js";
 import { PageHeader } from "../../ui/PageHeader.js";
 import { StatCard, StatGrid } from "../../ui/StatCard.js";
 import { useDebounced } from "../../ui/useDebounced.js";
@@ -88,9 +89,12 @@ export function BatchesPage() {
         title="Tồn kho"
         description="Theo dõi tồn theo lô và hạn dùng, biệt trữ lô nghi ngờ chất lượng, tra thẻ kho từng lô."
         extra={
-          <Button icon={<BellOutlined />} onClick={() => void navigate("/canh-bao")}>
-            Xem cảnh báo
-          </Button>
+          <>
+            <ExcelExportButton type="inventory" label="Xuất tồn theo lô" tooltip="Tồn từng lô theo hạn dùng, dùng khi kiểm kê" />
+            <Button icon={<BellOutlined />} onClick={() => void navigate("/canh-bao")}>
+              Xem cảnh báo
+            </Button>
+          </>
         }
       />
 

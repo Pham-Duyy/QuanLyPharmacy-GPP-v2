@@ -8,6 +8,8 @@ import { getErrorMessage, http } from "../../api/http.js";
 import { formatVnd, type DashboardData, type Envelope, type Invoice, type InvoiceListItem, type Paged } from "../../api/types.js";
 import { formatDate, formatDateTime, formatNumber, vnDateKey } from "../../ui/format.js";
 import { paymentMethodLabel } from "../../ui/labels.js";
+import { ExcelExportButton } from "../excel/ExcelButtons.js";
+import { rangeParams } from "../excel/excel-api.js";
 import { PageHeader } from "../../ui/PageHeader.js";
 import { StatCard, StatGrid, Trend } from "../../ui/StatCard.js";
 import { useDebounced } from "../../ui/useDebounced.js";
@@ -198,11 +200,15 @@ export function InvoicesPage() {
         title="Hóa đơn"
         description="Tra cứu hóa đơn bán hàng, in lại, nhận trả hàng hoặc hủy hóa đơn trong ngày."
         extra={
-          can("invoice.create") ? (
-            <Button type="primary" icon={<PlusOutlined />} onClick={() => void navigate("/ban-hang")}>
-              Tạo hóa đơn
-            </Button>
-          ) : null
+          <>
+            <ExcelExportButton type="invoices" range={rangeParams(range)} tooltip={range ? "Xuất hóa đơn trong khoảng ngày đang lọc" : "Xuất hóa đơn 30 ngày gần nhất (chọn khoảng ngày để đổi kỳ)"} />
+            {can("prescription.read") ? <ExcelExportButton type="rx-sales" label="Sổ bán thuốc kê đơn" range={rangeParams(range)} tooltip="Sổ theo dõi bán thuốc kê đơn theo GPP, theo khoảng ngày đang lọc" /> : null}
+            {can("invoice.create") ? (
+              <Button type="primary" icon={<PlusOutlined />} onClick={() => void navigate("/ban-hang")}>
+                Tạo hóa đơn
+              </Button>
+            ) : null}
+          </>
         }
       />
 

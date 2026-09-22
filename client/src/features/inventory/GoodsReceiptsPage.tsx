@@ -39,6 +39,8 @@ import {
   type SupplierListItem,
 } from "../../api/types.js";
 import { daysUntil, formatDate, formatDateTime, formatNumber, vnDateKey } from "../../ui/format.js";
+import { ExcelExportButton } from "../excel/ExcelButtons.js";
+import { rangeParams } from "../excel/excel-api.js";
 import { PageHeader } from "../../ui/PageHeader.js";
 import { StatCard, StatGrid, Trend } from "../../ui/StatCard.js";
 import { useDebounced } from "../../ui/useDebounced.js";
@@ -146,11 +148,14 @@ export function GoodsReceiptsPage() {
         title="Nhập hàng"
         description="Quản lý phiếu nhập hàng từ nhà cung cấp, kiểm tra hàng hóa và nhập kho."
         extra={
-          canCreate ? (
-            <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreating(true)}>
-              Tạo phiếu nhập
-            </Button>
-          ) : null
+          <>
+            <ExcelExportButton type="goods-receipts" range={rangeParams(range)} tooltip={range ? "Xuất phiếu nhập trong khoảng ngày đang lọc" : "Xuất phiếu nhập 30 ngày gần nhất"} />
+            {canCreate ? (
+              <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreating(true)}>
+                Tạo phiếu nhập
+              </Button>
+            ) : null}
+          </>
         }
       />
 

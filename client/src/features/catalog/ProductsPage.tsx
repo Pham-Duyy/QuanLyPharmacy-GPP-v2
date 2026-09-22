@@ -1,11 +1,13 @@
 import { AppstoreOutlined, FilterOutlined, MedicineBoxOutlined, PlusOutlined, SearchOutlined, UnorderedListOutlined, WarningFilled } from "@ant-design/icons";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Badge, Button, Drawer, Empty, Grid, Input, Pagination, Popover, Result, Select, Skeleton, Switch, Tooltip } from "antd";
 import { useState } from "react";
 import type { ReactNode } from "react";
 import { useSearchParams } from "react-router";
 import { getErrorMessage, http } from "../../api/http.js";
 import type { CategoryItem, Envelope, Paged, ProductListItem } from "../../api/types.js";
+import { ExcelMenuButton } from "../excel/ExcelButtons.js";
+import { ExcelImportModal } from "../excel/ExcelImportModal.js";
 import { PageHeader } from "../../ui/PageHeader.js";
 import { useDebounced } from "../../ui/useDebounced.js";
 import { useAuth } from "../auth/AuthProvider.js";
@@ -94,6 +96,8 @@ export function ProductsPage() {
   const [page, setPage] = useState(1);
   const [filterOpen, setFilterOpen] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const queryClient = useQueryClient();
   const term = useDebounced(search.trim(), 300);
   // Sản phẩm đang xem nằm trên URL để mở thẳng từ ô tìm nhanh và gửi link được.
   const selectedId = params.get("id");
@@ -341,12 +345,23 @@ export function ProductsPage() {
         title="Thuốc & sản phẩm"
         description={`Danh mục toàn chuỗi · Tồn kho tại ${storeName ?? "cửa hàng đang chọn"}`}
         extra={
-          can("catalog.manage") ? (
-            <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreating(true)}>
-              Thêm sản phẩm
-            </Button>
-          ) : null
+          <>
+            <ExcelMenuButton onImport={can("catalog.manage") ? () => setImporting(true) : undefined} exportType="products" exportLabel="Xuất danh mục ra Excel" />
+            {can("catalog.manage") ? (
+              <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreating(true)}>
+                Thêm sản phẩm
+              </Button>
+            ) : null}
+          </>
         }
+      />
+      <ExcelImportModal
+        type="products"
+        title="Danh mục sản phẩm"
+        open={importing}
+        hint="Mã sản phẩm đã có thì cập nhật, mã mới thì tạo mới. Có thể xuất danh mục ra, sửa rồi nhập lại."
+        onClose={() => setImporting(false)}
+        onDone={() => void queryClient.invalidateQueries()}
       />
 
       <div className={detail && wide ? "products-layout has-detail" : "products-layout"}>
