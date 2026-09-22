@@ -5,6 +5,7 @@ import {
   BellOutlined,
   DatabaseOutlined,
   ExperimentOutlined,
+  FileExcelOutlined,
   FileProtectOutlined,
   FileTextOutlined,
   InboxOutlined,
@@ -71,6 +72,13 @@ export const NAV_GROUPS: NavGroup[] = [
       { path: "/san-pham", icon: <MedicineBoxOutlined />, label: "Thuốc & sản phẩm", permission: "catalog.read", keywords: "quan ly thuoc gia ban" },
       { path: "/nha-cung-cap", icon: <TruckOutlined />, label: "Nhà cung cấp", permission: "catalog.read" },
       { path: "/danh-muc", icon: <TagsOutlined />, label: "Danh mục nền", permission: "catalog.read", keywords: "nhom hang hoat chat" },
+      {
+        path: "/excel",
+        icon: <FileExcelOutlined />,
+        label: "Nhập / xuất Excel",
+        permission: ["catalog.read", "customer.manage", "invoice.read", "stock.read"],
+        keywords: "import export xlsx ton dau ky so ban thuoc ke don gpp mau nhap",
+      },
     ],
   },
   {

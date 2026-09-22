@@ -32,6 +32,7 @@ import {
 import { daysUntil, formatNumber, vnDateKey } from "../../ui/format.js";
 import { useDebounced } from "../../ui/useDebounced.js";
 import { useAuth } from "../auth/AuthProvider.js";
+import { downloadTemplate, sendImport, type ImportPreview, type ReceiptLine } from "../excel/excel-api.js";
 
 type DraftLine = {
   key: string;
@@ -65,7 +66,6 @@ const LONG_SHELF_LIFE_DAYS = 5 * 365 + 1;
 function shelfLifeDays(line: { manufactureDate: string; expiryDate: string }): number | null {
   return line.manufactureDate && line.expiryDate ? dayjs(line.expiryDate).diff(dayjs(line.manufactureDate), "day") : null;
 }
-const CSV_TEMPLATE = "ma_san_pham,don_vi,so_luong,don_gia_nhap,so_lo,ngay_san_xuat,han_dung\nTH0001,Hộp,20,30000,PA260901,01/09/2026,01/09/2028\n";
 
 function toDateKey(value: string | null | undefined): string {
   return value ? value.slice(0, 10) : "";
@@ -130,7 +130,7 @@ export function ReceiptFormModal({
   onClose: () => void;
   onSaved: (id: string, options: ReceiptSavedOptions) => Promise<unknown> | unknown;
 }) {
-  const { message } = App.useApp();
+  const { message, modal } = App.useApp();
   const { can, me, storeId } = useAuth();
   const searchRef = useRef<RefSelectProps>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -260,6 +260,67 @@ export function ReceiptFormModal({
     else if (found.length === 0) void message.warning(`Không tìm thấy sản phẩm “${value}”`);
   }
 
+  function appendLines(added: DraftLine[]): void {
+    setLines((current) =>
+      [...current, ...added].map((line, index, all) => ({ ...line, extraBatch: all.slice(0, index).some((previous) => previous.productId === line.productId) })),
+    );
+  }
+
+  /**
+   * Tệp .xlsx: máy chủ đọc và kiểm tra (khớp mã, đơn vị, NSX/HSD) rồi trả
+   * dòng hợp lệ để đổ vào phiếu nháp; dòng lỗi liệt kê cho người dùng sửa.
+   */
+  async function importXlsx(file: File): Promise<void> {
+    setImporting(true);
+    try {
+      const preview = await sendImport<ImportPreview & { lines: ReceiptLine[] }>("receipt-lines", file, "preview");
+      if (preview.missingColumns.length > 0) {
+        void message.error(`Tệp thiếu cột: ${preview.missingColumns.join(", ")} — tải tệp mẫu để xem đúng tên cột`, 6);
+        return;
+      }
+      appendLines(
+        preview.lines.map((line) => ({
+          key: crypto.randomUUID(),
+          productId: line.productId,
+          productCode: line.productCode,
+          productName: line.productName,
+          unitId: line.unitId,
+          fallbackUnit: { id: line.unitId, name: line.unitName, conversionToBase: line.conversionToBase },
+          quantity: line.quantity,
+          unitCost: line.unitCost,
+          batchNumber: line.batchNumber.toUpperCase(),
+          manufactureDate: line.manufactureDate ?? "",
+          expiryDate: line.expiryDate,
+          extraBatch: false,
+        })),
+      );
+      if (preview.lines.length > 0) void message.success(`Đã thêm ${preview.lines.length} dòng từ tệp Excel`);
+      if (preview.issueCount > 0) {
+        modal.warning({
+          title: `${preview.issueCount} lỗi trong tệp — các dòng này chưa được thêm`,
+          width: 620,
+          content: (
+            <ul className="receipt-import-issues">
+              {preview.issues.slice(0, 15).map((issue) => (
+                <li key={`${issue.row}-${issue.column ?? ""}-${issue.message}`}>
+                  <b>Dòng {issue.row}</b>
+                  {issue.column ? ` · ${issue.column}` : ""}: {issue.message}
+                </li>
+              ))}
+              {preview.issueCount > 15 ? <li>… và {preview.issueCount - 15} lỗi khác</li> : null}
+            </ul>
+          ),
+        });
+      } else if (preview.totalRows === 0) {
+        void message.warning("Tệp không có dòng dữ liệu nào");
+      }
+    } catch (error) {
+      void message.error(getErrorMessage(error, "Không đọc được tệp Excel"));
+    } finally {
+      setImporting(false);
+    }
+  }
+
   /** Nhập nhiều dòng từ file CSV (Excel lưu dạng CSV UTF-8), khớp sản phẩm theo mã. */
   async function importCsv(file: File): Promise<void> {
     setImporting(true);
@@ -290,9 +351,7 @@ export function ReceiptFormModal({
           expiryDate: parseCsvDate(expiryDate),
         });
       }
-      setLines((current) =>
-        [...current, ...added].map((line, index, all) => ({ ...line, extraBatch: all.slice(0, index).some((previous) => previous.productId === line.productId) })),
-      );
+      appendLines(added);
       if (added.length > 0) void message.success(`Đã thêm ${added.length} dòng từ file`);
       if (failed.length > 0) void message.warning(`Không khớp mã sản phẩm ở ${failed.join(", ")}`, 6);
     } catch (error) {
@@ -302,13 +361,12 @@ export function ReceiptFormModal({
     }
   }
 
-  function downloadTemplate(): void {
-    const url = URL.createObjectURL(new Blob([`﻿${CSV_TEMPLATE}`], { type: "text/csv;charset=utf-8;" }));
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "mau-nhap-hang.csv";
-    link.click();
-    URL.revokeObjectURL(url);
+  async function template(): Promise<void> {
+    try {
+      await downloadTemplate("receipt-lines");
+    } catch (error) {
+      void message.error(error instanceof Error ? error.message : "Không tải được tệp mẫu");
+    }
   }
 
   function changeLine(key: string, patch: Partial<DraftLine>): void {
@@ -535,21 +593,21 @@ export function ReceiptFormModal({
             <input
               ref={fileRef}
               type="file"
-              accept=".csv,text/csv"
+              accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
               hidden
               onChange={(event) => {
                 const file = event.target.files?.[0];
-                if (file) void importCsv(file);
+                if (file) void (/\.csv$/i.test(file.name) ? importCsv(file) : importXlsx(file));
                 event.target.value = "";
               }}
             />
             <Dropdown
               menu={{
                 items: [
-                  { key: "pick", label: "Chọn file CSV (lưu từ Excel)" },
-                  { key: "template", label: "Tải file mẫu" },
+                  { key: "pick", label: "Chọn tệp Excel (.xlsx hoặc .csv)" },
+                  { key: "template", label: "Tải tệp mẫu Excel" },
                 ],
-                onClick: ({ key }) => (key === "pick" ? fileRef.current?.click() : downloadTemplate()),
+                onClick: ({ key }) => (key === "pick" ? fileRef.current?.click() : void template()),
               }}
             >
               <Button icon={<FileExcelOutlined />} loading={importing}>

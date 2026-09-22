@@ -7,6 +7,8 @@ import { useSearchParams } from "react-router";
 import { getErrorMessage, http } from "../../api/http.js";
 import type { CustomerListItem, CustomerSummary, Envelope, Paged } from "../../api/types.js";
 import { formatDate } from "../../ui/format.js";
+import { ExcelMenuButton } from "../excel/ExcelButtons.js";
+import { ExcelImportModal } from "../excel/ExcelImportModal.js";
 import { PageHeader } from "../../ui/PageHeader.js";
 import { useDebounced } from "../../ui/useDebounced.js";
 import { useAuth } from "../auth/AuthProvider.js";
@@ -42,6 +44,7 @@ export function CustomersPage() {
   const [page, setPage] = useState(1);
   const [filterOpen, setFilterOpen] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [exporting, setExporting] = useState(false);
   const term = useDebounced(search.trim(), 300);
 
@@ -209,6 +212,11 @@ export function CustomersPage() {
                 </Button>
               </Tooltip>
             ) : null}
+            <ExcelMenuButton
+              onImport={can("customer.manage") ? () => setImporting(true) : undefined}
+              exportType={can("customer.sensitive") ? "customers" : undefined}
+              exportLabel="Xuất tất cả ra Excel (ghi nhật ký)"
+            />
             {can("customer.manage") ? (
               <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreating(true)}>
                 Thêm khách hàng
@@ -216,6 +224,14 @@ export function CustomersPage() {
             ) : null}
           </>
         }
+      />
+      <ExcelImportModal
+        type="customers"
+        title="Khách hàng"
+        open={importing}
+        hint="Có Mã KH thì cập nhật đúng khách đó, không có thì so theo số điện thoại. Hồ sơ sức khỏe không nhập qua Excel."
+        onClose={() => setImporting(false)}
+        onDone={() => void refreshAll()}
       />
 
       <div className="cust-stats">

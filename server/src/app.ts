@@ -35,6 +35,7 @@ import { usersRouter } from "./modules/users/users.routes.js";
 import { auditRouter } from "./modules/audit/audit.routes.js";
 import { reportsRouter } from "./modules/reports/reports.routes.js";
 import { settingsRouter } from "./modules/settings/settings.routes.js";
+import { excelRouter } from "./modules/excel/excel.routes.js";
 
 /**
  * Lắp ráp ứng dụng Express. Thứ tự middleware quan trọng:
@@ -102,6 +103,7 @@ export function createApp() {
   app.use("/api/v1", auditRouter);
   app.use("/api/v1", reportsRouter);
   app.use("/api/v1", settingsRouter);
+  app.use("/api/v1", excelRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

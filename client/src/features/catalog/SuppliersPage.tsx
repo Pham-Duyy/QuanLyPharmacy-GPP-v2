@@ -4,6 +4,8 @@ import { App, Button, Card, Col, Divider, Empty, Form, Input, Modal, Row, Segmen
 import { useState } from "react";
 import { getErrorMessage, http } from "../../api/http.js";
 import { type Envelope, type Paged, type SupplierListItem } from "../../api/types.js";
+import { ExcelMenuButton } from "../excel/ExcelButtons.js";
+import { ExcelImportModal } from "../excel/ExcelImportModal.js";
 import { PageHeader } from "../../ui/PageHeader.js";
 import { PanelEmpty } from "../../ui/PanelEmpty.js";
 import { useDebounced } from "../../ui/useDebounced.js";
@@ -17,6 +19,7 @@ export function SuppliersPage() {
   const [status, setStatus] = useState<"active" | "inactive">("active");
   const [openId, setOpenId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [importing, setImporting] = useState(false);
   const queryClient = useQueryClient();
   const term = useDebounced(search.trim(), 300);
 
@@ -44,13 +47,17 @@ export function SuppliersPage() {
         title="Nhà cung cấp"
         description="Thông tin nhà cung cấp dùng khi lập phiếu nhập và truy xuất nguồn gốc hàng hóa."
         extra={
-          can("catalog.manage") ? (
-            <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreating(true)}>
-              Thêm nhà cung cấp
-            </Button>
-          ) : null
+          <>
+            <ExcelMenuButton onImport={can("catalog.manage") ? () => setImporting(true) : undefined} exportType="suppliers" />
+            {can("catalog.manage") ? (
+              <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreating(true)}>
+                Thêm nhà cung cấp
+              </Button>
+            ) : null}
+          </>
         }
       />
+      <ExcelImportModal type="suppliers" title="Nhà cung cấp" open={importing} onClose={() => setImporting(false)} onDone={() => void refresh()} />
       <div className="split-layout">
         <Card>
           <div className="toolbar">
