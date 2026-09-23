@@ -15,7 +15,8 @@ const idem = () => ({ "Idempotency-Key": randomUUID() });
 const h = (token = adminToken) => authHeaders(token, fixture.storeId);
 
 function dayOffset(days: number): string {
-  const date = new Date();
+  const vnToday = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Ho_Chi_Minh" }).format(new Date());
+  const date = new Date(`${vnToday}T00:00:00.000Z`);
   date.setUTCDate(date.getUTCDate() + days);
   return date.toISOString().slice(0, 10);
 }

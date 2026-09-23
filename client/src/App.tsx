@@ -31,6 +31,7 @@ const StoresPage = page(() => import("./features/stores/StoresPage.js"), "Stores
 const AuditLogPage = page(() => import("./features/audit/AuditLogPage.js"), "AuditLogPage");
 const SettingsPage = page(() => import("./features/settings/SettingsPage.js"), "SettingsPage");
 const ControlledDrugsPage = page(() => import("./features/controlled/ControlledDrugsPage.js"), "ControlledDrugsPage");
+const LabelsPage = page(() => import("./features/printing/LabelsPage.js"), "LabelsPage");
 const SupplierReturnsPage = page(() => import("./features/inventory/SupplierReturnsPage.js"), "SupplierReturnsPage");
 const SupplierDebtsPage = page(() => import("./features/inventory/SupplierDebtsPage.js"), "SupplierDebtsPage");
 const ExpiryAlertsPage = page(() => import("./features/inventory/ExpiryAlertsPage.js"), "ExpiryAlertsPage");
@@ -62,6 +63,7 @@ const ROUTES: Array<{ path: string; element: ReactNode }> = [
   { path: "/san-pham", element: <ProductsPage /> },
   { path: "/nha-cung-cap", element: <SuppliersPage /> },
   { path: "/danh-muc", element: <CatalogDataPage /> },
+  { path: "/in-tem", element: <LabelsPage /> },
   { path: "/excel", element: <ExcelHubPage /> },
   { path: "/nhan-vien", element: <UsersPage /> },
   { path: "/cua-hang", element: <StoresPage /> },

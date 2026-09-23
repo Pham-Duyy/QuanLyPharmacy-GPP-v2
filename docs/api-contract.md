@@ -1175,6 +1175,26 @@ Trang in của từng chứng từ:
 
 Mọi trang in bắt buộc `X-Store-Id`, chỉ đọc dữ liệu (in lại bao nhiêu lần cũng không đổi chứng từ, tồn kho, thanh toán), nhận `?autoprint=0` để không tự bật hộp thoại in, và trả header `X-Paper-Size` cho giao diện hiển thị đúng khổ. Phiếu nháp, đã hủy, đã từ chối được in kèm dòng cảnh báo trạng thái ở đầu phiếu.
 
+### In tem mã vạch
+
+Tem dán lên hộp thuốc hoặc nhãn kệ: tên thuốc, mã vạch, giá bán theo đơn vị, và (tùy chọn) số lô, hạn dùng, tên nhà thuốc.
+
+| Method | Endpoint | Mô tả | Quyền |
+|---|---|---|---|
+| GET | `/labels/sizes` | Các khổ tem hỗ trợ | `catalog.read` |
+| POST | `/labels/print?autoprint=0` | Dựng trang tem (HTML); trả header `X-Label-Count` và `X-Label-Warnings` | `catalog.read` |
+
+Body: `size`, `showPrice`, `showBatch`, `showStoreName`, `items[{ productId, unitId, batchId, quantity }]` (tối đa 200 mặt hàng, mỗi mặt hàng tối đa 500 tem).
+
+Khổ tem: `50x30`, `40x30`, `35x22` (tem nhiệt, mỗi tem một trang đúng kích thước) và `A4_38x21` (giấy decal A4, 65 tem xếp lưới 5 cột).
+
+**Mã in trên tem** lấy theo thứ tự: mã vạch của đơn vị đang in → mã vạch của đơn vị khác cùng sản phẩm → mã sản phẩm nội bộ.
+
+- Mã 8 hoặc 13 chữ số **đúng số kiểm** in chuẩn EAN-8 / EAN-13; còn lại in Code128 bộ B.
+- Hệ thống **không bao giờ tự sinh hay sửa số kiểm** mã EAN: mã EAN là của nhà sản xuất đăng ký, sửa hộ sẽ thành mã của mặt hàng khác.
+- Các trường hợp cần người in biết được trả về trong `X-Label-Warnings` (JSON đã `encodeURIComponent`): thuốc chưa có mã vạch nên in mã nội bộ, đơn vị chưa có mã vạch riêng, đơn vị chưa có giá bán, mã lưu trong danh mục sai số kiểm EAN.
+- Mã vạch vẽ bằng SVG theo đơn vị mm nên in ra đúng kích thước thật, không phụ thuộc DPI máy in.
+
 ### Nhập / xuất Excel
 
 Chỉ nhận tệp `.xlsx`: tối đa 5 MB và 5.000 dòng mỗi tệp. Hàng 1 là tiêu đề, được khớp theo tên cột, không phân biệt dấu, hoa thường hay dấu `*`. Thứ tự cột không quan trọng.
@@ -1260,7 +1280,7 @@ Về mô hình chuỗi: MVP chạy với **một cửa hàng**, nhưng dữ li�
 **Sau MVP**
 
 - Đơn đặt hàng nhà cung cấp: đã có đề xuất đặt hàng (§10.5), chưa có chứng từ đơn hàng riêng gửi nhà cung cấp.
-- Danh mục bác sĩ; OCR đơn thuốc; AI giải thích cảnh báo; dự báo nhập hàng.
+- Danh mục bác sĩ; OCR đơn thuốc; AI giải thích cảnh báo; dự báo nhập hàng nâng cao (đã có đề xuất đặt hàng cơ bản ở §10.5).
 - Ngăn biệt trữ theo số lượng.
 - Hóa đơn điện tử, tích hợp cổng thanh toán, liên thông dữ liệu dược với cơ quan quản lý.
 - MFA; nhiều cửa hàng.
