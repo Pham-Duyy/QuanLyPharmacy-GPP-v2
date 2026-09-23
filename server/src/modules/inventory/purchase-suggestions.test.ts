@@ -93,7 +93,8 @@ describe("Đề xuất đặt hàng", () => {
   });
 
   it("hết hàng và dưới tồn tối thiểu được xếp lên trước", async () => {
-    const out = await makeProduct("TH0002", "Amoxicillin 500mg", 100);
+    // Không nhập tồn cho TH0002: đúng trường hợp hết hàng.
+    await makeProduct("TH0002", "Amoxicillin 500mg", 100);
     const low = await makeProduct("TH0003", "Vitamin C", 200);
     const fine = await makeProduct("TH0004", "Oresol");
     await stock(low.id, 50);
@@ -164,10 +165,9 @@ describe("Đề xuất đặt hàng", () => {
   it("lọc theo nhóm hàng, tìm theo tên và kiểm tra tham số", async () => {
     const otherCategory = await prisma.category.create({ data: { name: "Vitamin" } });
     await makeProduct("TH0007", "Paracetamol 500mg", 100);
-    const vitamin = await prisma.product.create({
+    await prisma.product.create({
       data: { code: "TP0001", name: "Vitamin C 500mg", productType: "SUPPLEMENT", categoryId: otherCategory.id, minStockBaseQuantity: 50, units: { create: { name: "Viên", conversionToBase: 1, isDefaultSaleUnit: true } } },
     });
-    void vitamin;
 
     expect((await suggest(`?categoryId=${otherCategory.id}`)).items.map((item: { code: string }) => item.code)).toEqual(["TP0001"]);
     expect((await suggest("?search=paracetamol")).items.map((item: { code: string }) => item.code)).toEqual(["TH0007"]);

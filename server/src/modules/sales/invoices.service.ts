@@ -217,7 +217,7 @@ export async function createInvoice(
       });
 
       // Thuốc kiểm soát đặc biệt: lưu người mua ngay cùng hóa đơn, đây là
-      // phần bắt buộc của sổ theo dõi (contract §10.7).
+      // phần bắt buộc của sổ theo dõi (contract §10.8).
       if (hasControlled && input.controlledBuyer) {
         await tx.controlledSaleDetail.create({
           data: {

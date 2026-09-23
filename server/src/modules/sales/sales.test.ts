@@ -474,7 +474,7 @@ describe("Tạo hóa đơn", () => {
 
     const response = await sell(pharmacistToken, { lines: [line(morphin, "Viên", 1)] }).expect(422);
 
-    // Bán được nhóm này nhưng phải ghi người mua vào sổ theo dõi (§10.7).
+    // Bán được nhóm này nhưng phải ghi người mua vào sổ theo dõi (§10.8).
     expect(response.body.error.code).toBe("CONTROLLED_BUYER_REQUIRED");
   });
 
