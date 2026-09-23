@@ -3,8 +3,8 @@ import { getErrorMessage, http } from "../../api/http.js";
 import type { Envelope } from "../../api/types.js";
 import type { Dayjs } from "dayjs";
 
-export type ImportType = "products" | "suppliers" | "customers" | "opening-balance" | "receipt-lines";
-export type ExportType = "products" | "suppliers" | "customers" | "inventory" | "invoices" | "goods-receipts" | "rx-sales";
+export type ImportType = "products" | "suppliers" | "customers" | "opening-balance" | "stock-count" | "receipt-lines";
+export type ExportType = "products" | "suppliers" | "customers" | "inventory" | "stock-count" | "invoices" | "goods-receipts" | "rx-sales" | "controlled-ledger";
 
 export type ImportIssue = { row: number; column?: string; message: string };
 

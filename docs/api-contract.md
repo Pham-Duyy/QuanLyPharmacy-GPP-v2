@@ -239,6 +239,7 @@ Quy tắc:
 | `report.inventory` | Báo cáo xuất – nhập – tồn, hạn dùng |
 | `audit.read` | Đọc audit log |
 | `backup.manage` | Xem, chạy và tải bản sao lưu dữ liệu |
+| `controlled.read` | Xem sổ theo dõi thuốc kiểm soát đặc biệt |
 | `ai.use` | Dùng tính năng AI |
 
 ### 4.2 Ma trận vai trò → permission [Đã chốt – P5]
@@ -283,6 +284,7 @@ Quy tắc:
 | `report.inventory` | ✓ | ✓ | | | ✓ |
 | `audit.read` | ✓ | | | | ✓ |
 | `backup.manage` | ✓ | | | | |
+| `controlled.read` | ✓ | ✓ | | | ✓ |
 | `ai.use` | | ✓ | ✓ | | |
 
 Ghi chú:
@@ -693,6 +695,34 @@ Quy tắc:
 
 Kiểm kê qua Excel (§ Nhập / xuất Excel): xuất `stock-count` cho ra bảng đếm của đợt đang mở — **cố ý không in tồn hệ thống** để người đếm không chép theo số có sẵn; nhập `stock-count` ghi số đếm vào đúng đợt đang mở, khớp dòng theo mã sản phẩm và số lô.
 
+### 10.6 Thuốc kiểm soát đặc biệt
+
+Áp dụng cho `drugClass = CONTROLLED` (gây nghiện, hướng thần, tiền chất). Trước đây MVP chặn bán nhóm này vì chưa có sổ theo dõi; nay bán được với các ràng buộc dưới đây.
+
+**Điều kiện bán** (kiểm ngay trong transaction bán hàng, §14.2):
+
+| Điều kiện | Không đạt thì |
+|---|---|
+| Có đơn thuốc đã xác nhận, còn hiệu lực | `PRESCRIPTION_REQUIRED` / `PRESCRIPTION_NOT_VERIFIED` / đơn hết hiệu lực |
+| Người bán có `sale.prescription_drug` | `403 FORBIDDEN` |
+| Đã ghi thông tin người mua | `CONTROLLED_BUYER_REQUIRED` |
+| Đơn thuốc đã có ảnh lưu | Cảnh báo `CONTROLLED_PRESCRIPTION_IMAGE_MISSING` mức `HIGH`, phải `safety.ack` mới bán |
+
+`POST /invoices` nhận thêm `controlledBuyer`: `buyerName`, `buyerIdNumber` (tối thiểu 6 ký tự), `buyerAddress`, `buyerPhone`, `relationship` (`SELF`/`RELATIVE`/`CAREGIVER`/`OTHER`), `relationshipNote`. Dữ liệu lưu ở `controlled_sale_details`, mỗi hóa đơn tối đa một bản ghi. `POST /sales/safety-check` nhận `hasControlledBuyer` để quầy bán biết trước còn thiếu gì.
+
+**Sổ theo dõi:**
+
+| Method | Endpoint | Mô tả | Quyền |
+|---|---|---|---|
+| GET | `/controlled-drugs` | Danh mục thuốc kiểm soát đặc biệt kèm tồn hiện tại | `controlled.read` |
+| GET | `/controlled-drugs/ledger?from&to&productId` | Sổ xuất nhập theo kỳ (mặc định 30 ngày, tối đa 366 ngày) | `controlled.read` |
+
+- Sổ **dựng lại từ thẻ kho** mỗi lần xem, không phải bảng ghi tay song song: không ai sửa được sổ mà không để lại chứng từ, và sổ không lệch tồn kho.
+- Mỗi dòng có: thời gian, số chứng từ, diễn giải, nhập, xuất, **số dư sau**, số lô, hạn dùng, người mua (họ tên, số giấy tờ, địa chỉ, quan hệ), đơn thuốc, người kê, cơ sở khám chữa bệnh, người thực hiện.
+- `openingBalance` là tổng mọi bút toán trước ngày bắt đầu kỳ, nên kỳ nào cũng có số mang sang như sổ giấy.
+- `mismatches` so số cuối kỳ với tồn kho khi kỳ kết thúc hôm nay; lệch là dấu hiệu dữ liệu có vấn đề, phải báo người phụ trách chuyên môn.
+- Xuất Excel `controlled-ledger` (§ Nhập / xuất Excel): sheet "Tổng hợp" và "Chi tiết", có ghi nhật ký mỗi lần xuất.
+
 ---
 
 ## 11. Khách hàng
@@ -1095,6 +1125,7 @@ Loại xuất:
 | `invoices` | `invoice.read` | Có | Sheet "Hóa đơn" và "Chi tiết" (kèm lô xuất) |
 | `goods-receipts` | `goods_receipt.read` | Có | Sheet "Phiếu nhập" và "Chi tiết" (lô, ngày sản xuất, hạn dùng) |
 | `rx-sales` | `prescription.read` | Có | Sổ theo dõi bán thuốc kê đơn và thuốc kiểm soát đặc biệt: người bệnh, đơn thuốc, người kê, cơ sở khám chữa bệnh, chẩn đoán, số lô, hạn dùng, người bán |
+| `controlled-ledger` | `controlled.read` | Có | Sổ thuốc kiểm soát đặc biệt (§10.6): sheet Tổng hợp và Chi tiết; ghi audit `EXCEL_EXPORT` |
 
 Giá trị trong ô luôn được ghi dạng dữ liệu, không bao giờ là công thức. Thời điểm (giờ bán, giờ nhận hàng) ghi theo giờ Việt Nam.
 
@@ -1136,7 +1167,7 @@ Cấu hình bằng biến môi trường: `BACKUP_DIR` (nên trỏ sang ổ đĩ
 | GPP | Thu hồi (§16); sổ nhiệt độ – độ ẩm (§17) |
 | Báo cáo | Dashboard, doanh thu, bán chạy, xuất – nhập – tồn, hạn dùng (§19) |
 
-Quy tắc MVP: chưa có sổ theo dõi thuốc kiểm soát đặc biệt thì hệ thống **chặn bán** sản phẩm `drugClass = CONTROLLED`.
+Thuốc kiểm soát đặc biệt (`drugClass = CONTROLLED`) đã bán được kể từ khi có sổ theo dõi ở §10.6: phải có đơn đã xác nhận, người bán là dược sĩ và ghi đủ thông tin người mua.
 
 Về mô hình chuỗi: MVP chạy với **một cửa hàng**, nhưng dữ liệu và API đã có phạm vi cửa hàng (§2.8), nên mở cửa hàng thứ hai chỉ là thêm một dòng trong `/stores` và gán vai trò cho nhân sự. Phần còn lại của mô hình chuỗi để sau MVP: chuyển hàng giữa các cửa hàng, giá riêng theo cửa hàng, báo cáo so sánh giữa các cửa hàng.
 
@@ -1144,7 +1175,7 @@ Về mô hình chuỗi: MVP chạy với **một cửa hàng**, nhưng dữ li�
 
 - Đơn đặt hàng nhà cung cấp, trả hàng nhà cung cấp, công nợ nhà cung cấp.
 - Danh mục bác sĩ; OCR đơn thuốc; AI giải thích cảnh báo; dự báo nhập hàng.
-- Kiểm kê theo đợt; ngăn biệt trữ theo số lượng; sổ thuốc kiểm soát đặc biệt.
+- Ngăn biệt trữ theo số lượng.
 - Hóa đơn điện tử, tích hợp cổng thanh toán, liên thông dữ liệu dược với cơ quan quản lý.
 - MFA; nhiều cửa hàng.
 

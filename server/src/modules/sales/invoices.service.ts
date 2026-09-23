@@ -13,7 +13,7 @@ type Tx = Prisma.TransactionClient;
 /** Mỗi vi phạm luật cứng ứng với một mã lỗi trong bảng ở contract §2.7. */
 const BLOCKING_STATUS: Record<string, number> = {
   INSUFFICIENT_STOCK: 409,
-  CONTROLLED_DRUG_NOT_SUPPORTED: 422,
+  CONTROLLED_BUYER_REQUIRED: 422,
   PRESCRIPTION_REQUIRED: 422,
   PRESCRIPTION_NOT_VERIFIED: 422,
   PRESCRIPTION_EXPIRED: 422,
@@ -97,7 +97,9 @@ export async function createInvoice(
       }
 
       // 3-4. Kiểm tra an toàn tất định, chạy lại ngay trong transaction bán hàng.
+      const hasControlled = lines.some((line) => line.drugClass === "CONTROLLED");
       const safety = await runSafetyCheck(tx, {
+        hasControlledBuyer: Boolean(input.controlledBuyer),
         storeId,
         lines,
         customerId: input.customerId,
@@ -213,6 +215,23 @@ export async function createInvoice(
           changeAmount: tendered === null ? null : tendered - totalAmount,
         },
       });
+
+      // Thuốc kiểm soát đặc biệt: lưu người mua ngay cùng hóa đơn, đây là
+      // phần bắt buộc của sổ theo dõi (contract §10.6).
+      if (hasControlled && input.controlledBuyer) {
+        await tx.controlledSaleDetail.create({
+          data: {
+            invoiceId: invoice.id,
+            buyerName: input.controlledBuyer.buyerName,
+            buyerIdNumber: input.controlledBuyer.buyerIdNumber,
+            buyerAddress: input.controlledBuyer.buyerAddress,
+            buyerPhone: input.controlledBuyer.buyerPhone ?? null,
+            relationship: input.controlledBuyer.relationship,
+            relationshipNote: input.controlledBuyer.relationshipNote ?? null,
+            recordedBy: auth.userId,
+          },
+        });
+      }
 
       for (const line of priced) {
         const saved = await tx.invoiceLine.create({

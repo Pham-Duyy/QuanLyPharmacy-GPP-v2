@@ -38,6 +38,8 @@ export type SafetyParams = {
   lines: ResolvedLine[];
   customerId?: string | null;
   prescriptionId?: string | null;
+  /** Đã nhập thông tin người mua thuốc kiểm soát đặc biệt hay chưa. */
+  hasControlledBuyer?: boolean;
 };
 
 /**
@@ -58,14 +60,32 @@ export async function runSafetyCheck(tx: Tx, params: SafetyParams): Promise<Safe
 
   const productIds = [...new Set(lines.map((line) => line.productId))];
 
-  // 1. Thuốc kiểm soát đặc biệt: chưa có sổ theo dõi thì chặn bán (contract §22).
-  for (const productId of productIds) {
-    const line = lines.find((item) => item.productId === productId)!;
-    if (line.drugClass === "CONTROLLED") {
+  // 1. Thuốc kiểm soát đặc biệt: bán được nhưng phải ghi đủ thông tin người
+  // mua vào sổ theo dõi (contract §10.6). Đơn thuốc và quyền bán được kiểm ở
+  // bước 2 và ở invoices.service.
+  const controlledIds = productIds.filter((productId) => lines.find((item) => item.productId === productId)!.drugClass === "CONTROLLED");
+  if (controlledIds.length > 0 && !params.hasControlledBuyer) {
+    for (const productId of controlledIds) {
+      const line = lines.find((item) => item.productId === productId)!;
       blocking.push({
-        code: "CONTROLLED_DRUG_NOT_SUPPORTED",
+        code: "CONTROLLED_BUYER_REQUIRED",
         productId,
-        message: `${line.productName} là thuốc kiểm soát đặc biệt, phiên bản này chưa bán được`,
+        message: `${line.productName} là thuốc kiểm soát đặc biệt: phải ghi họ tên, số giấy tờ tùy thân và địa chỉ người mua`,
+      });
+    }
+  }
+
+  if (controlledIds.length > 0 && params.prescriptionId) {
+    const images = await tx.prescriptionImage.count({ where: { prescriptionId: params.prescriptionId } });
+    if (images === 0) {
+      warnings.push({
+        code: "CONTROLLED_PRESCRIPTION_IMAGE_MISSING",
+        severity: "HIGH",
+        requiresAck: true,
+        productIds: controlledIds,
+        message: "Đơn thuốc kiểm soát đặc biệt chưa có ảnh lưu. Phải giữ bản chính đơn thuốc tại nhà thuốc.",
+        source: "Quy định lưu đơn thuốc kiểm soát đặc biệt",
+        sourceVersion: RULE_VERSION,
       });
     }
   }

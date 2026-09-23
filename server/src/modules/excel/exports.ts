@@ -4,6 +4,7 @@ import { businessDateNow } from "../../lib/settings.js";
 import type { AuthContext } from "../auth/auth.context.js";
 import { getCurrentPrices, getStockSummary } from "../catalog/products.service.js";
 import { DRUG_CLASS_LABEL, PRODUCT_COLUMNS, PRODUCT_TYPE_LABEL } from "./import-products.js";
+import { buildLedger } from "../controlled/controlled.service.js";
 import { CUSTOMER_COLUMNS, SUPPLIER_COLUMNS } from "./import-partners.js";
 import type { ColumnDef, SheetSpec } from "./workbook.js";
 
@@ -422,6 +423,77 @@ export const rxSalesExport: ExportDefinition = {
             dispenser: line.invoice.pharmacist?.fullName ?? line.invoice.seller.fullName,
           };
         }),
+      },
+    ];
+  },
+};
+
+/**
+ * Sổ theo dõi thuốc kiểm soát đặc biệt: một sheet tổng hợp số dư và một
+ * sheet chi tiết từng lần xuất nhập kèm người mua, đơn thuốc, người kê.
+ */
+export const controlledLedgerExport: ExportDefinition = {
+  type: "controlled-ledger",
+  title: "Sổ thuốc kiểm soát đặc biệt",
+  permission: ["controlled.read"],
+  needsStore: true,
+  dated: true,
+  audited: true,
+  async build(ctx) {
+    const storeId = requireStore(ctx);
+    const ledger = await buildLedger({ storeId, from: ctx.from, to: ctx.to });
+
+    return [
+      {
+        name: "Tổng hợp",
+        columns: [
+          { key: "code", header: "Mã thuốc", width: 12 },
+          { key: "name", header: "Tên thuốc", width: 34 },
+          { key: "strengthText", header: "Hàm lượng", width: 12 },
+          { key: "baseUnitName", header: "Đơn vị", width: 10 },
+          { key: "openingBalance", header: "Tồn đầu kỳ", kind: "int", width: 12 },
+          { key: "totalIn", header: "Nhập trong kỳ", kind: "int", width: 13 },
+          { key: "totalOut", header: "Xuất trong kỳ", kind: "int", width: 13 },
+          { key: "closingBalance", header: "Tồn cuối kỳ", kind: "int", width: 12 },
+          { key: "stockOnHand", header: "Tồn kho hiện tại", kind: "int", width: 15 },
+        ],
+        rows: ledger.map((product) => ({
+          code: product.code,
+          name: product.name,
+          strengthText: product.strengthText,
+          baseUnitName: product.baseUnitName,
+          openingBalance: product.openingBalance,
+          totalIn: product.totalIn,
+          totalOut: product.totalOut,
+          closingBalance: product.closingBalance,
+          stockOnHand: product.stockOnHand,
+        })),
+      },
+      {
+        name: "Chi tiết",
+        columns: [
+          { key: "productName", header: "Tên thuốc", width: 30 },
+          { key: "occurredAt", header: "Thời gian", kind: "datetime", width: 16 },
+          { key: "documentCode", header: "Số chứng từ", width: 22 },
+          { key: "description", header: "Diễn giải", width: 22 },
+          { key: "inQuantity", header: "Nhập", kind: "int", width: 8 },
+          { key: "outQuantity", header: "Xuất", kind: "int", width: 8 },
+          { key: "balanceAfter", header: "Tồn sau", kind: "int", width: 10 },
+          { key: "batchNumber", header: "Số lô", width: 14 },
+          { key: "expiryDate", header: "Hạn dùng", kind: "date", width: 12 },
+          { key: "partyName", header: "Người bệnh / nhà cung cấp", width: 26 },
+          { key: "buyerName", header: "Người mua", width: 22 },
+          { key: "buyerIdNumber", header: "Số giấy tờ tùy thân", width: 18 },
+          { key: "buyerAddress", header: "Địa chỉ người mua", width: 32 },
+          { key: "relationship", header: "Quan hệ với người bệnh", width: 18 },
+          { key: "prescriptionCode", header: "Đơn thuốc", width: 16 },
+          { key: "prescriberName", header: "Người kê đơn", width: 20 },
+          { key: "facilityName", header: "Cơ sở khám chữa bệnh", width: 24 },
+          { key: "handledBy", header: "Người thực hiện", width: 20 },
+        ],
+        rows: ledger.flatMap((product) =>
+          product.entries.map((entry) => ({ ...entry, productName: product.name, occurredAt: vnTime(entry.occurredAt) })),
+        ),
       },
     ];
   },

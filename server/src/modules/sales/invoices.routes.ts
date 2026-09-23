@@ -40,6 +40,7 @@ invoicesRouter.post(
         lines,
         customerId: input.customerId,
         prescriptionId: input.prescriptionId,
+        hasControlledBuyer: input.hasControlledBuyer,
       }),
     );
   },

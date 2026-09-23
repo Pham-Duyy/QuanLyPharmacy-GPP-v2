@@ -70,36 +70,37 @@ model User {
 
   defaultStore Store? @relation(fields: [defaultStoreId], references: [id])
 
-  userRoles              UserRole[]              @relation("UserRoleUser")
-  assignedUserRoles      UserRole[]              @relation("UserRoleAssignedBy")
-  refreshSessions        RefreshSession[]
-  auditLogs              AuditLog[]
-  aiLogs                 AiLog[]
-  productPrices          ProductPrice[]
-  settingsUpdated        Setting[]
-  goodsReceiptsCreated   GoodsReceipt[]          @relation("GoodsReceiptCreatedBy")
-  goodsReceiptsConfirmed GoodsReceipt[]          @relation("GoodsReceiptConfirmedBy")
-  goodsReceiptsCancelled GoodsReceipt[]          @relation("GoodsReceiptCancelledBy")
-  adjustmentsCreated     StockAdjustment[]       @relation("AdjustmentCreatedBy")
-  adjustmentsApproved    StockAdjustment[]       @relation("AdjustmentApprovedBy")
-  recallsCreated         Recall[]                @relation("RecallCreatedBy")
-  recallsClosed          Recall[]                @relation("RecallClosedBy")
-  invoicesSold           Invoice[]               @relation("InvoiceSeller")
-  invoicesAsPharmacist   Invoice[]               @relation("InvoicePharmacist")
-  invoicesVoided         Invoice[]               @relation("InvoiceVoidedBy")
-  safetyAcks             InvoiceSafetyAck[]
-  returnsCreated         Return[]
-  prescriptionsCreated   Prescription[]          @relation("PrescriptionCreatedBy")
-  prescriptionsVerified  Prescription[]          @relation("PrescriptionVerifiedBy")
-  prescriptionImages     PrescriptionImage[]
-  productImages          ProductImage[]
-  storageLogs            StorageLog[]
-  backupsStarted         Backup[]
-  stockCountsCreated     StockCount[]            @relation("StockCountCreatedBy")
-  stockCountsClosed      StockCount[]            @relation("StockCountClosedBy")
-  stockCountLinesCounted StockCountLine[]
-  healthProfilesUpdated  CustomerHealthProfile[]
-  stockMovements         StockMovement[]
+  userRoles               UserRole[]              @relation("UserRoleUser")
+  assignedUserRoles       UserRole[]              @relation("UserRoleAssignedBy")
+  refreshSessions         RefreshSession[]
+  auditLogs               AuditLog[]
+  aiLogs                  AiLog[]
+  productPrices           ProductPrice[]
+  settingsUpdated         Setting[]
+  goodsReceiptsCreated    GoodsReceipt[]          @relation("GoodsReceiptCreatedBy")
+  goodsReceiptsConfirmed  GoodsReceipt[]          @relation("GoodsReceiptConfirmedBy")
+  goodsReceiptsCancelled  GoodsReceipt[]          @relation("GoodsReceiptCancelledBy")
+  adjustmentsCreated      StockAdjustment[]       @relation("AdjustmentCreatedBy")
+  adjustmentsApproved     StockAdjustment[]       @relation("AdjustmentApprovedBy")
+  recallsCreated          Recall[]                @relation("RecallCreatedBy")
+  recallsClosed           Recall[]                @relation("RecallClosedBy")
+  invoicesSold            Invoice[]               @relation("InvoiceSeller")
+  invoicesAsPharmacist    Invoice[]               @relation("InvoicePharmacist")
+  invoicesVoided          Invoice[]               @relation("InvoiceVoidedBy")
+  safetyAcks              InvoiceSafetyAck[]
+  returnsCreated          Return[]
+  prescriptionsCreated    Prescription[]          @relation("PrescriptionCreatedBy")
+  prescriptionsVerified   Prescription[]          @relation("PrescriptionVerifiedBy")
+  prescriptionImages      PrescriptionImage[]
+  productImages           ProductImage[]
+  storageLogs             StorageLog[]
+  backupsStarted          Backup[]
+  stockCountsCreated      StockCount[]            @relation("StockCountCreatedBy")
+  stockCountsClosed       StockCount[]            @relation("StockCountClosedBy")
+  stockCountLinesCounted  StockCountLine[]
+  controlledSalesRecorded ControlledSaleDetail[]
+  healthProfilesUpdated   CustomerHealthProfile[]
+  stockMovements          StockMovement[]
 
   @@index([defaultStoreId])
   @@map("users")
@@ -816,15 +817,16 @@ model Invoice {
   voidReason     String?   @map("void_reason")
   createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  store        Store              @relation(fields: [storeId], references: [id])
-  customer     Customer?          @relation(fields: [customerId], references: [id])
-  prescription Prescription?      @relation(fields: [prescriptionId], references: [id])
-  seller       User               @relation("InvoiceSeller", fields: [sellerId], references: [id])
-  pharmacist   User?              @relation("InvoicePharmacist", fields: [pharmacistId], references: [id])
-  voidedByUser User?              @relation("InvoiceVoidedBy", fields: [voidedBy], references: [id])
-  lines        InvoiceLine[]
-  safetyAcks   InvoiceSafetyAck[]
-  returns      Return[]
+  store          Store                 @relation(fields: [storeId], references: [id])
+  customer       Customer?             @relation(fields: [customerId], references: [id])
+  prescription   Prescription?         @relation(fields: [prescriptionId], references: [id])
+  seller         User                  @relation("InvoiceSeller", fields: [sellerId], references: [id])
+  pharmacist     User?                 @relation("InvoicePharmacist", fields: [pharmacistId], references: [id])
+  voidedByUser   User?                 @relation("InvoiceVoidedBy", fields: [voidedBy], references: [id])
+  lines          InvoiceLine[]
+  safetyAcks     InvoiceSafetyAck[]
+  controlledSale ControlledSaleDetail?
+  returns        Return[]
 
   @@index([storeId, businessDate, status])
   @@index([customerId, soldAt(sort: Desc)])
@@ -1110,4 +1112,26 @@ model StockCountLine {
   @@unique([stockCountId, batchId])
   @@index([batchId])
   @@map("stock_count_lines")
+}
+
+/// Thông tin người mua thuốc kiểm soát đặc biệt, bắt buộc ghi theo quy định
+/// về thuốc gây nghiện, hướng thần và tiền chất. Một hóa đơn có thuốc thuộc
+/// nhóm này thì phải có đúng một bản ghi ở đây.
+model ControlledSaleDetail {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  invoiceId        String   @unique @map("invoice_id") @db.Uuid
+  buyerName        String   @map("buyer_name")
+  buyerIdNumber    String   @map("buyer_id_number")
+  buyerAddress     String   @map("buyer_address")
+  buyerPhone       String?  @map("buyer_phone")
+  /// SELF: chính người bệnh; RELATIVE: người nhà; CAREGIVER: người chăm sóc; OTHER: khác.
+  relationship     String   @default("SELF")
+  relationshipNote String?  @map("relationship_note")
+  recordedBy       String   @map("recorded_by") @db.Uuid
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  invoice        Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  recordedByUser User    @relation(fields: [recordedBy], references: [id])
+
+  @@map("controlled_sale_details")
 }
