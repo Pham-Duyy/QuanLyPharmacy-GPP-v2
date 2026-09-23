@@ -86,7 +86,7 @@ const futureDate = (days: number) => {
 describe("Danh mục nhập/xuất Excel", () => {
   it("chỉ liệt kê loại mà tài khoản có quyền", async () => {
     const admin = (await api().get("/api/v1/excel/catalog").set(h()).expect(200)).body.data;
-    expect(admin.imports.map((item: { type: string }) => item.type)).toEqual(["products", "suppliers", "customers", "opening-balance"]);
+    expect(admin.imports.map((item: { type: string }) => item.type)).toEqual(["products", "suppliers", "customers", "opening-balance", "stock-count"]);
     expect(admin.exports.map((item: { type: string }) => item.type)).not.toContain("customers");
     expect(admin.exports.map((item: { type: string }) => item.type)).not.toContain("rx-sales");
 
@@ -380,5 +380,56 @@ describe("Xuất báo cáo", () => {
     const [invoices, lines] = [await sheetRows(workbook, 0), await sheetRows(workbook, 1)];
     expect(invoices[1]).toEqual(expect.arrayContaining(["Phạm Văn C", 60000, "Hoàn tất"]));
     expect(lines[1]).toEqual(expect.arrayContaining(["TH0005", 20, 3000, 60000, "AMX01"]));
+  });
+});
+
+describe("Kiểm kê qua Excel", () => {
+  async function openCount() {
+    const productRow = await makeProduct("TH0007", "OTC");
+    const pill = productRow.units.find((unit) => unit.name === "Viên")!;
+    await prisma.batch.create({
+      data: { storeId: fixture.storeId, productId: productRow.id, batchNumber: "KK01", expiryDate: new Date("2029-06-30"), quantityOnHand: 120, shelfLocation: "Kệ A1" },
+    });
+    const opened = await api().post("/api/v1/stock-counts").set(h(pharmacistToken)).send({}).expect(201);
+    return { productRow, pill, count: opened.body.data.count };
+  }
+
+  it("xuất bảng đếm không kèm tồn hệ thống để đếm khách quan", async () => {
+    await openCount();
+    const rows = await sheetRows((await download("/api/v1/excel/exports/stock-count", pharmacistToken)).body as Buffer);
+    expect(rows[0]).toEqual(expect.arrayContaining(["Số lô", "Đơn vị đếm", "Số đếm được"]));
+    // Cố ý không có cột tồn hệ thống: người đếm không chép theo số có sẵn.
+    expect(rows[0]!.join(" ")).not.toContain("Tồn");
+    expect(rows[1]).toEqual(expect.arrayContaining(["TH0007", "KK01", "Kệ A1"]));
+  });
+
+  it("nhập số đếm vào đợt đang mở, bỏ qua dòng chưa đếm và báo lô lạ", async () => {
+    const { pill } = await openCount();
+    const file = await xlsx(
+      ["Mã sản phẩm", "Số lô", "Đơn vị đếm", "Số đếm được"],
+      [
+        ["TH0007", "KK01", "Viên", 118],
+        ["TH0007", "KK01", "Viên", ""],
+        ["TH0007", "KHONGCO", "Viên", 5],
+      ],
+    );
+    const preview = (await importFile("stock-count", file, "preview", pharmacistToken).expect(200)).body.data;
+    expect(preview.validRows).toBe(1);
+    expect(preview.issues[0].message).toContain("không nằm trong đợt kiểm kê");
+    expect(preview.notes.join(" ")).toContain("Ghi số đếm vào đợt KK-NT01");
+
+    const good = await xlsx(["Mã sản phẩm", "Số lô", "Đơn vị đếm", "Số đếm được"], [["TH0007", "KK01", "Viên", 118]]);
+    const result = (await importFile("stock-count", good, "commit", pharmacistToken).expect(200)).body.data;
+    expect(result).toMatchObject({ created: 1, updated: 0 });
+
+    const line = await prisma.stockCountLine.findFirstOrThrow();
+    expect(line).toMatchObject({ countedQuantity: 118, countedBaseQuantity: 118, systemBaseQuantityAtCount: 120, countedUnitId: pill.id });
+  });
+
+  it("chưa mở đợt kiểm kê thì báo rõ phải mở trước", async () => {
+    await makeProduct("TH0008", "OTC");
+    const file = await xlsx(["Mã sản phẩm", "Số lô", "Đơn vị đếm", "Số đếm được"], [["TH0008", "X1", "Viên", 1]]);
+    const response = await importFile("stock-count", file, "preview", pharmacistToken).expect(409);
+    expect(response.body.error.message).toContain("chưa có đợt kiểm kê nào đang mở");
   });
 });

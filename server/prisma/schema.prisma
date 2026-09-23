@@ -47,6 +47,7 @@ model Store {
   storageLogs        StorageLog[]
   auditLogs          AuditLog[]
   aiLogs             AiLog[]
+  stockCounts        StockCount[]
 
   @@map("stores")
 }
@@ -94,6 +95,9 @@ model User {
   productImages          ProductImage[]
   storageLogs            StorageLog[]
   backupsStarted         Backup[]
+  stockCountsCreated     StockCount[]            @relation("StockCountCreatedBy")
+  stockCountsClosed      StockCount[]            @relation("StockCountClosedBy")
+  stockCountLinesCounted StockCountLine[]
   healthProfilesUpdated  CustomerHealthProfile[]
   stockMovements         StockMovement[]
 
@@ -295,16 +299,17 @@ model Product {
   createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt            DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  category           Category            @relation(fields: [categoryId], references: [id])
-  ingredients        ProductIngredient[]
-  units              ProductUnit[]
-  batches            Batch[]
-  goodsReceiptLines  GoodsReceiptLine[]
-  invoiceLines       InvoiceLine[]
-  prescriptionItems  PrescriptionItem[]
-  stockMovements     StockMovement[]
-  recallItems        RecallItem[]
-  images             ProductImage[]
+  category          Category            @relation(fields: [categoryId], references: [id])
+  ingredients       ProductIngredient[]
+  units             ProductUnit[]
+  batches           Batch[]
+  goodsReceiptLines GoodsReceiptLine[]
+  invoiceLines      InvoiceLine[]
+  prescriptionItems PrescriptionItem[]
+  stockMovements    StockMovement[]
+  recallItems       RecallItem[]
+  images            ProductImage[]
+  stockCountLines   StockCountLine[]
 
   @@index([categoryId])
   @@index([productType, drugClass])
@@ -366,6 +371,7 @@ model ProductUnit {
   prescriptionItems PrescriptionItem[]
   adjustmentLines   StockAdjustmentLine[]
   returnLines       ReturnLine[]
+  stockCountLines   StockCountLine[]
 
   @@unique([productId, name])
   @@index([productId])
@@ -456,6 +462,7 @@ model Batch {
   goodsReceiptLines  GoodsReceiptLine[]
   adjustmentLines    StockAdjustmentLine[]
   recallItems        RecallItem[]
+  stockCountLines    StockCountLine[]
 
   @@unique([storeId, productId, batchNumber])
   @@unique([id, storeId])
@@ -579,6 +586,7 @@ model StockAdjustment {
   createdByUser  User                  @relation("AdjustmentCreatedBy", fields: [createdBy], references: [id])
   approvedByUser User?                 @relation("AdjustmentApprovedBy", fields: [approvedBy], references: [id])
   lines          StockAdjustmentLine[]
+  stockCount     StockCount?
 
   @@index([storeId, status])
   @@map("stock_adjustments")
@@ -650,22 +658,22 @@ model RecallItem {
 // ---------------------------------------------------------------------------
 
 model Customer {
-  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   /// Mã khách hàng KH00001..., sinh tự động từ sequence customer_code_seq.
-  code                 String    @unique @default(dbgenerated("(KH::text || lpad((nextval(customer_code_seq::regclass))::text, 5, 0::text))"))
-  fullName             String?   @map("full_name")
-  phone                String?
-  email                String?
-  address              String?
-  birthYear            Int?      @map("birth_year")
-  gender               String?
-  note                 String?
-  healthDataConsentAt  DateTime? @map("health_data_consent_at") @db.Timestamptz(6)
-  isAnonymized         Boolean   @default(false) @map("is_anonymized")
-  anonymizedAt         DateTime? @map("anonymized_at") @db.Timestamptz(6)
-  version              Int       @default(1)
-  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt            DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  code                String    @unique @default(dbgenerated("(KH::text || lpad((nextval(customer_code_seq::regclass))::text, 5, 0::text))"))
+  fullName            String?   @map("full_name")
+  phone               String?
+  email               String?
+  address             String?
+  birthYear           Int?      @map("birth_year")
+  gender              String?
+  note                String?
+  healthDataConsentAt DateTime? @map("health_data_consent_at") @db.Timestamptz(6)
+  isAnonymized        Boolean   @default(false) @map("is_anonymized")
+  anonymizedAt        DateTime? @map("anonymized_at") @db.Timestamptz(6)
+  version             Int       @default(1)
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   healthProfile CustomerHealthProfile?
   allergies     CustomerAllergy[]
@@ -677,11 +685,11 @@ model Customer {
 }
 
 model CustomerHealthProfile {
-  customerId         String   @id @map("customer_id") @db.Uuid
-  chronicConditions  String?  @map("chronic_conditions")
-  note               String?
-  updatedAt          DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  updatedBy          String?  @map("updated_by") @db.Uuid
+  customerId        String   @id @map("customer_id") @db.Uuid
+  chronicConditions String?  @map("chronic_conditions")
+  note              String?
+  updatedAt         DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy         String?  @map("updated_by") @db.Uuid
 
   customer      Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
   updatedByUser User?    @relation(fields: [updatedBy], references: [id])
@@ -808,15 +816,15 @@ model Invoice {
   voidReason     String?   @map("void_reason")
   createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  store           Store              @relation(fields: [storeId], references: [id])
-  customer        Customer?          @relation(fields: [customerId], references: [id])
-  prescription    Prescription?      @relation(fields: [prescriptionId], references: [id])
-  seller          User               @relation("InvoiceSeller", fields: [sellerId], references: [id])
-  pharmacist      User?              @relation("InvoicePharmacist", fields: [pharmacistId], references: [id])
-  voidedByUser    User?              @relation("InvoiceVoidedBy", fields: [voidedBy], references: [id])
-  lines           InvoiceLine[]
-  safetyAcks      InvoiceSafetyAck[]
-  returns         Return[]
+  store        Store              @relation(fields: [storeId], references: [id])
+  customer     Customer?          @relation(fields: [customerId], references: [id])
+  prescription Prescription?      @relation(fields: [prescriptionId], references: [id])
+  seller       User               @relation("InvoiceSeller", fields: [sellerId], references: [id])
+  pharmacist   User?              @relation("InvoicePharmacist", fields: [pharmacistId], references: [id])
+  voidedByUser User?              @relation("InvoiceVoidedBy", fields: [voidedBy], references: [id])
+  lines        InvoiceLine[]
+  safetyAcks   InvoiceSafetyAck[]
+  returns      Return[]
 
   @@index([storeId, businessDate, status])
   @@index([customerId, soldAt(sort: Desc)])
@@ -827,22 +835,22 @@ model Invoice {
 /// Dòng hóa đơn chụp lại tên, đơn vị và giá tại thời điểm bán, để đổi giá
 /// hay đổi tên sau này không làm thay đổi hóa đơn cũ.
 model InvoiceLine {
-  id                  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  invoiceId           String   @map("invoice_id") @db.Uuid
-  lineNo              Int      @map("line_no")
-  productId           String   @map("product_id") @db.Uuid
-  productUnitId       String   @map("product_unit_id") @db.Uuid
-  productName         String   @map("product_name")
-  unitName            String   @map("unit_name")
-  conversionToBase    Int      @map("conversion_to_base")
+  id                  String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  invoiceId           String  @map("invoice_id") @db.Uuid
+  lineNo              Int     @map("line_no")
+  productId           String  @map("product_id") @db.Uuid
+  productUnitId       String  @map("product_unit_id") @db.Uuid
+  productName         String  @map("product_name")
+  unitName            String  @map("unit_name")
+  conversionToBase    Int     @map("conversion_to_base")
   quantity            Int
-  baseQuantity        Int      @map("base_quantity")
-  unitPrice           BigInt   @map("unit_price")
-  vatRatePercent      Decimal  @map("vat_rate_percent") @db.Decimal(5, 2)
-  discountAmount      BigInt   @default(0) @map("discount_amount")
-  lineTotal           BigInt   @map("line_total")
-  prescriptionItemId  String?  @map("prescription_item_id") @db.Uuid
-  batchOverrideReason String?  @map("batch_override_reason")
+  baseQuantity        Int     @map("base_quantity")
+  unitPrice           BigInt  @map("unit_price")
+  vatRatePercent      Decimal @map("vat_rate_percent") @db.Decimal(5, 2)
+  discountAmount      BigInt  @default(0) @map("discount_amount")
+  lineTotal           BigInt  @map("line_total")
+  prescriptionItemId  String? @map("prescription_item_id") @db.Uuid
+  batchOverrideReason String? @map("batch_override_reason")
 
   invoice          Invoice             @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   product          Product             @relation(fields: [productId], references: [id])
@@ -1040,4 +1048,66 @@ model Backup {
 
   @@index([startedAt(sort: Desc)])
   @@map("backups")
+}
+
+/// Đợt kiểm kê kho: chụp danh sách lô cần đếm, ghi số đếm thực tế rồi chốt
+/// thành một phiếu điều chỉnh tồn chờ duyệt (contract §10.3, §10.5). Nhà
+/// thuốc vẫn bán bình thường trong lúc kiểm kê, nên mốc so sánh của mỗi
+/// dòng là tồn hệ thống **tại đúng lúc đếm dòng đó**.
+model StockCount {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  storeId      String    @map("store_id") @db.Uuid
+  code         String    @unique
+  status       String    @default("COUNTING")
+  scopeType    String    @default("ALL") @map("scope_type")
+  scopeValue   String?   @map("scope_value")
+  scopeLabel   String?   @map("scope_label")
+  note         String?
+  startedAt    DateTime  @default(now()) @map("started_at") @db.Timestamptz(6)
+  createdBy    String    @map("created_by") @db.Uuid
+  closedBy     String?   @map("closed_by") @db.Uuid
+  closedAt     DateTime? @map("closed_at") @db.Timestamptz(6)
+  adjustmentId String?   @unique @map("adjustment_id") @db.Uuid
+  version      Int       @default(1)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  store         Store            @relation(fields: [storeId], references: [id])
+  createdByUser User             @relation("StockCountCreatedBy", fields: [createdBy], references: [id])
+  closedByUser  User?            @relation("StockCountClosedBy", fields: [closedBy], references: [id])
+  adjustment    StockAdjustment? @relation(fields: [adjustmentId], references: [id])
+  lines         StockCountLine[]
+
+  @@index([storeId, status])
+  @@map("stock_counts")
+}
+
+model StockCountLine {
+  id                        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  stockCountId              String    @map("stock_count_id") @db.Uuid
+  lineNo                    Int       @map("line_no")
+  batchId                   String    @map("batch_id") @db.Uuid
+  productId                 String    @map("product_id") @db.Uuid
+  shelfLocation             String?   @map("shelf_location")
+  /// Tồn hệ thống lúc mở đợt, chỉ để đối chiếu khi xem lại.
+  systemBaseQuantityAtOpen  Int       @map("system_base_quantity_at_open")
+  /// Tồn hệ thống tại đúng thời điểm ghi số đếm — mốc tính chênh lệch.
+  systemBaseQuantityAtCount Int?      @map("system_base_quantity_at_count")
+  countedUnitId             String?   @map("counted_unit_id") @db.Uuid
+  countedQuantity           Int?      @map("counted_quantity")
+  countedBaseQuantity       Int?      @map("counted_base_quantity")
+  countedAt                 DateTime? @map("counted_at") @db.Timestamptz(6)
+  countedBy                 String?   @map("counted_by") @db.Uuid
+  note                      String?
+
+  stockCount    StockCount   @relation(fields: [stockCountId], references: [id], onDelete: Cascade)
+  batch         Batch        @relation(fields: [batchId], references: [id])
+  product       Product      @relation(fields: [productId], references: [id])
+  countedUnit   ProductUnit? @relation(fields: [countedUnitId], references: [id])
+  countedByUser User?        @relation(fields: [countedBy], references: [id])
+
+  @@unique([stockCountId, lineNo])
+  @@unique([stockCountId, batchId])
+  @@index([batchId])
+  @@map("stock_count_lines")
 }

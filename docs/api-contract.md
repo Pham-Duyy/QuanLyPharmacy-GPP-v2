@@ -667,6 +667,32 @@ Thẻ kho **chỉ thêm, không sửa, không xóa**. Tồn của một lô luô
 - Tạo lô `AVAILABLE` và dòng thẻ kho loại `OPENING_BALANCE` trong một transaction.
 - Chỉ dùng được trước khi phát sinh hóa đơn đầu tiên. Sau đó endpoint trả `409 INVALID_STATE`.
 
+### 10.5 Kiểm kê theo đợt
+
+Đợt kiểm kê là lớp đứng trên phiếu điều chỉnh tồn (§10.3): đếm hàng thực tế theo phạm vi đã chọn, chốt lại thành **một phiếu điều chỉnh `DRAFT`** để người khác duyệt.
+
+| Method | Endpoint | Mô tả | Quyền |
+|---|---|---|---|
+| GET | `/stock-counts` | `{ items, open }` — các đợt của cửa hàng và đợt đang đếm (nếu có); lọc `status` | `stock.read` |
+| POST | `/stock-counts` | Mở đợt: `scopeType` (`ALL`/`CATEGORY`/`SHELF`), `scopeValue`, `note`. Chụp mọi lô còn tồn trong phạm vi | `stock.adjust.create` |
+| GET | `/stock-counts/{id}` | `{ count, lines, summary }` | `stock.read` |
+| PATCH | `/stock-counts/{id}/counts` | Ghi số đếm nhiều dòng: `entries[{ lineId, unitId, quantity }]`, hoặc `{ lineId, clear: true }` để xóa số đã đếm | `stock.adjust.create` |
+| POST | `/stock-counts/{id}/lines` | Thêm lô tìm thấy trên kệ nhưng chưa có trong đợt (`batchId`) | `stock.adjust.create` |
+| POST | `/stock-counts/{id}/close` | Chốt đợt, sinh phiếu điều chỉnh cho các dòng lệch; ghi audit `STOCK_COUNT_CLOSE` | `stock.adjust.create` |
+| POST | `/stock-counts/{id}/cancel` | Bỏ đợt, không đụng tới tồn; ghi audit `STOCK_COUNT_CANCEL` | `stock.adjust.create` |
+
+Quy tắc:
+
+- **Mỗi cửa hàng chỉ có một đợt `COUNTING`** tại một thời điểm (ràng buộc ở tầng CSDL). Hai đợt song song sẽ đếm chồng nhau và sinh hai phiếu mâu thuẫn trên cùng một lô.
+- Mốc so sánh của mỗi dòng là `systemBaseQuantityAtCount` — tồn hệ thống **tại đúng thời điểm ghi số đếm**, không phải lúc mở đợt. Nhờ vậy nhà thuốc vẫn bán bình thường trong lúc kiểm kê: hàng bán sau khi đếm không bị tính thành thất thoát.
+- **Dòng chưa đếm không bị coi là đếm được 0**: chúng không vào phiếu điều chỉnh, tồn giữ nguyên.
+- Đếm theo đơn vị nào cũng được (`Viên`, `Hộp`…); hệ thống quy về đơn vị cơ bản và giữ nguyên đơn vị đã đếm trên phiếu để đối chiếu với biên bản.
+- Lô `QUARANTINED` vẫn nằm trong danh sách đếm vì hàng vẫn ở trên kệ.
+- Giá trị chênh lệch (`differenceValue`) chỉ trả về khi có `stock.cost.read`.
+- Phiếu điều chỉnh sinh ra vẫn theo luật §10.3: người duyệt phải khác người lập, tồn chỉ đổi khi phiếu được duyệt.
+
+Kiểm kê qua Excel (§ Nhập / xuất Excel): xuất `stock-count` cho ra bảng đếm của đợt đang mở — **cố ý không in tồn hệ thống** để người đếm không chép theo số có sẵn; nhập `stock-count` ghi số đếm vào đúng đợt đang mở, khớp dòng theo mã sản phẩm và số lô.
+
 ---
 
 ## 11. Khách hàng
@@ -1054,6 +1080,7 @@ Loại nhập:
 | `suppliers` | `catalog.manage` | Không | Khớp theo mã số thuế, không có thì theo tên (không dấu) |
 | `customers` | `customer.manage` | Không | Khớp theo Mã KH, không có thì theo số điện thoại. Không nhập hồ sơ sức khỏe |
 | `opening-balance` | `stock.opening_balance` | Có | Cả tệp tạo một phiếu tồn đầu kỳ (§10.4); chặn lô đã có trong kho |
+| `stock-count` | `stock.adjust.create` | Có | Ghi số đếm vào đợt kiểm kê đang mở (§10.5); ô số đếm để trống là chưa đếm, không phải đếm được 0 |
 | `receipt-lines` | `goods_receipt.create` | Có | Chỉ `preview`: trả thêm `lines[]` đã khớp sản phẩm và đơn vị để đổ vào phiếu nhập nháp |
 
 Loại xuất:
@@ -1064,6 +1091,7 @@ Loại xuất:
 | `suppliers` | `catalog.read` | Không | Đúng cột của mẫu nhập |
 | `customers` | `customer.sensitive` | Không | Số điện thoại đầy đủ; ghi audit `EXCEL_EXPORT` |
 | `inventory` | `stock.read` | Có | Tồn từng lô theo hạn dùng; cột giá vốn và giá trị tồn chỉ có khi được `stock.cost.read` |
+| `stock-count` | `stock.read` | Có | Bảng đếm của đợt kiểm kê đang mở, không kèm tồn hệ thống (§10.5) |
 | `invoices` | `invoice.read` | Có | Sheet "Hóa đơn" và "Chi tiết" (kèm lô xuất) |
 | `goods-receipts` | `goods_receipt.read` | Có | Sheet "Phiếu nhập" và "Chi tiết" (lô, ngày sản xuất, hạn dùng) |
 | `rx-sales` | `prescription.read` | Có | Sổ theo dõi bán thuốc kê đơn và thuốc kiểm soát đặc biệt: người bệnh, đơn thuốc, người kê, cơ sở khám chữa bệnh, chẩn đoán, số lô, hạn dùng, người bán |
