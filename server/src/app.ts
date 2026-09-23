@@ -39,6 +39,7 @@ import { excelRouter } from "./modules/excel/excel.routes.js";
 import { backupRouter } from "./modules/backup/backup.routes.js";
 import { stockCountsRouter } from "./modules/inventory/stock-counts.routes.js";
 import { controlledRouter } from "./modules/controlled/controlled.routes.js";
+import { purchaseSuggestionsRouter } from "./modules/inventory/purchase-suggestions.routes.js";
 
 /**
  * Lắp ráp ứng dụng Express. Thứ tự middleware quan trọng:
@@ -110,6 +111,7 @@ export function createApp() {
   app.use("/api/v1", backupRouter);
   app.use("/api/v1", stockCountsRouter);
   app.use("/api/v1", controlledRouter);
+  app.use("/api/v1", purchaseSuggestionsRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

@@ -669,7 +669,26 @@ Thẻ kho **chỉ thêm, không sửa, không xóa**. Tồn của một lô luô
 - Tạo lô `AVAILABLE` và dòng thẻ kho loại `OPENING_BALANCE` trong một transaction.
 - Chỉ dùng được trước khi phát sinh hóa đơn đầu tiên. Sau đó endpoint trả `409 INVALID_STATE`.
 
-### 10.5 Kiểm kê theo đợt
+### 10.5 Đề xuất đặt hàng
+
+Trả lời câu hỏi "hôm nay cần gọi hàng gì, bao nhiêu". Chỉ tính toán và trả kết quả, **không tạo chứng từ nào**.
+
+| Method | Endpoint | Mô tả | Quyền |
+|---|---|---|---|
+| GET | `/purchase-suggestions?windowDays&coverDays&leadTimeDays&onlyNeeded&categoryId&search` | `{ items, summary, settings }` | `stock.read` |
+
+Cách tính cho từng mặt hàng đang kinh doanh:
+
+- `avgDailyBaseQuantity` = số lượng bán trong `windowDays` ngày gần nhất (mặc định 30, chỉ hóa đơn hoàn tất) chia cho số ngày.
+- `targetBaseQuantity` = max(tốc độ bán × (`coverDays` + `leadTimeDays`), tồn tối thiểu của mặt hàng).
+- Số cần đặt = mục tiêu − tồn bán được − **hàng đã lập phiếu nhập nhưng chưa kiểm nhập**, rồi làm tròn lên theo đơn vị đặt.
+- Đơn vị đặt lấy theo đơn vị của lần nhập gần nhất; chưa từng nhập thì lấy đơn vị lớn nhất.
+- `lastSupplier`, `lastUnitCost` lấy từ phiếu nhập **đã kiểm nhập** gần nhất của chính mặt hàng đó.
+- `reason`: `OUT_OF_STOCK` hết hàng · `BELOW_MIN` dưới tồn tối thiểu · `RUNNING_OUT` hết trước khi hàng kịp về · `REFILL` cần bổ sung cho kỳ tới · `OK` đang đủ hàng.
+
+Giao diện cho sửa số lượng trước khi đặt, xuất đơn đặt hàng ra Excel (`purchase-order`, xếp theo nhà cung cấp) và đổ các dòng đã chọn vào phiếu nhập nháp. Số lô và hạn dùng để trống vì lúc gọi hàng chưa biết — người kiểm nhập điền khi hàng về.
+
+### 10.6 Kiểm kê theo đợt
 
 Đợt kiểm kê là lớp đứng trên phiếu điều chỉnh tồn (§10.3): đếm hàng thực tế theo phạm vi đã chọn, chốt lại thành **một phiếu điều chỉnh `DRAFT`** để người khác duyệt.
 
@@ -695,7 +714,7 @@ Quy tắc:
 
 Kiểm kê qua Excel (§ Nhập / xuất Excel): xuất `stock-count` cho ra bảng đếm của đợt đang mở — **cố ý không in tồn hệ thống** để người đếm không chép theo số có sẵn; nhập `stock-count` ghi số đếm vào đúng đợt đang mở, khớp dòng theo mã sản phẩm và số lô.
 
-### 10.6 Thuốc kiểm soát đặc biệt
+### 10.7 Thuốc kiểm soát đặc biệt
 
 Áp dụng cho `drugClass = CONTROLLED` (gây nghiện, hướng thần, tiền chất). Trước đây MVP chặn bán nhóm này vì chưa có sổ theo dõi; nay bán được với các ràng buộc dưới đây.
 
@@ -1110,7 +1129,7 @@ Loại nhập:
 | `suppliers` | `catalog.manage` | Không | Khớp theo mã số thuế, không có thì theo tên (không dấu) |
 | `customers` | `customer.manage` | Không | Khớp theo Mã KH, không có thì theo số điện thoại. Không nhập hồ sơ sức khỏe |
 | `opening-balance` | `stock.opening_balance` | Có | Cả tệp tạo một phiếu tồn đầu kỳ (§10.4); chặn lô đã có trong kho |
-| `stock-count` | `stock.adjust.create` | Có | Ghi số đếm vào đợt kiểm kê đang mở (§10.5); ô số đếm để trống là chưa đếm, không phải đếm được 0 |
+| `stock-count` | `stock.adjust.create` | Có | Ghi số đếm vào đợt kiểm kê đang mở (§10.6); ô số đếm để trống là chưa đếm, không phải đếm được 0 |
 | `receipt-lines` | `goods_receipt.create` | Có | Chỉ `preview`: trả thêm `lines[]` đã khớp sản phẩm và đơn vị để đổ vào phiếu nhập nháp |
 
 Loại xuất:
@@ -1121,11 +1140,12 @@ Loại xuất:
 | `suppliers` | `catalog.read` | Không | Đúng cột của mẫu nhập |
 | `customers` | `customer.sensitive` | Không | Số điện thoại đầy đủ; ghi audit `EXCEL_EXPORT` |
 | `inventory` | `stock.read` | Có | Tồn từng lô theo hạn dùng; cột giá vốn và giá trị tồn chỉ có khi được `stock.cost.read` |
-| `stock-count` | `stock.read` | Có | Bảng đếm của đợt kiểm kê đang mở, không kèm tồn hệ thống (§10.5) |
+| `stock-count` | `stock.read` | Có | Bảng đếm của đợt kiểm kê đang mở, không kèm tồn hệ thống (§10.6) |
 | `invoices` | `invoice.read` | Có | Sheet "Hóa đơn" và "Chi tiết" (kèm lô xuất) |
 | `goods-receipts` | `goods_receipt.read` | Có | Sheet "Phiếu nhập" và "Chi tiết" (lô, ngày sản xuất, hạn dùng) |
+| `purchase-order` | `stock.read` | Có | Đơn đặt hàng gợi ý (§10.5), xếp theo nhà cung cấp |
 | `rx-sales` | `prescription.read` | Có | Sổ theo dõi bán thuốc kê đơn và thuốc kiểm soát đặc biệt: người bệnh, đơn thuốc, người kê, cơ sở khám chữa bệnh, chẩn đoán, số lô, hạn dùng, người bán |
-| `controlled-ledger` | `controlled.read` | Có | Sổ thuốc kiểm soát đặc biệt (§10.6): sheet Tổng hợp và Chi tiết; ghi audit `EXCEL_EXPORT` |
+| `controlled-ledger` | `controlled.read` | Có | Sổ thuốc kiểm soát đặc biệt (§10.7): sheet Tổng hợp và Chi tiết; ghi audit `EXCEL_EXPORT` |
 
 Giá trị trong ô luôn được ghi dạng dữ liệu, không bao giờ là công thức. Thời điểm (giờ bán, giờ nhận hàng) ghi theo giờ Việt Nam.
 
@@ -1167,7 +1187,7 @@ Cấu hình bằng biến môi trường: `BACKUP_DIR` (nên trỏ sang ổ đĩ
 | GPP | Thu hồi (§16); sổ nhiệt độ – độ ẩm (§17) |
 | Báo cáo | Dashboard, doanh thu, bán chạy, xuất – nhập – tồn, hạn dùng (§19) |
 
-Thuốc kiểm soát đặc biệt (`drugClass = CONTROLLED`) đã bán được kể từ khi có sổ theo dõi ở §10.6: phải có đơn đã xác nhận, người bán là dược sĩ và ghi đủ thông tin người mua.
+Thuốc kiểm soát đặc biệt (`drugClass = CONTROLLED`) đã bán được kể từ khi có sổ theo dõi ở §10.7: phải có đơn đã xác nhận, người bán là dược sĩ và ghi đủ thông tin người mua.
 
 Về mô hình chuỗi: MVP chạy với **một cửa hàng**, nhưng dữ liệu và API đã có phạm vi cửa hàng (§2.8), nên mở cửa hàng thứ hai chỉ là thêm một dòng trong `/stores` và gán vai trò cho nhân sự. Phần còn lại của mô hình chuỗi để sau MVP: chuyển hàng giữa các cửa hàng, giá riêng theo cửa hàng, báo cáo so sánh giữa các cửa hàng.
 

@@ -15,6 +15,7 @@ import {
   SafetyCertificateOutlined,
   SettingOutlined,
   ShopOutlined,
+  ShoppingOutlined,
   ShoppingCartOutlined,
   SwapOutlined,
   TagsOutlined,
@@ -60,6 +61,7 @@ export const NAV_GROUPS: NavGroup[] = [
     key: "inventory",
     label: "Kho & GPP",
     items: [
+      { path: "/de-xuat-dat-hang", icon: <ShoppingOutlined />, label: "Đề xuất đặt hàng", permission: "stock.read", keywords: "dat hang goi hang bo sung ton toi thieu" },
       { path: "/phieu-nhap", icon: <InboxOutlined />, label: "Nhập hàng", permission: "goods_receipt.read", keywords: "phieu nhap kiem nhap" },
       { path: "/ton-kho", icon: <DatabaseOutlined />, label: "Tồn kho", permission: "stock.read", keywords: "lo han dung the kho biet tru" },
       { path: "/kiem-ke", icon: <AuditOutlined />, label: "Kiểm kê kho", permission: "stock.read", keywords: "kiem ke dem hang thuc te chenh lech" },

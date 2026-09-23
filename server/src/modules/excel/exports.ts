@@ -5,6 +5,7 @@ import type { AuthContext } from "../auth/auth.context.js";
 import { getCurrentPrices, getStockSummary } from "../catalog/products.service.js";
 import { DRUG_CLASS_LABEL, PRODUCT_COLUMNS, PRODUCT_TYPE_LABEL } from "./import-products.js";
 import { buildLedger } from "../controlled/controlled.service.js";
+import { buildSuggestions } from "../inventory/purchase-suggestions.service.js";
 import { CUSTOMER_COLUMNS, SUPPLIER_COLUMNS } from "./import-partners.js";
 import type { ColumnDef, SheetSpec } from "./workbook.js";
 
@@ -26,6 +27,13 @@ const num = (value: bigint | number | null | undefined) => (value === null || va
 const GENDER: Record<string, string> = { MALE: "Nam", FEMALE: "Nữ", OTHER: "Khác" };
 const PAYMENT: Record<string, string> = { CASH: "Tiền mặt", BANK_TRANSFER: "Chuyển khoản", CARD: "Thẻ" };
 const BATCH_STATUS: Record<string, string> = { AVAILABLE: "Bán được", QUARANTINED: "Biệt trữ", RECALLED: "Thu hồi", DISPOSED: "Đã hủy" };
+const PURCHASE_REASON: Record<string, string> = {
+  OUT_OF_STOCK: "Đã hết hàng",
+  BELOW_MIN: "Dưới tồn tối thiểu",
+  RUNNING_OUT: "Hết trước khi hàng kịp về",
+  REFILL: "Bổ sung cho kỳ tới",
+  OK: "Đang đủ hàng",
+};
 const RECEIPT_STATUS: Record<string, string> = { DRAFT: "Nháp", CONFIRMED: "Đã nhập kho", CANCELLED: "Đã hủy" };
 
 /**
@@ -432,6 +440,59 @@ export const rxSalesExport: ExportDefinition = {
  * Sổ theo dõi thuốc kiểm soát đặc biệt: một sheet tổng hợp số dư và một
  * sheet chi tiết từng lần xuất nhập kèm người mua, đơn thuốc, người kê.
  */
+/**
+ * Đơn đặt hàng gợi ý, xếp theo nhà cung cấp để gọi hàng cho gọn. Số lượng
+ * chỉ là đề xuất của phần mềm, người phụ trách vẫn phải soát lại trước khi gửi.
+ */
+export const purchaseOrderExport: ExportDefinition = {
+  type: "purchase-order",
+  title: "Đơn đặt hàng gợi ý",
+  permission: ["stock.read"],
+  needsStore: true,
+  dated: false,
+  async build(ctx) {
+    const storeId = requireStore(ctx);
+    const items = await buildSuggestions(storeId, { windowDays: 30, coverDays: 30, leadTimeDays: 7, onlyNeeded: true });
+    const sorted = [...items].sort(
+      (a, b) => (a.lastSupplier?.name ?? "zzz").localeCompare(b.lastSupplier?.name ?? "zzz", "vi") || a.name.localeCompare(b.name, "vi"),
+    );
+
+    return [
+      {
+        name: "Đơn đặt hàng",
+        columns: [
+          { key: "supplier", header: "Nhà cung cấp", width: 28 },
+          { key: "code", header: "Mã sản phẩm", width: 13 },
+          { key: "name", header: "Tên sản phẩm", width: 34 },
+          { key: "orderUnit", header: "Đơn vị đặt", width: 11 },
+          { key: "quantity", header: "Số lượng đặt", kind: "int", width: 12 },
+          { key: "lastUnitCost", header: "Đơn giá lần nhập gần nhất", kind: "money", width: 18 },
+          { key: "estimatedCost", header: "Thành tiền tạm tính", kind: "money", width: 17 },
+          { key: "sellable", header: "Tồn bán được", kind: "int", width: 13 },
+          { key: "minStock", header: "Tồn tối thiểu", kind: "int", width: 12 },
+          { key: "avgDaily", header: "Bán TB mỗi ngày", kind: "percent", width: 15 },
+          { key: "daysOfStock", header: "Còn đủ bán (ngày)", kind: "int", width: 15 },
+          { key: "reason", header: "Lý do", width: 24 },
+        ],
+        rows: sorted.map((item) => ({
+          supplier: item.lastSupplier?.name ?? "(chưa từng nhập — cần chọn nhà cung cấp)",
+          code: item.code,
+          name: item.name,
+          orderUnit: item.orderUnit.name,
+          quantity: item.suggestedOrderQuantity,
+          lastUnitCost: item.lastUnitCost,
+          estimatedCost: item.estimatedCost,
+          sellable: item.sellableBaseQuantity,
+          minStock: item.minStockBaseQuantity,
+          avgDaily: item.avgDailyBaseQuantity,
+          daysOfStock: item.daysOfStock,
+          reason: PURCHASE_REASON[item.reason],
+        })),
+      },
+    ];
+  },
+};
+
 export const controlledLedgerExport: ExportDefinition = {
   type: "controlled-ledger",
   title: "Sổ thuốc kiểm soát đặc biệt",

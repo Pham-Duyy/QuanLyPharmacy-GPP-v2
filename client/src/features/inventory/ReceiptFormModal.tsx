@@ -55,6 +55,15 @@ type Issue = { level: "error" | "warning"; text: string };
 
 export type ReceiptSavedOptions = { inspect: boolean };
 
+/**
+ * Dòng hàng đổ sẵn vào phiếu nháp (từ Đề xuất đặt hàng). Số lô và hạn dùng
+ * cố ý để trống: lúc gọi hàng chưa biết, người kiểm nhập điền khi hàng về.
+ */
+export type ReceiptPrefill = {
+  supplierId: string;
+  lines: Array<{ productId: string; unitName: string; quantity: number; unitCost: number }>;
+};
+
 const DATE_FORMAT = "DD/MM/YYYY";
 const NEAR_EXPIRY_DAYS = 90;
 /** Khớp MIN_SHELF_LIFE_DAYS ở backend: HSD cách NSX ít hơn mức này là nhập nhầm. */
@@ -122,11 +131,13 @@ function lineIssues(line: DraftLine, duplicate: boolean): Issue[] {
 export function ReceiptFormModal({
   open,
   receipt,
+  prefill = null,
   onClose,
   onSaved,
 }: {
   open: boolean;
   receipt: GoodsReceiptDetail | null;
+  prefill?: ReceiptPrefill | null;
   onClose: () => void;
   onSaved: (id: string, options: ReceiptSavedOptions) => Promise<unknown> | unknown;
 }) {
@@ -145,6 +156,7 @@ export function ReceiptFormModal({
   const [productSearch, setProductSearch] = useState("");
   const [addingSupplier, setAddingSupplier] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [loadingPrefill, setLoadingPrefill] = useState(false);
   const createAttempt = useRef({ signature: "", key: "" });
   const productTerm = useDebounced(productSearch.trim(), 250);
   const store = me?.stores.find((item) => item.id === storeId);
@@ -184,6 +196,35 @@ export function ReceiptFormModal({
     setLines((receipt?.lines ?? []).map(toDraftLine));
     setProductSearch("");
   }, [open, receipt]);
+
+  // Mở từ Đề xuất đặt hàng: đổ sẵn nhà cung cấp và dòng hàng đã chọn.
+  useEffect(() => {
+    if (!open || receipt || !prefill || prefill.lines.length === 0) return;
+    let cancelled = false;
+    setLoadingPrefill(true);
+    setSupplierId(prefill.supplierId);
+    void Promise.all(prefill.lines.map(async (item) => ({ item, line: await productToLine(item.productId, item.unitName) })))
+      .then((loaded) => {
+        if (cancelled) return;
+        const ready = loaded
+          .filter((entry): entry is { item: ReceiptPrefill["lines"][number]; line: DraftLine } => entry.line !== null)
+          .map(({ item, line }) => ({ ...line, quantity: item.quantity, unitCost: item.unitCost }));
+        setLines(ready.map((line, index, all) => ({ ...line, extraBatch: all.slice(0, index).some((previous) => previous.productId === line.productId) })));
+        if (ready.length < prefill.lines.length) {
+          void message.warning("Có mặt hàng chưa có đơn vị tính nên không đưa vào phiếu được");
+        }
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) void message.error(getErrorMessage(error, "Không đổ được dòng hàng từ đề xuất"));
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingPrefill(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- chỉ đổ một lần khi mở phiếu
+  }, [open, receipt, prefill]);
 
   const supplier = suppliers.data?.find((item) => item.id === supplierId) ?? null;
   const goodsAmount = lines.reduce((sum, line) => sum + line.quantity * line.unitCost, 0);
@@ -620,6 +661,7 @@ export function ReceiptFormModal({
             rowKey="key"
             size="small"
             className="receipt-lines"
+            loading={loadingPrefill}
             pagination={false}
             dataSource={lines}
             scroll={{ x: 1100 }}

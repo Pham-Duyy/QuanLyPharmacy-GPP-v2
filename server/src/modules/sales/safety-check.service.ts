@@ -61,7 +61,7 @@ export async function runSafetyCheck(tx: Tx, params: SafetyParams): Promise<Safe
   const productIds = [...new Set(lines.map((line) => line.productId))];
 
   // 1. Thuốc kiểm soát đặc biệt: bán được nhưng phải ghi đủ thông tin người
-  // mua vào sổ theo dõi (contract §10.6). Đơn thuốc và quyền bán được kiểm ở
+  // mua vào sổ theo dõi (contract §10.7). Đơn thuốc và quyền bán được kiểm ở
   // bước 2 và ở invoices.service.
   const controlledIds = productIds.filter((productId) => lines.find((item) => item.productId === productId)!.drugClass === "CONTROLLED");
   if (controlledIds.length > 0 && !params.hasControlledBuyer) {
