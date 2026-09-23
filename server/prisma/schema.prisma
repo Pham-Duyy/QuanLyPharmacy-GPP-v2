@@ -50,6 +50,7 @@ model Store {
   stockCounts        StockCount[]
   expiryPlans        BatchExpiryPlan[]
   supplierPayments   SupplierPayment[]
+  supplierReturns    SupplierReturn[]
 
   @@map("stores")
 }
@@ -72,41 +73,44 @@ model User {
 
   defaultStore Store? @relation(fields: [defaultStoreId], references: [id])
 
-  userRoles               UserRole[]              @relation("UserRoleUser")
-  assignedUserRoles       UserRole[]              @relation("UserRoleAssignedBy")
-  refreshSessions         RefreshSession[]
-  auditLogs               AuditLog[]
-  aiLogs                  AiLog[]
-  productPrices           ProductPrice[]
-  settingsUpdated         Setting[]
-  goodsReceiptsCreated    GoodsReceipt[]          @relation("GoodsReceiptCreatedBy")
-  goodsReceiptsConfirmed  GoodsReceipt[]          @relation("GoodsReceiptConfirmedBy")
-  goodsReceiptsCancelled  GoodsReceipt[]          @relation("GoodsReceiptCancelledBy")
-  adjustmentsCreated      StockAdjustment[]       @relation("AdjustmentCreatedBy")
-  adjustmentsApproved     StockAdjustment[]       @relation("AdjustmentApprovedBy")
-  recallsCreated          Recall[]                @relation("RecallCreatedBy")
-  recallsClosed           Recall[]                @relation("RecallClosedBy")
-  invoicesSold            Invoice[]               @relation("InvoiceSeller")
-  invoicesAsPharmacist    Invoice[]               @relation("InvoicePharmacist")
-  invoicesVoided          Invoice[]               @relation("InvoiceVoidedBy")
-  safetyAcks              InvoiceSafetyAck[]
-  returnsCreated          Return[]
-  prescriptionsCreated    Prescription[]          @relation("PrescriptionCreatedBy")
-  prescriptionsVerified   Prescription[]          @relation("PrescriptionVerifiedBy")
-  prescriptionImages      PrescriptionImage[]
-  productImages           ProductImage[]
-  storageLogs             StorageLog[]
-  backupsStarted          Backup[]
-  stockCountsCreated      StockCount[]            @relation("StockCountCreatedBy")
-  stockCountsClosed       StockCount[]            @relation("StockCountClosedBy")
-  stockCountLinesCounted  StockCountLine[]
-  controlledSalesRecorded ControlledSaleDetail[]
-  expiryPlansCreated      BatchExpiryPlan[]       @relation("ExpiryPlanCreatedBy")
-  expiryPlansResolved     BatchExpiryPlan[]       @relation("ExpiryPlanResolvedBy")
-  supplierPaymentsCreated SupplierPayment[]       @relation("SupplierPaymentCreatedBy")
-  supplierPaymentsVoided  SupplierPayment[]       @relation("SupplierPaymentVoidedBy")
-  healthProfilesUpdated   CustomerHealthProfile[]
-  stockMovements          StockMovement[]
+  userRoles                UserRole[]              @relation("UserRoleUser")
+  assignedUserRoles        UserRole[]              @relation("UserRoleAssignedBy")
+  refreshSessions          RefreshSession[]
+  auditLogs                AuditLog[]
+  aiLogs                   AiLog[]
+  productPrices            ProductPrice[]
+  settingsUpdated          Setting[]
+  goodsReceiptsCreated     GoodsReceipt[]          @relation("GoodsReceiptCreatedBy")
+  goodsReceiptsConfirmed   GoodsReceipt[]          @relation("GoodsReceiptConfirmedBy")
+  goodsReceiptsCancelled   GoodsReceipt[]          @relation("GoodsReceiptCancelledBy")
+  adjustmentsCreated       StockAdjustment[]       @relation("AdjustmentCreatedBy")
+  adjustmentsApproved      StockAdjustment[]       @relation("AdjustmentApprovedBy")
+  recallsCreated           Recall[]                @relation("RecallCreatedBy")
+  recallsClosed            Recall[]                @relation("RecallClosedBy")
+  invoicesSold             Invoice[]               @relation("InvoiceSeller")
+  invoicesAsPharmacist     Invoice[]               @relation("InvoicePharmacist")
+  invoicesVoided           Invoice[]               @relation("InvoiceVoidedBy")
+  safetyAcks               InvoiceSafetyAck[]
+  returnsCreated           Return[]
+  prescriptionsCreated     Prescription[]          @relation("PrescriptionCreatedBy")
+  prescriptionsVerified    Prescription[]          @relation("PrescriptionVerifiedBy")
+  prescriptionImages       PrescriptionImage[]
+  productImages            ProductImage[]
+  storageLogs              StorageLog[]
+  backupsStarted           Backup[]
+  stockCountsCreated       StockCount[]            @relation("StockCountCreatedBy")
+  stockCountsClosed        StockCount[]            @relation("StockCountClosedBy")
+  stockCountLinesCounted   StockCountLine[]
+  controlledSalesRecorded  ControlledSaleDetail[]
+  expiryPlansCreated       BatchExpiryPlan[]       @relation("ExpiryPlanCreatedBy")
+  expiryPlansResolved      BatchExpiryPlan[]       @relation("ExpiryPlanResolvedBy")
+  supplierPaymentsCreated  SupplierPayment[]       @relation("SupplierPaymentCreatedBy")
+  supplierPaymentsVoided   SupplierPayment[]       @relation("SupplierPaymentVoidedBy")
+  supplierReturnsCreated   SupplierReturn[]        @relation("SupplierReturnCreatedBy")
+  supplierReturnsConfirmed SupplierReturn[]        @relation("SupplierReturnConfirmedBy")
+  supplierReturnsCancelled SupplierReturn[]        @relation("SupplierReturnCancelledBy")
+  healthProfilesUpdated    CustomerHealthProfile[]
+  stockMovements           StockMovement[]
 
   @@index([defaultStoreId])
   @@map("users")
@@ -306,17 +310,18 @@ model Product {
   createdAt            DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt            DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  category          Category            @relation(fields: [categoryId], references: [id])
-  ingredients       ProductIngredient[]
-  units             ProductUnit[]
-  batches           Batch[]
-  goodsReceiptLines GoodsReceiptLine[]
-  invoiceLines      InvoiceLine[]
-  prescriptionItems PrescriptionItem[]
-  stockMovements    StockMovement[]
-  recallItems       RecallItem[]
-  images            ProductImage[]
-  stockCountLines   StockCountLine[]
+  category            Category             @relation(fields: [categoryId], references: [id])
+  ingredients         ProductIngredient[]
+  units               ProductUnit[]
+  batches             Batch[]
+  goodsReceiptLines   GoodsReceiptLine[]
+  invoiceLines        InvoiceLine[]
+  prescriptionItems   PrescriptionItem[]
+  stockMovements      StockMovement[]
+  recallItems         RecallItem[]
+  images              ProductImage[]
+  stockCountLines     StockCountLine[]
+  supplierReturnLines SupplierReturnLine[]
 
   @@index([categoryId])
   @@index([productType, drugClass])
@@ -370,15 +375,16 @@ model ProductUnit {
   isActive          Boolean  @default(true) @map("is_active")
   createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  product           Product               @relation(fields: [productId], references: [id])
-  barcodes          ProductBarcode[]
-  prices            ProductPrice[]
-  goodsReceiptLines GoodsReceiptLine[]
-  invoiceLines      InvoiceLine[]
-  prescriptionItems PrescriptionItem[]
-  adjustmentLines   StockAdjustmentLine[]
-  returnLines       ReturnLine[]
-  stockCountLines   StockCountLine[]
+  product             Product               @relation(fields: [productId], references: [id])
+  barcodes            ProductBarcode[]
+  prices              ProductPrice[]
+  goodsReceiptLines   GoodsReceiptLine[]
+  invoiceLines        InvoiceLine[]
+  prescriptionItems   PrescriptionItem[]
+  adjustmentLines     StockAdjustmentLine[]
+  returnLines         ReturnLine[]
+  stockCountLines     StockCountLine[]
+  supplierReturnLines SupplierReturnLine[]
 
   @@unique([productId, name])
   @@index([productId])
@@ -434,6 +440,7 @@ model Supplier {
 
   goodsReceipts GoodsReceipt[]
   payments      SupplierPayment[]
+  returns       SupplierReturn[]
 
   @@map("suppliers")
 }
@@ -464,16 +471,17 @@ model Batch {
   createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  store              Store                 @relation(fields: [storeId], references: [id])
-  product            Product               @relation(fields: [productId], references: [id])
-  recall             Recall?               @relation(fields: [recallId], references: [id])
-  stockMovements     StockMovement[]
-  invoiceAllocations InvoiceAllocation[]
-  goodsReceiptLines  GoodsReceiptLine[]
-  adjustmentLines    StockAdjustmentLine[]
-  recallItems        RecallItem[]
-  stockCountLines    StockCountLine[]
-  expiryPlans        BatchExpiryPlan[]
+  store               Store                 @relation(fields: [storeId], references: [id])
+  product             Product               @relation(fields: [productId], references: [id])
+  recall              Recall?               @relation(fields: [recallId], references: [id])
+  stockMovements      StockMovement[]
+  invoiceAllocations  InvoiceAllocation[]
+  goodsReceiptLines   GoodsReceiptLine[]
+  adjustmentLines     StockAdjustmentLine[]
+  recallItems         RecallItem[]
+  stockCountLines     StockCountLine[]
+  expiryPlans         BatchExpiryPlan[]
+  supplierReturnLines SupplierReturnLine[]
 
   @@unique([storeId, productId, batchNumber])
   @@unique([id, storeId])
@@ -543,13 +551,14 @@ model GoodsReceipt {
   createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt             DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  store              Store                       @relation(fields: [storeId], references: [id])
-  supplier           Supplier?                   @relation(fields: [supplierId], references: [id])
-  createdByUser      User                        @relation("GoodsReceiptCreatedBy", fields: [createdBy], references: [id])
-  paymentAllocations SupplierPaymentAllocation[]
-  confirmedByUser    User?                       @relation("GoodsReceiptConfirmedBy", fields: [confirmedBy], references: [id])
-  cancelledByUser    User?                       @relation("GoodsReceiptCancelledBy", fields: [cancelledBy], references: [id])
-  lines              GoodsReceiptLine[]
+  store               Store                       @relation(fields: [storeId], references: [id])
+  supplier            Supplier?                   @relation(fields: [supplierId], references: [id])
+  createdByUser       User                        @relation("GoodsReceiptCreatedBy", fields: [createdBy], references: [id])
+  paymentAllocations  SupplierPaymentAllocation[]
+  supplierReturnLines SupplierReturnLine[]
+  confirmedByUser     User?                       @relation("GoodsReceiptConfirmedBy", fields: [confirmedBy], references: [id])
+  cancelledByUser     User?                       @relation("GoodsReceiptCancelledBy", fields: [cancelledBy], references: [id])
+  lines               GoodsReceiptLine[]
 
   @@index([storeId, status, receivedAt(sort: Desc)])
   @@index([supplierId])
@@ -1222,4 +1231,67 @@ model SupplierPaymentAllocation {
   @@unique([paymentId, goodsReceiptId])
   @@index([goodsReceiptId])
   @@map("supplier_payment_allocations")
+}
+
+/// Phiếu trả hàng cho nhà cung cấp: hàng cận hạn được nhận lại, hàng lỗi,
+/// hàng thu hồi hay giao sai. Lập nháp rồi xác nhận; xác nhận mới trừ tồn và
+/// ghi thẻ kho. Tất toán bằng trừ công nợ, nhận lại tiền hoặc đổi hàng.
+model SupplierReturn {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  storeId      String    @map("store_id") @db.Uuid
+  supplierId   String    @map("supplier_id") @db.Uuid
+  code         String    @unique
+  status       String    @default("DRAFT")
+  reason       String
+  settlement   String    @default("DEDUCT_DEBT")
+  note         String?
+  totalValue   BigInt    @default(0) @map("total_value")
+  returnedAt   DateTime  @default(now()) @map("returned_at") @db.Timestamptz(6)
+  createdBy    String    @map("created_by") @db.Uuid
+  confirmedBy  String?   @map("confirmed_by") @db.Uuid
+  confirmedAt  DateTime? @map("confirmed_at") @db.Timestamptz(6)
+  cancelledBy  String?   @map("cancelled_by") @db.Uuid
+  cancelledAt  DateTime? @map("cancelled_at") @db.Timestamptz(6)
+  cancelReason String?   @map("cancel_reason")
+  version      Int       @default(1)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  store           Store                @relation(fields: [storeId], references: [id])
+  supplier        Supplier             @relation(fields: [supplierId], references: [id])
+  createdByUser   User                 @relation("SupplierReturnCreatedBy", fields: [createdBy], references: [id])
+  confirmedByUser User?                @relation("SupplierReturnConfirmedBy", fields: [confirmedBy], references: [id])
+  cancelledByUser User?                @relation("SupplierReturnCancelledBy", fields: [cancelledBy], references: [id])
+  lines           SupplierReturnLine[]
+
+  @@index([storeId, status])
+  @@index([supplierId])
+  @@map("supplier_returns")
+}
+
+model SupplierReturnLine {
+  id               String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  supplierReturnId String  @map("supplier_return_id") @db.Uuid
+  lineNo           Int     @map("line_no")
+  batchId          String  @map("batch_id") @db.Uuid
+  productId        String  @map("product_id") @db.Uuid
+  productUnitId    String  @map("product_unit_id") @db.Uuid
+  quantity         Int
+  baseQuantity     Int     @map("base_quantity")
+  unitCost         BigInt  @default(0) @map("unit_cost")
+  lineValue        BigInt  @default(0) @map("line_value")
+  /// Phiếu nhập đã mang lô này về, dùng để trừ đúng khoản công nợ.
+  goodsReceiptId   String? @map("goods_receipt_id") @db.Uuid
+  note             String?
+
+  supplierReturn SupplierReturn @relation(fields: [supplierReturnId], references: [id], onDelete: Cascade)
+  batch          Batch          @relation(fields: [batchId], references: [id])
+  product        Product        @relation(fields: [productId], references: [id])
+  productUnit    ProductUnit    @relation(fields: [productUnitId], references: [id])
+  goodsReceipt   GoodsReceipt?  @relation(fields: [goodsReceiptId], references: [id])
+
+  @@unique([supplierReturnId, lineNo])
+  @@index([batchId])
+  @@index([goodsReceiptId])
+  @@map("supplier_return_lines")
 }

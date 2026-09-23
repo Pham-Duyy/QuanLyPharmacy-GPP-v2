@@ -23,6 +23,8 @@ export type ReceiptDebt = {
   supplierInvoiceNumber: string | null;
   totalCost: number;
   paidAmount: number;
+  /** Giá trị hàng đã trả lại nhà cung cấp và được trừ vào chính phiếu này. */
+  returnCredit: number;
   outstanding: number;
   dueDate: Date | null;
   /** Số ngày quá hạn; 0 hoặc âm nghĩa là chưa tới hạn. */
@@ -62,6 +64,8 @@ export async function listDebts(storeId: string, query: DebtQuery) {
     include: {
       supplier: { select: { id: true, name: true, phone: true, paymentTermDays: true } },
       paymentAllocations: { where: { payment: { status: "ACTIVE" } }, select: { amount: true } },
+      // Hàng đã trả lại và chọn tất toán bằng cách trừ công nợ.
+      supplierReturnLines: { where: { supplierReturn: { status: "CONFIRMED", settlement: "DEDUCT_DEBT" } }, select: { lineValue: true } },
     },
   });
 
@@ -69,7 +73,8 @@ export async function listDebts(storeId: string, query: DebtQuery) {
   for (const receipt of receipts) {
     if (!receipt.supplier) continue;
     const paidAmount = receipt.paymentAllocations.reduce((sum, item) => sum + num(item.amount), 0);
-    const outstanding = num(receipt.totalCost) - paidAmount;
+    const returnCredit = receipt.supplierReturnLines.reduce((sum, item) => sum + num(item.lineValue), 0);
+    const outstanding = Math.max(0, num(receipt.totalCost) - paidAmount - returnCredit);
     if (query.onlyOutstanding && outstanding <= 0) continue;
 
     const overdueDays = receipt.paymentDueDate && outstanding > 0 ? Math.floor((today.getTime() - receipt.paymentDueDate.getTime()) / 86_400_000) : 0;
@@ -103,6 +108,7 @@ export async function listDebts(storeId: string, query: DebtQuery) {
       supplierInvoiceNumber: receipt.supplierInvoiceNumber,
       totalCost: num(receipt.totalCost),
       paidAmount,
+      returnCredit,
       outstanding,
       dueDate: receipt.paymentDueDate,
       overdueDays: Math.max(0, overdueDays),
@@ -152,7 +158,10 @@ export async function createPayment(storeId: string, auth: AuthContext, input: P
   return prisma.$transaction(async (tx) => {
     const receipts = await tx.goodsReceipt.findMany({
       where: { id: { in: input.allocations.map((item) => item.goodsReceiptId) }, storeId, supplierId: input.supplierId, status: "CONFIRMED", type: "PURCHASE" },
-      include: { paymentAllocations: { where: { payment: { status: "ACTIVE" } }, select: { amount: true } } },
+      include: {
+        paymentAllocations: { where: { payment: { status: "ACTIVE" } }, select: { amount: true } },
+        supplierReturnLines: { where: { supplierReturn: { status: "CONFIRMED", settlement: "DEDUCT_DEBT" } }, select: { lineValue: true } },
+      },
     });
     const byId = new Map(receipts.map((receipt) => [receipt.id, receipt]));
 
@@ -161,7 +170,8 @@ export async function createPayment(storeId: string, auth: AuthContext, input: P
       const receipt = byId.get(allocation.goodsReceiptId);
       if (!receipt) throw AppError.validation("Có phiếu nhập không thuộc nhà cung cấp này hoặc chưa kiểm nhập");
       const paid = receipt.paymentAllocations.reduce((sum, item) => sum + num(item.amount), 0);
-      const outstanding = num(receipt.totalCost) - paid;
+      const credited = receipt.supplierReturnLines.reduce((sum, item) => sum + num(item.lineValue), 0);
+      const outstanding = Math.max(0, num(receipt.totalCost) - paid - credited);
       if (allocation.amount > outstanding) {
         throw AppError.validation(`Phiếu ${receipt.code} chỉ còn nợ ${outstanding.toLocaleString("vi-VN")} đ, không trả ${allocation.amount.toLocaleString("vi-VN")} đ được`);
       }
