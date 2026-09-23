@@ -16,6 +16,9 @@ coverage/
 generated/
 server/generated/
 
+# Bản sao lưu dữ liệu: dữ liệu thật của nhà thuốc, không commit.
+server/backups/
+
 # Ảnh đơn thuốc lưu trên đĩa (contract §12): không commit, không thuộc mã nguồn.
 server/storage/
 

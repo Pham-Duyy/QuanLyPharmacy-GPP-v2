@@ -93,6 +93,7 @@ model User {
   prescriptionImages     PrescriptionImage[]
   productImages          ProductImage[]
   storageLogs            StorageLog[]
+  backupsStarted         Backup[]
   healthProfilesUpdated  CustomerHealthProfile[]
   stockMovements         StockMovement[]
 
@@ -1015,4 +1016,28 @@ model AiLog {
   @@index([occurredAt(sort: Desc)])
   @@index([userId])
   @@map("ai_logs")
+}
+
+/// Bản sao lưu dữ liệu: lịch sử mỗi lần chạy, kể cả lần thất bại, để chủ
+/// nhà thuốc biết dữ liệu có thực sự được bảo vệ hay không. Tệp nằm ngoài
+/// CSDL (thư mục BACKUP_DIR); dọn tệp cũ thì giữ dòng lịch sử và đánh dấu
+/// deleted_at.
+model Backup {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  startedAt     DateTime  @default(now()) @map("started_at") @db.Timestamptz(6)
+  finishedAt    DateTime? @map("finished_at") @db.Timestamptz(6)
+  status        String    @default("RUNNING")
+  trigger       String
+  actorId       String?   @map("actor_id") @db.Uuid
+  folderName    String    @unique @map("folder_name")
+  databaseBytes BigInt?   @map("database_bytes")
+  storageBytes  BigInt?   @map("storage_bytes")
+  storageFiles  Int?      @map("storage_files")
+  errorText     String?   @map("error_text")
+  deletedAt     DateTime? @map("deleted_at") @db.Timestamptz(6)
+
+  actor User? @relation(fields: [actorId], references: [id])
+
+  @@index([startedAt(sort: Desc)])
+  @@map("backups")
 }

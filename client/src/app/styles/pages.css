@@ -3514,3 +3514,35 @@
 .receipt-import-issues li {
   margin-bottom: 4px;
 }
+
+/* ---------- Sao lưu dữ liệu ---------- */
+.backup-banner {
+  margin-bottom: 14px;
+}
+.backup-layout {
+  display: grid;
+  grid-template-columns: minmax(300px, 380px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+.backup-settings .ant-form-item {
+  margin-bottom: 16px;
+}
+.backup-restore ol {
+  padding-left: 20px;
+}
+.backup-restore code {
+  display: block;
+  margin: 6px 0;
+  padding: 8px 10px;
+  background: var(--c-surface-2);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-sm);
+  font-size: 12.5px;
+  word-break: break-all;
+}
+@media (max-width: 1100px) {
+  .backup-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

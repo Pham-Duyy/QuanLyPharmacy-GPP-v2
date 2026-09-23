@@ -30,6 +30,7 @@ const UsersPage = page(() => import("./features/users/UsersPage.js"), "UsersPage
 const StoresPage = page(() => import("./features/stores/StoresPage.js"), "StoresPage");
 const AuditLogPage = page(() => import("./features/audit/AuditLogPage.js"), "AuditLogPage");
 const SettingsPage = page(() => import("./features/settings/SettingsPage.js"), "SettingsPage");
+const BackupPage = page(() => import("./features/backup/BackupPage.js"), "BackupPage");
 const ExcelHubPage = page(() => import("./features/excel/ExcelHubPage.js"), "ExcelHubPage");
 const ReportsPage = page(() => import("./features/reports/ReportsPage.js"), "ReportsPage");
 
@@ -53,6 +54,7 @@ const ROUTES: Array<{ path: string; element: ReactNode }> = [
   { path: "/nhan-vien", element: <UsersPage /> },
   { path: "/cua-hang", element: <StoresPage /> },
   { path: "/audit-log", element: <AuditLogPage /> },
+  { path: "/sao-luu", element: <BackupPage /> },
   { path: "/cai-dat", element: <SettingsPage /> },
 ];
 
