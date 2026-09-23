@@ -9,6 +9,7 @@ import { storeContext } from "../../middlewares/store-context.js";
 import type { AuthContext } from "../auth/auth.context.js";
 import {
   customersExport,
+  stockCountExport,
   goodsReceiptsExport,
   inventoryExport,
   invoicesExport,
@@ -20,6 +21,7 @@ import {
 import type { ImportContext, ImportDefinition } from "./import-kit.js";
 import { customersImport, suppliersImport } from "./import-partners.js";
 import { productsImport } from "./import-products.js";
+import { stockCountImport } from "./import-stock-count.js";
 import { openingBalanceImport, receiptLinesImport } from "./import-stock.js";
 import { MAX_IMPORT_BYTES, MAX_IMPORT_ROWS, buildWorkbook, readSheet } from "./workbook.js";
 
@@ -27,8 +29,8 @@ export const excelRouter = Router();
 excelRouter.use("/excel", authenticate, storeContext);
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- mỗi loại có kiểu dòng riêng
-const IMPORTS: ImportDefinition<any>[] = [productsImport, suppliersImport, customersImport, openingBalanceImport, receiptLinesImport];
-const EXPORTS: ExportDefinition[] = [productsExport, suppliersExport, customersExport, inventoryExport, invoicesExport, goodsReceiptsExport, rxSalesExport];
+const IMPORTS: ImportDefinition<any>[] = [productsImport, suppliersImport, customersImport, openingBalanceImport, stockCountImport, receiptLinesImport];
+const EXPORTS: ExportDefinition[] = [productsExport, suppliersExport, customersExport, inventoryExport, stockCountExport, invoicesExport, goodsReceiptsExport, rxSalesExport];
 
 const MAX_RANGE_DAYS = 366;
 const DAY_MS = 86_400_000;

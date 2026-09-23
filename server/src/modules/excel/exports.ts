@@ -205,6 +205,60 @@ export const inventoryExport: ExportDefinition = {
   },
 };
 
+/**
+ * Bảng kiểm kê của đợt đang mở, để in ra đếm tay. Cố ý **không in tồn hệ
+ * thống**: thấy số sẵn thì người đếm dễ chép theo thay vì đếm thật.
+ */
+export const stockCountExport: ExportDefinition = {
+  type: "stock-count",
+  title: "Bảng kiểm kê đang mở",
+  permission: ["stock.read"],
+  needsStore: true,
+  dated: false,
+  async build(ctx) {
+    const storeId = requireStore(ctx);
+    const count = await prisma.stockCount.findFirst({ where: { storeId, status: "COUNTING" } });
+    if (!count) throw new AppError(409, "INVALID_STATE", "Cửa hàng chưa có đợt kiểm kê nào đang mở");
+
+    const lines = await prisma.stockCountLine.findMany({
+      where: { stockCountId: count.id },
+      orderBy: { lineNo: "asc" },
+      include: {
+        batch: { select: { batchNumber: true, expiryDate: true } },
+        product: { select: { code: true, name: true } },
+      },
+    });
+
+    return [
+      {
+        name: "Bảng kiểm kê",
+        columns: [
+          { key: "lineNo", header: "STT", kind: "int", width: 6 },
+          { key: "shelfLocation", header: "Vị trí kệ", width: 12 },
+          { key: "productCode", header: "Mã sản phẩm", width: 14 },
+          { key: "productName", header: "Tên sản phẩm", width: 36 },
+          { key: "batchNumber", header: "Số lô", width: 14 },
+          { key: "expiryDate", header: "Hạn dùng", kind: "date", width: 12 },
+          { key: "unit", header: "Đơn vị đếm", width: 12 },
+          { key: "counted", header: "Số đếm được", kind: "int", width: 14 },
+          { key: "note", header: "Ghi chú", width: 26 },
+        ],
+        rows: lines.map((line) => ({
+          lineNo: line.lineNo,
+          shelfLocation: line.shelfLocation,
+          productCode: line.product.code,
+          productName: line.product.name,
+          batchNumber: line.batch.batchNumber,
+          expiryDate: line.batch.expiryDate,
+          unit: "",
+          counted: null,
+          note: line.note,
+        })),
+      },
+    ];
+  },
+};
+
 export const invoicesExport: ExportDefinition = {
   type: "invoices",
   title: "Hóa đơn bán hàng",

@@ -61,6 +61,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { path: "/phieu-nhap", icon: <InboxOutlined />, label: "Nhập hàng", permission: "goods_receipt.read", keywords: "phieu nhap kiem nhap" },
       { path: "/ton-kho", icon: <DatabaseOutlined />, label: "Tồn kho", permission: "stock.read", keywords: "lo han dung the kho biet tru" },
+      { path: "/kiem-ke", icon: <AuditOutlined />, label: "Kiểm kê kho", permission: "stock.read", keywords: "kiem ke dem hang thuc te chenh lech" },
       { path: "/dieu-chinh-ton", icon: <SwapOutlined />, label: "Điều chỉnh tồn", permission: ["stock.adjust.create", "stock.adjust.approve"] },
       { path: "/so-nhiet-do", icon: <ExperimentOutlined />, label: "Nhiệt độ – độ ẩm", permission: "storage_log.read", keywords: "so nhiet do" },
       { path: "/canh-bao", icon: <BellOutlined />, label: "Cảnh báo", permission: "stock.read", keywords: "het han ton thap" },
