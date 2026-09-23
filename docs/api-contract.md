@@ -688,7 +688,27 @@ Cách tính cho từng mặt hàng đang kinh doanh:
 
 Giao diện cho sửa số lượng trước khi đặt, xuất đơn đặt hàng ra Excel (`purchase-order`, xếp theo nhà cung cấp) và đổ các dòng đã chọn vào phiếu nhập nháp. Số lô và hạn dùng để trống vì lúc gọi hàng chưa biết — người kiểm nhập điền khi hàng về.
 
-### 10.6 Kiểm kê theo đợt
+### 10.6 Hàng cận hạn và kế hoạch xử lý
+
+Hàng cận hạn là tiền đang treo: không xử lý kịp thì tới hạn phải hủy. Vì vậy danh sách không chỉ đếm lô mà quy ra giá trị tồn, và mỗi lô có một kế hoạch xử lý có người chịu trách nhiệm cùng ngày hẹn.
+
+| Method | Endpoint | Mô tả | Quyền |
+|---|---|---|---|
+| GET | `/expiry-alerts?horizonDays&bucket&onlyWithoutPlan` | `{ items, summary }`; mặc định 90 ngày | `stock.read` |
+| POST | `/expiry-alerts/plans` | Lập hoặc sửa kế hoạch: `batchId`, `action`, `dueDate`, `note` | `stock.adjust.create` |
+| POST | `/expiry-alerts/plans/{id}/close` | Đóng kế hoạch: `status` (`DONE`/`CANCELLED`), `outcome` | `stock.adjust.create` |
+| GET | `/expiry-alerts/batches/{batchId}/plans` | Lịch sử xử lý của một lô | `stock.read` |
+
+- Nhóm theo số ngày còn lại: `EXPIRED` đã hết hạn · `D30` dưới 30 ngày · `D60` 31–60 ngày · `D90` 61–90 ngày.
+- `action`: `RETURN_SUPPLIER` trả nhà cung cấp · `PRIORITIZE_SALE` ưu tiên bán · `DISCOUNT` giảm giá đẩy hàng · `DISPOSE` lên lịch xuất hủy.
+- **Mỗi lô chỉ có một kế hoạch đang mở** (ràng buộc ở tầng CSDL). Lập lại cho lô đã có kế hoạch thì cập nhật kế hoạch đó, không tạo thêm.
+- Kế hoạch quá `dueDate` mà chưa đóng thì `overdue = true` và được đếm vào `summary.overduePlans` để báo lại.
+- Kế hoạch đã đóng vẫn nằm trong lịch sử của lô kèm `outcome`, người đóng và thời điểm.
+- Giá trị tồn (`stockValue`, `summary.totalValue`) chỉ trả về khi có `stock.cost.read`.
+- Lô đang biệt trữ vẫn nằm trong danh sách vì hàng vẫn ở trong kho.
+- Xuất hủy vẫn đi qua phiếu điều chỉnh tồn (§10.3); kế hoạch ở đây chỉ là bước lên lịch và theo dõi.
+
+### 10.7 Kiểm kê theo đợt
 
 Đợt kiểm kê là lớp đứng trên phiếu điều chỉnh tồn (§10.3): đếm hàng thực tế theo phạm vi đã chọn, chốt lại thành **một phiếu điều chỉnh `DRAFT`** để người khác duyệt.
 
@@ -714,7 +734,7 @@ Quy tắc:
 
 Kiểm kê qua Excel (§ Nhập / xuất Excel): xuất `stock-count` cho ra bảng đếm của đợt đang mở — **cố ý không in tồn hệ thống** để người đếm không chép theo số có sẵn; nhập `stock-count` ghi số đếm vào đúng đợt đang mở, khớp dòng theo mã sản phẩm và số lô.
 
-### 10.7 Thuốc kiểm soát đặc biệt
+### 10.8 Thuốc kiểm soát đặc biệt
 
 Áp dụng cho `drugClass = CONTROLLED` (gây nghiện, hướng thần, tiền chất). Trước đây MVP chặn bán nhóm này vì chưa có sổ theo dõi; nay bán được với các ràng buộc dưới đây.
 
@@ -1129,7 +1149,7 @@ Loại nhập:
 | `suppliers` | `catalog.manage` | Không | Khớp theo mã số thuế, không có thì theo tên (không dấu) |
 | `customers` | `customer.manage` | Không | Khớp theo Mã KH, không có thì theo số điện thoại. Không nhập hồ sơ sức khỏe |
 | `opening-balance` | `stock.opening_balance` | Có | Cả tệp tạo một phiếu tồn đầu kỳ (§10.4); chặn lô đã có trong kho |
-| `stock-count` | `stock.adjust.create` | Có | Ghi số đếm vào đợt kiểm kê đang mở (§10.6); ô số đếm để trống là chưa đếm, không phải đếm được 0 |
+| `stock-count` | `stock.adjust.create` | Có | Ghi số đếm vào đợt kiểm kê đang mở (§10.7); ô số đếm để trống là chưa đếm, không phải đếm được 0 |
 | `receipt-lines` | `goods_receipt.create` | Có | Chỉ `preview`: trả thêm `lines[]` đã khớp sản phẩm và đơn vị để đổ vào phiếu nhập nháp |
 
 Loại xuất:
@@ -1140,12 +1160,12 @@ Loại xuất:
 | `suppliers` | `catalog.read` | Không | Đúng cột của mẫu nhập |
 | `customers` | `customer.sensitive` | Không | Số điện thoại đầy đủ; ghi audit `EXCEL_EXPORT` |
 | `inventory` | `stock.read` | Có | Tồn từng lô theo hạn dùng; cột giá vốn và giá trị tồn chỉ có khi được `stock.cost.read` |
-| `stock-count` | `stock.read` | Có | Bảng đếm của đợt kiểm kê đang mở, không kèm tồn hệ thống (§10.6) |
+| `stock-count` | `stock.read` | Có | Bảng đếm của đợt kiểm kê đang mở, không kèm tồn hệ thống (§10.7) |
 | `invoices` | `invoice.read` | Có | Sheet "Hóa đơn" và "Chi tiết" (kèm lô xuất) |
 | `goods-receipts` | `goods_receipt.read` | Có | Sheet "Phiếu nhập" và "Chi tiết" (lô, ngày sản xuất, hạn dùng) |
 | `purchase-order` | `stock.read` | Có | Đơn đặt hàng gợi ý (§10.5), xếp theo nhà cung cấp |
 | `rx-sales` | `prescription.read` | Có | Sổ theo dõi bán thuốc kê đơn và thuốc kiểm soát đặc biệt: người bệnh, đơn thuốc, người kê, cơ sở khám chữa bệnh, chẩn đoán, số lô, hạn dùng, người bán |
-| `controlled-ledger` | `controlled.read` | Có | Sổ thuốc kiểm soát đặc biệt (§10.7): sheet Tổng hợp và Chi tiết; ghi audit `EXCEL_EXPORT` |
+| `controlled-ledger` | `controlled.read` | Có | Sổ thuốc kiểm soát đặc biệt (§10.8): sheet Tổng hợp và Chi tiết; ghi audit `EXCEL_EXPORT` |
 
 Giá trị trong ô luôn được ghi dạng dữ liệu, không bao giờ là công thức. Thời điểm (giờ bán, giờ nhận hàng) ghi theo giờ Việt Nam.
 
@@ -1187,7 +1207,7 @@ Cấu hình bằng biến môi trường: `BACKUP_DIR` (nên trỏ sang ổ đĩ
 | GPP | Thu hồi (§16); sổ nhiệt độ – độ ẩm (§17) |
 | Báo cáo | Dashboard, doanh thu, bán chạy, xuất – nhập – tồn, hạn dùng (§19) |
 
-Thuốc kiểm soát đặc biệt (`drugClass = CONTROLLED`) đã bán được kể từ khi có sổ theo dõi ở §10.7: phải có đơn đã xác nhận, người bán là dược sĩ và ghi đủ thông tin người mua.
+Thuốc kiểm soát đặc biệt (`drugClass = CONTROLLED`) đã bán được kể từ khi có sổ theo dõi ở §10.8: phải có đơn đã xác nhận, người bán là dược sĩ và ghi đủ thông tin người mua.
 
 Về mô hình chuỗi: MVP chạy với **một cửa hàng**, nhưng dữ liệu và API đã có phạm vi cửa hàng (§2.8), nên mở cửa hàng thứ hai chỉ là thêm một dòng trong `/stores` và gán vai trò cho nhân sự. Phần còn lại của mô hình chuỗi để sau MVP: chuyển hàng giữa các cửa hàng, giá riêng theo cửa hàng, báo cáo so sánh giữa các cửa hàng.
 

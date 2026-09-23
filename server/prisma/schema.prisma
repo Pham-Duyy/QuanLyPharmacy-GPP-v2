@@ -48,6 +48,7 @@ model Store {
   auditLogs          AuditLog[]
   aiLogs             AiLog[]
   stockCounts        StockCount[]
+  expiryPlans        BatchExpiryPlan[]
 
   @@map("stores")
 }
@@ -99,6 +100,8 @@ model User {
   stockCountsClosed       StockCount[]            @relation("StockCountClosedBy")
   stockCountLinesCounted  StockCountLine[]
   controlledSalesRecorded ControlledSaleDetail[]
+  expiryPlansCreated      BatchExpiryPlan[]       @relation("ExpiryPlanCreatedBy")
+  expiryPlansResolved     BatchExpiryPlan[]       @relation("ExpiryPlanResolvedBy")
   healthProfilesUpdated   CustomerHealthProfile[]
   stockMovements          StockMovement[]
 
@@ -464,6 +467,7 @@ model Batch {
   adjustmentLines    StockAdjustmentLine[]
   recallItems        RecallItem[]
   stockCountLines    StockCountLine[]
+  expiryPlans        BatchExpiryPlan[]
 
   @@unique([storeId, productId, batchNumber])
   @@unique([id, storeId])
@@ -1134,4 +1138,32 @@ model ControlledSaleDetail {
   recordedByUser User    @relation(fields: [recordedBy], references: [id])
 
   @@map("controlled_sale_details")
+}
+
+/// Kế hoạch xử lý một lô cận hạn hoặc đã hết hạn: trả nhà cung cấp, ưu tiên
+/// bán, giảm giá hay lên lịch hủy. Mỗi lô chỉ có một kế hoạch đang mở; kế
+/// hoạch quá ngày hẹn mà chưa xong thì hệ thống báo lại.
+model BatchExpiryPlan {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  batchId    String    @map("batch_id") @db.Uuid
+  storeId    String    @map("store_id") @db.Uuid
+  action     String
+  status     String    @default("PLANNED")
+  dueDate    DateTime? @map("due_date") @db.Date
+  note       String?
+  outcome    String?
+  createdBy  String    @map("created_by") @db.Uuid
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  resolvedBy String?   @map("resolved_by") @db.Uuid
+  resolvedAt DateTime? @map("resolved_at") @db.Timestamptz(6)
+  version    Int       @default(1)
+
+  batch          Batch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  store          Store @relation(fields: [storeId], references: [id])
+  createdByUser  User  @relation("ExpiryPlanCreatedBy", fields: [createdBy], references: [id])
+  resolvedByUser User? @relation("ExpiryPlanResolvedBy", fields: [resolvedBy], references: [id])
+
+  @@index([storeId, status])
+  @@index([batchId])
+  @@map("batch_expiry_plans")
 }

@@ -1,4 +1,4 @@
-import { BellOutlined, CheckCircleOutlined, ExclamationCircleOutlined, InboxOutlined, WarningOutlined } from "@ant-design/icons";
+import { BellOutlined, CheckCircleOutlined, ExclamationCircleOutlined, FieldTimeOutlined, InboxOutlined, ShoppingOutlined, WarningOutlined } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
 import { Alert, Button, Card, Empty, Skeleton, Tag } from "antd";
 import { useMemo, useState } from "react";
@@ -68,7 +68,21 @@ export function AlertsPage() {
 
   return (
     <div>
-      <PageHeader icon={<BellOutlined />} title="Cảnh báo" description="Lô hết hạn, sắp hết hạn và mặt hàng dưới mức tồn tối thiểu — tính trực tiếp từ dữ liệu kho." />
+      <PageHeader
+        icon={<BellOutlined />}
+        title="Cảnh báo"
+        description="Lô hết hạn, sắp hết hạn và mặt hàng dưới mức tồn tối thiểu — tính trực tiếp từ dữ liệu kho."
+        extra={
+          <>
+            <Button icon={<FieldTimeOutlined />} onClick={() => void navigate("/can-han")}>
+              Xử lý hàng cận hạn
+            </Button>
+            <Button icon={<ShoppingOutlined />} onClick={() => void navigate("/de-xuat-dat-hang")}>
+              Đề xuất đặt hàng
+            </Button>
+          </>
+        }
+      />
 
       <StatGrid>
         <StatCard tone="red" icon={<ExclamationCircleOutlined />} label="Lô đã hết hạn" value={formatNumber(counts?.expired)} loading={dashboard.isLoading} hint="Nguy cấp — xử lý ngay" />

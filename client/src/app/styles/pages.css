@@ -3691,3 +3691,23 @@
   font-size: 12.5px;
   color: var(--c-ink-500);
 }
+
+/* ---------- Hàng cận hạn ---------- */
+.expiry-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.expiry-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--c-ink-700);
+}
+
+/* Dải lọc nhiều mục: cuộn trong khung thay vì đẩy cả trang tràn ngang. */
+.count-toolbar .ant-segmented {
+  max-width: 100%;
+  overflow-x: auto;
+}
