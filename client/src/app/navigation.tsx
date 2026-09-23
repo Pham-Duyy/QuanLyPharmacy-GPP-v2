@@ -1,6 +1,7 @@
 import {
   AppstoreOutlined,
   AuditOutlined,
+  BarcodeOutlined,
   BarChartOutlined,
   BellOutlined,
   CloudServerOutlined,
@@ -83,6 +84,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { path: "/tra-hang-ncc", icon: <RollbackOutlined />, label: "Trả hàng nhà cung cấp", permission: "goods_receipt.read", keywords: "tra hang ncc hang loi can han doi hang" },
       { path: "/cong-no-ncc", icon: <CreditCardOutlined />, label: "Công nợ nhà cung cấp", permission: "supplier_debt.read", keywords: "cong no tra tien nha cung cap thanh toan" },
       { path: "/danh-muc", icon: <TagsOutlined />, label: "Danh mục nền", permission: "catalog.read", keywords: "nhom hang hoat chat" },
+      { path: "/in-tem", icon: <BarcodeOutlined />, label: "In tem mã vạch", permission: "catalog.read", keywords: "in tem ma vach nhan ke gia barcode" },
       {
         path: "/excel",
         icon: <FileExcelOutlined />,

@@ -2,6 +2,7 @@ import { BarcodeOutlined, CameraOutlined, CloseOutlined, DatabaseOutlined, Dolla
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { App, Button, Dropdown, Image, Result, Skeleton, Tag, Tooltip } from "antd";
 import { useState } from "react";
+import { useNavigate } from "react-router";
 import { getErrorMessage, http } from "../../../api/http.js";
 import type { Envelope, ProductDetail, ProductUnit } from "../../../api/types.js";
 import { formatNumber } from "../../../ui/format.js";
@@ -17,6 +18,7 @@ type Props = { id: string; onClose: () => void };
 /** Khung chi tiết: ảnh, thông tin danh mục, tồn tại cửa hàng đang chọn, đơn vị & giá. */
 export function ProductDetailPanel({ id, onClose }: Props) {
   const { can, storeId, me } = useAuth();
+  const navigate = useNavigate();
   const { message } = App.useApp();
   const queryClient = useQueryClient();
   const [editingUnit, setEditingUnit] = useState<ProductUnit | null | undefined>(undefined);
@@ -182,6 +184,12 @@ export function ProductDetailPanel({ id, onClose }: Props) {
             <WarningFilled /> {stockText(held, baseName)} đang biệt trữ hoặc thu hồi, không tính vào tồn bán được.
           </p>
         ) : null}
+
+        <div className="pd-actions">
+          <Button block icon={<BarcodeOutlined />} onClick={() => void navigate(`/in-tem?sanpham=${item.id}`)}>
+            In tem mã vạch
+          </Button>
+        </div>
 
         {canManage ? (
           <div className="pd-actions">

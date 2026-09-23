@@ -3715,3 +3715,40 @@
   color: var(--c-ink-500);
   font-size: 13px;
 }
+
+/* ---------- In tem mã vạch ---------- */
+.label-options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 18px;
+}
+.label-options label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--c-ink-700);
+  min-width: 0;
+  max-width: 100%;
+}
+/* Dải khổ tem dài: chiếm trọn một hàng và cuộn trong khung, không đẩy trang. */
+.label-size {
+  flex: 1 1 100%;
+  flex-wrap: wrap;
+}
+.label-size .ant-segmented {
+  max-width: 100%;
+  overflow-x: auto;
+}
+.label-warnings {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+.label-preview {
+  width: 100%;
+  height: 420px;
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-md);
+  background: #fff;
+}

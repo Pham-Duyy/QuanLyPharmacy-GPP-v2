@@ -13,9 +13,10 @@ let productId: string;
 const h = (token = adminToken) => authHeaders(token, fixture.storeId);
 
 function dayOffset(days: number): Date {
-  const date = new Date();
+  const vnToday = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Ho_Chi_Minh" }).format(new Date());
+  const date = new Date(`${vnToday}T00:00:00.000Z`);
   date.setUTCDate(date.getUTCDate() + days);
-  return new Date(date.toISOString().slice(0, 10));
+  return date;
 }
 
 async function makeBatch(batchNumber: string, daysToExpiry: number, quantity = 100, unitCost = 1000) {
