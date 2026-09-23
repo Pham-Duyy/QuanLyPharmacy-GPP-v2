@@ -45,6 +45,7 @@ export const PERMISSIONS: Array<{ code: string; description: string }> = [
   { code: "report.sales", description: "Báo cáo doanh thu, bán chạy" },
   { code: "report.inventory", description: "Báo cáo xuất nhập tồn, hạn dùng" },
   { code: "audit.read", description: "Đọc audit log" },
+  { code: "backup.manage", description: "Xem, chạy và tải bản sao lưu dữ liệu" },
   { code: "ai.use", description: "Dùng tính năng AI" },
 ];
 
@@ -82,6 +83,7 @@ export const ROLES: Array<{ code: string; name: string; permissions: string[] }>
       "report.sales",
       "report.inventory",
       "audit.read",
+      "backup.manage",
     ],
   },
   {

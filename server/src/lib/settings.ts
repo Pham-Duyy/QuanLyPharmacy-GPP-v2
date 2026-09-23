@@ -15,7 +15,28 @@ const DEFAULTS = {
   invoiceVoidWindow: "SAME_BUSINESS_DAY",
   discountLimitPercent: { sales_staff: 5, pharmacist: 10 } as Record<string, number>,
   storageLogPerDay: 2,
+  backupSettings: {
+    enabled: true,
+    // 22:00 giờ Việt Nam: sau giờ đóng cửa của phần lớn nhà thuốc.
+    hour: 22,
+    minute: 0,
+    keepCount: 14,
+    includeStorage: true,
+    staleAfterHours: 36,
+  } as BackupSettings,
 } as const;
+
+/** Lịch sao lưu tự động, dùng chung toàn chuỗi (không theo từng cửa hàng). */
+export type BackupSettings = {
+  enabled: boolean;
+  hour: number;
+  minute: number;
+  /** Số bản gần nhất được giữ lại trên đĩa; bản cũ hơn bị dọn. */
+  keepCount: number;
+  includeStorage: boolean;
+  /** Quá số giờ này chưa có bản sao lưu thành công thì cảnh báo. */
+  staleAfterHours: number;
+};
 
 export type SettingKey = keyof typeof DEFAULTS;
 
