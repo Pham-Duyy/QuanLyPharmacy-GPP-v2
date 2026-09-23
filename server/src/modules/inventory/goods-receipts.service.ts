@@ -1,6 +1,7 @@
 import { Prisma } from "../../generated/prisma/client.js";
 import { prisma } from "../../db/prisma.js";
 import { AppError } from "../../lib/app-error.js";
+import { businessDateNow } from "../../lib/settings.js";
 import type {
   ConfirmReceiptInput,
   CreateReceiptInput,
@@ -239,6 +240,20 @@ export async function confirm(
           "INVALID_STATE",
           `Phiếu đang ở trạng thái ${existing.status}, không xác nhận lại được`,
         );
+      }
+
+      // Hạn thanh toán chốt ngay lúc kiểm nhập theo kỳ hạn đang áp dụng của
+      // nhà cung cấp; sau này đổi kỳ hạn thì công nợ cũ vẫn giữ hạn cũ.
+      const receipt = await tx.goodsReceipt.findUniqueOrThrow({
+        where: { id: receiptId },
+        select: { type: true, receivedAt: true, supplier: { select: { paymentTermDays: true } } },
+      });
+      if (receipt.type === "PURCHASE" && receipt.supplier) {
+        const received = businessDateNow(receipt.receivedAt);
+        await tx.goodsReceipt.update({
+          where: { id: receiptId },
+          data: { paymentDueDate: new Date(received.getTime() + receipt.supplier.paymentTermDays * 86_400_000) },
+        });
       }
 
       const lines = await tx.goodsReceiptLine.findMany({
