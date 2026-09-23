@@ -31,6 +31,7 @@ const StoresPage = page(() => import("./features/stores/StoresPage.js"), "Stores
 const AuditLogPage = page(() => import("./features/audit/AuditLogPage.js"), "AuditLogPage");
 const SettingsPage = page(() => import("./features/settings/SettingsPage.js"), "SettingsPage");
 const ControlledDrugsPage = page(() => import("./features/controlled/ControlledDrugsPage.js"), "ControlledDrugsPage");
+const SupplierReturnsPage = page(() => import("./features/inventory/SupplierReturnsPage.js"), "SupplierReturnsPage");
 const SupplierDebtsPage = page(() => import("./features/inventory/SupplierDebtsPage.js"), "SupplierDebtsPage");
 const ExpiryAlertsPage = page(() => import("./features/inventory/ExpiryAlertsPage.js"), "ExpiryAlertsPage");
 const PurchaseSuggestionsPage = page(() => import("./features/inventory/PurchaseSuggestionsPage.js"), "PurchaseSuggestionsPage");
@@ -53,6 +54,7 @@ const ROUTES: Array<{ path: string; element: ReactNode }> = [
   { path: "/kiem-ke", element: <StockCountsPage /> },
   { path: "/de-xuat-dat-hang", element: <PurchaseSuggestionsPage /> },
   { path: "/cong-no-ncc", element: <SupplierDebtsPage /> },
+  { path: "/tra-hang-ncc", element: <SupplierReturnsPage /> },
   { path: "/kiem-soat-dac-biet", element: <ControlledDrugsPage /> },
   { path: "/so-nhiet-do", element: <StorageLogsPage /> },
   { path: "/canh-bao", element: <AlertsPage /> },

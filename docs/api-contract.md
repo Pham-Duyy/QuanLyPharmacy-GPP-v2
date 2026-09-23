@@ -635,6 +635,27 @@ Quy tắc:
 - `summary` gồm `outstanding`, `overdueAmount` (quá hạn), `dueSoonAmount` (đến hạn trong `dueSoonDays`, mặc định 7 ngày).
 - Ở mức nhà cung cấp, `totalCost` và `paidAmount` tính trên chính các phiếu đang liệt kê (mặc định chỉ phiếu còn nợ), không phải tổng lũy kế từ trước tới nay.
 
+### 9.2 Trả hàng nhà cung cấp
+
+Hàng cận hạn được nhà cung cấp nhận lại, hàng lỗi, hàng thu hồi hoặc giao sai. Lập nháp rồi mới xác nhận — **chỉ khi xác nhận mới trừ tồn và ghi thẻ kho**, vì lúc đó hàng mới thật sự rời khỏi kho.
+
+| Method | Endpoint | Mô tả | Quyền |
+|---|---|---|---|
+| GET | `/supplier-returns/returnable?supplierId&search` | Lô còn tồn kèm nhà cung cấp đã mang lô đó về | `goods_receipt.read` |
+| GET | `/supplier-returns?status&supplierId` | Danh sách phiếu trả | `goods_receipt.read` |
+| GET | `/supplier-returns/{id}` | Chi tiết phiếu trả | `goods_receipt.read` |
+| POST | `/supplier-returns` | Lập phiếu nháp: `supplierId`, `reason` (bắt buộc), `settlement`, `lines[{ batchId, unitId, quantity }]` | `goods_receipt.create` |
+| POST | `/supplier-returns/{id}/confirm` | Xác nhận: trừ tồn, ghi thẻ kho `SUPPLIER_RETURN`; ghi audit `SUPPLIER_RETURN_CONFIRM` | `goods_receipt.confirm` |
+| POST | `/supplier-returns/{id}/cancel` | Hủy phiếu **còn nháp**, bắt buộc `reason` | `goods_receipt.create` |
+
+Quy tắc:
+
+- `settlement`: `DEDUCT_DEBT` trừ vào công nợ (mặc định) · `REFUND` nhận lại tiền · `REPLACEMENT` đổi hàng. **Chỉ `DEDUCT_DEBT` tác động công nợ** (§9.1): giá trị dòng trả được trừ vào chính phiếu nhập đã mang lô đó về.
+- Giá trị dòng tính theo **giá vốn của lô**, không phải giá bán.
+- Mỗi dòng gắn với phiếu nhập gốc (tìm theo lô), để trừ đúng khoản nợ.
+- Số lượng không vượt quá tồn của lô; kiểm tra lại lúc xác nhận vì từ khi lập nháp có thể đã bán bớt (`409 INSUFFICIENT_STOCK`).
+- Phiếu đã xác nhận **không hủy được**; nhà cung cấp trả hàng lại thì lập phiếu nhập mới.
+
 ---
 
 ## 10. Tồn kho
@@ -656,7 +677,7 @@ Mỗi sản phẩm trả về số lượng theo đơn vị nhỏ nhất, tách 
 | Trường | Ghi chú |
 |---|---|
 | `id`, `occurredAt` | |
-| `type` | `RECEIPT`, `OPENING_BALANCE`, `SALE`, `SALE_VOID`, `CUSTOMER_RETURN`, `ADJUSTMENT`, `DISPOSAL` |
+| `type` | `RECEIPT`, `OPENING_BALANCE`, `SALE`, `SALE_VOID`, `CUSTOMER_RETURN`, `ADJUSTMENT`, `DISPOSAL`, `SUPPLIER_RETURN` |
 | `batchId`, `productId` | |
 | `baseQuantity` | Có dấu: dương là nhập, âm là xuất |
 | `balanceAfter` | Tồn của lô sau giao dịch |
@@ -1238,7 +1259,7 @@ Về mô hình chuỗi: MVP chạy với **một cửa hàng**, nhưng dữ li�
 
 **Sau MVP**
 
-- Đơn đặt hàng nhà cung cấp (có đề xuất đặt hàng ở §10.5, chưa có chứng từ đơn hàng riêng); trả hàng nhà cung cấp.
+- Đơn đặt hàng nhà cung cấp: đã có đề xuất đặt hàng (§10.5), chưa có chứng từ đơn hàng riêng gửi nhà cung cấp.
 - Danh mục bác sĩ; OCR đơn thuốc; AI giải thích cảnh báo; dự báo nhập hàng.
 - Ngăn biệt trữ theo số lượng.
 - Hóa đơn điện tử, tích hợp cổng thanh toán, liên thông dữ liệu dược với cơ quan quản lý.
