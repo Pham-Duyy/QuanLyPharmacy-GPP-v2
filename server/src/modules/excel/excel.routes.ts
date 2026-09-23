@@ -9,6 +9,7 @@ import { storeContext } from "../../middlewares/store-context.js";
 import type { AuthContext } from "../auth/auth.context.js";
 import {
   controlledLedgerExport,
+  purchaseOrderExport,
   customersExport,
   stockCountExport,
   goodsReceiptsExport,
@@ -31,7 +32,7 @@ excelRouter.use("/excel", authenticate, storeContext);
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- mỗi loại có kiểu dòng riêng
 const IMPORTS: ImportDefinition<any>[] = [productsImport, suppliersImport, customersImport, openingBalanceImport, stockCountImport, receiptLinesImport];
-const EXPORTS: ExportDefinition[] = [productsExport, suppliersExport, customersExport, inventoryExport, stockCountExport, invoicesExport, goodsReceiptsExport, rxSalesExport, controlledLedgerExport];
+const EXPORTS: ExportDefinition[] = [productsExport, suppliersExport, customersExport, inventoryExport, stockCountExport, invoicesExport, goodsReceiptsExport, rxSalesExport, controlledLedgerExport, purchaseOrderExport];
 
 const MAX_RANGE_DAYS = 366;
 const DAY_MS = 86_400_000;

@@ -31,6 +31,7 @@ const StoresPage = page(() => import("./features/stores/StoresPage.js"), "Stores
 const AuditLogPage = page(() => import("./features/audit/AuditLogPage.js"), "AuditLogPage");
 const SettingsPage = page(() => import("./features/settings/SettingsPage.js"), "SettingsPage");
 const ControlledDrugsPage = page(() => import("./features/controlled/ControlledDrugsPage.js"), "ControlledDrugsPage");
+const PurchaseSuggestionsPage = page(() => import("./features/inventory/PurchaseSuggestionsPage.js"), "PurchaseSuggestionsPage");
 const StockCountsPage = page(() => import("./features/inventory/stock-counts/StockCountsPage.js"), "StockCountsPage");
 const BackupPage = page(() => import("./features/backup/BackupPage.js"), "BackupPage");
 const ExcelHubPage = page(() => import("./features/excel/ExcelHubPage.js"), "ExcelHubPage");
@@ -48,6 +49,7 @@ const ROUTES: Array<{ path: string; element: ReactNode }> = [
   { path: "/ton-kho", element: <BatchesPage /> },
   { path: "/dieu-chinh-ton", element: <StockAdjustmentsPage /> },
   { path: "/kiem-ke", element: <StockCountsPage /> },
+  { path: "/de-xuat-dat-hang", element: <PurchaseSuggestionsPage /> },
   { path: "/kiem-soat-dac-biet", element: <ControlledDrugsPage /> },
   { path: "/so-nhiet-do", element: <StorageLogsPage /> },
   { path: "/canh-bao", element: <AlertsPage /> },
