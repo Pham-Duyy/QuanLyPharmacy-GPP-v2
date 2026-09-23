@@ -463,7 +463,7 @@ describe("Tạo hóa đơn", () => {
     expect(response.body.data.lines[0].batchOverrideReason).toBe("Khách đi công tác dài ngày");
   });
 
-  it("chặn bán thuốc kiểm soát đặc biệt trong phạm vi MVP", async () => {
+  it("chặn bán thuốc kiểm soát đặc biệt khi chưa ghi thông tin người mua", async () => {
     const morphin = await makeProduct({
       code: "TH0010",
       name: "Morphin 10mg",
@@ -474,7 +474,8 @@ describe("Tạo hóa đơn", () => {
 
     const response = await sell(pharmacistToken, { lines: [line(morphin, "Viên", 1)] }).expect(422);
 
-    expect(response.body.error.code).toBe("CONTROLLED_DRUG_NOT_SUPPORTED");
+    // Bán được nhóm này nhưng phải ghi người mua vào sổ theo dõi (§10.6).
+    expect(response.body.error.code).toBe("CONTROLLED_BUYER_REQUIRED");
   });
 
   it("chặn nhân viên bán hàng bán thuốc kê đơn", async () => {

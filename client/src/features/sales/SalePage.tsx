@@ -46,6 +46,7 @@ import { ProductThumb } from "../catalog/products/ProductThumb.js";
 import { printInvoice } from "../printing/printing.js";
 import { MAX_SALE_DRAFTS, readDrafts, writeDrafts, type SaleDraft } from "./pos/drafts.js";
 import { PosCatalog } from "./pos/PosCatalog.js";
+import { ControlledBuyerCard, type ControlledBuyer } from "./pos/ControlledBuyerCard.js";
 import { SafetyPanel } from "./pos/SafetyPanel.js";
 
 type CartLine = {
@@ -103,6 +104,7 @@ export function SalePage() {
   const [prescriptionSearch, setPrescriptionSearch] = useState("");
   const [prescription, setPrescription] = useState<PrescriptionDetail | null>(null);
   const [acked, setAcked] = useState<Set<string>>(new Set());
+  const [controlledBuyer, setControlledBuyer] = useState<ControlledBuyer | null>(null);
   const [ackReason, setAckReason] = useState("");
   const [discountType, setDiscountType] = useState<"PERCENT" | "AMOUNT">("AMOUNT");
   const [discountValue, setDiscountValue] = useState(0);
@@ -158,8 +160,12 @@ export function SalePage() {
     queryFn: async () => (await http.get<Envelope<PrescriptionListItem[]>>("/prescriptions")).data.data.filter((item) => item.status === "VERIFIED" || item.status === "PARTIALLY_DISPENSED"),
   });
 
+  // Thuốc kiểm soát đặc biệt: phải ghi người mua vào sổ theo dõi trước khi bán.
+  const controlledLines = cart.filter((line) => line.product.drugClass === "CONTROLLED");
+  const hasControlledBuyer = Boolean(controlledBuyer);
+
   const safety = useQuery({
-    queryKey: ["safety-check", cartLines, prescription?.id, customer?.id],
+    queryKey: ["safety-check", cartLines, prescription?.id, customer?.id, hasControlledBuyer],
     enabled: cart.length > 0,
     queryFn: async () =>
       (
@@ -167,6 +173,7 @@ export function SalePage() {
           lines: cartLines,
           prescriptionId: prescription?.id ?? null,
           customerId: customer?.id ?? null,
+          hasControlledBuyer,
         })
       ).data.data,
   });
@@ -182,6 +189,7 @@ export function SalePage() {
 
   const body = {
     customerId: customer?.id ?? null,
+    controlledBuyer: controlledLines.length > 0 ? controlledBuyer : null,
     prescriptionId: prescription?.id ?? null,
     lines: cart.map((line) => ({
       productId: line.product.id,
@@ -203,6 +211,7 @@ export function SalePage() {
 
   function resetSale() {
     setCart([]);
+    setControlledBuyer(null);
     setCustomer(null);
     setCustomerSearch("");
     setPrescription(null);
@@ -690,6 +699,14 @@ export function SalePage() {
               </>
             )}
           </div>
+
+          {controlledLines.length > 0 ? (
+            <ControlledBuyerCard
+              productNames={[...new Set(controlledLines.map((line) => line.product.name))]}
+              value={controlledBuyer}
+              onChange={setControlledBuyer}
+            />
+          ) : null}
 
           {cart.length > 0 ? (
             <SafetyPanel

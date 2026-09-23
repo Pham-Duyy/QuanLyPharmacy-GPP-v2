@@ -3647,3 +3647,32 @@
   margin-top: 10px;
   font-size: 12.5px;
 }
+
+/* ---------- Thuốc kiểm soát đặc biệt ---------- */
+.controlled-toolbar {
+  margin-bottom: 12px;
+}
+.controlled-select {
+  min-width: 320px;
+  max-width: 560px;
+  width: 100%;
+}
+.controlled-banner {
+  margin-bottom: 14px;
+}
+.controlled-card {
+  margin-bottom: 16px;
+}
+.controlled-figures {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  font-size: 12.5px;
+  color: var(--c-ink-500);
+}
+.controlled-figures b {
+  color: var(--c-ink-900);
+}
+.pos-controlled {
+  margin-bottom: 12px;
+}

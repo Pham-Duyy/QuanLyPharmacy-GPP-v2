@@ -10,6 +10,8 @@ export const safetyCheckSchema = z.object({
   customerId: z.uuid("customerId không hợp lệ").nullish(),
   prescriptionId: z.uuid("prescriptionId không hợp lệ").nullish(),
   lines: z.array(cartLineSchema).min(1, "Giỏ hàng phải có ít nhất một dòng"),
+  /** Quầy bán đã nhập thông tin người mua thuốc kiểm soát đặc biệt chưa. */
+  hasControlledBuyer: z.boolean().default(false),
 });
 
 const saleLineSchema = cartLineSchema
@@ -38,7 +40,21 @@ const discountSchema = z
  * Máy khách chỉ gửi ý định bán. Đơn giá, thành tiền, VAT, lô FEFO và người
  * bán đều do máy chủ tự tính, gửi lên cũng bị bỏ qua (contract §14.1).
  */
+/**
+ * Thông tin người mua thuốc kiểm soát đặc biệt. Bắt buộc khi giỏ hàng có
+ * thuốc gây nghiện, hướng thần hoặc tiền chất.
+ */
+export const controlledBuyerSchema = z.object({
+  buyerName: z.string().trim().min(1, "Thiếu họ tên người mua").max(200),
+  buyerIdNumber: z.string().trim().min(6, "Số giấy tờ tùy thân quá ngắn").max(30),
+  buyerAddress: z.string().trim().min(1, "Thiếu địa chỉ người mua").max(300),
+  buyerPhone: z.string().trim().max(20).nullish(),
+  relationship: z.enum(["SELF", "RELATIVE", "CAREGIVER", "OTHER"]).default("SELF"),
+  relationshipNote: z.string().trim().max(200).nullish(),
+});
+
 export const createInvoiceSchema = z.object({
+  controlledBuyer: controlledBuyerSchema.nullish(),
   customerId: z.uuid("customerId không hợp lệ").nullish(),
   prescriptionId: z.uuid("prescriptionId không hợp lệ").nullish(),
   lines: z.array(saleLineSchema).min(1, "Hóa đơn phải có ít nhất một dòng"),

@@ -46,6 +46,7 @@ export const PERMISSIONS: Array<{ code: string; description: string }> = [
   { code: "report.inventory", description: "Báo cáo xuất nhập tồn, hạn dùng" },
   { code: "audit.read", description: "Đọc audit log" },
   { code: "backup.manage", description: "Xem, chạy và tải bản sao lưu dữ liệu" },
+  { code: "controlled.read", description: "Xem sổ theo dõi thuốc kiểm soát đặc biệt" },
   { code: "ai.use", description: "Dùng tính năng AI" },
 ];
 
@@ -84,6 +85,7 @@ export const ROLES: Array<{ code: string; name: string; permissions: string[] }>
       "report.inventory",
       "audit.read",
       "backup.manage",
+      "controlled.read",
     ],
   },
   {
@@ -117,6 +119,7 @@ export const ROLES: Array<{ code: string; name: string; permissions: string[] }>
       "storage_log.read",
       "storage_log.write",
       "report.inventory",
+      "controlled.read",
       "ai.use",
     ],
   },
@@ -163,6 +166,7 @@ export const ROLES: Array<{ code: string; name: string; permissions: string[] }>
       "report.inventory",
       "report.chain",
       "audit.read",
+      "controlled.read",
     ],
   },
 ];
