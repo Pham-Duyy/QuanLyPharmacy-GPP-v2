@@ -41,6 +41,7 @@ import { stockCountsRouter } from "./modules/inventory/stock-counts.routes.js";
 import { controlledRouter } from "./modules/controlled/controlled.routes.js";
 import { purchaseSuggestionsRouter } from "./modules/inventory/purchase-suggestions.routes.js";
 import { expiryAlertsRouter } from "./modules/inventory/expiry-alerts.routes.js";
+import { supplierDebtsRouter } from "./modules/inventory/supplier-debts.routes.js";
 
 /**
  * Lắp ráp ứng dụng Express. Thứ tự middleware quan trọng:
@@ -114,6 +115,7 @@ export function createApp() {
   app.use("/api/v1", controlledRouter);
   app.use("/api/v1", purchaseSuggestionsRouter);
   app.use("/api/v1", expiryAlertsRouter);
+  app.use("/api/v1", supplierDebtsRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

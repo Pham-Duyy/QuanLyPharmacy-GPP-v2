@@ -49,6 +49,7 @@ model Store {
   aiLogs             AiLog[]
   stockCounts        StockCount[]
   expiryPlans        BatchExpiryPlan[]
+  supplierPayments   SupplierPayment[]
 
   @@map("stores")
 }
@@ -102,6 +103,8 @@ model User {
   controlledSalesRecorded ControlledSaleDetail[]
   expiryPlansCreated      BatchExpiryPlan[]       @relation("ExpiryPlanCreatedBy")
   expiryPlansResolved     BatchExpiryPlan[]       @relation("ExpiryPlanResolvedBy")
+  supplierPaymentsCreated SupplierPayment[]       @relation("SupplierPaymentCreatedBy")
+  supplierPaymentsVoided  SupplierPayment[]       @relation("SupplierPaymentVoidedBy")
   healthProfilesUpdated   CustomerHealthProfile[]
   stockMovements          StockMovement[]
 
@@ -416,18 +419,21 @@ model ProductPrice {
 }
 
 model Supplier {
-  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name          String
-  taxCode       String?  @map("tax_code")
-  licenseNumber String?  @map("license_number")
-  address       String?
-  phone         String?
-  isActive      Boolean  @default(true) @map("is_active")
-  version       Int      @default(1)
-  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name            String
+  taxCode         String?  @map("tax_code")
+  licenseNumber   String?  @map("license_number")
+  address         String?
+  phone           String?
+  isActive        Boolean  @default(true) @map("is_active")
+  /// Số ngày được nợ tính từ ngày nhận hàng; 0 nghĩa là trả ngay.
+  paymentTermDays Int      @default(0) @map("payment_term_days")
+  version         Int      @default(1)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   goodsReceipts GoodsReceipt[]
+  payments      SupplierPayment[]
 
   @@map("suppliers")
 }
@@ -531,16 +537,19 @@ model GoodsReceipt {
   cancelledBy           String?   @map("cancelled_by") @db.Uuid
   cancelledAt           DateTime? @map("cancelled_at") @db.Timestamptz(6)
   cancelReason          String?   @map("cancel_reason")
+  /// Hạn thanh toán chốt lúc kiểm nhập, giữ nguyên kể cả khi sau này đổi kỳ hạn của nhà cung cấp.
+  paymentDueDate        DateTime? @map("payment_due_date") @db.Date
   version               Int       @default(1)
   createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt             DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  store           Store              @relation(fields: [storeId], references: [id])
-  supplier        Supplier?          @relation(fields: [supplierId], references: [id])
-  createdByUser   User               @relation("GoodsReceiptCreatedBy", fields: [createdBy], references: [id])
-  confirmedByUser User?              @relation("GoodsReceiptConfirmedBy", fields: [confirmedBy], references: [id])
-  cancelledByUser User?              @relation("GoodsReceiptCancelledBy", fields: [cancelledBy], references: [id])
-  lines           GoodsReceiptLine[]
+  store              Store                       @relation(fields: [storeId], references: [id])
+  supplier           Supplier?                   @relation(fields: [supplierId], references: [id])
+  createdByUser      User                        @relation("GoodsReceiptCreatedBy", fields: [createdBy], references: [id])
+  paymentAllocations SupplierPaymentAllocation[]
+  confirmedByUser    User?                       @relation("GoodsReceiptConfirmedBy", fields: [confirmedBy], references: [id])
+  cancelledByUser    User?                       @relation("GoodsReceiptCancelledBy", fields: [cancelledBy], references: [id])
+  lines              GoodsReceiptLine[]
 
   @@index([storeId, status, receivedAt(sort: Desc)])
   @@index([supplierId])
@@ -1166,4 +1175,51 @@ model BatchExpiryPlan {
   @@index([storeId, status])
   @@index([batchId])
   @@map("batch_expiry_plans")
+}
+
+/// Một lần trả tiền cho nhà cung cấp. Số tiền được phân bổ về từng phiếu
+/// nhập ở bảng allocation, vì thực tế nhà thuốc hay trả gộp nhiều phiếu.
+/// Ghi nhầm thì hủy có lý do, không xóa, để còn đối chiếu sổ sách.
+model SupplierPayment {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  storeId    String    @map("store_id") @db.Uuid
+  supplierId String    @map("supplier_id") @db.Uuid
+  code       String    @unique
+  paidAt     DateTime  @map("paid_at") @db.Date
+  amount     BigInt
+  method     String    @default("BANK_TRANSFER")
+  reference  String?
+  note       String?
+  status     String    @default("ACTIVE")
+  voidReason String?   @map("void_reason")
+  voidedBy   String?   @map("voided_by") @db.Uuid
+  voidedAt   DateTime? @map("voided_at") @db.Timestamptz(6)
+  createdBy  String    @map("created_by") @db.Uuid
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  version    Int       @default(1)
+
+  store         Store                       @relation(fields: [storeId], references: [id])
+  supplier      Supplier                    @relation(fields: [supplierId], references: [id])
+  createdByUser User                        @relation("SupplierPaymentCreatedBy", fields: [createdBy], references: [id])
+  voidedByUser  User?                       @relation("SupplierPaymentVoidedBy", fields: [voidedBy], references: [id])
+  allocations   SupplierPaymentAllocation[]
+
+  @@index([storeId, supplierId])
+  @@index([storeId, paidAt(sort: Desc)])
+  @@map("supplier_payments")
+}
+
+/// Phân bổ một phần tiền của phiếu chi vào một phiếu nhập cụ thể.
+model SupplierPaymentAllocation {
+  id             String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  paymentId      String @map("payment_id") @db.Uuid
+  goodsReceiptId String @map("goods_receipt_id") @db.Uuid
+  amount         BigInt
+
+  payment      SupplierPayment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  goodsReceipt GoodsReceipt    @relation(fields: [goodsReceiptId], references: [id])
+
+  @@unique([paymentId, goodsReceiptId])
+  @@index([goodsReceiptId])
+  @@map("supplier_payment_allocations")
 }

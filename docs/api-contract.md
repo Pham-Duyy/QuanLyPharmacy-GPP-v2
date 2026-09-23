@@ -240,6 +240,8 @@ Quy tắc:
 | `audit.read` | Đọc audit log |
 | `backup.manage` | Xem, chạy và tải bản sao lưu dữ liệu |
 | `controlled.read` | Xem sổ theo dõi thuốc kiểm soát đặc biệt |
+| `supplier_debt.read` | Xem công nợ nhà cung cấp |
+| `supplier_payment.manage` | Ghi nhận thanh toán cho nhà cung cấp |
 | `ai.use` | Dùng tính năng AI |
 
 ### 4.2 Ma trận vai trò → permission [Đã chốt – P5]
@@ -285,6 +287,8 @@ Quy tắc:
 | `audit.read` | ✓ | | | | ✓ |
 | `backup.manage` | ✓ | | | | |
 | `controlled.read` | ✓ | ✓ | | | ✓ |
+| `supplier_debt.read` | ✓ | | | | ✓ |
+| `supplier_payment.manage` | ✓ | | | | |
 | `ai.use` | | ✓ | ✓ | | |
 
 Ghi chú:
@@ -609,6 +613,27 @@ Trong một transaction:
 5. Bất kỳ bước nào lỗi thì rollback toàn bộ.
 
 Không có khoảnh khắc nào hàng chưa qua kiểm nhập ở trạng thái bán được — khác với việc xác nhận trước rồi mới biệt trữ sau qua endpoint riêng ở §8.
+
+### 9.1 Công nợ nhà cung cấp
+
+Mỗi phiếu nhập **đã kiểm nhập** là một khoản phải trả. Hạn trả chốt ngay lúc kiểm nhập theo kỳ hạn đang áp dụng của nhà cung cấp (`suppliers.payment_term_days`, mặc định 0 = trả ngay), lưu ở `goods_receipts.payment_due_date` nên đổi kỳ hạn về sau không làm đổi hạn của công nợ cũ.
+
+| Method | Endpoint | Mô tả | Quyền |
+|---|---|---|---|
+| GET | `/supplier-debts?supplierId&onlyOutstanding&dueSoonDays` | Nợ theo từng nhà cung cấp kèm danh sách phiếu còn nợ | `supplier_debt.read` |
+| PUT | `/supplier-debts/{supplierId}/term` | Đổi kỳ hạn thanh toán; ghi audit `SUPPLIER_TERM_UPDATE` | `supplier_payment.manage` |
+| GET | `/supplier-payments?supplierId&from&to` | Lịch sử phiếu chi | `supplier_debt.read` |
+| POST | `/supplier-payments` | Ghi nhận trả tiền; ghi audit `SUPPLIER_PAYMENT_CREATE` | `supplier_payment.manage` |
+| POST | `/supplier-payments/{id}/void` | Hủy phiếu chi, bắt buộc `reason`; ghi audit `SUPPLIER_PAYMENT_VOID` | `supplier_payment.manage` |
+
+Quy tắc:
+
+- Một phiếu chi trả cho **nhiều phiếu nhập**: `allocations[{ goodsReceiptId, amount }]`, số tiền phiếu chi bằng tổng phân bổ.
+- Mỗi phần phân bổ **không vượt quá số còn nợ** của phiếu nhập đó, tính lại ngay trong giao dịch nên hai người cùng ghi không làm trả dư.
+- Chỉ trả được cho phiếu **đã kiểm nhập** và đúng nhà cung cấp đó.
+- Phiếu chi ghi nhầm thì **hủy có lý do**, không xóa: công nợ được tính lại, phiếu vẫn nằm trong lịch sử để đối chiếu sổ sách.
+- `summary` gồm `outstanding`, `overdueAmount` (quá hạn), `dueSoonAmount` (đến hạn trong `dueSoonDays`, mặc định 7 ngày).
+- Ở mức nhà cung cấp, `totalCost` và `paidAmount` tính trên chính các phiếu đang liệt kê (mặc định chỉ phiếu còn nợ), không phải tổng lũy kế từ trước tới nay.
 
 ---
 
@@ -1213,7 +1238,7 @@ Về mô hình chuỗi: MVP chạy với **một cửa hàng**, nhưng dữ li�
 
 **Sau MVP**
 
-- Đơn đặt hàng nhà cung cấp, trả hàng nhà cung cấp, công nợ nhà cung cấp.
+- Đơn đặt hàng nhà cung cấp (có đề xuất đặt hàng ở §10.5, chưa có chứng từ đơn hàng riêng); trả hàng nhà cung cấp.
 - Danh mục bác sĩ; OCR đơn thuốc; AI giải thích cảnh báo; dự báo nhập hàng.
 - Ngăn biệt trữ theo số lượng.
 - Hóa đơn điện tử, tích hợp cổng thanh toán, liên thông dữ liệu dược với cơ quan quản lý.
