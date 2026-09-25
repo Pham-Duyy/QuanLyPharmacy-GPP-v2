@@ -3,7 +3,7 @@ import { Prisma } from "../generated/prisma/client.js";
 
 type Tx = Prisma.TransactionClient;
 
-export type IdempotencyContext = { key: string; userId: string };
+export type IdempotencyContext = { key: string; userId: string; ownerToken: string };
 
 /**
  * Khóa idempotency của request đang chạy, đi theo suốt chuỗi await nhờ
@@ -29,8 +29,10 @@ export async function markIdempotentResource(
 ): Promise<void> {
   const context = idempotencyStore.getStore();
   if (!context) return;
+  // Kèm owner_token: request đã bị tiếp quản (mất quyền sở hữu khóa) thì
+  // không gắn được chứng từ của mình lên khóa của request khác.
   await tx.idempotencyKey.updateMany({
-    where: { key: context.key, userId: context.userId },
+    where: { key: context.key, userId: context.userId, ownerToken: context.ownerToken },
     data: { resourceType, resourceId },
   });
 }

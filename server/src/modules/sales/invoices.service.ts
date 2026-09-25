@@ -7,6 +7,7 @@ import { lockCustomer, lockInvoice, lockPrescriptionItems } from "../../lib/lock
 import { businessDateNow, getSetting } from "../../lib/settings.js";
 import type { AuthContext } from "../auth/auth.context.js";
 import { getCurrentPrices } from "../catalog/products.service.js";
+import { addToBatch } from "../inventory/batch-value.js";
 import * as loyalty from "../loyalty/loyalty.service.js";
 import { lockSellableBatches, resolveCartLines, type ResolvedLine } from "./cart.js";
 import { runSafetyCheck, type Blocking } from "./safety-check.service.js";
@@ -310,8 +311,11 @@ export async function createInvoice(
               batchId: allocation.batchId,
               baseQuantity: allocation.baseQuantity,
               // Chụp giá vốn ngay lúc xuất: nhập thêm cùng lô với giá khác
-              // sau này không được làm đổi lãi gộp của kỳ đã qua.
+              // sau này không được làm đổi lãi gộp của kỳ đã qua. Lô chưa có
+              // giá vốn (tồn đầu kỳ chưa khai giá) thì ghi thẳng là không xác
+              // định, để báo cáo nói rõ thay vì mượn giá vốn hiện tại của lô.
               unitCost: batch.unitCost,
+              unitCostSource: batch.unitCost === null ? "UNKNOWN" : "ACTUAL",
             },
           });
 
@@ -652,10 +656,16 @@ export async function voidInvoice(
 
       for (const line of existing.lines) {
         for (const allocation of line.allocations) {
-          const batch = await tx.batch.update({
-            where: { id: allocation.batchId },
-            data: { quantityOnHand: { increment: allocation.baseQuantity } },
-          });
+          // Hoàn cả số lượng lẫn giá trị: hàng quay về lô với đúng giá vốn đã
+          // xuất, lô tính lại bình quân gia quyền (xem returns.service.ts).
+          const batch = await addToBatch(
+            tx,
+            allocation.batchId,
+            allocation.baseQuantity,
+            allocation.unitCost,
+            { allowRecalled: true },
+          );
+          if (!batch) throw AppError.notFound("Không tìm thấy lô để hoàn hàng");
 
           await tx.stockMovement.create({
             data: {
