@@ -9,7 +9,7 @@ import { parseOrThrow } from "../../lib/validate.js";
 import { authenticate } from "../../middlewares/authenticate.js";
 import { requirePermission } from "../../middlewares/require-permission.js";
 import { storeContext } from "../../middlewares/store-context.js";
-import { searchIdsByName } from "./search.js";
+import { orderByIds, searchIngredientPage } from "./search.js";
 
 export const ingredientsRouter = Router();
 // Giới hạn theo tiền tố thật sự dùng, cùng lý do đã ghi ở categories.routes.ts.
@@ -27,19 +27,13 @@ ingredientsRouter.get(
     const page = parsePageQuery(req.query, { sortable: ["name"], defaultSort: "name" });
     const search = typeof req.query["search"] === "string" ? req.query["search"].trim() : "";
 
-    // Tìm không dấu dùng chỉ mục trigram (ERD §1.6).
-    const ids = search ? await searchIdsByName("active_ingredients", search, 200) : null;
-    const where = { isActive: true, ...(ids ? { id: { in: ids } } : {}) };
-
-    const [items, total] = await Promise.all([
-      prisma.activeIngredient.findMany({
-        where,
-        orderBy: { name: page.order },
-        skip: page.skip,
-        take: page.limit,
-      }),
-      prisma.activeIngredient.count({ where }),
-    ]);
+    // Tìm không dấu dùng chỉ mục trigram (ERD §1.6); lọc, đếm và phân
+    // trang trong cùng một câu lệnh nên tổng số không bị chặn ở mức trần.
+    const { ids, total } = await searchIngredientPage(search || null, page);
+    const items = orderByIds(
+      await prisma.activeIngredient.findMany({ where: { id: { in: ids } } }),
+      ids,
+    );
 
     sendData(res, pageResult(items, total, page));
   },

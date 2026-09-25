@@ -1,6 +1,8 @@
 import { Prisma } from "../../generated/prisma/client.js";
 import { prisma } from "../../db/prisma.js";
 import { AppError } from "../../lib/app-error.js";
+import { markIdempotentResource } from "../../lib/idempotency-context.js";
+import { codeDay, nextDocumentCode } from "../../lib/document-code.js";
 import { createSignedImageUrl } from "../../lib/signed-url.js";
 import { getSetting } from "../../lib/settings.js";
 import type { AuthContext } from "../auth/auth.context.js";
@@ -68,14 +70,7 @@ async function resolveItems(tx: Tx, items: ItemInput[]): Promise<ResolvedItem[]>
 }
 
 async function nextCode(tx: Tx, storeId: string, storeCode: string): Promise<string> {
-  const day = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Ho_Chi_Minh" })
-    .format(new Date())
-    .replace(/-/g, "");
-  const prefix = `DT-${storeCode}-${day}-`;
-  const countToday = await tx.prescription.count({
-    where: { storeId, code: { startsWith: prefix } },
-  });
-  return `${prefix}${String(countToday + 1).padStart(4, "0")}`;
+  return nextDocumentCode(tx, storeId, `DT-${storeCode}-${codeDay()}-`);
 }
 
 function addDays(date: Date, days: number): Date {
@@ -121,6 +116,9 @@ export async function createDraft(
       },
     });
 
+    // Gắn chứng từ vào khóa idempotency ngay trong transaction: commit xong
+    // là khóa đã mang id, gửi lại cùng khóa không tạo thêm bản thứ hai.
+    await markIdempotentResource(tx, "prescription", prescription.id);
     return prescription.id;
   });
 }

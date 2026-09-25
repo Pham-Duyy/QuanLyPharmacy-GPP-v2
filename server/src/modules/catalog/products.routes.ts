@@ -12,7 +12,7 @@ import { parseOrThrow } from "../../lib/validate.js";
 import { authenticate } from "../../middlewares/authenticate.js";
 import { requirePermission } from "../../middlewares/require-permission.js";
 import { storeContext } from "../../middlewares/store-context.js";
-import { searchProductIds } from "./search.js";
+import { orderByIds, searchProductPage } from "./search.js";
 import * as images from "./product-images.service.js";
 import { getCurrentPrices, getStockSummary } from "./products.service.js";
 
@@ -79,45 +79,37 @@ productsRouter.get("/products", requirePermission("catalog.read"), async (req, r
   });
   const query = req.query as Record<string, string | undefined>;
   const search = query["search"]?.trim() ?? "";
-  const ids = search ? await searchProductIds(search, 500) : null;
 
-  const where = {
-    isActive: query["isActive"] !== "false",
-    ...(ids ? { id: { in: ids } } : {}),
-    ...(query["categoryId"] ? { categoryId: query["categoryId"] } : {}),
-    ...(query["productType"] ? { productType: query["productType"] } : {}),
-    // "RX,CONTROLLED" để lọc chung nhóm thuốc phải có đơn.
-    ...(query["drugClass"] ? { drugClass: { in: query["drugClass"].split(",") } } : {}),
-    // "Chỉ còn hàng" ở quầy: cùng định nghĩa tồn bán được với getStockSummary
-    // (lô AVAILABLE, còn hạn theo ngày Việt Nam, còn số lượng) tại cửa hàng đang chọn.
-    ...(query["inStock"] === "true" && req.auth?.storeId
-      ? {
-          batches: {
-            some: {
-              storeId: req.auth.storeId,
-              status: "AVAILABLE",
-              quantityOnHand: { gt: 0 },
-              expiryDate: { gt: businessDateNow() },
-            },
-          },
-        }
-      : {}),
-  };
+  // Lọc, đếm và phân trang trong cùng một câu lệnh: tổng số luôn đúng và
+  // kết quả khớp không bị cắt mất ở một mức trần nào cả.
+  // "Chỉ còn hàng" ở quầy dùng đúng định nghĩa tồn bán được của
+  // getStockSummary (lô AVAILABLE, còn hạn theo ngày Việt Nam, còn số lượng).
+  const { ids, total } = await searchProductPage(
+    {
+      term: search || null,
+      isActive: query["isActive"] !== "false",
+      categoryId: query["categoryId"] ?? null,
+      productType: query["productType"] ?? null,
+      // "RX,CONTROLLED" để lọc chung nhóm thuốc phải có đơn.
+      drugClasses: query["drugClass"] ? query["drugClass"].split(",") : null,
+      inStockStoreId: query["inStock"] === "true" ? (req.auth?.storeId ?? null) : null,
+      businessDate: businessDateNow(),
+    },
+    page.sortBy,
+    page,
+  );
 
-  const [products, total] = await Promise.all([
-    prisma.product.findMany({
-      where,
-      orderBy: { [page.sortBy]: page.order },
-      skip: page.skip,
-      take: page.limit,
+  const products = orderByIds(
+    await prisma.product.findMany({
+      where: { id: { in: ids } },
       include: {
         units: { where: { isActive: true } },
         category: { select: { name: true } },
         ingredients: { include: { ingredient: { select: { name: true } } } },
       },
     }),
-    prisma.product.count({ where }),
-  ]);
+    ids,
+  );
 
   const storeId = req.auth?.storeId ?? null;
   const unitIds = products.flatMap((product) => product.units.map((unit) => unit.id));

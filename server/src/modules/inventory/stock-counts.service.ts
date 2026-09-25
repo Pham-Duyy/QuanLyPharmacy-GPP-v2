@@ -1,6 +1,8 @@
 import { Prisma } from "../../generated/prisma/client.js";
 import { prisma } from "../../db/prisma.js";
 import { AppError } from "../../lib/app-error.js";
+import { codeDay, nextDocumentCode } from "../../lib/document-code.js";
+import { lockStockCount } from "../../lib/locks.js";
 import type { AuthContext } from "../auth/auth.context.js";
 import type { OpenCountInput, SaveCountsInput } from "./stock-counts.schema.js";
 
@@ -9,10 +11,7 @@ type Tx = Prisma.TransactionClient;
 const COMMIT_TIMEOUT_MS = 60_000;
 
 async function nextCountCode(tx: Tx, storeId: string, storeCode: string): Promise<string> {
-  const day = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Ho_Chi_Minh" }).format(new Date()).replace(/-/g, "");
-  const prefix = `KK-${storeCode}-${day}-`;
-  const countToday = await tx.stockCount.count({ where: { storeId, code: { startsWith: prefix } } });
-  return `${prefix}${String(countToday + 1).padStart(4, "0")}`;
+  return nextDocumentCode(tx, storeId, `KK-${storeCode}-${codeDay()}-`);
 }
 
 /**
@@ -21,11 +20,6 @@ async function nextCountCode(tx: Tx, storeId: string, storeCode: string): Promis
  */
 export async function openCount(storeId: string, userId: string, input: OpenCountInput): Promise<string> {
   const store = await prisma.store.findUniqueOrThrow({ where: { id: storeId } });
-
-  const open = await prisma.stockCount.findFirst({ where: { storeId, status: "COUNTING" } });
-  if (open) {
-    throw AppError.invalidState(`Đang có đợt kiểm kê ${open.code} chưa chốt. Chốt hoặc hủy đợt đó trước khi mở đợt mới.`);
-  }
 
   let scopeLabel: string | null = null;
   if (input.scopeType === "CATEGORY") {
@@ -60,6 +54,14 @@ export async function openCount(storeId: string, userId: string, input: OpenCoun
 
   return prisma.$transaction(
     async (tx) => {
+      // Mỗi cửa hàng chỉ được có một đợt đang đếm. Kiểm tra ngay trong
+      // transaction; chỉ mục một phần stock_counts_one_open_per_store là chốt
+      // chặn cuối nếu hai người bấm mở cùng lúc.
+      const open = await tx.stockCount.findFirst({ where: { storeId, status: "COUNTING" } });
+      if (open) {
+        throw AppError.invalidState(`Đang có đợt kiểm kê ${open.code} chưa chốt. Chốt hoặc hủy đợt đó trước khi mở đợt mới.`);
+      }
+
       const count = await tx.stockCount.create({
         data: {
           storeId,
@@ -86,8 +88,16 @@ export async function openCount(storeId: string, userId: string, input: OpenCoun
   );
 }
 
-async function requireOpenCount(storeId: string, countId: string) {
-  const count = await prisma.stockCount.findFirst({ where: { id: countId, storeId } });
+/**
+ * Khóa đợt kiểm kê rồi đọc trạng thái **trong cùng transaction**.
+ *
+ * Trước đây việc kiểm tra nằm ngoài transaction: hai người bấm "Chốt đợt"
+ * cùng lúc đều thấy đợt còn mở nên sinh ra hai phiếu điều chỉnh cho một đợt,
+ * và số đếm vẫn ghi được sau khi đợt đã chốt.
+ */
+async function requireOpenCountTx(tx: Tx, storeId: string, countId: string) {
+  await lockStockCount(tx, storeId, countId);
+  const count = await tx.stockCount.findFirst({ where: { id: countId, storeId } });
   if (!count) throw AppError.notFound("Không tìm thấy đợt kiểm kê");
   if (count.status !== "COUNTING") throw AppError.invalidState(`Đợt kiểm kê đã ${count.status === "CLOSED" ? "chốt" : "hủy"}, không sửa được nữa`);
   return count;
@@ -95,25 +105,27 @@ async function requireOpenCount(storeId: string, countId: string) {
 
 /** Thêm lô phát hiện trên kệ nhưng hệ thống báo hết tồn hoặc ngoài phạm vi đợt. */
 export async function addLine(storeId: string, countId: string, batchId: string): Promise<string> {
-  await requireOpenCount(storeId, countId);
-  const batch = await prisma.batch.findFirst({ where: { id: batchId, storeId } });
-  if (!batch) throw AppError.notFound("Không tìm thấy lô trong kho cửa hàng này");
+  return prisma.$transaction(async (tx) => {
+    await requireOpenCountTx(tx, storeId, countId);
+    const batch = await tx.batch.findFirst({ where: { id: batchId, storeId } });
+    if (!batch) throw AppError.notFound("Không tìm thấy lô trong kho cửa hàng này");
 
-  const existing = await prisma.stockCountLine.findFirst({ where: { stockCountId: countId, batchId } });
-  if (existing) return existing.id;
+    const existing = await tx.stockCountLine.findFirst({ where: { stockCountId: countId, batchId } });
+    if (existing) return existing.id;
 
-  const last = await prisma.stockCountLine.findFirst({ where: { stockCountId: countId }, orderBy: { lineNo: "desc" }, select: { lineNo: true } });
-  const line = await prisma.stockCountLine.create({
-    data: {
-      stockCountId: countId,
-      lineNo: (last?.lineNo ?? 0) + 1,
-      batchId,
-      productId: batch.productId,
-      shelfLocation: batch.shelfLocation,
-      systemBaseQuantityAtOpen: batch.quantityOnHand,
-    },
+    const last = await tx.stockCountLine.findFirst({ where: { stockCountId: countId }, orderBy: { lineNo: "desc" }, select: { lineNo: true } });
+    const line = await tx.stockCountLine.create({
+      data: {
+        stockCountId: countId,
+        lineNo: (last?.lineNo ?? 0) + 1,
+        batchId,
+        productId: batch.productId,
+        shelfLocation: batch.shelfLocation,
+        systemBaseQuantityAtOpen: batch.quantityOnHand,
+      },
+    });
+    return line.id;
   });
-  return line.id;
 }
 
 export type SaveResult = { saved: number; cleared: number };
@@ -124,7 +136,6 @@ export type SaveResult = { saved: number; cleared: number };
  * hàng không bị tính thành thất thoát.
  */
 export async function saveCounts(storeId: string, countId: string, userId: string, input: SaveCountsInput): Promise<SaveResult> {
-  await requireOpenCount(storeId, countId);
   const lineIds = input.entries.map((entry) => entry.lineId);
   const lines = await prisma.stockCountLine.findMany({
     where: { id: { in: lineIds }, stockCountId: countId },
@@ -142,6 +153,9 @@ export async function saveCounts(storeId: string, countId: string, userId: strin
 
   await prisma.$transaction(
     async (tx) => {
+      // Đợt có thể vừa bị chốt hoặc hủy ngay trước lệnh ghi này.
+      await requireOpenCountTx(tx, storeId, countId);
+
       for (const entry of input.entries) {
         const line = byId.get(entry.lineId);
         if (!line) throw AppError.notFound(`Không tìm thấy dòng kiểm kê ${entry.lineId}`);
@@ -203,11 +217,12 @@ export type CloseResult = { countId: string; adjustmentId: string | null; differ
  * đếm **không** bị coi là đếm được 0; chúng chỉ đơn giản không vào phiếu.
  */
 export async function closeCount(storeId: string, countId: string, auth: AuthContext, note: string | null): Promise<CloseResult> {
-  const count = await requireOpenCount(storeId, countId);
   const store = await prisma.store.findUniqueOrThrow({ where: { id: storeId } });
 
   return prisma.$transaction(
     async (tx) => {
+      const count = await requireOpenCountTx(tx, storeId, countId);
+
       const lines = await tx.stockCountLine.findMany({
         where: { stockCountId: countId, countedBaseQuantity: { not: null } },
         include: { batch: { select: { productId: true } } },
@@ -219,14 +234,12 @@ export async function closeCount(storeId: string, countId: string, auth: AuthCon
       let adjustmentId: string | null = null;
 
       if (differences.length > 0) {
-        const day = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Ho_Chi_Minh" }).format(new Date()).replace(/-/g, "");
-        const prefix = `DC-${store.code}-${day}-`;
-        const countToday = await tx.stockAdjustment.count({ where: { storeId, code: { startsWith: prefix } } });
+        const adjustmentCode = await nextDocumentCode(tx, storeId, `DC-${store.code}-${codeDay()}-`);
 
         const adjustment = await tx.stockAdjustment.create({
           data: {
             storeId,
-            code: `${prefix}${String(countToday + 1).padStart(4, "0")}`,
+            code: adjustmentCode,
             status: "DRAFT",
             reason: `Chênh lệch kiểm kê ${count.code}${note ? ` — ${note}` : ""}`,
             createdBy: auth.userId,
@@ -247,8 +260,9 @@ export async function closeCount(storeId: string, countId: string, auth: AuthCon
         adjustmentId = adjustment.id;
       }
 
-      await tx.stockCount.update({
-        where: { id: countId },
+      // Chuyển trạng thái có điều kiện: đợt phải còn COUNTING đúng lúc ghi.
+      const moved = await tx.stockCount.updateMany({
+        where: { id: countId, storeId, status: "COUNTING" },
         data: {
           status: "CLOSED",
           closedBy: auth.userId,
@@ -258,6 +272,7 @@ export async function closeCount(storeId: string, countId: string, auth: AuthCon
           version: { increment: 1 },
         },
       });
+      if (moved.count === 0) throw AppError.invalidState("Đợt kiểm kê vừa được chốt hoặc hủy bởi người khác");
 
       await tx.auditLog.create({
         data: {
@@ -277,12 +292,13 @@ export async function closeCount(storeId: string, countId: string, auth: AuthCon
 }
 
 export async function cancelCount(storeId: string, countId: string, auth: AuthContext, reason: string | null): Promise<void> {
-  const count = await requireOpenCount(storeId, countId);
   await prisma.$transaction(async (tx) => {
-    await tx.stockCount.update({
-      where: { id: countId },
+    const count = await requireOpenCountTx(tx, storeId, countId);
+    const moved = await tx.stockCount.updateMany({
+      where: { id: countId, storeId, status: "COUNTING" },
       data: { status: "CANCELLED", closedBy: auth.userId, closedAt: new Date(), note: reason ?? count.note, version: { increment: 1 } },
     });
+    if (moved.count === 0) throw AppError.invalidState("Đợt kiểm kê vừa được chốt hoặc hủy bởi người khác");
     await tx.auditLog.create({
       data: {
         storeId,

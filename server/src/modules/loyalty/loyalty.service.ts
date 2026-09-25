@@ -1,6 +1,7 @@
 import { Prisma } from "../../generated/prisma/client.js";
 import { prisma } from "../../db/prisma.js";
 import { AppError } from "../../lib/app-error.js";
+import { lockCustomer } from "../../lib/locks.js";
 import type { AuthContext } from "../auth/auth.context.js";
 import { loyaltySettingsSchema, type LoyaltySettings } from "./loyalty.schema.js";
 
@@ -96,6 +97,12 @@ export type LoyaltyBalance = {
   expired: number;
   totalEarned: number;
   totalRedeemed: number;
+  /**
+   * Số điểm đã bị trừ nhiều hơn số điểm thực có. Luôn phải bằng 0: khác 0
+   * nghĩa là có bút toán trừ vượt số dư lọt qua được (lỗi dữ liệu), và phải
+   * hiện ra thay vì bị làm tròn cho đẹp.
+   */
+  deficit: number;
 };
 
 /**
@@ -106,30 +113,41 @@ export type LoyaltyBalance = {
  */
 export function summarize(rows: LedgerRow[], now: Date = new Date()): LoyaltyBalance {
   const ordered = [...rows].sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
-  let lots: Array<{ points: number; expiresAt: Date | null }> = [];
+  /** Luôn xếp theo hạn dùng tăng dần; lô không hết hạn nằm cuối. */
+  const lots: Array<{ points: number; expiresAt: Date | null }> = [];
   let expired = 0;
   let totalEarned = 0;
   let totalRedeemed = 0;
+  let deficit = 0;
 
+  const keyOf = (expiresAt: Date | null) => expiresAt?.getTime() ?? Infinity;
+
+  // Lô đã xếp theo hạn nên lô hết hạn luôn nằm ở đầu: chỉ cần bóc từ đầu,
+  // không quét lại cả danh sách sau mỗi bút toán (sổ điểm dài hàng nghìn
+  // dòng thì cách quét lại tốn thời gian theo bình phương số dòng).
   const dropExpired = (at: Date) => {
-    lots = lots.filter((lot) => {
-      if (lot.expiresAt !== null && lot.expiresAt.getTime() <= at.getTime()) {
-        expired += lot.points;
-        return false;
-      }
-      return true;
-    });
+    while (lots.length > 0) {
+      const first = lots[0]!;
+      if (first.expiresAt === null || first.expiresAt.getTime() > at.getTime()) break;
+      expired += first.points;
+      lots.shift();
+    }
   };
 
   for (const row of ordered) {
     dropExpired(row.createdAt);
     if (row.points > 0) {
       totalEarned += row.points;
-      lots.push({ points: row.points, expiresAt: row.expiresAt });
-      // Hết hạn sớm nhất đứng trước; điểm không hết hạn xếp sau cùng.
-      lots.sort(
-        (a, b) => (a.expiresAt?.getTime() ?? Infinity) - (b.expiresAt?.getTime() ?? Infinity),
-      );
+      // Chèn đúng vị trí bằng tìm kiếm nhị phân thay vì sắp xếp lại cả mảng.
+      const key = keyOf(row.expiresAt);
+      let low = 0;
+      let high = lots.length;
+      while (low < high) {
+        const mid = (low + high) >> 1;
+        if (keyOf(lots[mid]!.expiresAt) <= key) low = mid + 1;
+        else high = mid;
+      }
+      lots.splice(low, 0, { points: row.points, expiresAt: row.expiresAt });
       continue;
     }
 
@@ -142,6 +160,8 @@ export function summarize(rows: LedgerRow[], now: Date = new Date()): LoyaltyBal
       remaining -= taken;
       if (lot.points === 0) lots.shift();
     }
+    // Không còn lô nào để trừ: ghi lại phần thiếu, không im lặng bỏ qua.
+    deficit += remaining;
   }
 
   dropExpired(now);
@@ -158,6 +178,7 @@ export function summarize(rows: LedgerRow[], now: Date = new Date()): LoyaltyBal
     expired,
     totalEarned,
     totalRedeemed,
+    deficit,
   };
 }
 
@@ -276,6 +297,9 @@ export async function planRedemption(
     );
   }
 
+  // Khóa hồ sơ khách trước khi đọc số dư: hai hóa đơn song song của cùng một
+  // khách phải xếp hàng, nếu không cả hai đều thấy đủ điểm và cùng tiêu.
+  await lockCustomer(tx, input.customerId);
   const balance = await getBalance(input.customerId, tx);
   if (points > balance.available) {
     throw new AppError(
@@ -448,6 +472,7 @@ export async function adjust(
   const { settings } = await getSettings(storeId);
 
   return prisma.$transaction(async (tx) => {
+    await lockCustomer(tx, customerId);
     const before = await getBalance(customerId, tx);
     if (input.points < 0 && before.available + input.points < 0) {
       throw new AppError(

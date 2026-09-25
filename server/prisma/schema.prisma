@@ -52,6 +52,8 @@ model Store {
   supplierPayments   SupplierPayment[]
   supplierReturns    SupplierReturn[]
   loyaltyLedger      LoyaltyTransaction[]
+  documentCounters   DocumentCounter[]
+  idempotencyKeys    IdempotencyKey[]
 
   @@map("stores")
 }
@@ -204,11 +206,18 @@ model IdempotencyKey {
   path           String
   requestHash    String    @map("request_hash")
   status         String    @default("IN_PROGRESS")
+  /// Cùng một người, cùng một khóa nhưng khác cửa hàng là hai yêu cầu khác nhau.
+  storeId        String?   @map("store_id") @db.Uuid
+  /// Có giá trị nghĩa là nghiệp vụ đã commit: không được xóa khóa nữa.
+  resourceType   String?   @map("resource_type")
+  resourceId     String?   @map("resource_id")
   responseStatus Int?      @map("response_status")
   responseBody   Json?     @map("response_body")
   createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   completedAt    DateTime? @map("completed_at") @db.Timestamptz(6)
   expiresAt      DateTime  @map("expires_at") @db.Timestamptz(6)
+
+  store Store? @relation(fields: [storeId], references: [id])
 
   @@unique([key, userId])
   @@index([expiresAt])
@@ -906,6 +915,9 @@ model InvoiceAllocation {
   batchId              String @map("batch_id") @db.Uuid
   baseQuantity         Int    @map("base_quantity")
   returnedBaseQuantity Int    @default(0) @map("returned_base_quantity")
+  /// Giá vốn của lô tại đúng thời điểm xuất. NULL với dữ liệu cũ hơn bản
+  /// nâng cấp 20260926090000; báo cáo lùi về giá vốn hiện tại của lô.
+  unitCost             Decimal? @map("unit_cost") @db.Decimal(18, 4)
 
   invoiceLine InvoiceLine  @relation(fields: [invoiceLineId], references: [id], onDelete: Cascade)
   batch       Batch        @relation(fields: [batchId, storeId], references: [id, storeId])
@@ -1334,4 +1346,19 @@ model LoyaltyTransaction {
   @@index([customerId, createdAt])
   @@index([invoiceId])
   @@map("loyalty_transactions")
+}
+
+/// Bộ đếm mã chứng từ theo từng dải mã ('HD-NT01-20260926-'). Tăng bằng
+/// INSERT ... ON CONFLICT DO UPDATE ngay trong transaction của nghiệp vụ nên
+/// hai người tạo chứng từ cùng lúc không thể lấy trùng số.
+model DocumentCounter {
+  storeId   String   @map("store_id") @db.Uuid
+  scope     String
+  nextValue Int      @default(0) @map("next_value")
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@id([storeId, scope])
+  @@map("document_counters")
 }
