@@ -108,6 +108,12 @@
     vì tạo bản thứ hai.
   - Khóa treo ở IN_PROGRESS quá 24 giờ mà chưa gắn chứng từ nào (tiến trình
     chết giữa chừng) thì lần gửi lại được tiếp quản và xử lý lại.
+- **Tiếp quản là một lệnh so sánh rồi đổi** trên `(id, owner_token)`, không
+  phải "xóa rồi tạo lại". Hai request cùng thấy một khóa treo thì chỉ một
+  request đổi được chủ; request còn lại nhận `409 REQUEST_IN_PROGRESS`.
+- Mọi lệnh ghi lên khóa (gắn chứng từ, lưu response, dọn khóa khi lỗi) đều kèm
+  `owner_token`, nên request đã mất quyền sở hữu không thể xóa hay ghi đè khóa
+  của request đang chạy. Khóa đã gắn chứng từ thì không bao giờ bị tiếp quản.
 
 ### 2.3b Thứ tự khóa hàng khi đổi trạng thái [Đã chốt]
 
@@ -525,6 +531,14 @@ Quy tắc:
 
 ---
 
+**Tìm kiếm và phân trang danh mục:** điều kiện lọc (gồm tìm không dấu theo
+tên, mã, hoạt chất, mã vạch) được dựng một lần rồi dùng cho cả câu đếm lẫn câu
+lấy trang. Tổng số kết quả vì vậy luôn đúng, không bị chặn ở một mức trần và
+không phụ thuộc vào việc trang đang xem có dòng nào — trang vượt quá số kết quả
+trả về danh sách rỗng nhưng vẫn kèm tổng số thật.
+
+---
+
 ## 7. Nhà cung cấp
 
 | Method | Endpoint | Mô tả | Quyền |
@@ -615,16 +629,42 @@ Khi tạo hoặc sửa, backend kiểm tra: sản phẩm đang kinh doanh, `unit
 - Giá vốn của một lô = trung bình có trọng số theo số lượng của các lần nhập
   vào lô đó: `(tồn_cũ × giá_vốn_cũ + số_nhập × giá_nhập_đợt_này) / (tồn_cũ + số_nhập)`.
   Giá nhập của mỗi đợt đã gánh phần chiết khấu và thuế của cả phiếu theo tỷ lệ
-  thành tiền (mục ngay dưới).
+  thành tiền (mục ngay dưới). Mọi phép tính tiền giữ ở kiểu số thập phân chính
+  xác, không đi qua số thực dấu phẩy động.
+- Phép cộng hàng vào lô **nằm trong đúng một câu lệnh UPDATE**: tồn và giá vốn
+  dùng để tính bình quân được đọc dưới khóa hàng của chính lệnh đó. Hai phiếu
+  nhập cùng một lô (hoặc nhập trong lúc đang bán) vì thế xếp hàng và mỗi lệnh
+  tính trên số liệu mới nhất. Hai phiếu cùng tạo một lô chưa tồn tại thì chỉ
+  một phiếu tạo được lô, phiếu còn lại chuyển sang nhánh nhập thêm.
+- Phiếu có nhiều lô xử lý các dòng theo thứ tự cố định (sản phẩm, số lô) để
+  hai phiếu chồng lô không khóa chéo nhau.
 - Nhập thêm vào lô đã bán hết (tồn 0) thì lấy thẳng giá của đợt mới.
 - **Mỗi lần xuất bán chụp lại giá vốn của lô vào `invoice_allocations.unit_cost`.**
   Báo cáo lãi gộp dùng giá vốn đã chụp này, nên nhập thêm cùng lô với giá khác
-  về sau không làm đổi số liệu của kỳ đã chốt. Hàng khách trả lại được trừ ra
-  theo đúng giá vốn của lần bán gốc.
-- Dữ liệu phát sinh trước bản nâng cấp `20260926090000` không có giá vốn chụp
-  sẵn; báo cáo lùi về giá vốn hiện tại của lô và **không** suy diễn lại giá vốn
-  lịch sử.
-- Hàng khách trả về kho không làm thay đổi giá vốn bình quân của lô.
+  về sau không làm đổi số liệu của kỳ đã chốt.
+- **Hàng quay lại kho hoàn cả số lượng lẫn giá trị**: khách trả hàng để bán lại
+  (RESTOCK) hoặc hủy hóa đơn thì hàng nhập lại lô với **đúng giá vốn của lần
+  bán gốc**, rồi lô tính lại bình quân gia quyền. Chỉ cộng số lượng mà không
+  cộng giá trị sẽ làm sai giá vốn bình quân ngay khi lô đã nhập thêm giá khác.
+- Hàng trả để **tiêu hủy** (DISPOSE) vào rồi ra ngay trong cùng giao dịch: giữ
+  nguyên giá vốn bình quân, nhờ vậy giá trị hàng **còn tồn** không đổi.
+- Không khôi phục được giá vốn của lần bán (dữ liệu cũ) thì khi hoàn hàng giữ
+  nguyên giá vốn bình quân của lô — không suy diễn một con số không có thật.
+
+#### Giá vốn của dữ liệu cũ [Đã chốt]
+
+`invoice_allocations.unit_cost_source` nói rõ giá vốn của từng dòng xuất đáng
+tin tới đâu:
+
+| Giá trị | Nghĩa |
+|---|---|
+| `ACTUAL` | Chụp đúng tại thời điểm xuất hàng. Lãi gộp là số chính xác. |
+| `ESTIMATED` | Dòng cũ hơn bản nâng cấp `20260926140000`: lấy **một lần** giá vốn của lô tại thời điểm nâng cấp rồi đóng băng. Là ước tính. |
+| `UNKNOWN` | Không khôi phục được (lô không có giá vốn). Giá vốn để rỗng, tính là 0 khi cộng tổng. |
+
+Báo cáo **không bao giờ** lùi về `batches.unit_cost` cho dữ liệu cũ: giá vốn
+của lô thay đổi mỗi lần nhập thêm, lấy nó làm dự phòng thì lãi gộp của kỳ đã
+chốt sẽ nhảy theo từng đợt nhập hàng mới.
 
 ### Chiết khấu phiếu và thuế theo hóa đơn
 
@@ -1179,6 +1219,10 @@ Quy tắc tính:
 - Mặc định báo cáo tính cho cửa hàng trong header `X-Store-Id`. Thêm `?storeId=ALL` để hợp nhất toàn chuỗi (cần `report.chain`), hoặc `?storeId=<id>` để xem một cửa hàng khác mà người dùng có quyền. Kết quả toàn chuỗi luôn kèm phần tách theo từng cửa hàng. **[Đã chốt – P18]**
 - Doanh thu = hóa đơn `COMPLETED` trong kỳ trừ tiền hoàn của phiếu trả **lập trong kỳ**. Hóa đơn `VOIDED` bị loại hoàn toàn. **[Đã chốt – P13]**
 - Báo cáo xuất – nhập – tồn tính từ thẻ kho, nên luôn khớp với tồn thực tế của lô.
+- Giá vốn chỉ lấy từ `invoice_allocations.unit_cost` (xem §9). `GET /reports/summary`
+  trả thêm `costQuality`: `{ totalLines, actualLines, estimatedLines, unknownLines, exact }`.
+  `exact = false` nghĩa là lãi gộp có phần ước tính hoặc không xác định — giao
+  diện phải nói rõ điều đó, không trình bày như số lịch sử chính xác.
 
 ---
 

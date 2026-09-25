@@ -3,6 +3,7 @@ import { prisma } from "../../db/prisma.js";
 import { AppError } from "../../lib/app-error.js";
 import { markIdempotentResource } from "../../lib/idempotency-context.js";
 import { codeDay, nextDocumentCode } from "../../lib/document-code.js";
+import { addToBatch, insertBatchIfAbsent, readBatchByNumber } from "./batch-value.js";
 import { businessDateNow } from "../../lib/settings.js";
 import type {
   ConfirmReceiptInput,
@@ -263,7 +264,12 @@ export async function confirm(
         where: { id: receiptId },
         select: { goodsAmount: true, totalCost: true },
       });
-      const costFactor = header.goodsAmount > 0n ? Number(header.totalCost) / Number(header.goodsAmount) : 1;
+      // Toàn bộ phép tính tiền giữ ở Decimal: đổi qua Number là mất chữ số
+      // với hóa đơn lớn và làm lệch giá vốn.
+      const goodsAmount = new Prisma.Decimal(header.goodsAmount.toString());
+      const costFactor = goodsAmount.isZero()
+        ? new Prisma.Decimal(1)
+        : new Prisma.Decimal(header.totalCost.toString()).div(goodsAmount);
 
       const resultByLineId = new Map(input.lines.map((line) => [line.lineId, line]));
       for (const line of lines) {
@@ -275,24 +281,52 @@ export async function confirm(
         throw AppError.validation("Kết quả kiểm nhập có dòng không thuộc phiếu này");
       }
 
-      for (const line of lines) {
-        const result = resultByLineId.get(line.id)!;
+      // Hai phiếu nhập cùng chạm nhiều lô phải khóa theo cùng một thứ tự,
+      // nếu không sẽ khóa chéo nhau (deadlock).
+      const ordered = [...lines].sort(
+        (a, b) => a.productId.localeCompare(b.productId) || a.batchNumber.localeCompare(b.batchNumber),
+      );
 
-        const existing = await tx.batch.findUnique({
-          where: {
-            storeId_productId_batchNumber: {
-              storeId,
-              productId: line.productId,
-              batchNumber: line.batchNumber,
-            },
-          },
-        });
+      for (const line of ordered) {
+        const result = resultByLineId.get(line.id)!;
 
         // Giá vốn của đợt nhập này, đã gánh phần chiết khấu và thuế của cả
         // phiếu theo tỷ lệ thành tiền.
-        const incomingUnitCost = new Prisma.Decimal(Number(line.lineCost) * costFactor).div(
-          line.baseQuantity,
-        );
+        const incomingUnitCost = new Prisma.Decimal(line.lineCost.toString())
+          .mul(costFactor)
+          .div(line.baseQuantity);
+
+        // Lô chưa có thì tạo mới. Nếu một giao dịch khác vừa tạo đúng lô đó
+        // thì INSERT không ghi gì và ta đi tiếp đường "nhập thêm vào lô đã có".
+        let existing = await readBatchByNumber(tx, storeId, line.productId, line.batchNumber);
+        if (!existing) {
+          const created = await insertBatchIfAbsent(tx, {
+            storeId,
+            productId: line.productId,
+            batchNumber: line.batchNumber,
+            manufactureDate: line.manufactureDate,
+            expiryDate: line.expiryDate,
+            baseQuantity: line.baseQuantity,
+            unitCost: incomingUnitCost,
+            status: result.passed ? "AVAILABLE" : "QUARANTINED",
+            note: result.passed ? null : (result.rejectReason ?? null),
+            sourceType: "GOODS_RECEIPT",
+            sourceId: receiptId,
+          });
+          if (created) {
+            await afterBatchWrite(tx, {
+              storeId,
+              userId,
+              receiptId,
+              line,
+              result,
+              batchId: created.id,
+              balanceAfter: created.quantityOnHand,
+            });
+            continue;
+          }
+          existing = await readBatchByNumber(tx, storeId, line.productId, line.batchNumber);
+        }
 
         let batchId: string;
         let balanceAfter: number;
@@ -316,81 +350,94 @@ export async function confirm(
 
           // Nhập thêm vào lô đang còn hàng với giá khác lần trước: giá vốn
           // của lô là **bình quân gia quyền** theo số lượng (contract §9).
-          // Trước đây giá nhập mới bị bỏ qua hoàn toàn, nên lô giữ mãi giá của
-          // lần nhập đầu và lãi gộp bị sai.
-          const onHand = new Prisma.Decimal(Math.max(0, existing.quantityOnHand));
-          const incoming = new Prisma.Decimal(line.baseQuantity);
-          const currentCost = existing.unitCost ?? incomingUnitCost;
-          const mergedUnitCost = onHand.isZero()
-            ? incomingUnitCost
-            : currentCost.mul(onHand).plus(incomingUnitCost.mul(incoming)).div(onHand.plus(incoming));
-
-          const updated = await tx.batch.update({
-            where: { id: existing.id },
-            data: {
-              quantityOnHand: { increment: line.baseQuantity },
-              unitCost: mergedUnitCost,
-              // Không đạt thì biệt trữ ngay; đã biệt trữ từ trước thì giữ
-              // nguyên, không tự mở lại chỉ vì đợt nhập này đạt kiểm nhập.
-              ...(result.passed ? {} : { status: "QUARANTINED", note: result.rejectReason }),
-            },
+          // Tồn và giá vốn dùng để tính nằm ngay trong lệnh UPDATE nên được
+          // đọc dưới khóa hàng của chính lệnh đó: hai phiếu nhập song song
+          // xếp hàng tại đây thay vì cùng tính trên số liệu cũ.
+          const updated = await addToBatch(tx, existing.id, line.baseQuantity, incomingUnitCost, {
+            expectedExpiryDate: line.expiryDate,
           });
+          if (!updated) {
+            // Lô vừa đổi trạng thái hoặc hạn dùng ngay trước lệnh ghi.
+            const fresh = await readBatchByNumber(tx, storeId, line.productId, line.batchNumber);
+            if (fresh?.status === "RECALLED") {
+              throw new AppError(
+                422,
+                "BATCH_NOT_SELLABLE",
+                `Lô ${line.batchNumber} đang bị thu hồi, không nhập thêm được`,
+              );
+            }
+            throw new AppError(
+              409,
+              "BATCH_EXPIRY_MISMATCH",
+              `Lô ${line.batchNumber} đã tồn tại với hạn dùng khác, kiểm tra lại số lô và hạn dùng`,
+            );
+          }
+          if (!result.passed) {
+            // Không đạt thì biệt trữ ngay; đã biệt trữ từ trước thì giữ
+            // nguyên, không tự mở lại chỉ vì đợt nhập này đạt kiểm nhập.
+            await tx.batch.update({
+              where: { id: existing.id },
+              data: { status: "QUARANTINED", note: result.rejectReason },
+            });
+          }
           batchId = updated.id;
           balanceAfter = updated.quantityOnHand;
         } else {
-          const created = await tx.batch.create({
-            data: {
-              storeId,
-              productId: line.productId,
-              batchNumber: line.batchNumber,
-              manufactureDate: line.manufactureDate,
-              expiryDate: line.expiryDate,
-              quantityOnHand: line.baseQuantity,
-              unitCost: incomingUnitCost,
-              status: result.passed ? "AVAILABLE" : "QUARANTINED",
-              note: result.passed ? null : result.rejectReason,
-              sourceType: "GOODS_RECEIPT",
-              sourceId: receiptId,
-            },
-          });
-          batchId = created.id;
-          balanceAfter = created.quantityOnHand;
+          throw AppError.invalidState(`Không khóa được lô ${line.batchNumber} để nhập hàng`);
         }
 
-        await tx.goodsReceiptLine.update({ where: { id: line.id }, data: { batchId } });
-
-        await tx.stockMovement.create({
-          data: {
-            storeId,
-            batchId,
-            productId: line.productId,
-            type: "RECEIPT",
-            baseQuantity: line.baseQuantity,
-            balanceAfter,
-            sourceType: "GOODS_RECEIPT",
-            sourceId: receiptId,
-            sourceLineId: line.id,
-            userId,
-          },
-        });
-
-        if (!result.passed) {
-          await tx.auditLog.create({
-            data: {
-              storeId,
-              actorId: userId,
-              action: "GOODS_RECEIPT_LINE_REJECTED",
-              resourceType: "batch",
-              resourceId: batchId,
-              reason: result.rejectReason,
-              after: { batchNumber: line.batchNumber, baseQuantity: line.baseQuantity },
-            },
-          });
-        }
+        await afterBatchWrite(tx, { storeId, userId, receiptId, line, result, batchId, balanceAfter });
       }
     },
     { timeout: 20_000 },
   );
+}
+
+/** Ghi thẻ kho, gắn lô vào dòng phiếu và ghi nhật ký khi kiểm nhập không đạt. */
+async function afterBatchWrite(
+  tx: Tx,
+  context: {
+    storeId: string;
+    userId: string;
+    receiptId: string;
+    line: { id: string; productId: string; batchNumber: string; baseQuantity: number };
+    result: { passed: boolean; rejectReason?: string | null };
+    batchId: string;
+    balanceAfter: number;
+  },
+): Promise<void> {
+  const { storeId, userId, receiptId, line, result, batchId, balanceAfter } = context;
+
+  await tx.goodsReceiptLine.update({ where: { id: line.id }, data: { batchId } });
+
+  await tx.stockMovement.create({
+    data: {
+      storeId,
+      batchId,
+      productId: line.productId,
+      type: "RECEIPT",
+      baseQuantity: line.baseQuantity,
+      balanceAfter,
+      sourceType: "GOODS_RECEIPT",
+      sourceId: receiptId,
+      sourceLineId: line.id,
+      userId,
+    },
+  });
+
+  if (!result.passed) {
+    await tx.auditLog.create({
+      data: {
+        storeId,
+        actorId: userId,
+        action: "GOODS_RECEIPT_LINE_REJECTED",
+        resourceType: "batch",
+        resourceId: batchId,
+        reason: result.rejectReason ?? null,
+        after: { batchNumber: line.batchNumber, baseQuantity: line.baseQuantity },
+      },
+    });
+  }
 }
 
 export async function cancel(

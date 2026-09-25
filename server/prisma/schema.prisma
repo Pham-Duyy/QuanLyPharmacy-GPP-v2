@@ -208,6 +208,9 @@ model IdempotencyKey {
   status         String    @default("IN_PROGRESS")
   /// Cùng một người, cùng một khóa nhưng khác cửa hàng là hai yêu cầu khác nhau.
   storeId        String?   @map("store_id") @db.Uuid
+  /// Ai đang giữ khóa này. Mọi lệnh ghi lên khóa đều phải khớp token, nên
+  /// request đã mất quyền sở hữu không thể ghi đè khóa của request khác.
+  ownerToken     String    @default(dbgenerated("gen_random_uuid()")) @map("owner_token") @db.Uuid
   /// Có giá trị nghĩa là nghiệp vụ đã commit: không được xóa khóa nữa.
   resourceType   String?   @map("resource_type")
   resourceId     String?   @map("resource_id")
@@ -915,9 +918,11 @@ model InvoiceAllocation {
   batchId              String @map("batch_id") @db.Uuid
   baseQuantity         Int    @map("base_quantity")
   returnedBaseQuantity Int    @default(0) @map("returned_base_quantity")
-  /// Giá vốn của lô tại đúng thời điểm xuất. NULL với dữ liệu cũ hơn bản
-  /// nâng cấp 20260926090000; báo cáo lùi về giá vốn hiện tại của lô.
+  /// Giá vốn của lô tại đúng thời điểm xuất.
   unitCost             Decimal? @map("unit_cost") @db.Decimal(18, 4)
+  /// ACTUAL: chụp lúc xuất. ESTIMATED: ước tính một lần từ giá vốn lô khi
+  /// nâng cấp 20260926140000. UNKNOWN: không xác định được.
+  unitCostSource       String   @default("UNKNOWN") @map("unit_cost_source")
 
   invoiceLine InvoiceLine  @relation(fields: [invoiceLineId], references: [id], onDelete: Cascade)
   batch       Batch        @relation(fields: [batchId, storeId], references: [id, storeId])

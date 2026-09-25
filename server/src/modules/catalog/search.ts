@@ -4,11 +4,18 @@ import { prisma } from "../../db/prisma.js";
 /**
  * Tìm kiếm danh mục.
  *
- * Trước đây hàm ở đây trả về "tối đa 200/500 id khớp" rồi để tầng trên lọc và
- * phân trang bằng `id IN (...)`. Cách đó sai hai chỗ: tổng số kết quả bị chặn
- * ở mức trần, và mọi bản ghi khớp nằm ngoài trần thì **không bao giờ** tìm
- * thấy dù lật sang trang sau. Nay việc lọc, đếm và phân trang nằm trong cùng
- * một câu lệnh SQL, nên tổng số luôn đúng và trang nào cũng ra đủ.
+ * Hai lỗi đã sửa ở đây:
+ *
+ * 1. Trước đây hàm này trả về "tối đa 200/500 id khớp" rồi để tầng trên lọc
+ *    và phân trang bằng `id IN (...)`: tổng số kết quả bị chặn ở mức trần và
+ *    bản ghi khớp nằm ngoài trần thì không bao giờ tìm thấy.
+ * 2. Sau đó tổng số được lấy từ `COUNT(*) OVER()` của chính trang đang xem,
+ *    nên trang vượt quá số kết quả (không có dòng nào) trả tổng số 0 dù bộ
+ *    lọc vẫn có dữ liệu.
+ *
+ * Nay điều kiện lọc được dựng một lần rồi dùng cho **hai câu lệnh**: một câu
+ * đếm tổng và một câu lấy đúng trang. Tổng số vì thế không phụ thuộc vào việc
+ * trang hiện tại có dòng nào.
  *
  * Tìm không phân biệt hoa thường và không phân biệt dấu tiếng Việt qua
  * `f_unaccent`, đúng biểu thức của chỉ mục trigram (ERD §1.6), nên gõ
@@ -45,15 +52,8 @@ const PRODUCT_SORT: Record<string, Prisma.Sql> = {
   createdAt: Prisma.sql`p.created_at`,
 };
 
-/**
- * Một trang sản phẩm theo bộ lọc, kèm **tổng số thật** của cả bộ lọc.
- * Trả về danh sách id đúng thứ tự để tầng trên nạp chi tiết bằng Prisma.
- */
-export async function searchProductPage(
-  filters: ProductSearchFilters,
-  sortBy: string,
-  page: Page,
-): Promise<{ ids: string[]; total: number }> {
+/** Điều kiện WHERE dùng chung cho câu đếm và câu lấy trang. */
+function productWhere(filters: ProductSearchFilters): Prisma.Sql {
   const term = filters.term;
   const search = term
     ? Prisma.sql`AND (
@@ -83,20 +83,41 @@ export async function searchProductPage(
       )`
     : Prisma.empty;
 
-  const rows = await prisma.$queryRaw<Array<{ id: string; total: number }>>(Prisma.sql`
-    SELECT p.id::text, COUNT(*) OVER()::int AS total
-    FROM products p
-    WHERE p.is_active = ${filters.isActive}
-      ${filters.categoryId ? Prisma.sql`AND p.category_id = ${filters.categoryId}::uuid` : Prisma.empty}
-      ${filters.productType ? Prisma.sql`AND p.product_type = ${filters.productType}` : Prisma.empty}
-      ${filters.drugClasses ? Prisma.sql`AND p.drug_class = ANY(${filters.drugClasses}::text[])` : Prisma.empty}
-      ${search}
-      ${inStock}
-    ORDER BY ${PRODUCT_SORT[sortBy] ?? PRODUCT_SORT["name"]!} ${direction(page.order)}, p.id
-    LIMIT ${page.limit} OFFSET ${page.skip}
-  `);
+  return Prisma.sql`
+    p.is_active = ${filters.isActive}
+    ${filters.categoryId ? Prisma.sql`AND p.category_id = ${filters.categoryId}::uuid` : Prisma.empty}
+    ${filters.productType ? Prisma.sql`AND p.product_type = ${filters.productType}` : Prisma.empty}
+    ${filters.drugClasses ? Prisma.sql`AND p.drug_class = ANY(${filters.drugClasses}::text[])` : Prisma.empty}
+    ${search}
+    ${inStock}
+  `;
+}
 
-  return { ids: rows.map((row) => row.id), total: rows[0]?.total ?? 0 };
+/**
+ * Một trang sản phẩm theo bộ lọc, kèm **tổng số thật** của cả bộ lọc.
+ * Trả về danh sách id đúng thứ tự để tầng trên nạp chi tiết bằng Prisma.
+ */
+export async function searchProductPage(
+  filters: ProductSearchFilters,
+  sortBy: string,
+  page: Page,
+): Promise<{ ids: string[]; total: number }> {
+  const where = productWhere(filters);
+
+  const [rows, counted] = await Promise.all([
+    prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      SELECT p.id::text
+      FROM products p
+      WHERE ${where}
+      ORDER BY ${PRODUCT_SORT[sortBy] ?? PRODUCT_SORT["name"]!} ${direction(page.order)}, p.id
+      LIMIT ${page.limit} OFFSET ${page.skip}
+    `),
+    prisma.$queryRaw<Array<{ total: number }>>(Prisma.sql`
+      SELECT COUNT(*)::int AS total FROM products p WHERE ${where}
+    `),
+  ]);
+
+  return { ids: rows.map((row) => row.id), total: counted[0]?.total ?? 0 };
 }
 
 /** Một trang hoạt chất đang dùng, kèm tổng số thật. */
@@ -104,16 +125,25 @@ export async function searchIngredientPage(
   term: string | null,
   page: Page,
 ): Promise<{ ids: string[]; total: number }> {
-  const rows = await prisma.$queryRaw<Array<{ id: string; total: number }>>(Prisma.sql`
-    SELECT ai.id::text, COUNT(*) OVER()::int AS total
-    FROM active_ingredients ai
-    WHERE ai.is_active = true
-      ${term ? Prisma.sql`AND ${likeUnaccent(Prisma.sql`ai.name`, term)}` : Prisma.empty}
-    ORDER BY ai.name ${direction(page.order)}, ai.id
-    LIMIT ${page.limit} OFFSET ${page.skip}
-  `);
+  const where = Prisma.sql`
+    ai.is_active = true
+    ${term ? Prisma.sql`AND ${likeUnaccent(Prisma.sql`ai.name`, term)}` : Prisma.empty}
+  `;
 
-  return { ids: rows.map((row) => row.id), total: rows[0]?.total ?? 0 };
+  const [rows, counted] = await Promise.all([
+    prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      SELECT ai.id::text
+      FROM active_ingredients ai
+      WHERE ${where}
+      ORDER BY ai.name ${direction(page.order)}, ai.id
+      LIMIT ${page.limit} OFFSET ${page.skip}
+    `),
+    prisma.$queryRaw<Array<{ total: number }>>(Prisma.sql`
+      SELECT COUNT(*)::int AS total FROM active_ingredients ai WHERE ${where}
+    `),
+  ]);
+
+  return { ids: rows.map((row) => row.id), total: counted[0]?.total ?? 0 };
 }
 
 /** Sắp xếp lại bản ghi đã nạp theo đúng thứ tự id của trang. */

@@ -708,6 +708,14 @@ export type AuditLogPage = { items: AuditLogItem[]; nextCursor: string | null };
 export type ReportsSummary = {
   from: string;
   to: string;
+  /** Giá vốn của kỳ đáng tin tới đâu; lãi gộp chỉ chính xác khi `exact`. */
+  costQuality: {
+    totalLines: number;
+    actualLines: number;
+    estimatedLines: number;
+    unknownLines: number;
+    exact: boolean;
+  };
   kpis: {
     netRevenue: Money;
     netRevenueChangePercent: number | null;

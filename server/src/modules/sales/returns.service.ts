@@ -6,6 +6,7 @@ import { codeDay, nextDocumentCode } from "../../lib/document-code.js";
 import { lockCustomer, lockInvoice, lockPrescriptionItems } from "../../lib/locks.js";
 import { businessDateNow, getSetting } from "../../lib/settings.js";
 import type { AuthContext } from "../auth/auth.context.js";
+import { addToBatch } from "../inventory/batch-value.js";
 import * as loyalty from "../loyalty/loyalty.service.js";
 import type { CreateReturnInput } from "./returns.schema.js";
 
@@ -30,6 +31,8 @@ type PlannedLine = {
   quantity: number;
   baseQuantity: number;
   refundAmount: bigint;
+  /** Giá vốn đã chụp lúc xuất hàng; null với dữ liệu cũ không khôi phục được. */
+  unitCost: Prisma.Decimal | null;
   /** Dòng này có nằm trong chương trình tích điểm không. */
   loyaltyEligible: boolean;
 };
@@ -197,6 +200,7 @@ export async function createReturn(
           quantity: line.quantity,
           baseQuantity,
           refundAmount,
+          unitCost: allocation.unitCost,
           loyaltyEligible: loyalty.isEligibleProductType(
             invoiceLine.product.productType,
             loyaltySettings,
@@ -241,10 +245,27 @@ export async function createReturn(
 
         // Hàng luôn quay về đúng lô đã xuất, kể cả khi sẽ hủy ngay sau đó: thẻ
         // kho phải phản ánh đúng đường đi thật của hàng.
-        const back = await tx.batch.update({
-          where: { id: line.batchId },
-          data: { quantityOnHand: { increment: line.baseQuantity } },
-        });
+        //
+        // Giá trị tồn cũng phải quay về theo: hàng bán ra với giá vốn nào thì
+        // nhập lại kho với đúng giá vốn đó, rồi lô tính lại bình quân gia
+        // quyền. Chỉ cộng số lượng mà không cộng giá trị sẽ làm giá vốn bình
+        // quân của lô sai ngay khi lô đã nhập thêm với giá khác.
+        //
+        // Riêng hàng trả để tiêu hủy thì vào rồi ra ngay trong cùng giao dịch:
+        // giữ nguyên giá vốn bình quân để giá trị hàng CÒN TỒN không đổi.
+        let back: { quantityOnHand: number };
+        if (input.disposition === "DISPOSE") {
+          back = await tx.batch.update({
+            where: { id: line.batchId },
+            data: { quantityOnHand: { increment: line.baseQuantity } },
+          });
+        } else {
+          const restocked = await addToBatch(tx, line.batchId, line.baseQuantity, line.unitCost, {
+            allowRecalled: true,
+          });
+          if (!restocked) throw AppError.notFound("Không tìm thấy lô để nhận hàng trả");
+          back = restocked;
+        }
 
         await tx.stockMovement.create({
           data: {

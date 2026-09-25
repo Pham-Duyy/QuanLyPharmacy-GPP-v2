@@ -1,6 +1,6 @@
 import { BarChartOutlined, DollarCircleOutlined, DownloadOutlined, FileTextOutlined, ReloadOutlined, RiseOutlined, ShoppingOutlined, TrophyFilled } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
-import { Button, Card, Col, DatePicker, Empty, Progress, Result, Row, Skeleton, Table, Tabs, Typography } from "antd";
+import { Alert, Button, Card, Col, DatePicker, Empty, Progress, Result, Row, Skeleton, Table, Tabs, Typography } from "antd";
 import dayjs, { type Dayjs } from "dayjs";
 import { useState } from "react";
 import { http } from "../../api/http.js";
@@ -107,6 +107,26 @@ export function ReportsPage() {
             <StatCard tone="purple" icon={<FileTextOutlined />} label="Số hóa đơn" value={formatNumber(data.kpis.invoiceCount)} hint={<Trend value={data.kpis.invoiceCountChangePercent} suffix="so với kỳ trước" />} />
             <StatCard tone="orange" icon={<ShoppingOutlined />} label="Giá trị đơn trung bình" value={formatVnd(data.kpis.averageOrderValue)} hint={<Trend value={data.kpis.averageOrderValueChangePercent} suffix="so với kỳ trước" />} />
           </StatGrid>
+
+          {!data.costQuality.exact ? (
+            <Alert
+              type="warning"
+              showIcon
+              style={{ marginBottom: 14 }}
+              title="Lợi nhuận gộp của kỳ này chưa phải số chính xác"
+              description={
+                <>
+                  {data.costQuality.estimatedLines > 0
+                    ? `${formatNumber(data.costQuality.estimatedLines)}/${formatNumber(data.costQuality.totalLines)} dòng xuất hàng dùng giá vốn ƯỚC TÍNH (dữ liệu có trước khi phần mềm chụp giá vốn lúc bán). `
+                    : ""}
+                  {data.costQuality.unknownLines > 0
+                    ? `${formatNumber(data.costQuality.unknownLines)}/${formatNumber(data.costQuality.totalLines)} dòng KHÔNG xác định được giá vốn nên đang tính là 0, làm lợi nhuận cao hơn thực tế. `
+                    : ""}
+                  Doanh thu và số hóa đơn vẫn chính xác.
+                </>
+              }
+            />
+          ) : null}
 
           <Tabs
             items={[

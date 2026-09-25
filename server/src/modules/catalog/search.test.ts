@@ -102,3 +102,51 @@ describe("Phân trang khi có nhiều kết quả khớp", () => {
     expect(all.body.data.pagination.total).toBe(8);
   });
 });
+
+describe("Tổng số kết quả không phụ thuộc trang đang xem", () => {
+  it("sản phẩm: trang đầu, trang cuối và trang vượt giới hạn đều báo đúng tổng", async () => {
+    await prisma.product.createMany({
+      data: Array.from({ length: 25 }, (_, index) => ({
+        code: `PG${String(index + 1).padStart(4, "0")}`,
+        name: `Siro ho trẻ em ${String(index + 1).padStart(2, "0")}`,
+        productType: "DRUG",
+        drugClass: "OTC",
+        categoryId,
+      })),
+    });
+
+    const first = await api().get("/api/v1/products?search=siro ho&page=1&limit=10").set(h()).expect(200);
+    expect(first.body.data.items).toHaveLength(10);
+    expect(first.body.data.pagination.total).toBe(25);
+
+    const last = await api().get("/api/v1/products?search=siro ho&page=3&limit=10").set(h()).expect(200);
+    expect(last.body.data.items).toHaveLength(5);
+    expect(last.body.data.pagination.total).toBe(25);
+
+    // Trang vượt quá số kết quả: không còn dòng nào nhưng tổng vẫn phải đúng.
+    const beyond = await api().get("/api/v1/products?search=siro ho&page=9&limit=10").set(h()).expect(200);
+    expect(beyond.body.data.items).toHaveLength(0);
+    expect(beyond.body.data.pagination.total).toBe(25);
+
+    // Bộ lọc không có kết quả thì tổng là 0.
+    const none = await api().get("/api/v1/products?search=khong-co-mat-hang-nay").set(h()).expect(200);
+    expect(none.body.data.items).toHaveLength(0);
+    expect(none.body.data.pagination.total).toBe(0);
+  });
+
+  it("hoạt chất: trang vượt giới hạn vẫn giữ đúng tổng", async () => {
+    await prisma.activeIngredient.createMany({
+      data: Array.from({ length: 12 }, (_, index) => ({ name: `Ibuprofen dạng ${index + 1}` })),
+    });
+
+    const beyond = await api()
+      .get("/api/v1/active-ingredients?search=ibuprofen&page=7&limit=5")
+      .set(h())
+      .expect(200);
+    expect(beyond.body.data.items).toHaveLength(0);
+    expect(beyond.body.data.pagination.total).toBe(12);
+
+    const none = await api().get("/api/v1/active-ingredients?search=khong-co&page=1").set(h()).expect(200);
+    expect(none.body.data.pagination.total).toBe(0);
+  });
+});
