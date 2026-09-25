@@ -24,9 +24,12 @@ type Totals = {
 
 /**
  * Doanh thu = hóa đơn COMPLETED trong kỳ trừ tiền hoàn của phiếu trả lập
- * trong kỳ (contract §19, P13). Giá vốn tính từ đúng lô đã xuất cho từng
- * dòng hóa đơn (InvoiceAllocation → Batch.unitCost), trừ lại phần đã trả về
- * bán được (RESTOCK) — hàng trả để tiêu hủy vẫn tính là giá vốn đã mất.
+ * trong kỳ (contract §19, P13). Giá vốn lấy theo **giá vốn đã chụp lúc xuất
+ * hàng** (`invoice_allocations.unit_cost`), nên nhập thêm cùng lô với giá
+ * khác về sau không làm đổi lãi gộp của kỳ đã chốt. Dữ liệu phát sinh trước
+ * bản nâng cấp 20260926090000 không có giá vốn chụp sẵn nên lùi về giá vốn
+ * hiện tại của lô. Phần hàng trả về bán lại được (RESTOCK) được trừ ra theo
+ * đúng giá vốn của lần bán gốc; hàng trả để tiêu hủy vẫn tính là giá vốn đã mất.
  */
 async function getTotals(storeId: string, from: Date, to: Date): Promise<Totals> {
   const [revenueRow] = await prisma.$queryRaw<
@@ -42,7 +45,7 @@ async function getTotals(storeId: string, from: Date, to: Date): Promise<Totals>
     WHERE store_id = ${storeId}::uuid AND business_date >= ${from}::date AND business_date < ${to}::date
   `);
   const [cogsRow] = await prisma.$queryRaw<Array<{ cogs: number }>>(Prisma.sql`
-    SELECT COALESCE(SUM(ia.base_quantity * COALESCE(b.unit_cost, 0)), 0)::float8 AS cogs
+    SELECT COALESCE(SUM(ia.base_quantity * COALESCE(ia.unit_cost, b.unit_cost, 0)), 0)::float8 AS cogs
     FROM invoice_allocations ia
     JOIN invoice_lines il ON il.id = ia.invoice_line_id
     JOIN invoices i ON i.id = il.invoice_id
@@ -50,7 +53,7 @@ async function getTotals(storeId: string, from: Date, to: Date): Promise<Totals>
     WHERE i.store_id = ${storeId}::uuid AND i.status = 'COMPLETED' AND i.business_date >= ${from}::date AND i.business_date < ${to}::date
   `);
   const [restockRow] = await prisma.$queryRaw<Array<{ restocked_cost: number }>>(Prisma.sql`
-    SELECT COALESCE(SUM(rl.base_quantity * COALESCE(b.unit_cost, 0)), 0)::float8 AS restocked_cost
+    SELECT COALESCE(SUM(rl.base_quantity * COALESCE(ia.unit_cost, b.unit_cost, 0)), 0)::float8 AS restocked_cost
     FROM return_lines rl
     JOIN returns r ON r.id = rl.return_id
     JOIN invoice_allocations ia ON ia.id = rl.invoice_allocation_id
@@ -96,7 +99,7 @@ async function getDailyTrend(storeId: string, from: Date, to: Date): Promise<Dai
       GROUP BY business_date
     `),
     prisma.$queryRaw<Array<{ date: Date; cogs: number }>>(Prisma.sql`
-      SELECT i.business_date AS date, COALESCE(SUM(ia.base_quantity * COALESCE(b.unit_cost, 0)), 0)::float8 AS cogs
+      SELECT i.business_date AS date, COALESCE(SUM(ia.base_quantity * COALESCE(ia.unit_cost, b.unit_cost, 0)), 0)::float8 AS cogs
       FROM invoice_allocations ia
       JOIN invoice_lines il ON il.id = ia.invoice_line_id
       JOIN invoices i ON i.id = il.invoice_id
@@ -105,7 +108,7 @@ async function getDailyTrend(storeId: string, from: Date, to: Date): Promise<Dai
       GROUP BY i.business_date
     `),
     prisma.$queryRaw<Array<{ date: Date; restocked_cost: number }>>(Prisma.sql`
-      SELECT r.business_date AS date, COALESCE(SUM(rl.base_quantity * COALESCE(b.unit_cost, 0)), 0)::float8 AS restocked_cost
+      SELECT r.business_date AS date, COALESCE(SUM(rl.base_quantity * COALESCE(ia.unit_cost, b.unit_cost, 0)), 0)::float8 AS restocked_cost
       FROM return_lines rl
       JOIN returns r ON r.id = rl.return_id
       JOIN invoice_allocations ia ON ia.id = rl.invoice_allocation_id

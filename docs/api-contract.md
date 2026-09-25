@@ -92,11 +92,41 @@
 - Header `Idempotency-Key` (UUID do client sinh cho mỗi lần thao tác, **không** sinh lại khi retry) **bắt buộc** với:
   - `POST /goods-receipts`, `POST /invoices`, `POST /invoices/{id}/returns`, `POST /recalls`, `POST /inventory/opening-balances`;
   - mọi action endpoint đổi trạng thái: `confirm`, `cancel`, `approve`, `reject`, `submit`, `verify`, `void`, `quarantine`, `release`, `close`.
-- Máy chủ lưu khóa theo (khóa, người dùng, method + path, hash nội dung, response) trong 24 giờ.
-  - Cùng khóa, cùng nội dung: trả lại đúng response đã lưu.
-  - Cùng khóa, khác nội dung: `422 IDEMPOTENCY_KEY_REUSED`.
+- Máy chủ lưu khóa theo (khóa, người dùng, method + path, **cửa hàng**, hash nội dung, chứng từ đã ghi, response) trong 24 giờ.
+  - Cùng khóa, cùng nội dung, đã xong: trả lại đúng response đã lưu.
+  - Cùng khóa, khác nội dung **hoặc khác cửa hàng**: `422 IDEMPOTENCY_KEY_REUSED`.
   - Request trước với cùng khóa đang xử lý: `409 REQUEST_IN_PROGRESS`.
   - Thiếu header: `400 IDEMPOTENCY_KEY_REQUIRED`.
+- **Khóa gắn với chứng từ trong cùng transaction nghiệp vụ.** Service ghi
+  `resource_type`/`resource_id` vào chính khóa đó ngay trong transaction tạo
+  chứng từ. Vì vậy:
+  - Transaction rollback → bản ghi gắn kết cũng mất → khóa được dọn, client gửi
+    lại bình thường.
+  - Transaction đã commit nhưng dựng response lỗi → khóa **không bị xóa**; lần
+    gửi lại nhận `409 REQUEST_ALREADY_COMMITTED` kèm `details[0]` gồm
+    `resourceType` và `resourceId` để máy khách mở đúng chứng từ đã ghi, thay
+    vì tạo bản thứ hai.
+  - Khóa treo ở IN_PROGRESS quá 24 giờ mà chưa gắn chứng từ nào (tiến trình
+    chết giữa chừng) thì lần gửi lại được tiếp quản và xử lý lại.
+
+### 2.3b Thứ tự khóa hàng khi đổi trạng thái [Đã chốt]
+
+Mọi luồng đổi trạng thái phải **khóa chứng từ gốc trước khi đọc trạng thái**
+(`SELECT ... FOR UPDATE`, xem `src/lib/locks.ts`), và luôn theo cùng một
+thứ tự để không khóa chéo nhau:
+
+> chứng từ gốc (hóa đơn, phiếu) → khách hàng → đơn thuốc → lô hàng
+
+Hệ quả bắt buộc:
+
+- Hủy hóa đơn và nhận trả hàng cho cùng một hóa đơn không thể chạy song song;
+  chỉ một nghiệp vụ hoàn tất, tồn kho và tiền chỉ được hoàn đúng một lần.
+- Hóa đơn đã có phiếu trả thì không hủy được; hóa đơn đã hủy thì không nhận
+  trả hàng.
+- Mọi thay đổi số dư điểm của cùng một khách (đổi, hoàn, điều chỉnh tay) đều
+  đi qua khóa hồ sơ khách.
+- Thanh toán công nợ và trả hàng trừ công nợ đều khóa các phiếu nhập liên quan
+  theo thứ tự id trước khi tính lại số còn nợ.
 
 ### 2.4 Chuyển trạng thái có điều kiện [Đã chốt]
 
@@ -150,7 +180,7 @@ Lỗi:
 | 401 | Chưa đăng nhập, token hết hạn hoặc bị thu hồi | `UNAUTHENTICATED`, `TOKEN_EXPIRED` |
 | 403 | Thiếu permission, hoặc không có quyền tại cửa hàng được chỉ định | `FORBIDDEN`, `STORE_FORBIDDEN` |
 | 404 | Không tìm thấy tài nguyên | `NOT_FOUND` |
-| 409 | Xung đột trạng thái, phiên bản hoặc tồn kho | `INVALID_STATE`, `VERSION_CONFLICT`, `INSUFFICIENT_STOCK`, `REQUEST_IN_PROGRESS`, `BATCH_EXPIRY_MISMATCH` |
+| 409 | Xung đột trạng thái, phiên bản hoặc tồn kho | `INVALID_STATE`, `VERSION_CONFLICT`, `INSUFFICIENT_STOCK`, `REQUEST_IN_PROGRESS`, `REQUEST_ALREADY_COMMITTED`, `BATCH_EXPIRY_MISMATCH`, `LOYALTY_DISABLED` |
 | 422 | Dữ liệu đúng cú pháp nhưng vi phạm validation hoặc quy tắc nghiệp vụ | `VALIDATION_ERROR`, `UNIT_NOT_IN_PRODUCT`, `PRICE_NOT_SET`, `BATCH_NOT_SELLABLE`, `CONTROLLED_DRUG_NOT_SUPPORTED`, `PRESCRIPTION_REQUIRED`, `PRESCRIPTION_NOT_VERIFIED`, `PRESCRIPTION_EXPIRED`, `PRESCRIBED_QUANTITY_EXCEEDED`, `SAFETY_ACK_REQUIRED`, `DISCOUNT_LIMIT_EXCEEDED`, `RETURN_QUANTITY_EXCEEDED`, `RETURN_WINDOW_EXPIRED`, `RETURN_NOT_ALLOWED_FOR_RX`, `SELF_APPROVAL_NOT_ALLOWED`, `IDEMPOTENCY_KEY_REUSED` |
 | 429 | Vượt giới hạn request | `RATE_LIMITED` |
 | 500 | Lỗi không mong muốn | `INTERNAL_ERROR` |
@@ -580,6 +610,22 @@ Ví dụ tạo phiếu:
 
 Khi tạo hoặc sửa, backend kiểm tra: sản phẩm đang kinh doanh, `unitId` thuộc sản phẩm, `expiryDate` sau ngày hiện tại, số lượng là số nguyên dương. Backend tự tính số lượng theo đơn vị nhỏ nhất và thành tiền từng dòng.
 
+### Giá vốn: bình quân gia quyền theo lô [Đã chốt]
+
+- Giá vốn của một lô = trung bình có trọng số theo số lượng của các lần nhập
+  vào lô đó: `(tồn_cũ × giá_vốn_cũ + số_nhập × giá_nhập_đợt_này) / (tồn_cũ + số_nhập)`.
+  Giá nhập của mỗi đợt đã gánh phần chiết khấu và thuế của cả phiếu theo tỷ lệ
+  thành tiền (mục ngay dưới).
+- Nhập thêm vào lô đã bán hết (tồn 0) thì lấy thẳng giá của đợt mới.
+- **Mỗi lần xuất bán chụp lại giá vốn của lô vào `invoice_allocations.unit_cost`.**
+  Báo cáo lãi gộp dùng giá vốn đã chụp này, nên nhập thêm cùng lô với giá khác
+  về sau không làm đổi số liệu của kỳ đã chốt. Hàng khách trả lại được trừ ra
+  theo đúng giá vốn của lần bán gốc.
+- Dữ liệu phát sinh trước bản nâng cấp `20260926090000` không có giá vốn chụp
+  sẵn; báo cáo lùi về giá vốn hiện tại của lô và **không** suy diễn lại giá vốn
+  lịch sử.
+- Hàng khách trả về kho không làm thay đổi giá vốn bình quân của lô.
+
 ### Chiết khấu phiếu và thuế theo hóa đơn
 
 - `POST`/`PATCH /goods-receipts` nhận thêm `discountAmount` và `vatAmount` (số nguyên đồng, ≥ 0, mặc định 0).
@@ -825,7 +871,7 @@ Kiểm kê qua Excel (§ Nhập / xuất Excel): xuất `stock-count` cho ra b�
 | GET | `/customers/{id}/health-profile` | Dị ứng (theo hoạt chất và ghi chú), bệnh nền; ghi audit mỗi lần xem | `customer.sensitive` |
 | PATCH | `/customers/{id}/health-profile` | Cập nhật hồ sơ sức khỏe | `customer.sensitive` |
 | GET | `/customers/{id}/invoices` | Lịch sử mua; ghi audit mỗi lần xem | `customer.sensitive` |
-| GET | `/customers/{id}/loyalty` | Số dư điểm (`available`, `expiringSoon`, `nextExpiryAt`, `expired`, `totalEarned`, `totalRedeemed`) và 50 bút toán gần nhất | `customer.read` |
+| GET | `/customers/{id}/loyalty` | Số dư điểm (`available`, `expiringSoon`, `nextExpiryAt`, `expired`, `totalEarned`, `totalRedeemed`, `deficit`) và 50 bút toán gần nhất | `customer.read` |
 | POST | `/customers/{id}/loyalty/adjust` | Cộng/trừ điểm tay: `points` (khác 0), `reason` bắt buộc; ghi audit `LOYALTY_ADJUST`. Cần `X-Store-Id` | `loyalty.manage` |
 
 - Thông tin cơ bản: `fullName`, `phone`, `email`, `address`, `birthYear`, `gender`, `note` (ghi chú chăm sóc). `code` (KH00001…) do hệ thống tự cấp.
@@ -855,6 +901,9 @@ Cài đặt (`loyaltySettings`, theo cửa hàng, không có thì lấy bản ch
 
 - **Ràng buộc pháp lý:** Luật Dược nghiêm cấm khuyến mại thuốc trực tiếp cho người dùng, nên mặc định `productType = DRUG` **nằm ngoài** chương trình: chỉ TPCN, mỹ phẩm, thiết bị y tế và hàng khác được tính điểm và được dùng làm căn cứ đổi điểm. `earnOnDrugs` là công tắc để chủ nhà thuốc tự quyết sau khi đối chiếu quy định hiện hành; màn cài đặt hiện cảnh báo này.
 - **Sổ điểm** (`loyalty_transactions`) là nguồn duy nhất: mỗi dòng là một bút toán `EARN` / `REDEEM` / `REVERSE` / `ADJUST`, `points` dương là cộng, âm là trừ, không bao giờ bằng 0. Số dư **luôn tính lại từ sổ**, không lưu ở bảng khách hàng.
+- `deficit` phải luôn bằng 0: khác 0 nghĩa là có bút toán trừ vượt số dư lọt
+  vào sổ. Số này được tính ra và trả về thay vì làm tròn cho đẹp, để phát hiện
+  sớm sai lệch dữ liệu.
 - **Hết hạn:** mỗi lần tích là một lô điểm có `expiresAt`. Khi đổi điểm, lô hết hạn sớm nhất bị tiêu trước; việc hết hạn được xét theo mốc thời gian của từng bút toán nên lô đã hết hạn không gánh cho lần đổi xảy ra sau đó. Không có job chạy nền: điểm quá hạn tự rơi ra khi tính số dư.
 - **Tích điểm:** sau khi lập hóa đơn cho khách có hồ sơ, `points = floor(tiền khách thực trả cho hàng được tính điểm / earnAmountPerPoint)`. Căn cứ là `lineTotal` (đã trừ mọi khoản giảm), nên phần trả bằng điểm không được tích lại.
 - **Hủy hóa đơn:** ghi hai bút toán `REVERSE` tách nhau — thu lại điểm đã tích và trả lại điểm đã đổi (điểm trả lại nhận hạn dùng mới).
@@ -977,6 +1026,12 @@ Frontend **không** gửi: đơn giá, thành tiền, số tiền giảm, VAT, t
 
 `payment.method`: `CASH`, `BANK_TRANSFER`, `CARD` (chỉ ghi nhận; tích hợp cổng thanh toán để sau MVP).
 
+Dòng đơn thuốc lưu trên hóa đơn là **dòng do máy chủ khớp**, không phải
+`prescriptionItemId` máy khách gửi lên (máy khách có thể không gửi). Khi đơn
+có nhiều dòng cùng một thuốc và máy khách không chỉ định, máy chủ chọn dòng
+**còn lại nhiều nhất**. Nhờ vậy hủy hóa đơn hoặc nhận trả hàng luôn trừ lại
+đúng số đã cấp phát của đơn thuốc.
+
 `loyaltyRedeemPoints` (mặc định 0): số điểm khách đổi trên hóa đơn này (§11.1). Số tiền giảm do máy chủ tính, cộng vào `discountAmount` nhưng **không** tính vào hạn mức giảm giá của vai trò — đây là tiền của chính khách. Lỗi trả về: `LOYALTY_DISABLED` (409), `LOYALTY_MIN_POINTS`, `LOYALTY_INSUFFICIENT_POINTS`, `LOYALTY_REDEEM_LIMIT` (422). Hóa đơn lưu thêm `loyaltyPointsRedeemed`, `loyaltyDiscountAmount`; chi tiết hóa đơn trả kèm `loyaltyPointsEarned` (đã trừ phần thu lại do trả hàng hoặc hủy).
 
 ### 14.2 Xử lý của backend
@@ -1050,6 +1105,14 @@ Chính sách trả hàng **[Đã chốt – P6]**:
 - Nhận trả trong `returnWindowDays` kể từ ngày bán, mặc định 7 ngày; quá hạn trả `422 RETURN_WINDOW_EXPIRED`.
 - **Không nhận trả** sản phẩm `drugClass = RX` hoặc `CONTROLLED`, trừ trường hợp thuốc có lỗi chất lượng. Khi đó dược sĩ tạo phiếu trả với `disposition = DISPOSE` và bắt buộc ghi lý do; hàng không quay lại kho bán.
 - Ngăn biệt trữ theo số lượng: sau MVP. Trong MVP, dược sĩ chọn `RESTOCK` hoặc `DISPOSE` ngay khi nhận hàng trả.
+
+---
+
+**Tiền hoàn tính lũy kế theo dòng hóa đơn:** tiền hoàn của một lần trả là
+hiệu giữa tiền hoàn ứng với tổng số đã trả *sau* lần này và tổng số đã trả
+*trước* đó. Nhờ vậy trả lẻ nhiều lần một dòng có đơn giá lẻ (ví dụ 10.000đ cho
+6 đơn vị) vẫn không bao giờ hoàn vượt số tiền của dòng, và trả hết thì hoàn
+đúng bằng thành tiền của dòng.
 
 ---
 

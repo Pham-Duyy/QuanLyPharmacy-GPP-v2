@@ -1,6 +1,7 @@
 import { Prisma } from "../../generated/prisma/client.js";
 import { prisma } from "../../db/prisma.js";
 import { AppError } from "../../lib/app-error.js";
+import { markIdempotentResource } from "../../lib/idempotency-context.js";
 import type { AuthContext } from "../auth/auth.context.js";
 import type { CreateRecallInput } from "./recalls.schema.js";
 
@@ -66,6 +67,9 @@ export async function createRecall(auth: AuthContext, input: CreateRecallInput):
       },
     });
 
+    // Gắn chứng từ vào khóa idempotency ngay trong transaction: commit xong
+    // là khóa đã mang id, gửi lại cùng khóa không tạo thêm bản thứ hai.
+    await markIdempotentResource(tx, "recall", recall.id);
     return recall.id;
   });
 }

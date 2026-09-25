@@ -1,6 +1,9 @@
 import { Prisma } from "../../generated/prisma/client.js";
 import { prisma } from "../../db/prisma.js";
 import { AppError } from "../../lib/app-error.js";
+import { markIdempotentResource } from "../../lib/idempotency-context.js";
+import { codeDay, nextDocumentCode } from "../../lib/document-code.js";
+import { lockCustomer, lockInvoice, lockPrescriptionItems } from "../../lib/locks.js";
 import { businessDateNow, getSetting } from "../../lib/settings.js";
 import type { AuthContext } from "../auth/auth.context.js";
 import * as loyalty from "../loyalty/loyalty.service.js";
@@ -9,12 +12,7 @@ import type { CreateReturnInput } from "./returns.schema.js";
 type Tx = Prisma.TransactionClient;
 
 async function nextReturnCode(tx: Tx, storeId: string, storeCode: string): Promise<string> {
-  const day = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Ho_Chi_Minh" })
-    .format(new Date())
-    .replace(/-/g, "");
-  const prefix = `TH-${storeCode}-${day}-`;
-  const countToday = await tx.return.count({ where: { storeId, code: { startsWith: prefix } } });
-  return `${prefix}${String(countToday + 1).padStart(4, "0")}`;
+  return nextDocumentCode(tx, storeId, `TH-${storeCode}-${codeDay()}-`);
 }
 
 /** Làm tròn nửa lên trên số nguyên đồng. */
@@ -54,6 +52,11 @@ export async function createReturn(
 
   return prisma.$transaction(
     async (tx) => {
+      // Khóa hóa đơn trước khi đọc trạng thái, cùng thứ tự với luồng hủy hóa
+      // đơn (hóa đơn → khách → đơn thuốc → lô), nên hủy và trả hàng không thể
+      // cùng hoàn tồn cho một lần bán.
+      await lockInvoice(tx, storeId, invoiceId);
+
       const invoice = await tx.invoice.findFirst({
         where: { id: invoiceId, storeId },
         include: {
@@ -70,6 +73,9 @@ export async function createReturn(
       if (invoice.status !== "COMPLETED") {
         throw AppError.invalidState("Hóa đơn đã hủy, không nhận trả hàng được");
       }
+
+      if (invoice.customerId) await lockCustomer(tx, invoice.customerId);
+      if (invoice.prescriptionId) await lockPrescriptionItems(tx, invoice.prescriptionId);
 
       // Hạn nhận trả tính từ ngày bán (contract §15, P6).
       const windowDays = await getSetting("returnWindowDays", storeId);
@@ -100,6 +106,16 @@ export async function createReturn(
 
       const planned: PlannedLine[] = [];
       const takenPerAllocation = new Map<string, number>();
+      // Số đã trả trước đây của từng DÒNG hóa đơn (gộp mọi lô của dòng đó),
+      // dùng để tính tiền hoàn lũy kế thay vì làm tròn riêng từng lần trả.
+      const returnedPerLine = new Map<string, number>();
+      for (const allocation of fresh) {
+        returnedPerLine.set(
+          allocation.invoiceLineId,
+          (returnedPerLine.get(allocation.invoiceLineId) ?? 0) + allocation.returnedBaseQuantity,
+        );
+      }
+      const takenPerLine = new Map<string, number>();
 
       input.lines.forEach((line, index) => {
         const invoiceLine = invoice.lines.find((item) => item.id === line.invoiceLineId);
@@ -158,11 +174,18 @@ export async function createReturn(
           already + baseQuantity - allocation.returnedBaseQuantity,
         );
 
-        // Tiền hoàn theo đúng số tiền dòng đó trên hóa đơn gốc, đã trừ giảm giá.
-        const refundAmount = divRound(
-          invoiceLine.lineTotal * BigInt(baseQuantity),
-          BigInt(invoiceLine.baseQuantity),
-        );
+        // Tiền hoàn theo đúng số tiền dòng đó trên hóa đơn gốc, đã trừ giảm
+        // giá. Tính theo LŨY KẾ: tiền hoàn của lần này là hiệu giữa tiền hoàn
+        // ứng với tổng số đã trả sau lần này và tổng số đã trả trước đó. Nhờ
+        // vậy trả lẻ nhiều lần (10.000đ cho 6 đơn vị) vẫn không bao giờ hoàn
+        // vượt số tiền của dòng.
+        const priorBase =
+          (returnedPerLine.get(invoiceLine.id) ?? 0) + (takenPerLine.get(invoiceLine.id) ?? 0);
+        const lineBase = BigInt(invoiceLine.baseQuantity);
+        const refundAmount =
+          divRound(invoiceLine.lineTotal * BigInt(priorBase + baseQuantity), lineBase) -
+          divRound(invoiceLine.lineTotal * BigInt(priorBase), lineBase);
+        takenPerLine.set(invoiceLine.id, priorBase + baseQuantity - (returnedPerLine.get(invoiceLine.id) ?? 0));
 
         planned.push({
           lineNo: index + 1,
@@ -291,6 +314,9 @@ export async function createReturn(
         },
       });
 
+      // Gắn chứng từ vào khóa idempotency ngay trong transaction: commit xong
+      // là khóa đã mang id, gửi lại cùng khóa không tạo thêm bản thứ hai.
+      await markIdempotentResource(tx, "return", saved.id);
       return saved.id;
     },
     { timeout: 20_000 },

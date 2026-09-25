@@ -1,6 +1,9 @@
 import { Prisma } from "../../generated/prisma/client.js";
 import { prisma } from "../../db/prisma.js";
 import { AppError } from "../../lib/app-error.js";
+import { markIdempotentResource } from "../../lib/idempotency-context.js";
+import { codeDay, nextDocumentCode } from "../../lib/document-code.js";
+import { lockCustomer, lockInvoice, lockPrescriptionItems } from "../../lib/locks.js";
 import { businessDateNow, getSetting } from "../../lib/settings.js";
 import type { AuthContext } from "../auth/auth.context.js";
 import { getCurrentPrices } from "../catalog/products.service.js";
@@ -42,12 +45,7 @@ function divRound(numerator: bigint, denominator: bigint): bigint {
 }
 
 async function nextInvoiceCode(tx: Tx, storeId: string, storeCode: string): Promise<string> {
-  const day = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Ho_Chi_Minh" })
-    .format(new Date())
-    .replace(/-/g, "");
-  const prefix = `HD-${storeCode}-${day}-`;
-  const countToday = await tx.invoice.count({ where: { storeId, code: { startsWith: prefix } } });
-  return `${prefix}${String(countToday + 1).padStart(4, "0")}`;
+  return nextDocumentCode(tx, storeId, `HD-${storeCode}-${codeDay()}-`);
 }
 
 /** Hạn mức giảm giá cao nhất trong các vai trò của người bán (contract §6.6). */
@@ -96,6 +94,17 @@ export async function createInvoice(
       }
       if (input.discount) {
         requirePerm(auth, "sale.discount");
+      }
+
+      // Khóa theo đúng thứ tự chung của toàn hệ thống (xem lib/locks.ts):
+      // khách hàng → đơn thuốc → lô hàng. Khóa khách để hai hóa đơn song song
+      // không cùng tiêu một số điểm; khóa dòng đơn thuốc để không cấp phát
+      // vượt số đã kê.
+      if (input.customerId && loyaltySettings.enabled) {
+        await lockCustomer(tx, input.customerId);
+      }
+      if (input.prescriptionId) {
+        await lockPrescriptionItems(tx, input.prescriptionId);
       }
 
       // 3-4. Kiểm tra an toàn tất định, chạy lại ngay trong transaction bán hàng.
@@ -215,7 +224,7 @@ export async function createInvoice(
       }
 
       // 3b. Đối chiếu đơn thuốc trước khi trừ tồn, để sai là dừng sớm.
-      const dispensed = await checkPrescription(tx, input, lines);
+      const { dispensed, itemByLineIndex } = await checkPrescription(tx, input, lines);
 
       // 7-8. Chọn lô và trừ tồn (C3).
       const allocations = await allocateBatches(tx, storeId, lines, input);
@@ -278,24 +287,32 @@ export async function createInvoice(
             vatRatePercent: new Prisma.Decimal(Number(line.vatRateBp) / 100),
             discountAmount: line.discountAmount,
             lineTotal: line.lineTotal,
-            prescriptionItemId: input.lines[line.index]?.prescriptionItemId ?? null,
+            // Dòng đơn thuốc do backend khớp mới là dòng thật; máy khách có
+            // thể không gửi `prescriptionItemId` nào cả.
+            prescriptionItemId:
+              itemByLineIndex.get(line.index) ??
+              input.lines[line.index]?.prescriptionItemId ??
+              null,
             batchOverrideReason: input.lines[line.index]?.batchOverrideReason ?? null,
           },
         });
 
         for (const allocation of allocations.get(line.index) ?? []) {
+          const batch = await tx.batch.update({
+            where: { id: allocation.batchId },
+            data: { quantityOnHand: { decrement: allocation.baseQuantity } },
+          });
+
           await tx.invoiceAllocation.create({
             data: {
               invoiceLineId: saved.id,
               storeId,
               batchId: allocation.batchId,
               baseQuantity: allocation.baseQuantity,
+              // Chụp giá vốn ngay lúc xuất: nhập thêm cùng lô với giá khác
+              // sau này không được làm đổi lãi gộp của kỳ đã qua.
+              unitCost: batch.unitCost,
             },
-          });
-
-          const batch = await tx.batch.update({
-            where: { id: allocation.batchId },
-            data: { quantityOnHand: { decrement: allocation.baseQuantity } },
           });
 
           await tx.stockMovement.create({
@@ -376,6 +393,9 @@ export async function createInvoice(
         },
       });
 
+      // Gắn chứng từ vào khóa idempotency ngay trong transaction: commit xong
+      // là khóa đã mang id, gửi lại cùng khóa không tạo thêm bản thứ hai.
+      await markIdempotentResource(tx, "invoice", invoice.id);
       return invoice.id;
     },
     { timeout: 20_000 },
@@ -427,12 +447,14 @@ async function checkPrescription(
   tx: Tx,
   input: CreateInvoiceInput,
   lines: ResolvedLine[],
-): Promise<Map<string, number>> {
+): Promise<{ dispensed: Map<string, number>; itemByLineIndex: Map<number, string> }> {
   const dispensed = new Map<string, number>();
+  /** Dòng giỏ hàng nào ứng với dòng nào của đơn thuốc, theo kết quả khớp thật. */
+  const itemByLineIndex = new Map<number, string>();
   const rxLines = lines.filter(
     (line) => line.drugClass === "RX" || line.drugClass === "CONTROLLED",
   );
-  if (rxLines.length === 0) return dispensed;
+  if (rxLines.length === 0) return { dispensed, itemByLineIndex };
 
   const prescription = await tx.prescription.findUnique({
     where: { id: input.prescriptionId! },
@@ -440,11 +462,19 @@ async function checkPrescription(
   });
   if (!prescription) throw AppError.notFound("Không tìm thấy đơn thuốc");
 
+  const remainingOf = (item: (typeof prescription.items)[number]) =>
+    (item.baseQuantity ?? item.quantity) - item.dispensedBaseQuantity - (dispensed.get(item.id) ?? 0);
+
   for (const line of rxLines) {
     const wanted = input.lines[line.index]?.prescriptionItemId;
+    // Máy khách chỉ định dòng nào thì dùng đúng dòng đó. Không chỉ định mà đơn
+    // có nhiều dòng cùng thuốc thì lấy dòng còn lại nhiều nhất, để một hóa đơn
+    // nhiều dòng cùng thuốc vẫn cấp phát được hết.
     const item = wanted
       ? prescription.items.find((candidate) => candidate.id === wanted)
-      : prescription.items.find((candidate) => candidate.productId === line.productId);
+      : prescription.items
+          .filter((candidate) => candidate.productId === line.productId)
+          .sort((a, b) => remainingOf(b) - remainingOf(a))[0];
 
     if (!item || item.productId !== line.productId) {
       throw AppError.validation(
@@ -462,9 +492,10 @@ async function checkPrescription(
       );
     }
     dispensed.set(item.id, running);
+    itemByLineIndex.set(line.index, item.id);
   }
 
-  return dispensed;
+  return { dispensed, itemByLineIndex };
 }
 
 /** Cộng (`sign = 1`) hoặc trừ lại (`sign = -1`) số đã bán theo đơn thuốc. */
@@ -576,11 +607,19 @@ export async function voidInvoice(
 
   await prisma.$transaction(
     async (tx) => {
+      // Khóa hóa đơn TRƯỚC khi đọc trạng thái: nếu không, một phiếu trả hàng
+      // đang chạy song song vẫn đọc được hóa đơn còn COMPLETED và cả hai cùng
+      // hoàn tồn cho một lần bán.
+      await lockInvoice(tx, storeId, invoiceId);
+
       const existing = await tx.invoice.findFirst({
         where: { id: invoiceId, storeId },
         include: { lines: { include: { allocations: true } } },
       });
       if (!existing) throw AppError.notFound("Không tìm thấy hóa đơn");
+
+      if (existing.customerId) await lockCustomer(tx, existing.customerId);
+      if (existing.prescriptionId) await lockPrescriptionItems(tx, existing.prescriptionId);
 
       if (existing.returnStatus !== "NONE") {
         throw AppError.invalidState("Hóa đơn đã có phiếu trả, không hủy được");

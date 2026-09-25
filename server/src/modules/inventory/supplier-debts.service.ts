@@ -1,6 +1,8 @@
 import { Prisma } from "../../generated/prisma/client.js";
 import { prisma } from "../../db/prisma.js";
 import { AppError } from "../../lib/app-error.js";
+import { codeDay, nextDocumentCode } from "../../lib/document-code.js";
+import { lockGoodsReceipts, lockSupplierPayment } from "../../lib/locks.js";
 import { businessDateNow } from "../../lib/settings.js";
 import type { AuthContext } from "../auth/auth.context.js";
 
@@ -130,10 +132,7 @@ export async function listDebts(storeId: string, query: DebtQuery) {
 }
 
 async function nextPaymentCode(tx: Tx, storeId: string, storeCode: string): Promise<string> {
-  const day = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Ho_Chi_Minh" }).format(new Date()).replace(/-/g, "");
-  const prefix = `TT-${storeCode}-${day}-`;
-  const countToday = await tx.supplierPayment.count({ where: { storeId, code: { startsWith: prefix } } });
-  return `${prefix}${String(countToday + 1).padStart(4, "0")}`;
+  return nextDocumentCode(tx, storeId, `TT-${storeCode}-${codeDay()}-`);
 }
 
 export type PaymentInput = {
@@ -155,7 +154,16 @@ export async function createPayment(storeId: string, auth: AuthContext, input: P
   const supplier = await prisma.supplier.findUnique({ where: { id: input.supplierId } });
   if (!supplier) throw AppError.notFound("Không tìm thấy nhà cung cấp");
 
+  const receiptIds = input.allocations.map((item) => item.goodsReceiptId);
+  if (new Set(receiptIds).size !== receiptIds.length) {
+    throw AppError.validation("Một phiếu nhập chỉ được phân bổ một dòng trong cùng phiếu chi");
+  }
+
   return prisma.$transaction(async (tx) => {
+    // Khóa các phiếu nhập sắp trả tiền TRƯỚC khi tính số còn nợ: hai người
+    // cùng trả một phiếu nếu không sẽ cùng đọc được số nợ cũ và trả dư.
+    await lockGoodsReceipts(tx, storeId, receiptIds);
+
     const receipts = await tx.goodsReceipt.findMany({
       where: { id: { in: input.allocations.map((item) => item.goodsReceiptId) }, storeId, supplierId: input.supplierId, status: "CONFIRMED", type: "PURCHASE" },
       include: {
@@ -208,15 +216,17 @@ export async function createPayment(storeId: string, auth: AuthContext, input: P
 }
 
 export async function voidPayment(storeId: string, paymentId: string, auth: AuthContext, reason: string): Promise<void> {
-  const payment = await prisma.supplierPayment.findFirst({ where: { id: paymentId, storeId } });
-  if (!payment) throw AppError.notFound("Không tìm thấy phiếu chi");
-  if (payment.status !== "ACTIVE") throw AppError.invalidState("Phiếu chi này đã hủy rồi");
-
   await prisma.$transaction(async (tx) => {
-    await tx.supplierPayment.update({
-      where: { id: paymentId },
+    await lockSupplierPayment(tx, storeId, paymentId);
+    const payment = await tx.supplierPayment.findFirst({ where: { id: paymentId, storeId } });
+    if (!payment) throw AppError.notFound("Không tìm thấy phiếu chi");
+    if (payment.status !== "ACTIVE") throw AppError.invalidState("Phiếu chi này đã hủy rồi");
+
+    const moved = await tx.supplierPayment.updateMany({
+      where: { id: paymentId, storeId, status: "ACTIVE" },
       data: { status: "VOIDED", voidReason: reason, voidedBy: auth.userId, voidedAt: new Date(), version: { increment: 1 } },
     });
+    if (moved.count === 0) throw AppError.invalidState("Phiếu chi này đã hủy rồi");
     await tx.auditLog.create({
       data: {
         storeId,

@@ -1,6 +1,8 @@
 import { Prisma } from "../../generated/prisma/client.js";
 import { prisma } from "../../db/prisma.js";
 import { AppError } from "../../lib/app-error.js";
+import { codeDay, nextDocumentCode } from "../../lib/document-code.js";
+import { lockGoodsReceipts, lockSupplierReturn } from "../../lib/locks.js";
 import type { AuthContext } from "../auth/auth.context.js";
 
 type Tx = Prisma.TransactionClient;
@@ -21,10 +23,7 @@ export type Settlement = (typeof SETTLEMENTS)[number];
 const num = (value: bigint | null | undefined) => Number(value ?? 0n);
 
 async function nextReturnCode(tx: Tx, storeId: string, storeCode: string): Promise<string> {
-  const day = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Ho_Chi_Minh" }).format(new Date()).replace(/-/g, "");
-  const prefix = `TNCC-${storeCode}-${day}-`;
-  const countToday = await tx.supplierReturn.count({ where: { storeId, code: { startsWith: prefix } } });
-  return `${prefix}${String(countToday + 1).padStart(4, "0")}`;
+  return nextDocumentCode(tx, storeId, `TNCC-${storeCode}-${codeDay()}-`);
 }
 
 export type ReturnInput = {
@@ -148,8 +147,19 @@ export async function createDraft(storeId: string, auth: AuthContext, input: Ret
 /** Xác nhận: trừ tồn từng lô và ghi thẻ kho. Đây là lúc hàng rời khỏi kho. */
 export async function confirmReturn(storeId: string, returnId: string, auth: AuthContext): Promise<void> {
   await prisma.$transaction(async (tx) => {
+    await lockSupplierReturn(tx, storeId, returnId);
     const existing = await tx.supplierReturn.findFirst({ where: { id: returnId, storeId }, include: { lines: true } });
     if (!existing) throw AppError.notFound("Không tìm thấy phiếu trả hàng");
+
+    // Trả hàng trừ thẳng vào công nợ thì phải khóa đúng những phiếu nhập đó,
+    // để một lần thanh toán đang chạy song song không tính trên số nợ cũ.
+    if (existing.settlement === "DEDUCT_DEBT") {
+      await lockGoodsReceipts(
+        tx,
+        storeId,
+        [...new Set(existing.lines.map((line) => line.goodsReceiptId).filter((id): id is string => Boolean(id)))],
+      );
+    }
 
     const moved = await tx.supplierReturn.updateMany({
       where: { id: returnId, storeId, status: "DRAFT" },
@@ -195,17 +205,21 @@ export async function confirmReturn(storeId: string, returnId: string, auth: Aut
 }
 
 export async function cancelReturn(storeId: string, returnId: string, auth: AuthContext, reason: string): Promise<void> {
-  const existing = await prisma.supplierReturn.findFirst({ where: { id: returnId, storeId } });
-  if (!existing) throw AppError.notFound("Không tìm thấy phiếu trả hàng");
-  if (existing.status !== "DRAFT") {
-    throw AppError.invalidState("Chỉ hủy được phiếu còn nháp. Phiếu đã xác nhận thì lập phiếu nhập bù nếu nhà cung cấp trả hàng lại.");
-  }
-
   await prisma.$transaction(async (tx) => {
-    await tx.supplierReturn.update({
-      where: { id: returnId },
+    // Khóa và kiểm tra trong transaction: trước đây phiếu vừa được xác nhận
+    // (đã trừ tồn) vẫn có thể bị lệnh hủy chạy song song ghi đè thành CANCELLED.
+    await lockSupplierReturn(tx, storeId, returnId);
+    const existing = await tx.supplierReturn.findFirst({ where: { id: returnId, storeId } });
+    if (!existing) throw AppError.notFound("Không tìm thấy phiếu trả hàng");
+    if (existing.status !== "DRAFT") {
+      throw AppError.invalidState("Chỉ hủy được phiếu còn nháp. Phiếu đã xác nhận thì lập phiếu nhập bù nếu nhà cung cấp trả hàng lại.");
+    }
+
+    const moved = await tx.supplierReturn.updateMany({
+      where: { id: returnId, storeId, status: "DRAFT" },
       data: { status: "CANCELLED", cancelledBy: auth.userId, cancelledAt: new Date(), cancelReason: reason, version: { increment: 1 } },
     });
+    if (moved.count === 0) throw AppError.invalidState("Phiếu vừa đổi trạng thái, không hủy được nữa");
     await tx.auditLog.create({
       data: { storeId, actorId: auth.userId, action: "SUPPLIER_RETURN_CANCEL", resourceType: "supplier_return", resourceId: returnId, reason, before: { code: existing.code } },
     });
