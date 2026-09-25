@@ -331,6 +331,10 @@ export type Invoice = {
   subtotal: Money;
   discountAmount: Money;
   discountReason: string | null;
+  /** Phần khách trả bằng điểm tích lũy, tách khỏi giảm giá của nhân viên. */
+  loyaltyPointsRedeemed: number;
+  loyaltyDiscountAmount: Money;
+  loyaltyPointsEarned: number;
   vatAmount: Money;
   totalAmount: Money;
   paymentMethod: string;

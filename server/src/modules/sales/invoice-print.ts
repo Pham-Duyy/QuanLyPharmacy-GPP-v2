@@ -29,6 +29,12 @@ export type PrintableInvoice = {
   subtotal: number | bigint;
   discountAmount: number | bigint;
   discountReason: string | null;
+  /** Phần khách trả bằng điểm, nằm trong discountAmount ở trên. */
+  loyaltyPointsRedeemed?: number;
+  loyaltyDiscountAmount?: number | bigint;
+  loyaltyPointsEarned?: number;
+  /** Số dư điểm sau hóa đơn này, in cho khách biết còn bao nhiêu. */
+  loyaltyBalance?: number | null;
   vatAmount: number | bigint;
   totalAmount: number | bigint;
   paymentMethod: string;
@@ -109,7 +115,10 @@ export function renderInvoicePrintHtml(
         )
         .join("")}</div>`;
 
-  const discount = Number(invoice.discountAmount);
+  // Tiền khách trả bằng điểm được in thành dòng riêng, nên dòng "Giảm giá"
+  // chỉ còn phần nhà thuốc giảm cho khách.
+  const loyaltyDiscount = Number(invoice.loyaltyDiscountAmount ?? 0);
+  const discount = Number(invoice.discountAmount) - loyaltyDiscount;
   const vat = Number(invoice.vatAmount);
   const customerName = invoice.customer?.fullName?.trim();
 
@@ -128,6 +137,8 @@ export function renderInvoicePrintHtml(
         `Giảm giá${invoice.discountReason ? ` (${escapeHtml(invoice.discountReason)})` : ""}`,
         `-${money(discount)}`,
       ),
+    loyaltyDiscount > 0 &&
+      totalRow(`Đổi ${invoice.loyaltyPointsRedeemed ?? 0} điểm`, `-${money(loyaltyDiscount)}`),
     vat > 0 && totalRow("Trong đó thuế GTGT", money(vat)),
     totalRow("TỔNG THANH TOÁN", `${money(invoice.totalAmount)} đ`, "grand"),
     show.paymentMethod &&
@@ -143,6 +154,15 @@ export function renderInvoicePrintHtml(
       totalRow("Tiền thừa", money(invoice.changeAmount ?? 0)),
   ]);
 
+  // Dòng điểm tích lũy chỉ in khi hóa đơn thật sự có phát sinh điểm.
+  const earned = invoice.loyaltyPointsEarned ?? 0;
+  const loyaltyNote =
+    earned > 0 || loyaltyDiscount > 0
+      ? `<div class="footer">Điểm tích lũy: ${earned > 0 ? `+${earned} điểm` : "không phát sinh"}${
+          invoice.loyaltyBalance != null ? ` · còn ${invoice.loyaltyBalance} điểm` : ""
+        }</div>`
+      : "";
+
   const body = `
   ${renderIssuerHeader(template)}
   <h1>${escapeHtml(template.title)}</h1>
@@ -151,6 +171,7 @@ export function renderInvoicePrintHtml(
   ${items}
   <hr/>
   <div class="totals">${totals}</div>
+  ${loyaltyNote ? `<hr/>${loyaltyNote}` : ""}
   ${template.footer ? `<hr/><div class="footer">${escapeHtml(template.footer)}</div>` : ""}
   <div class="note">Phiếu bán hàng · Không thay thế hóa đơn điện tử</div>
 `;

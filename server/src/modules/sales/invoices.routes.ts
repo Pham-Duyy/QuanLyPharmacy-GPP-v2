@@ -12,6 +12,7 @@ import { resolveCartLines } from "./cart.js";
 import type { PaperSize } from "../settings/print-template.schema.js";
 import { getEffectiveTemplate } from "../settings/print-template.service.js";
 import { renderInvoicePrintHtml } from "./invoice-print.js";
+import { getBalance } from "../loyalty/loyalty.service.js";
 import * as service from "./invoices.service.js";
 import { runSafetyCheck } from "./safety-check.service.js";
 import { createInvoiceSchema, safetyCheckSchema, voidInvoiceSchema } from "./sales.schema.js";
@@ -137,11 +138,16 @@ invoicesRouter.get("/invoices/:id/print", requirePermission("invoice.read"), asy
     service.getDetail(storeId, String(req.params.id)),
     getEffectiveTemplate(storeId),
   ]);
+  // Số dư điểm in trên phiếu để khách biết mình còn bao nhiêu.
+  const loyaltyBalance =
+    invoice.customer && invoice.loyaltyPointsEarned !== 0
+      ? (await getBalance(invoice.customer.id)).available
+      : null;
   res
     .set("X-Paper-Size", format ?? effective.template.paperSize)
     .type("html")
     .send(
-      renderInvoicePrintHtml(invoice, effective.template, {
+      renderInvoicePrintHtml({ ...invoice, loyaltyBalance }, effective.template, {
         paperSize: format,
         autoPrint: req.query["autoprint"] !== "0",
       }),

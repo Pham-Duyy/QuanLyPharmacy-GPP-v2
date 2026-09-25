@@ -242,6 +242,7 @@ Quy tắc:
 | `controlled.read` | Xem sổ theo dõi thuốc kiểm soát đặc biệt |
 | `supplier_debt.read` | Xem công nợ nhà cung cấp |
 | `supplier_payment.manage` | Ghi nhận thanh toán cho nhà cung cấp |
+| `loyalty.manage` | Điều chỉnh điểm tích lũy của khách bằng tay |
 | `ai.use` | Dùng tính năng AI |
 
 ### 4.2 Ma trận vai trò → permission [Đã chốt – P5]
@@ -289,6 +290,7 @@ Quy tắc:
 | `controlled.read` | ✓ | ✓ | | | ✓ |
 | `supplier_debt.read` | ✓ | | | | ✓ |
 | `supplier_payment.manage` | ✓ | | | | |
+| `loyalty.manage` | ✓ | ✓ | | | |
 | `ai.use` | | ✓ | ✓ | | |
 
 Ghi chú:
@@ -823,12 +825,40 @@ Kiểm kê qua Excel (§ Nhập / xuất Excel): xuất `stock-count` cho ra b�
 | GET | `/customers/{id}/health-profile` | Dị ứng (theo hoạt chất và ghi chú), bệnh nền; ghi audit mỗi lần xem | `customer.sensitive` |
 | PATCH | `/customers/{id}/health-profile` | Cập nhật hồ sơ sức khỏe | `customer.sensitive` |
 | GET | `/customers/{id}/invoices` | Lịch sử mua; ghi audit mỗi lần xem | `customer.sensitive` |
+| GET | `/customers/{id}/loyalty` | Số dư điểm (`available`, `expiringSoon`, `nextExpiryAt`, `expired`, `totalEarned`, `totalRedeemed`) và 50 bút toán gần nhất | `customer.read` |
+| POST | `/customers/{id}/loyalty/adjust` | Cộng/trừ điểm tay: `points` (khác 0), `reason` bắt buộc; ghi audit `LOYALTY_ADJUST`. Cần `X-Store-Id` | `loyalty.manage` |
 
 - Thông tin cơ bản: `fullName`, `phone`, `email`, `address`, `birthYear`, `gender`, `note` (ghi chú chăm sóc). `code` (KH00001…) do hệ thống tự cấp.
-- Tổng mua tính trên hóa đơn `COMPLETED` toàn chuỗi, trừ tiền đã hoàn khi trả hàng. Nhóm khách tính từ dữ liệu bán, không phải hạng thành viên: **Thân thiết** từ 5 hóa đơn trong 180 ngày; **Khách mới** tạo hồ sơ trong 30 ngày; **Lâu chưa quay lại** lần mua cuối cách hơn 90 ngày. Hệ thống chưa có tích điểm và công nợ khách hàng.
+- Tổng mua tính trên hóa đơn `COMPLETED` toàn chuỗi, trừ tiền đã hoàn khi trả hàng. Nhóm khách tính từ dữ liệu bán, không phải hạng thành viên: **Thân thiết** từ 5 hóa đơn trong 180 ngày; **Khách mới** tạo hồ sơ trong 30 ngày; **Lâu chưa quay lại** lần mua cuối cách hơn 90 ngày. Nhóm khách tính từ dữ liệu bán, độc lập với điểm tích lũy ở §11.1. Hệ thống chưa có công nợ khách hàng.
 - Hồ sơ sức khỏe chỉ được lưu khi đã ghi nhận sự đồng ý của khách (`healthDataConsentAt`). **[Đã chốt – P8]**
 - Đã bỏ `GET /customers/{id}/allergy-check`; kiểm tra dị ứng nằm trong `POST /sales/safety-check` (§13).
 - **Lưu trữ và ẩn danh [Đã chốt – P8]:** hóa đơn, đơn thuốc và thẻ kho giữ theo thời hạn lưu trữ quy định, không xóa. Khi khách yêu cầu xóa dữ liệu cá nhân, hệ thống **ẩn danh hồ sơ khách** (xóa họ tên, số điện thoại, hồ sơ sức khỏe, thay bằng mã ẩn danh) và giữ nguyên chứng từ đã phát sinh. Thao tác ẩn danh cần `customer.sensitive`, bắt buộc ghi lý do và ghi audit log.
+
+### 11.1 Tích điểm khách thân thiết
+
+| Method | Endpoint | Mô tả | Quyền |
+|---|---|---|---|
+| GET | `/loyalty/settings` | Cài đặt đang áp dụng, kèm `isDefault`, `updatedAt` | `customer.read` hoặc `settings.manage` |
+| PUT | `/loyalty/settings` | Lưu cài đặt cho cửa hàng hiện tại; ghi audit `SETTING_UPDATE` | `settings.manage` |
+
+Cài đặt (`loyaltySettings`, theo cửa hàng, không có thì lấy bản chung toàn chuỗi rồi tới mặc định):
+
+| Trường | Mặc định | Ý nghĩa |
+|---|---|---|
+| `enabled` | `false` | Chạy chương trình hay không. Tắt thì hóa đơn mới không tích điểm và không đổi được điểm; điểm cũ giữ nguyên |
+| `earnAmountPerPoint` | 10.000 | Số tiền khách chi để được 1 điểm |
+| `pointValue` | 500 | Mỗi điểm đổi được bao nhiêu đồng. Không được vượt quá một nửa `earnAmountPerPoint` (chặn gõ nhầm) |
+| `minRedeemPoints` | 20 | Số điểm tối thiểu một lần đổi |
+| `maxRedeemPercent` | 50 | Trần phần trăm giá trị hàng được tính điểm mà một lần đổi được giảm |
+| `expiryMonths` | 12 | Điểm hết hạn sau bao nhiêu tháng; 0 là không hết hạn |
+| `earnOnDrugs` | `false` | Tính điểm cho cả hàng thuốc hay không |
+
+- **Ràng buộc pháp lý:** Luật Dược nghiêm cấm khuyến mại thuốc trực tiếp cho người dùng, nên mặc định `productType = DRUG` **nằm ngoài** chương trình: chỉ TPCN, mỹ phẩm, thiết bị y tế và hàng khác được tính điểm và được dùng làm căn cứ đổi điểm. `earnOnDrugs` là công tắc để chủ nhà thuốc tự quyết sau khi đối chiếu quy định hiện hành; màn cài đặt hiện cảnh báo này.
+- **Sổ điểm** (`loyalty_transactions`) là nguồn duy nhất: mỗi dòng là một bút toán `EARN` / `REDEEM` / `REVERSE` / `ADJUST`, `points` dương là cộng, âm là trừ, không bao giờ bằng 0. Số dư **luôn tính lại từ sổ**, không lưu ở bảng khách hàng.
+- **Hết hạn:** mỗi lần tích là một lô điểm có `expiresAt`. Khi đổi điểm, lô hết hạn sớm nhất bị tiêu trước; việc hết hạn được xét theo mốc thời gian của từng bút toán nên lô đã hết hạn không gánh cho lần đổi xảy ra sau đó. Không có job chạy nền: điểm quá hạn tự rơi ra khi tính số dư.
+- **Tích điểm:** sau khi lập hóa đơn cho khách có hồ sơ, `points = floor(tiền khách thực trả cho hàng được tính điểm / earnAmountPerPoint)`. Căn cứ là `lineTotal` (đã trừ mọi khoản giảm), nên phần trả bằng điểm không được tích lại.
+- **Hủy hóa đơn:** ghi hai bút toán `REVERSE` tách nhau — thu lại điểm đã tích và trả lại điểm đã đổi (điểm trả lại nhận hạn dùng mới).
+- **Trả hàng:** thu lại điểm theo tỷ lệ tiền hoàn của các dòng thuộc nhóm được tính điểm, không bao giờ quá số điểm hóa đơn đó đã tích. Điểm đã đổi không hoàn lại vì tiền hoàn đã tính trên số tiền sau khi trừ điểm.
 
 ---
 
@@ -935,6 +965,7 @@ Response:
       "batchId": "bat_77", "batchOverrideReason": "Khách cần hạn dùng dài để mang đi công tác" }
   ],
   "discount": { "type": "PERCENT", "value": 5, "reason": "Khách quen" },
+  "loyaltyRedeemPoints": 20,
   "acknowledgedWarnings": [
     { "code": "DUPLICATE_INGREDIENT", "productIds": ["prd_para500", "prd_decolgen"], "reason": "Đã tư vấn, khách chỉ dùng một loại" }
   ],
@@ -945,6 +976,8 @@ Response:
 Frontend **không** gửi: đơn giá, thành tiền, số tiền giảm, VAT, tổng tiền, tồn kho, lô FEFO, người bán, người ghi nhận cảnh báo. Nếu các trường này có trong body, backend bỏ qua.
 
 `payment.method`: `CASH`, `BANK_TRANSFER`, `CARD` (chỉ ghi nhận; tích hợp cổng thanh toán để sau MVP).
+
+`loyaltyRedeemPoints` (mặc định 0): số điểm khách đổi trên hóa đơn này (§11.1). Số tiền giảm do máy chủ tính, cộng vào `discountAmount` nhưng **không** tính vào hạn mức giảm giá của vai trò — đây là tiền của chính khách. Lỗi trả về: `LOYALTY_DISABLED` (409), `LOYALTY_MIN_POINTS`, `LOYALTY_INSUFFICIENT_POINTS`, `LOYALTY_REDEEM_LIMIT` (422). Hóa đơn lưu thêm `loyaltyPointsRedeemed`, `loyaltyDiscountAmount`; chi tiết hóa đơn trả kèm `loyaltyPointsEarned` (đã trừ phần thu lại do trả hàng hoặc hủy).
 
 ### 14.2 Xử lý của backend
 

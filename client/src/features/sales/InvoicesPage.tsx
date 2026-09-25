@@ -398,10 +398,26 @@ function InvoiceDetail({ invoice, canReturn, canVoid, onReturn, onVoid }: { invo
         <div>
           <dt>Giảm giá</dt>
           <dd>
-            {invoice.discountAmount > 0 ? `−${formatVnd(invoice.discountAmount)}` : formatVnd(0)}
+            {invoice.discountAmount - invoice.loyaltyDiscountAmount > 0
+              ? `−${formatVnd(invoice.discountAmount - invoice.loyaltyDiscountAmount)}`
+              : formatVnd(0)}
             {invoice.discountReason ? <span className="text-secondary"> · {invoice.discountReason}</span> : null}
           </dd>
         </div>
+        {invoice.loyaltyPointsRedeemed > 0 ? (
+          <div>
+            <dt>Đổi điểm</dt>
+            <dd>
+              {formatNumber(invoice.loyaltyPointsRedeemed)} điểm · −{formatVnd(invoice.loyaltyDiscountAmount)}
+            </dd>
+          </div>
+        ) : null}
+        {invoice.loyaltyPointsEarned > 0 ? (
+          <div>
+            <dt>Điểm tích được</dt>
+            <dd>+{formatNumber(invoice.loyaltyPointsEarned)} điểm</dd>
+          </div>
+        ) : null}
         <div>
           <dt>Trong đó VAT</dt>
           <dd>{formatVnd(invoice.vatAmount)}</dd>

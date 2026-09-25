@@ -1,4 +1,4 @@
-import { FileTextOutlined, InboxOutlined, PrinterOutlined, RightOutlined, SettingOutlined, ShoppingCartOutlined } from "@ant-design/icons";
+import { FileTextOutlined, GiftOutlined, InboxOutlined, PrinterOutlined, RightOutlined, SettingOutlined, ShoppingCartOutlined, TeamOutlined } from "@ant-design/icons";
 import { Breadcrumb, Card } from "antd";
 import type { ReactNode } from "react";
 import { useSearchParams } from "react-router";
@@ -6,6 +6,7 @@ import { confirmLeave } from "../../app/leave-guard.js";
 import { PageHeader } from "../../ui/PageHeader.js";
 import { DocumentTemplateSettings } from "./DocumentTemplateSettings.js";
 import { InvoiceTemplateSettings } from "./InvoiceTemplateSettings.js";
+import { LoyaltySettings } from "./LoyaltySettings.js";
 
 type SettingSection = {
   key: string;
@@ -47,6 +48,20 @@ const GROUPS: SettingGroup[] = [
         description: "Phiếu nhập kho, phiếu trả hàng, phiếu điều chỉnh tồn: tiêu đề, khổ giấy, chữ ký",
         icon: <PrinterOutlined />,
         render: (open) => <DocumentTemplateSettings onOpenInvoiceTemplate={() => open("mau-in-hoa-don")} />,
+      },
+    ],
+  },
+  {
+    key: "khach-hang",
+    label: "Khách hàng",
+    icon: <TeamOutlined />,
+    sections: [
+      {
+        key: "tich-diem",
+        label: "Tích điểm khách thân thiết",
+        description: "Mức tích, giá trị quy đổi, hạn dùng điểm và nhóm hàng được tính điểm",
+        icon: <GiftOutlined />,
+        render: () => <LoyaltySettings />,
       },
     ],
   },
