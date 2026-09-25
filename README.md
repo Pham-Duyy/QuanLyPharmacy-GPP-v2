@@ -14,6 +14,7 @@ Thiết kế sẵn cho chuỗi nhiều nhà thuốc.
 | [docs/api-contract.md](docs/api-contract.md) | Contract có hiệu lực: endpoint, quyền, trạng thái, quy tắc nghiệp vụ |
 | [docs/erd.md](docs/erd.md) | Lược đồ CSDL: 41 bảng, ràng buộc, chỉ mục, thứ tự migration |
 | [docs/restful-api-review.md](docs/restful-api-review.md) | Bản đặc tả API ban đầu, giữ để tham chiếu |
+| [docs/meeting-minutes/](docs/meeting-minutes/) | Biên bản các buổi họp nhóm (01: 28/08/2026, 02: 25/09/2026) |
 
 Đọc contract trước khi viết bất kỳ endpoint nào.
 
