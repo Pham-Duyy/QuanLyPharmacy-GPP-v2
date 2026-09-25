@@ -3,6 +3,7 @@ import { prisma } from "../../db/prisma.js";
 import { AppError } from "../../lib/app-error.js";
 import { businessDateNow, getSetting } from "../../lib/settings.js";
 import type { AuthContext } from "../auth/auth.context.js";
+import * as loyalty from "../loyalty/loyalty.service.js";
 import type { CreateReturnInput } from "./returns.schema.js";
 
 type Tx = Prisma.TransactionClient;
@@ -31,6 +32,8 @@ type PlannedLine = {
   quantity: number;
   baseQuantity: number;
   refundAmount: bigint;
+  /** Dòng này có nằm trong chương trình tích điểm không. */
+  loyaltyEligible: boolean;
 };
 
 /**
@@ -47,6 +50,7 @@ export async function createReturn(
   input: CreateReturnInput,
 ): Promise<string> {
   const store = await prisma.store.findUniqueOrThrow({ where: { id: storeId } });
+  const { settings: loyaltySettings } = await loyalty.getSettings(storeId);
 
   return prisma.$transaction(
     async (tx) => {
@@ -56,7 +60,7 @@ export async function createReturn(
           lines: {
             include: {
               allocations: true,
-              product: { select: { id: true, name: true, drugClass: true } },
+              product: { select: { id: true, name: true, productType: true, drugClass: true } },
               productUnit: { select: { id: true, productId: true } },
             },
           },
@@ -170,6 +174,10 @@ export async function createReturn(
           quantity: line.quantity,
           baseQuantity,
           refundAmount,
+          loyaltyEligible: loyalty.isEligibleProductType(
+            invoiceLine.product.productType,
+            loyaltySettings,
+          ),
         });
       });
 
@@ -253,6 +261,20 @@ export async function createReturn(
           });
         }
       }
+
+      // Hàng trả lại thì phần điểm đã tích cho số tiền đó cũng phải thu lại.
+      // Điểm khách đã đổi không hoàn: tiền hoàn ở trên đã tính trên số tiền
+      // sau khi trừ điểm, nên khách không mất gì.
+      await loyalty.reduceForReturn(tx, {
+        storeId,
+        invoiceId,
+        returnId: saved.id,
+        refundEligible: planned.reduce(
+          (sum, line) => (line.loyaltyEligible ? sum + line.refundAmount : sum),
+          0n,
+        ),
+        userId: auth.userId,
+      });
 
       await updateReturnStatus(tx, invoiceId);
       await reduceDispensed(tx, invoice.prescriptionId, invoice.lines, planned);

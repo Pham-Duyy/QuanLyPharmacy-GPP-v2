@@ -3752,3 +3752,64 @@
   border-radius: var(--r-md);
   background: #fff;
 }
+
+
+/* ----- Tích điểm khách thân thiết ----- */
+.loyalty-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.loyalty-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.loyalty-plus {
+  color: var(--c-success, #389e0d);
+}
+.loyalty-minus {
+  color: var(--c-danger, #cf1322);
+}
+.loyalty-settings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0 16px;
+}
+.settings-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+/* Ô đổi điểm ở quầy bán. */
+.pos-loyalty {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-md);
+  background: var(--c-surface-2, #fafafa);
+}
+.pos-loyalty-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.pos-loyalty-head strong {
+  font-size: 16px;
+}
+.pos-loyalty-input {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.pos-loyalty-input .ant-input-number {
+  flex: 1 1 120px;
+  min-width: 0;
+}

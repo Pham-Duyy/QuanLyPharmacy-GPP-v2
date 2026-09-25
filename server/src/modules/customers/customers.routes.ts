@@ -5,7 +5,7 @@ import { sendData } from "../../lib/respond.js";
 import { parseOrThrow } from "../../lib/validate.js";
 import { authenticate } from "../../middlewares/authenticate.js";
 import { requirePermission } from "../../middlewares/require-permission.js";
-import { storeContext } from "../../middlewares/store-context.js";
+import { requireStore, storeContext } from "../../middlewares/store-context.js";
 import {
   anonymizeCustomerSchema,
   createCustomerSchema,
@@ -14,6 +14,8 @@ import {
   listCustomersSchema,
   searchCustomersSchema,
 } from "./customers.schema.js";
+import { adjustPointsSchema } from "../loyalty/loyalty.schema.js";
+import * as loyalty from "../loyalty/loyalty.service.js";
 import { customerSummary } from "./customer-insights.js";
 import { exportCustomersCsv } from "./customer-export.js";
 import * as service from "./customers.service.js";
@@ -123,6 +125,35 @@ customersRouter.get(
   requirePermission("customer.sensitive"),
   async (req, res) => {
     sendData(res, await service.getInvoiceHistory(String(req.params.id), req.auth!));
+  },
+);
+
+/**
+ * GET /api/v1/customers/{id}/loyalty: số dư điểm và sổ điểm gần đây. Quầy
+ * bán phải xem được để mời khách đổi điểm nên chỉ cần `customer.read`.
+ */
+customersRouter.get(
+  "/customers/:id/loyalty",
+  requirePermission("customer.read"),
+  async (req, res) => {
+    sendData(res, await loyalty.getCustomerLoyalty(String(req.params.id)));
+  },
+);
+
+/**
+ * POST /api/v1/customers/{id}/loyalty/adjust: cộng hoặc trừ điểm bằng tay.
+ * Luôn phải ghi lý do, ghi audit và không được làm số dư âm.
+ */
+customersRouter.post(
+  "/customers/:id/loyalty/adjust",
+  requireStore,
+  requirePermission("loyalty.manage"),
+  async (req, res) => {
+    const input = parseOrThrow(adjustPointsSchema, req.body);
+    sendData(
+      res,
+      await loyalty.adjust(req.auth!.storeId!, String(req.params.id), req.auth!, input),
+    );
   },
 );
 

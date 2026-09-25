@@ -4,6 +4,7 @@ import { AppError } from "../../lib/app-error.js";
 import { businessDateNow, getSetting } from "../../lib/settings.js";
 import type { AuthContext } from "../auth/auth.context.js";
 import { getCurrentPrices } from "../catalog/products.service.js";
+import * as loyalty from "../loyalty/loyalty.service.js";
 import { lockSellableBatches, resolveCartLines, type ResolvedLine } from "./cart.js";
 import { runSafetyCheck, type Blocking } from "./safety-check.service.js";
 import type { CreateInvoiceInput } from "./sales.schema.js";
@@ -79,6 +80,7 @@ export async function createInvoice(
   input: CreateInvoiceInput,
 ): Promise<string> {
   const store = await prisma.store.findUniqueOrThrow({ where: { id: storeId } });
+  const { settings: loyaltySettings } = await loyalty.getSettings(storeId);
 
   return prisma.$transaction(
     async (tx) => {
@@ -149,8 +151,33 @@ export async function createInvoice(
 
       const subtotal = gross.reduce((sum, item) => sum + item.gross, 0n);
 
-      // 6. Giảm giá: máy chủ tự tính, kiểm hạn mức theo vai trò.
-      const discountAmount = await computeDiscount(tx, auth, storeId, input, subtotal);
+      // Tiền hàng được tính điểm. Mặc định hàng thuốc nằm ngoài chương
+      // trình vì Luật Dược cấm khuyến mại thuốc trực tiếp cho người dùng;
+      // chủ nhà thuốc bật riêng thì mới tính (contract §16).
+      const eligibleSubtotal = gross.reduce(
+        (sum, item) =>
+          loyalty.isEligibleProductType(item.line.productType, loyaltySettings)
+            ? sum + item.gross
+            : sum,
+        0n,
+      );
+
+      // 6. Giảm giá: máy chủ tự tính, kiểm hạn mức theo vai trò. Điểm khách
+      // đổi là tiền của chính khách nên không tính vào hạn mức của nhân viên,
+      // nhưng vẫn bị chặn bởi trần phần trăm của chương trình tích điểm.
+      const staffDiscount = await computeDiscount(tx, auth, storeId, input, subtotal);
+      const loyaltyDiscount = await loyalty.planRedemption(tx, {
+        customerId: input.customerId,
+        points: input.loyaltyRedeemPoints,
+        settings: loyaltySettings,
+        eligibleSubtotal,
+      });
+      const discountAmount = staffDiscount + loyaltyDiscount;
+      if (discountAmount > subtotal) {
+        throw AppError.validation(
+          "Giảm giá cộng với tiền đổi điểm lớn hơn giá trị hóa đơn",
+        );
+      }
 
       // Phân bổ tiền giảm về từng dòng để VAT từng dòng vẫn tính đúng.
       const priced: PricedLine[] = gross.map((item) => ({
@@ -208,6 +235,8 @@ export async function createInvoice(
           discountValue: input.discount?.value ?? null,
           discountReason: input.discount?.reason ?? null,
           discountAmount,
+          loyaltyPointsRedeemed: loyaltyDiscount > 0n ? input.loyaltyRedeemPoints : 0,
+          loyaltyDiscountAmount: loyaltyDiscount,
           vatAmount,
           totalAmount,
           paymentMethod: input.payment.method,
@@ -298,6 +327,39 @@ export async function createInvoice(
             reason: ack.reason ?? null,
             acknowledgedBy: auth.userId,
           },
+        });
+      }
+
+      // Sổ điểm: tích theo số tiền khách thực trả cho hàng được tính điểm,
+      // và trừ phần điểm khách vừa đổi.
+      if (input.customerId && loyaltySettings.enabled) {
+        const earnBase = priced.reduce(
+          (sum, line) =>
+            loyalty.isEligibleProductType(line.productType, loyaltySettings)
+              ? sum + line.lineTotal
+              : sum,
+          0n,
+        );
+        await loyalty.record(tx, {
+          storeId,
+          customerId: input.customerId,
+          invoiceId: invoice.id,
+          type: "EARN",
+          points: loyalty.pointsFor(earnBase, loyaltySettings),
+          amount: earnBase,
+          expiresAt: loyalty.expiryFor(loyaltySettings),
+          createdBy: auth.userId,
+        });
+      }
+      if (loyaltyDiscount > 0n) {
+        await loyalty.record(tx, {
+          storeId,
+          customerId: input.customerId!,
+          invoiceId: invoice.id,
+          type: "REDEEM",
+          points: -input.loyaltyRedeemPoints,
+          amount: loyaltyDiscount,
+          createdBy: auth.userId,
         });
       }
 
@@ -510,6 +572,8 @@ export async function voidInvoice(
   auth: AuthContext,
   reason: string,
 ): Promise<void> {
+  const { settings: loyaltySettings } = await loyalty.getSettings(storeId);
+
   await prisma.$transaction(
     async (tx) => {
       const existing = await tx.invoice.findFirst({
@@ -580,6 +644,16 @@ export async function voidInvoice(
 
       await applyDispensed(tx, existing.prescriptionId, dispensed, -1);
 
+      // Hóa đơn không còn thì điểm tích theo nó cũng không còn, và điểm khách
+      // đã đổi được trả lại nguyên vẹn.
+      await loyalty.reverseInvoice(tx, {
+        storeId,
+        invoiceId,
+        settings: loyaltySettings,
+        userId: auth.userId,
+        note: `Hủy hóa đơn: ${reason}`,
+      });
+
       await tx.auditLog.create({
         data: {
           storeId,
@@ -611,6 +685,7 @@ export async function getDetail(storeId: string, invoiceId: string) {
         },
       },
       safetyAcks: true,
+      loyaltyLedger: { select: { type: true, points: true } },
     },
   });
 
@@ -631,6 +706,13 @@ export async function getDetail(storeId: string, invoiceId: string) {
     discountValue: invoice.discountValue,
     discountReason: invoice.discountReason,
     discountAmount: invoice.discountAmount,
+    loyaltyPointsRedeemed: invoice.loyaltyPointsRedeemed,
+    loyaltyDiscountAmount: invoice.loyaltyDiscountAmount,
+    // Điểm hóa đơn này tích được, đã trừ phần thu lại do khách trả hàng
+    // hoặc do hủy hóa đơn (bút toán REVERSE mang dấu âm).
+    loyaltyPointsEarned: invoice.loyaltyLedger
+      .filter((row) => row.type === "EARN" || (row.type === "REVERSE" && row.points < 0))
+      .reduce((sum, row) => sum + row.points, 0),
     vatAmount: invoice.vatAmount,
     totalAmount: invoice.totalAmount,
     paymentMethod: invoice.paymentMethod,

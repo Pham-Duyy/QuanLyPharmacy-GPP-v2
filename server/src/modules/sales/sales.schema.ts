@@ -59,6 +59,11 @@ export const createInvoiceSchema = z.object({
   prescriptionId: z.uuid("prescriptionId không hợp lệ").nullish(),
   lines: z.array(saleLineSchema).min(1, "Hóa đơn phải có ít nhất một dòng"),
   discount: discountSchema.nullish(),
+  /**
+   * Số điểm khách muốn đổi trên hóa đơn này. Tiền giảm tương ứng do máy chủ
+   * tự tính từ cài đặt tích điểm, máy khách gửi lên cũng bị bỏ qua.
+   */
+  loyaltyRedeemPoints: z.coerce.number().int().min(0).default(0),
   acknowledgedWarnings: z
     .array(
       z.object({

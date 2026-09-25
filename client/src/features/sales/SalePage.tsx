@@ -9,6 +9,7 @@ import {
   EditOutlined,
   FileProtectOutlined,
   FileTextOutlined,
+  GiftOutlined,
   LoadingOutlined,
   MinusOutlined,
   PlusOutlined,
@@ -19,7 +20,7 @@ import {
   UserOutlined,
   WarningFilled,
 } from "@ant-design/icons";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { App, AutoComplete, Button, Checkbox, Dropdown, Input, InputNumber, Modal, Select, Space, Tag, Typography } from "antd";
 import type { InputRef } from "antd";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -38,10 +39,11 @@ import {
   type ProductListItem,
   type SafetyResult,
 } from "../../api/types.js";
-import { formatDateTime } from "../../ui/format.js";
+import { formatDateTime, formatNumber } from "../../ui/format.js";
 import { PageHeader } from "../../ui/PageHeader.js";
 import { useDebounced } from "../../ui/useDebounced.js";
 import { useAuth } from "../auth/AuthProvider.js";
+import { maxRedeemablePoints, useCustomerLoyalty, useLoyaltySettings } from "../loyalty/loyalty-api.js";
 import { ProductThumb } from "../catalog/products/ProductThumb.js";
 import { printInvoice } from "../printing/printing.js";
 import { MAX_SALE_DRAFTS, readDrafts, writeDrafts, type SaleDraft } from "./pos/drafts.js";
@@ -96,6 +98,7 @@ function quickTenders(total: number): number[] {
 export function SalePage() {
   const { can, storeId } = useAuth();
   const { message, modal } = App.useApp();
+  const queryClient = useQueryClient();
   const searchRef = useRef<InputRef>(null);
   const [term, setTerm] = useState("");
   const [cart, setCart] = useState<CartLine[]>([]);
@@ -109,6 +112,7 @@ export function SalePage() {
   const [discountType, setDiscountType] = useState<"PERCENT" | "AMOUNT">("AMOUNT");
   const [discountValue, setDiscountValue] = useState(0);
   const [discountReason, setDiscountReason] = useState("");
+  const [redeemPoints, setRedeemPoints] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState("CASH");
   const [tendered, setTendered] = useState<number | null>(null);
   const [printAfterPayment, setPrintAfterPayment] = useState(true);
@@ -130,6 +134,10 @@ export function SalePage() {
     enabled: customerTerm.length >= 3,
     queryFn: async () => (await http.get<Envelope<CustomerSearchItem[]>>("/customers", { params: { search: customerTerm } })).data.data,
   });
+
+  const loyaltyQuery = useLoyaltySettings();
+  const loyaltyProgram = loyaltyQuery.data?.settings;
+  const customerLoyalty = useCustomerLoyalty(customer?.id ?? null, Boolean(loyaltyProgram?.enabled));
 
   const createCustomer = useMutation({
     mutationFn: async () =>
@@ -187,6 +195,25 @@ export function SalePage() {
   const liveCodes = new Set(warnings.map((warning) => warning.code));
   const liveAcked = [...acked].filter((code) => liveCodes.has(code));
 
+  // Đổi điểm: chỉ tính trên nhóm hàng được tích điểm (mặc định không gồm
+  // thuốc), số điểm đổi tối đa do trần phần trăm của chương trình quyết định.
+  const pointsAvailable = customerLoyalty.data?.balance.available ?? 0;
+  const loyaltyEligibleSubtotal = loyaltyProgram
+    ? cart.reduce(
+        (sum, line) =>
+          loyaltyProgram.earnOnDrugs || line.product.productType !== "DRUG" ? sum + lineTotal(line) : sum,
+        0,
+      )
+    : 0;
+  const maxRedeem =
+    loyaltyProgram && customer ? maxRedeemablePoints(loyaltyProgram, loyaltyEligibleSubtotal, pointsAvailable) : 0;
+  const canRedeem = Boolean(loyaltyProgram?.enabled) && maxRedeem >= (loyaltyProgram?.minRedeemPoints ?? 0);
+  const appliedRedeem =
+    canRedeem && loyaltyProgram && redeemPoints >= loyaltyProgram.minRedeemPoints
+      ? Math.min(redeemPoints, maxRedeem)
+      : 0;
+  const loyaltyDiscount = appliedRedeem * (loyaltyProgram?.pointValue ?? 0);
+
   const body = {
     customerId: customer?.id ?? null,
     controlledBuyer: controlledLines.length > 0 ? controlledBuyer : null,
@@ -198,6 +225,7 @@ export function SalePage() {
       prescriptionItemId: line.prescriptionItemId,
     })),
     discount: discountValue > 0 ? { type: discountType, value: discountValue, reason: discountReason || "Giảm giá" } : null,
+    loyaltyRedeemPoints: appliedRedeem,
     acknowledgedWarnings: liveAcked.map((code) => ({ code, productIds: [], reason: ackReason || null })),
     payment: { method: paymentMethod, amountTendered: paymentMethod === "CASH" ? tendered : null },
   };
@@ -219,6 +247,7 @@ export function SalePage() {
     setAckReason("");
     setDiscountValue(0);
     setDiscountReason("");
+    setRedeemPoints(0);
     setTendered(null);
     setPaymentMethod("CASH");
   }
@@ -233,6 +262,7 @@ export function SalePage() {
       return response.data.data;
     },
     onSuccess: (invoice) => {
+      void queryClient.invalidateQueries({ queryKey: ["customer-loyalty"] });
       if (printAfterPayment) void printInvoice(invoice.id, message);
       setDone(invoice);
       resetSale();
@@ -310,7 +340,7 @@ export function SalePage() {
 
   const subtotal = cart.reduce((sum, line) => sum + lineTotal(line), 0);
   const estimatedDiscount = discountValue <= 0 ? 0 : discountType === "PERCENT" ? Math.floor((subtotal * discountValue) / 100) : Math.min(discountValue, subtotal);
-  const estimatedTotal = subtotal - estimatedDiscount;
+  const estimatedTotal = subtotal - estimatedDiscount - loyaltyDiscount;
   const cash = paymentMethod === "CASH";
   const shortfall = cash && tendered !== null && cart.length > 0 && tendered < estimatedTotal ? estimatedTotal - tendered : null;
   const estimatedChange = cash && tendered !== null && tendered >= estimatedTotal && cart.length > 0 ? tendered - estimatedTotal : null;
@@ -571,7 +601,16 @@ export function SalePage() {
                   <UserOutlined />
                   <strong>{customer.fullName ?? "Khách chưa có tên"}</strong>
                   <span className="muted">{maskPhone(customer.phone) ?? "Không có SĐT"}</span>
-                  <Button type="text" size="small" icon={<EditOutlined />} aria-label="Đổi khách hàng" onClick={() => setCustomer(null)} />
+                  <Button
+                    type="text"
+                    size="small"
+                    icon={<EditOutlined />}
+                    aria-label="Đổi khách hàng"
+                    onClick={() => {
+                      setCustomer(null);
+                      setRedeemPoints(0);
+                    }}
+                  />
                 </div>
               ) : (
                 <AutoComplete
@@ -767,6 +806,58 @@ export function SalePage() {
                 <span>−{money(estimatedDiscount)}</span>
               </div>
             ) : null}
+            {loyaltyProgram?.enabled && customer ? (
+              <div className="pos-loyalty">
+                <div className="pos-loyalty-head">
+                  <span>
+                    <GiftOutlined /> Điểm của khách
+                  </span>
+                  <strong>{customerLoyalty.isLoading ? "…" : `${formatNumber(pointsAvailable)} điểm`}</strong>
+                </div>
+                {canRedeem ? (
+                  <>
+                    <div className="pos-loyalty-input">
+                      <InputNumber<number>
+                        min={0}
+                        max={maxRedeem}
+                        step={loyaltyProgram.minRedeemPoints || 1}
+                        value={redeemPoints}
+                        onChange={(value) => setRedeemPoints(value ?? 0)}
+                        aria-label="Số điểm khách muốn đổi"
+                        placeholder="Số điểm đổi"
+                      />
+                      <Button size="small" onClick={() => setRedeemPoints(maxRedeem)}>
+                        Đổi tối đa {formatNumber(maxRedeem)}
+                      </Button>
+                      {redeemPoints > 0 ? (
+                        <Button size="small" type="text" onClick={() => setRedeemPoints(0)}>
+                          Bỏ
+                        </Button>
+                      ) : null}
+                    </div>
+                    <span className="muted">
+                      {appliedRedeem > 0
+                        ? `Giảm ${money(loyaltyDiscount)} · sau đơn này còn ${formatNumber(pointsAvailable - appliedRedeem)} điểm`
+                        : `Mỗi lần đổi từ ${formatNumber(loyaltyProgram.minRedeemPoints)} điểm, 1 điểm = ${money(loyaltyProgram.pointValue)}`}
+                    </span>
+                  </>
+                ) : (
+                  <span className="muted">
+                    {loyaltyEligibleSubtotal === 0
+                      ? "Giỏ hàng chưa có mặt hàng nào được đổi điểm."
+                      : pointsAvailable < loyaltyProgram.minRedeemPoints
+                        ? `Cần tối thiểu ${formatNumber(loyaltyProgram.minRedeemPoints)} điểm mới đổi được.`
+                        : `Hóa đơn này chỉ giảm được tối đa ${loyaltyProgram.maxRedeemPercent}% giá trị hàng tính điểm, chưa đủ một lần đổi.`}
+                  </span>
+                )}
+              </div>
+            ) : null}
+            {appliedRedeem > 0 ? (
+              <div className="pos-summary-row muted">
+                <span>Đổi {formatNumber(appliedRedeem)} điểm</span>
+                <span>−{money(loyaltyDiscount)}</span>
+              </div>
+            ) : null}
             <div className="pos-due">
               <span>Khách phải trả</span>
               <strong>{money(estimatedTotal)}</strong>
@@ -904,12 +995,30 @@ export function SalePage() {
               </div>
               <div>
                 <dt>Giảm giá</dt>
-                <dd>{done.discountAmount > 0 ? `−${formatVnd(done.discountAmount)}` : formatVnd(0)}</dd>
+                <dd>
+                  {done.discountAmount - done.loyaltyDiscountAmount > 0
+                    ? `−${formatVnd(done.discountAmount - done.loyaltyDiscountAmount)}`
+                    : formatVnd(0)}
+                </dd>
               </div>
               <div>
                 <dt>Trong đó VAT</dt>
                 <dd>{formatVnd(done.vatAmount)}</dd>
               </div>
+              {done.loyaltyPointsRedeemed > 0 ? (
+                <div>
+                  <dt>Đổi điểm</dt>
+                  <dd>
+                    {formatNumber(done.loyaltyPointsRedeemed)} điểm · −{formatVnd(done.loyaltyDiscountAmount)}
+                  </dd>
+                </div>
+              ) : null}
+              {done.loyaltyPointsEarned > 0 ? (
+                <div>
+                  <dt>Điểm tích được</dt>
+                  <dd>+{formatNumber(done.loyaltyPointsEarned)} điểm</dd>
+                </div>
+              ) : null}
             </dl>
             <div className="sale-done-batches">
               <span>Lô đã xuất (FEFO)</span>

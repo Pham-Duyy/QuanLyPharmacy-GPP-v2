@@ -9,6 +9,7 @@ export type ResolvedLine = {
   index: number;
   productId: string;
   productName: string;
+  productType: string;
   drugClass: string | null;
   productUnitId: string;
   unitName: string;
@@ -25,7 +26,11 @@ export type ResolvedLine = {
 export async function resolveCartLines(tx: Tx, lines: CartLineInput[]): Promise<ResolvedLine[]> {
   const units = await tx.productUnit.findMany({
     where: { id: { in: lines.map((line) => line.unitId) } },
-    include: { product: { select: { id: true, name: true, drugClass: true, isActive: true } } },
+    include: {
+      product: {
+        select: { id: true, name: true, productType: true, drugClass: true, isActive: true },
+      },
+    },
   });
   const unitById = new Map(units.map((unit) => [unit.id, unit]));
 
@@ -49,6 +54,7 @@ export async function resolveCartLines(tx: Tx, lines: CartLineInput[]): Promise<
       index,
       productId: line.productId,
       productName: unit.product.name,
+      productType: unit.product.productType,
       drugClass: unit.product.drugClass,
       productUnitId: unit.id,
       unitName: unit.name,

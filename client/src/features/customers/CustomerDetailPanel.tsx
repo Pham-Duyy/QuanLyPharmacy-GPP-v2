@@ -22,10 +22,11 @@ import { getErrorMessage, http } from "../../api/http.js";
 import type { CustomerDetail, Envelope } from "../../api/types.js";
 import { formatDate, formatDateTime } from "../../ui/format.js";
 import { useAuth } from "../auth/AuthProvider.js";
+import { LoyaltyPanel } from "../loyalty/LoyaltyPanel.js";
 import { AnonymizeModal, CustomerFormModal, HealthProfilePanel, InvoiceHistoryPanel } from "./customer-forms.js";
 import { GENDER, SEGMENT, avatarTone, initials, money } from "./customer-labels.js";
 
-type Tab = "overview" | "history" | "health" | "note";
+type Tab = "overview" | "history" | "health" | "note" | "loyalty";
 
 function maskPhone(phone: string | null): string | null {
   if (!phone || phone.length < 7) return phone;
@@ -250,6 +251,7 @@ export function CustomerDetailPanel({ customerId, onClose, onChanged }: { custom
             label: "Lịch sử mua",
             children: canSensitive ? <InvoiceHistoryPanel customerId={customerId} onOpenInvoice={(id) => void navigate(`/hoa-don?id=${id}`)} /> : <p className="cust-locked"><LockOutlined /> Cần quyền xem dữ liệu nhạy cảm của khách.</p>,
           },
+          { key: "loyalty", label: "Điểm tích lũy", children: <LoyaltyPanel customerId={customerId} /> },
           {
             key: "health",
             label: "Hồ sơ sức khỏe",

@@ -51,6 +51,7 @@ model Store {
   expiryPlans        BatchExpiryPlan[]
   supplierPayments   SupplierPayment[]
   supplierReturns    SupplierReturn[]
+  loyaltyLedger      LoyaltyTransaction[]
 
   @@map("stores")
 }
@@ -111,6 +112,7 @@ model User {
   supplierReturnsCancelled SupplierReturn[]        @relation("SupplierReturnCancelledBy")
   healthProfilesUpdated    CustomerHealthProfile[]
   stockMovements           StockMovement[]
+  loyaltyEntriesCreated    LoyaltyTransaction[]
 
   @@index([defaultStoreId])
   @@map("users")
@@ -702,6 +704,7 @@ model Customer {
   allergies     CustomerAllergy[]
   invoices      Invoice[]
   prescriptions Prescription[]
+  loyaltyLedger LoyaltyTransaction[]
 
   @@index([phone])
   @@map("customers")
@@ -830,6 +833,10 @@ model Invoice {
   discountAmount BigInt    @default(0) @map("discount_amount")
   vatAmount      BigInt    @default(0) @map("vat_amount")
   totalAmount    BigInt    @default(0) @map("total_amount")
+  /// Điểm khách đã đổi trên hóa đơn này và số tiền giảm tương ứng, tách
+  /// riêng khỏi giảm giá của nhân viên.
+  loyaltyPointsRedeemed Int    @default(0) @map("loyalty_points_redeemed")
+  loyaltyDiscountAmount BigInt @default(0) @map("loyalty_discount_amount")
   paymentMethod  String    @default("CASH") @map("payment_method")
   amountTendered BigInt?   @map("amount_tendered")
   changeAmount   BigInt?   @map("change_amount")
@@ -849,6 +856,7 @@ model Invoice {
   safetyAcks     InvoiceSafetyAck[]
   controlledSale ControlledSaleDetail?
   returns        Return[]
+  loyaltyLedger  LoyaltyTransaction[]
 
   @@index([storeId, businessDate, status])
   @@index([customerId, soldAt(sort: Desc)])
@@ -942,8 +950,9 @@ model Return {
 
   store         Store        @relation(fields: [storeId], references: [id])
   invoice       Invoice      @relation(fields: [invoiceId], references: [id])
-  createdByUser User         @relation(fields: [createdBy], references: [id])
+  createdByUser User                 @relation(fields: [createdBy], references: [id])
   lines         ReturnLine[]
+  loyaltyLedger LoyaltyTransaction[]
 
   @@index([storeId, businessDate])
   @@index([invoiceId])
@@ -1294,4 +1303,35 @@ model SupplierReturnLine {
   @@index([batchId])
   @@index([goodsReceiptId])
   @@map("supplier_return_lines")
+}
+
+/// Sổ điểm tích lũy của khách. Mỗi dòng là một bút toán: số dư không lưu ở
+/// đâu khác mà luôn cộng lại từ sổ này, nên hủy hóa đơn hay trả hàng không
+/// thể làm lệch điểm của khách.
+model LoyaltyTransaction {
+  id         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  storeId    String    @map("store_id") @db.Uuid
+  customerId String    @map("customer_id") @db.Uuid
+  invoiceId  String?   @map("invoice_id") @db.Uuid
+  returnId   String?   @map("return_id") @db.Uuid
+  /// EARN, REDEEM, REVERSE, ADJUST.
+  type       String
+  /// Dương là cộng điểm, âm là trừ điểm. Không bao giờ bằng 0.
+  points     Int
+  /// Doanh thu (đồng) đã dùng để tính ra số điểm, giữ lại để đối chiếu.
+  amount     BigInt?
+  expiresAt  DateTime? @map("expires_at") @db.Timestamptz(6)
+  note       String?
+  createdBy  String?   @map("created_by") @db.Uuid
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  store         Store    @relation(fields: [storeId], references: [id])
+  customer      Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  invoice       Invoice? @relation(fields: [invoiceId], references: [id])
+  return        Return?  @relation(fields: [returnId], references: [id])
+  createdByUser User?    @relation(fields: [createdBy], references: [id])
+
+  @@index([customerId, createdAt])
+  @@index([invoiceId])
+  @@map("loyalty_transactions")
 }
