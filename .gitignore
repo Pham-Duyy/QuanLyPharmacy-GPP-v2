@@ -33,3 +33,6 @@ Thumbs.db
 .idea/
 .vscode/*
 !.vscode/extensions.json
+
+# Ảnh chụp màn hình do kịch bản kiểm thử giao diện sinh ra
+shots/
