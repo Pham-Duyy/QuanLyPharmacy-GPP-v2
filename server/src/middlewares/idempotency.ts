@@ -219,7 +219,7 @@ function captureResponse(res: Response, key: string, userId: string, ownerToken:
       try {
         if (status >= 200 && status < 300) {
           await prisma.idempotencyKey.updateMany({
-            where: { key, userId, ownerToken },
+            where: { key, userId, ownerToken, status: "IN_PROGRESS" },
             data: {
               status: "COMPLETED",
               responseStatus: status,
@@ -232,6 +232,11 @@ function captureResponse(res: Response, key: string, userId: string, ownerToken:
             where: { key, userId, ownerToken, status: "IN_PROGRESS", resourceId: null },
           });
         }
+      } catch (error) {
+        // Không để lỗi dọn khóa biến thành unhandled rejection làm sập tiến
+        // trình: response cho người dùng vẫn phải đi, khóa sẽ hết hạn rồi
+        // được tiếp quản như mọi khóa treo khác.
+        console.error("Không lưu được kết quả idempotency:", error);
       } finally {
         sendJson(body);
       }

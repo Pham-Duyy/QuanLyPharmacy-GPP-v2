@@ -112,8 +112,15 @@
   phải "xóa rồi tạo lại". Hai request cùng thấy một khóa treo thì chỉ một
   request đổi được chủ; request còn lại nhận `409 REQUEST_IN_PROGRESS`.
 - Mọi lệnh ghi lên khóa (gắn chứng từ, lưu response, dọn khóa khi lỗi) đều kèm
-  `owner_token`, nên request đã mất quyền sở hữu không thể xóa hay ghi đè khóa
-  của request đang chạy. Khóa đã gắn chứng từ thì không bao giờ bị tiếp quản.
+  `owner_token` **và trạng thái `IN_PROGRESS`**, nên request đã mất quyền sở
+  hữu không thể xóa hay ghi đè khóa của request đang chạy, cũng không ghi được
+  vào khóa đã hoàn tất. Khóa đã gắn chứng từ thì không bao giờ bị tiếp quản.
+- Gắn chứng từ vào khóa **bắt buộc phải ghi được đúng một dòng**. Không ghi
+  được (khóa đã đổi chủ hoặc đã kết thúc) thì service ném
+  `409 IDEMPOTENCY_OWNERSHIP_LOST` **ngay trong transaction**, nên toàn bộ
+  thay đổi nghiệp vụ bị hủy. Nếu chỉ bỏ qua, request cũ vẫn commit chứng từ
+  trong khi khóa đã thuộc về request khác — và lần gửi lại sẽ tạo chứng từ
+  thứ hai.
 
 ### 2.3b Thứ tự khóa hàng khi đổi trạng thái [Đã chốt]
 
@@ -186,7 +193,7 @@ Lỗi:
 | 401 | Chưa đăng nhập, token hết hạn hoặc bị thu hồi | `UNAUTHENTICATED`, `TOKEN_EXPIRED` |
 | 403 | Thiếu permission, hoặc không có quyền tại cửa hàng được chỉ định | `FORBIDDEN`, `STORE_FORBIDDEN` |
 | 404 | Không tìm thấy tài nguyên | `NOT_FOUND` |
-| 409 | Xung đột trạng thái, phiên bản hoặc tồn kho | `INVALID_STATE`, `VERSION_CONFLICT`, `INSUFFICIENT_STOCK`, `REQUEST_IN_PROGRESS`, `REQUEST_ALREADY_COMMITTED`, `BATCH_EXPIRY_MISMATCH`, `LOYALTY_DISABLED` |
+| 409 | Xung đột trạng thái, phiên bản hoặc tồn kho | `INVALID_STATE`, `VERSION_CONFLICT`, `INSUFFICIENT_STOCK`, `REQUEST_IN_PROGRESS`, `REQUEST_ALREADY_COMMITTED`, `IDEMPOTENCY_OWNERSHIP_LOST`, `BATCH_EXPIRY_MISMATCH`, `LOYALTY_DISABLED` |
 | 422 | Dữ liệu đúng cú pháp nhưng vi phạm validation hoặc quy tắc nghiệp vụ | `VALIDATION_ERROR`, `UNIT_NOT_IN_PRODUCT`, `PRICE_NOT_SET`, `BATCH_NOT_SELLABLE`, `CONTROLLED_DRUG_NOT_SUPPORTED`, `PRESCRIPTION_REQUIRED`, `PRESCRIPTION_NOT_VERIFIED`, `PRESCRIPTION_EXPIRED`, `PRESCRIBED_QUANTITY_EXCEEDED`, `SAFETY_ACK_REQUIRED`, `DISCOUNT_LIMIT_EXCEEDED`, `RETURN_QUANTITY_EXCEEDED`, `RETURN_WINDOW_EXPIRED`, `RETURN_NOT_ALLOWED_FOR_RX`, `SELF_APPROVAL_NOT_ALLOWED`, `IDEMPOTENCY_KEY_REUSED` |
 | 429 | Vượt giới hạn request | `RATE_LIMITED` |
 | 500 | Lỗi không mong muốn | `INTERNAL_ERROR` |
@@ -1219,10 +1226,25 @@ Quy tắc tính:
 - Mặc định báo cáo tính cho cửa hàng trong header `X-Store-Id`. Thêm `?storeId=ALL` để hợp nhất toàn chuỗi (cần `report.chain`), hoặc `?storeId=<id>` để xem một cửa hàng khác mà người dùng có quyền. Kết quả toàn chuỗi luôn kèm phần tách theo từng cửa hàng. **[Đã chốt – P18]**
 - Doanh thu = hóa đơn `COMPLETED` trong kỳ trừ tiền hoàn của phiếu trả **lập trong kỳ**. Hóa đơn `VOIDED` bị loại hoàn toàn. **[Đã chốt – P13]**
 - Báo cáo xuất – nhập – tồn tính từ thẻ kho, nên luôn khớp với tồn thực tế của lô.
-- Giá vốn chỉ lấy từ `invoice_allocations.unit_cost` (xem §9). `GET /reports/summary`
-  trả thêm `costQuality`: `{ totalLines, actualLines, estimatedLines, unknownLines, exact }`.
-  `exact = false` nghĩa là lãi gộp có phần ước tính hoặc không xác định — giao
-  diện phải nói rõ điều đó, không trình bày như số lịch sử chính xác.
+- Giá vốn chỉ lấy từ `invoice_allocations.unit_cost` (xem §9).
+
+**`costQuality` của `GET /reports/summary`** — đếm theo *phần đóng góp vào công
+thức lãi gộp*, vì lãi gộp của kỳ = doanh thu − (giá vốn hàng bán trong kỳ −
+giá vốn hoàn của hàng trả về bán lại trong kỳ):
+
+| Trường | Nghĩa |
+|---|---|
+| `saleLines` | Số dòng phân bổ lô của hóa đơn bán **trong kỳ**. |
+| `returnLines` | Số dòng hàng trả **trong kỳ** có nhập lại kho (RESTOCK). Hóa đơn gốc có thể thuộc kỳ trước. Hàng trả tiêu hủy (DISPOSE) không hoàn giá vốn nên **không** đếm. |
+| `totalLines` | `saleLines + returnLines`. Bán rồi trả trong cùng kỳ đóng góp hai lần nên được đếm hai lần; trả nhiều lần trên cùng một phân bổ đếm theo từng lần trả. |
+| `actualLines` / `estimatedLines` / `unknownLines` | Phân loại theo `unit_cost_source` của phần đóng góp (xem §9). |
+| `unknownSaleLines` | Thiếu giá vốn ở phần **bán** → giá vốn thấp đi → lãi gộp **cao hơn** thực tế. |
+| `unknownReturnLines` | Thiếu giá vốn ở phần **hoàn** của hàng trả → phần trừ ra nhỏ đi → lãi gộp **thấp hơn** thực tế (ngược chiều với phần bán). |
+| `exact` | Cả kỳ không có dòng ước tính hay không xác định. |
+| `comparisonExact` | Cả kỳ này **và kỳ so sánh** đều đủ giá vốn thật. Sai thì tỷ lệ tăng/giảm lãi gộp so với kỳ trước không được trình bày như số chính xác. |
+
+Giao diện phải nói rõ ảnh hưởng theo đúng chiều của từng loại thiếu hụt, và
+không hiển thị tỷ lệ so sánh khi `comparisonExact = false`.
 
 ---
 

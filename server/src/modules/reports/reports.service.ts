@@ -77,42 +77,119 @@ async function getTotals(storeId: string, from: Date, to: Date): Promise<Totals>
   };
 }
 
+/**
+ * Chất lượng giá vốn của một kỳ.
+ *
+ * **Cách đếm:** đếm theo *phần đóng góp vào công thức lãi gộp*, không phải
+ * theo chứng từ. Lãi gộp của kỳ = doanh thu − (giá vốn hàng bán trong kỳ −
+ * giá vốn hoàn của hàng trả về bán lại trong kỳ), nên có đúng hai nguồn:
+ *
+ * - `saleLines`: mỗi dòng phân bổ lô của hóa đơn bán **trong kỳ**.
+ * - `returnLines`: mỗi dòng hàng trả **trong kỳ** có nhập lại kho (RESTOCK).
+ *   Hàng trả để tiêu hủy (DISPOSE) không hoàn giá vốn nên không được đếm.
+ *
+ * Một lần bán rồi trả trong cùng kỳ sẽ đóng góp hai lần — một ở phần bán,
+ * một ở phần hoàn — và được đếm hai lần, vì cả hai đều tham gia công thức.
+ * Trả nhiều lần trên cùng một phân bổ cũng đếm theo từng lần trả.
+ *
+ * Dòng hoàn có thể thuộc hóa đơn của **kỳ trước**: đó chính là lý do không
+ * thể chỉ nhìn hóa đơn bán trong kỳ để kết luận giá vốn đã đủ.
+ */
 export type CostQuality = {
-  /** Số dòng phân bổ của kỳ. */
+  /** Dòng xuất bán trong kỳ. */
+  saleLines: number;
+  /** Dòng hàng trả nhập lại kho trong kỳ (RESTOCK). */
+  returnLines: number;
+  /** Tổng phần đóng góp vào công thức = saleLines + returnLines. */
   totalLines: number;
-  /** Dòng có giá vốn chụp đúng lúc xuất hàng. */
+  /** Có giá vốn chụp đúng lúc xuất hàng. */
   actualLines: number;
-  /** Dòng dùng giá vốn ước tính một lần khi nâng cấp dữ liệu cũ. */
+  /** Dùng giá vốn ước tính một lần khi nâng cấp dữ liệu cũ. */
   estimatedLines: number;
-  /** Dòng không xác định được giá vốn; đang tính là 0 trong giá vốn. */
+  /** Không xác định được giá vốn; đang tính là 0. */
   unknownLines: number;
+  /**
+   * Thiếu giá vốn ở phần BÁN làm giá vốn thấp đi → lãi gộp **cao hơn** thực tế.
+   */
+  unknownSaleLines: number;
+  /**
+   * Thiếu giá vốn ở phần HOÀN của hàng trả làm phần trừ ra nhỏ đi → lãi gộp
+   * **thấp hơn** thực tế. Ảnh hưởng ngược chiều với phần bán.
+   */
+  unknownReturnLines: number;
   /** Chỉ khi tất cả đều là giá vốn thật thì lãi gộp mới là số chính xác. */
   exact: boolean;
+  /**
+   * Cả kỳ này lẫn kỳ so sánh đều đủ giá vốn thật. Sai thì tỷ lệ tăng/giảm lãi
+   * gộp so với kỳ trước không được trình bày như số chính xác.
+   */
+  comparisonExact: boolean;
 };
 
-async function getCostQuality(storeId: string, from: Date, to: Date): Promise<CostQuality> {
+type CostCounts = Omit<CostQuality, "comparisonExact">;
+
+/**
+ * Đếm phần đóng góp giá vốn của một kỳ: dòng bán trong kỳ và dòng hàng trả
+ * nhập lại kho trong kỳ (kể cả khi hóa đơn gốc thuộc kỳ trước).
+ */
+async function getCostCounts(storeId: string, from: Date, to: Date): Promise<CostCounts> {
   const [row] = await prisma.$queryRaw<
-    Array<{ total_lines: number; actual_lines: number; estimated_lines: number; unknown_lines: number }>
+    Array<{
+      sale_lines: number;
+      return_lines: number;
+      actual_lines: number;
+      estimated_lines: number;
+      unknown_sale_lines: number;
+      unknown_return_lines: number;
+    }>
   >(Prisma.sql`
-    SELECT COUNT(*)::int AS total_lines,
-           COUNT(*) FILTER (WHERE ia.unit_cost IS NOT NULL AND ia.unit_cost_source = 'ACTUAL')::int AS actual_lines,
-           COUNT(*) FILTER (WHERE ia.unit_cost IS NOT NULL AND ia.unit_cost_source = 'ESTIMATED')::int AS estimated_lines,
-           COUNT(*) FILTER (WHERE ia.unit_cost IS NULL)::int AS unknown_lines
-    FROM invoice_allocations ia
-    JOIN invoice_lines il ON il.id = ia.invoice_line_id
-    JOIN invoices i ON i.id = il.invoice_id
-    WHERE i.store_id = ${storeId}::uuid AND i.status = 'COMPLETED'
-      AND i.business_date >= ${from}::date AND i.business_date < ${to}::date
+    WITH sold AS (
+      SELECT ia.unit_cost, ia.unit_cost_source
+      FROM invoice_allocations ia
+      JOIN invoice_lines il ON il.id = ia.invoice_line_id
+      JOIN invoices i ON i.id = il.invoice_id
+      WHERE i.store_id = ${storeId}::uuid AND i.status = 'COMPLETED'
+        AND i.business_date >= ${from}::date AND i.business_date < ${to}::date
+    ),
+    restocked AS (
+      SELECT ia.unit_cost, ia.unit_cost_source
+      FROM return_lines rl
+      JOIN returns r ON r.id = rl.return_id
+      JOIN invoice_allocations ia ON ia.id = rl.invoice_allocation_id
+      WHERE r.store_id = ${storeId}::uuid AND r.disposition = 'RESTOCK'
+        AND r.business_date >= ${from}::date AND r.business_date < ${to}::date
+    )
+    SELECT
+      (SELECT COUNT(*) FROM sold)::int AS sale_lines,
+      (SELECT COUNT(*) FROM restocked)::int AS return_lines,
+      (
+        (SELECT COUNT(*) FROM sold WHERE unit_cost IS NOT NULL AND unit_cost_source = 'ACTUAL')
+        + (SELECT COUNT(*) FROM restocked WHERE unit_cost IS NOT NULL AND unit_cost_source = 'ACTUAL')
+      )::int AS actual_lines,
+      (
+        (SELECT COUNT(*) FROM sold WHERE unit_cost IS NOT NULL AND unit_cost_source = 'ESTIMATED')
+        + (SELECT COUNT(*) FROM restocked WHERE unit_cost IS NOT NULL AND unit_cost_source = 'ESTIMATED')
+      )::int AS estimated_lines,
+      (SELECT COUNT(*) FROM sold WHERE unit_cost IS NULL)::int AS unknown_sale_lines,
+      (SELECT COUNT(*) FROM restocked WHERE unit_cost IS NULL)::int AS unknown_return_lines
   `);
 
-  const totalLines = row?.total_lines ?? 0;
+  const saleLines = row?.sale_lines ?? 0;
+  const returnLines = row?.return_lines ?? 0;
   const estimatedLines = row?.estimated_lines ?? 0;
-  const unknownLines = row?.unknown_lines ?? 0;
+  const unknownSaleLines = row?.unknown_sale_lines ?? 0;
+  const unknownReturnLines = row?.unknown_return_lines ?? 0;
+  const unknownLines = unknownSaleLines + unknownReturnLines;
+
   return {
-    totalLines,
+    saleLines,
+    returnLines,
+    totalLines: saleLines + returnLines,
     actualLines: row?.actual_lines ?? 0,
     estimatedLines,
     unknownLines,
+    unknownSaleLines,
+    unknownReturnLines,
     exact: estimatedLines === 0 && unknownLines === 0,
   };
 }
@@ -203,12 +280,23 @@ export async function getReportsSummary(storeId: string, from: Date, to: Date) {
   const previousFrom = addDays(from, -periodDays);
   const previousTo = from;
 
-  const [current, previous, trend, costQuality, topProductRows, categoryRows, paymentRows, staffRows] =
+  const [
+    current,
+    previous,
+    trend,
+    currentCost,
+    previousCost,
+    topProductRows,
+    categoryRows,
+    paymentRows,
+    staffRows,
+  ] =
     await Promise.all([
       getTotals(storeId, from, to),
       getTotals(storeId, previousFrom, previousTo),
       getDailyTrend(storeId, from, to),
-      getCostQuality(storeId, from, to),
+      getCostCounts(storeId, from, to),
+      getCostCounts(storeId, previousFrom, previousTo),
       prisma.$queryRaw<TopProductRow[]>(Prisma.sql`
       SELECT il.product_id::text, MAX(il.product_name) AS product_name, SUM(il.base_quantity)::int AS quantity, SUM(il.line_total)::bigint AS revenue
       FROM invoice_lines il
@@ -268,8 +356,9 @@ export async function getReportsSummary(storeId: string, from: Date, to: Date) {
     from: toDateKey(from),
     to: toDateKey(addDays(to, -1)),
     // Chất lượng giá vốn của kỳ: máy khách phải nói rõ khi lãi gộp có phần
-    // ước tính hoặc không xác định, không trình bày như số chính xác.
-    costQuality,
+    // ước tính hoặc không xác định, không trình bày như số chính xác. Kỳ so
+    // sánh cũng phải đủ giá vốn thì tỷ lệ tăng/giảm mới đáng tin.
+    costQuality: { ...currentCost, comparisonExact: currentCost.exact && previousCost.exact },
     kpis: {
       netRevenue: currentNet.netRevenue,
       netRevenueChangePercent: percentageChange(currentNet.netRevenue, previousNet.netRevenue),

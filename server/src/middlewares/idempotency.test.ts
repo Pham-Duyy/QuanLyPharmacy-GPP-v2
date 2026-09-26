@@ -3,6 +3,7 @@ import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { Prisma } from "../generated/prisma/client.js";
 import { prisma } from "../db/prisma.js";
 import { api, authHeaders, login, seedFixture, truncateAll, type Fixture } from "../test/helpers.js";
+import { idempotencyStore, markIdempotentResource } from "../lib/idempotency-context.js";
 import { idempotencyRequestHash, takeOverStaleKey } from "./idempotency.js";
 
 /**
@@ -302,5 +303,100 @@ describe("Khóa idempotency", () => {
       .send(saleBody())
       .expect(400);
     expect(missing.body.error.code).toBe("IDEMPOTENCY_KEY_REQUIRED");
+  });
+});
+
+describe("Gắn chứng từ vào khóa idempotency", () => {
+  /** Chạy một nghiệp vụ giả trong transaction với ngữ cảnh khóa cho trước. */
+  const runBusiness = (context: { key: string; userId: string; ownerToken: string }, marker: string) =>
+    idempotencyStore.run(context, () =>
+      prisma.$transaction(async (tx) => {
+        const saved = await tx.customer.create({ data: { fullName: marker } });
+        await markIdempotentResource(tx, "customer", saved.id);
+        return saved.id;
+      }),
+    );
+
+  it("token đúng: nghiệp vụ commit và khóa trỏ đúng chứng từ", async () => {
+    const key = randomUUID();
+    const stale = await staleKey(key);
+
+    const customerId = await runBusiness(
+      { key, userId: fixture.adminId, ownerToken: stale.ownerToken },
+      "CHU_KHOA_DUNG",
+    );
+
+    expect(await prisma.customer.count({ where: { fullName: "CHU_KHOA_DUNG" } })).toBe(1);
+    expect(await prisma.idempotencyKey.findFirstOrThrow({ where: { key } })).toMatchObject({
+      resourceType: "customer",
+      resourceId: customerId,
+    });
+  });
+
+  it("token sai: transaction bị từ chối, không lưu dữ liệu nghiệp vụ", async () => {
+    const key = randomUUID();
+    await staleKey(key);
+
+    await expect(
+      runBusiness({ key, userId: fixture.adminId, ownerToken: randomUUID() }, "TOKEN_SAI"),
+    ).rejects.toThrow(/đổi chủ|kết thúc/);
+
+    expect(await prisma.customer.count({ where: { fullName: "TOKEN_SAI" } })).toBe(0);
+    expect(await prisma.idempotencyKey.findFirstOrThrow({ where: { key } })).toMatchObject({
+      resourceId: null,
+    });
+  });
+
+  it("request cũ chạy tiếp sau khi khóa đã đổi chủ: rollback, khóa của chủ mới nguyên vẹn", async () => {
+    const key = randomUUID();
+    const stale = await staleKey(key);
+
+    // Request mới tiếp quản khóa.
+    const newOwner = await takeOverStaleKey(
+      { id: stale.id, ownerToken: stale.ownerToken },
+      { storeId: fixture.storeId, method: "POST", path: "/api/v1/invoices", requestHash: saleHash() },
+    );
+    expect(newOwner).not.toBeNull();
+
+    // Request cũ vẫn đang chạy và cố ghi tiếp.
+    await expect(
+      runBusiness({ key, userId: fixture.adminId, ownerToken: stale.ownerToken }, "CHU_CU_GHI_TIEP"),
+    ).rejects.toThrow();
+
+    expect(await prisma.customer.count({ where: { fullName: "CHU_CU_GHI_TIEP" } })).toBe(0);
+    const survivor = await prisma.idempotencyKey.findFirstOrThrow({ where: { key } });
+    expect(survivor.ownerToken).toBe(newOwner);
+    expect(survivor.resourceId).toBeNull();
+    expect(survivor.status).toBe("IN_PROGRESS");
+  });
+
+  it("khóa đã hoàn tất: request đến muộn không ghi đè được chứng từ", async () => {
+    const key = randomUUID();
+    const done = await prisma.idempotencyKey.create({
+      data: {
+        key,
+        userId: fixture.adminId,
+        storeId: fixture.storeId,
+        ownerToken: randomUUID(),
+        method: "POST",
+        path: "/api/v1/invoices",
+        requestHash: saleHash(),
+        status: "COMPLETED",
+        responseStatus: 201,
+        resourceType: "invoice",
+        resourceId: randomUUID(),
+        expiresAt: new Date(Date.now() + 3_600_000),
+      },
+    });
+
+    await expect(
+      runBusiness({ key, userId: fixture.adminId, ownerToken: done.ownerToken }, "KHOA_DA_XONG"),
+    ).rejects.toThrow();
+
+    expect(await prisma.customer.count({ where: { fullName: "KHOA_DA_XONG" } })).toBe(0);
+    expect(await prisma.idempotencyKey.findFirstOrThrow({ where: { key } })).toMatchObject({
+      resourceId: done.resourceId,
+      status: "COMPLETED",
+    });
   });
 });
