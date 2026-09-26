@@ -708,13 +708,25 @@ export type AuditLogPage = { items: AuditLogItem[]; nextCursor: string | null };
 export type ReportsSummary = {
   from: string;
   to: string;
-  /** Giá vốn của kỳ đáng tin tới đâu; lãi gộp chỉ chính xác khi `exact`. */
+  /**
+   * Giá vốn của kỳ đáng tin tới đâu. Đếm theo phần đóng góp vào công thức lãi
+   * gộp: dòng bán trong kỳ (`saleLines`) và dòng hàng trả nhập lại kho trong
+   * kỳ (`returnLines`, có thể thuộc hóa đơn kỳ trước).
+   */
   costQuality: {
+    saleLines: number;
+    returnLines: number;
     totalLines: number;
     actualLines: number;
     estimatedLines: number;
     unknownLines: number;
+    /** Thiếu giá vốn phần bán → lãi gộp cao hơn thực tế. */
+    unknownSaleLines: number;
+    /** Thiếu giá vốn phần hoàn của hàng trả → lãi gộp thấp hơn thực tế. */
+    unknownReturnLines: number;
     exact: boolean;
+    /** Cả kỳ này và kỳ so sánh đều đủ giá vốn thật. */
+    comparisonExact: boolean;
   };
   kpis: {
     netRevenue: Money;

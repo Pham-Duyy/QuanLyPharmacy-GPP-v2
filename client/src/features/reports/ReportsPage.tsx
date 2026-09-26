@@ -103,7 +103,21 @@ export function ReportsPage() {
         <>
           <StatGrid>
             <StatCard tone="green" icon={<DollarCircleOutlined />} label="Doanh thu thuần" value={formatVnd(data.kpis.netRevenue)} hint={<Trend value={data.kpis.netRevenueChangePercent} suffix="so với kỳ trước" />} />
-            <StatCard tone="blue" icon={<RiseOutlined />} label="Lợi nhuận gộp" value={formatVnd(data.kpis.grossProfit)} hint={<Trend value={data.kpis.grossProfitChangePercent} suffix="so với kỳ trước" />} />
+            <StatCard
+              tone="blue"
+              icon={<RiseOutlined />}
+              label="Lợi nhuận gộp"
+              value={formatVnd(data.kpis.grossProfit)}
+              hint={
+                // Kỳ này hoặc kỳ so sánh thiếu giá vốn thì tỷ lệ tăng/giảm
+                // không phải số đáng tin, không hiển thị như số chính xác.
+                data.costQuality.comparisonExact ? (
+                  <Trend value={data.kpis.grossProfitChangePercent} suffix="so với kỳ trước" />
+                ) : (
+                  <span className="muted">Chưa so sánh được với kỳ trước: giá vốn chưa đủ</span>
+                )
+              }
+            />
             <StatCard tone="purple" icon={<FileTextOutlined />} label="Số hóa đơn" value={formatNumber(data.kpis.invoiceCount)} hint={<Trend value={data.kpis.invoiceCountChangePercent} suffix="so với kỳ trước" />} />
             <StatCard tone="orange" icon={<ShoppingOutlined />} label="Giá trị đơn trung bình" value={formatVnd(data.kpis.averageOrderValue)} hint={<Trend value={data.kpis.averageOrderValueChangePercent} suffix="so với kỳ trước" />} />
           </StatGrid>
@@ -116,11 +130,15 @@ export function ReportsPage() {
               title="Lợi nhuận gộp của kỳ này chưa phải số chính xác"
               description={
                 <>
+                  {`Kỳ này có ${formatNumber(data.costQuality.saleLines)} dòng xuất bán và ${formatNumber(data.costQuality.returnLines)} dòng hàng trả nhập lại kho tham gia tính giá vốn. `}
                   {data.costQuality.estimatedLines > 0
-                    ? `${formatNumber(data.costQuality.estimatedLines)}/${formatNumber(data.costQuality.totalLines)} dòng xuất hàng dùng giá vốn ƯỚC TÍNH (dữ liệu có trước khi phần mềm chụp giá vốn lúc bán). `
+                    ? `${formatNumber(data.costQuality.estimatedLines)} dòng dùng giá vốn ƯỚC TÍNH (dữ liệu có trước khi phần mềm chụp giá vốn lúc bán), lệch về phía nào chưa xác định được. `
                     : ""}
-                  {data.costQuality.unknownLines > 0
-                    ? `${formatNumber(data.costQuality.unknownLines)}/${formatNumber(data.costQuality.totalLines)} dòng KHÔNG xác định được giá vốn nên đang tính là 0, làm lợi nhuận cao hơn thực tế. `
+                  {data.costQuality.unknownSaleLines > 0
+                    ? `${formatNumber(data.costQuality.unknownSaleLines)} dòng BÁN không có giá vốn nên đang tính là 0, làm lợi nhuận CAO hơn thực tế. `
+                    : ""}
+                  {data.costQuality.unknownReturnLines > 0
+                    ? `${formatNumber(data.costQuality.unknownReturnLines)} dòng HÀNG TRẢ không có giá vốn nên phần hoàn lại bị thiếu, làm lợi nhuận THẤP hơn thực tế. `
                     : ""}
                   Doanh thu và số hóa đơn vẫn chính xác.
                 </>
