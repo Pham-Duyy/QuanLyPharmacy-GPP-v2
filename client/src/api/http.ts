@@ -75,6 +75,26 @@ http.interceptors.response.use(undefined, async (error: AxiosError) => {
 });
 
 /** Lấy thông điệp lỗi tiếng Việt do backend trả về theo khung ở contract §2.6. */
+/**
+ * Chứng từ mà một yêu cầu trước đó đã ghi được (409 REQUEST_ALREADY_COMMITTED).
+ *
+ * Máy chủ trả về khi lần gửi trước đã commit nghiệp vụ nhưng máy khách không
+ * nhận được kết quả. Máy khách phải mở đúng chứng từ đó thay vì hiểu nhầm là
+ * giao dịch thất bại rồi làm lại.
+ */
+export function getCommittedResource(
+  error: unknown,
+): { resourceType: string | null; resourceId: string } | null {
+  if (!(error instanceof AxiosError)) return null;
+  const payload = error.response?.data as
+    | { error?: { code?: string; details?: Array<{ resourceType?: string | null; resourceId?: string }> } }
+    | undefined;
+  if (payload?.error?.code !== "REQUEST_ALREADY_COMMITTED") return null;
+  const first = payload.error.details?.[0];
+  if (!first?.resourceId) return null;
+  return { resourceType: first.resourceType ?? null, resourceId: first.resourceId };
+}
+
 export function getErrorMessage(error: unknown, fallback = "Đã xảy ra lỗi"): string {
   if (error instanceof AxiosError) {
     const payload = error.response?.data as

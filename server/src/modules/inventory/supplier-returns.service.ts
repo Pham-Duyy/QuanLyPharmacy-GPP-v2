@@ -154,11 +154,11 @@ export async function confirmReturn(storeId: string, returnId: string, auth: Aut
     // Trả hàng trừ thẳng vào công nợ thì phải khóa đúng những phiếu nhập đó,
     // để một lần thanh toán đang chạy song song không tính trên số nợ cũ.
     if (existing.settlement === "DEDUCT_DEBT") {
-      await lockGoodsReceipts(
-        tx,
-        storeId,
-        [...new Set(existing.lines.map((line) => line.goodsReceiptId).filter((id): id is string => Boolean(id)))],
-      );
+      const receiptIds = [
+        ...new Set(existing.lines.map((line) => line.goodsReceiptId).filter((id): id is string => Boolean(id))),
+      ];
+      await lockGoodsReceipts(tx, storeId, receiptIds);
+      await assertDeductible(tx, storeId, returnId, existing.lines, receiptIds);
     }
 
     const moved = await tx.supplierReturn.updateMany({
@@ -202,6 +202,56 @@ export async function confirmReturn(storeId: string, returnId: string, auth: Aut
       },
     });
   });
+}
+
+/**
+ * "Trừ vào công nợ" chỉ trừ được vào phần **còn nợ** của đúng phiếu nhập đó.
+ *
+ * Nếu phiếu nhập đã trả đủ tiền (hoặc phần còn nợ ít hơn giá trị hàng trả),
+ * khoản chênh lệch là tiền nhà cung cấp nợ lại nhà thuốc — sổ công nợ hiện
+ * tại không có chỗ ghi khoản đó, và `outstanding` bị kẹp về 0 nên tiền sẽ
+ * **biến mất khỏi sổ**. Vì vậy chặn ngay tại đây và yêu cầu chọn hình thức
+ * tất toán khác (nhận lại tiền hoặc đổi hàng).
+ */
+async function assertDeductible(
+  tx: Tx,
+  storeId: string,
+  returnId: string,
+  lines: Array<{ goodsReceiptId: string | null; lineValue: bigint }>,
+  receiptIds: string[],
+): Promise<void> {
+  const creditByReceipt = new Map<string, number>();
+  for (const line of lines) {
+    if (!line.goodsReceiptId) continue;
+    creditByReceipt.set(line.goodsReceiptId, (creditByReceipt.get(line.goodsReceiptId) ?? 0) + num(line.lineValue));
+  }
+  if (creditByReceipt.size === 0) return;
+
+  const receipts = await tx.goodsReceipt.findMany({
+    where: { id: { in: receiptIds }, storeId },
+    include: {
+      paymentAllocations: { where: { payment: { status: "ACTIVE" } }, select: { amount: true } },
+      supplierReturnLines: {
+        where: { supplierReturn: { status: "CONFIRMED", settlement: "DEDUCT_DEBT", id: { not: returnId } } },
+        select: { lineValue: true },
+      },
+    },
+  });
+
+  for (const receipt of receipts) {
+    const credit = creditByReceipt.get(receipt.id) ?? 0;
+    if (credit === 0) continue;
+    const paid = receipt.paymentAllocations.reduce((sum, item) => sum + num(item.amount), 0);
+    const credited = receipt.supplierReturnLines.reduce((sum, item) => sum + num(item.lineValue), 0);
+    const remaining = num(receipt.totalCost) - paid - credited;
+    if (credit > remaining) {
+      throw new AppError(
+        422,
+        "DEBT_CREDIT_EXCEEDED",
+        `Phiếu nhập ${receipt.code} chỉ còn nợ ${Math.max(0, remaining).toLocaleString("vi-VN")} đ, không trừ ${credit.toLocaleString("vi-VN")} đ được. Chọn hình thức nhận lại tiền hoặc đổi hàng cho phần vượt.`,
+      );
+    }
+  }
 }
 
 export async function cancelReturn(storeId: string, returnId: string, auth: AuthContext, reason: string): Promise<void> {
