@@ -194,7 +194,7 @@ Lỗi:
 | 403 | Thiếu permission, hoặc không có quyền tại cửa hàng được chỉ định | `FORBIDDEN`, `STORE_FORBIDDEN` |
 | 404 | Không tìm thấy tài nguyên | `NOT_FOUND` |
 | 409 | Xung đột trạng thái, phiên bản hoặc tồn kho | `INVALID_STATE`, `VERSION_CONFLICT`, `INSUFFICIENT_STOCK`, `REQUEST_IN_PROGRESS`, `REQUEST_ALREADY_COMMITTED`, `IDEMPOTENCY_OWNERSHIP_LOST`, `BATCH_EXPIRY_MISMATCH`, `LOYALTY_DISABLED` |
-| 422 | Dữ liệu đúng cú pháp nhưng vi phạm validation hoặc quy tắc nghiệp vụ | `VALIDATION_ERROR`, `UNIT_NOT_IN_PRODUCT`, `PRICE_NOT_SET`, `BATCH_NOT_SELLABLE`, `CONTROLLED_DRUG_NOT_SUPPORTED`, `PRESCRIPTION_REQUIRED`, `PRESCRIPTION_NOT_VERIFIED`, `PRESCRIPTION_EXPIRED`, `PRESCRIBED_QUANTITY_EXCEEDED`, `SAFETY_ACK_REQUIRED`, `DISCOUNT_LIMIT_EXCEEDED`, `RETURN_QUANTITY_EXCEEDED`, `RETURN_WINDOW_EXPIRED`, `RETURN_NOT_ALLOWED_FOR_RX`, `SELF_APPROVAL_NOT_ALLOWED`, `IDEMPOTENCY_KEY_REUSED` |
+| 422 | Dữ liệu đúng cú pháp nhưng vi phạm validation hoặc quy tắc nghiệp vụ | `VALIDATION_ERROR`, `UNIT_NOT_IN_PRODUCT`, `PRICE_NOT_SET`, `BATCH_NOT_SELLABLE`, `CONTROLLED_DRUG_NOT_SUPPORTED`, `PRESCRIPTION_REQUIRED`, `PRESCRIPTION_NOT_VERIFIED`, `PRESCRIPTION_EXPIRED`, `PRESCRIBED_QUANTITY_EXCEEDED`, `SAFETY_ACK_REQUIRED`, `DISCOUNT_LIMIT_EXCEEDED`, `RETURN_QUANTITY_EXCEEDED`, `RETURN_WINDOW_EXPIRED`, `RETURN_NOT_ALLOWED_FOR_RX`, `SELF_APPROVAL_NOT_ALLOWED`, `IDEMPOTENCY_KEY_REUSED`, `DEBT_CREDIT_EXCEEDED` |
 | 429 | Vượt giới hạn request | `RATE_LIMITED` |
 | 500 | Lỗi không mong muốn | `INTERNAL_ERROR` |
 
@@ -748,6 +748,17 @@ Quy tắc:
 - `settlement`: `DEDUCT_DEBT` trừ vào công nợ (mặc định) · `REFUND` nhận lại tiền · `REPLACEMENT` đổi hàng. **Chỉ `DEDUCT_DEBT` tác động công nợ** (§9.1): giá trị dòng trả được trừ vào chính phiếu nhập đã mang lô đó về.
 - Giá trị dòng tính theo **giá vốn của lô**, không phải giá bán.
 - Mỗi dòng gắn với phiếu nhập gốc (tìm theo lô), để trừ đúng khoản nợ.
+- **`DEDUCT_DEBT` chỉ trừ được vào phần CÒN NỢ của chính phiếu nhập đó.** Phiếu
+  đã trả đủ tiền (hoặc phần còn nợ nhỏ hơn giá trị hàng trả) thì lệnh xác nhận
+  bị chặn với `422 DEBT_CREDIT_EXCEEDED`, kèm gợi ý chọn `REFUND` (nhận lại
+  tiền) hoặc `REPLACEMENT` (đổi hàng). Lý do: sổ công nợ chưa có chỗ ghi khoản
+  nhà cung cấp nợ lại nhà thuốc, `outstanding` bị kẹp ở 0 nên phần vượt sẽ
+  biến mất khỏi sổ.
+- ** chỉ trừ được vào phần CÒN NỢ của chính phiếu nhập đó.** Phiếu
+  đã trả đủ tiền (hoặc phần còn nợ nhỏ hơn giá trị hàng trả) thì xác nhận bị
+  chặn với , kèm gợi ý chọn  hoặc
+  . Lý do: sổ công nợ hiện chưa có chỗ ghi khoản nhà cung cấp nợ
+  lại nhà thuốc,  bị kẹp ở 0 nên phần vượt sẽ biến mất khỏi sổ.
 - Số lượng không vượt quá tồn của lô; kiểm tra lại lúc xác nhận vì từ khi lập nháp có thể đã bán bớt (`409 INSUFFICIENT_STOCK`).
 - Phiếu đã xác nhận **không hủy được**; nhà cung cấp trả hàng lại thì lập phiếu nhập mới.
 

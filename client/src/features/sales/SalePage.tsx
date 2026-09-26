@@ -25,7 +25,7 @@ import { App, AutoComplete, Button, Checkbox, Dropdown, Input, InputNumber, Moda
 import type { InputRef } from "antd";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
-import { getErrorMessage, http } from "../../api/http.js";
+import { getCommittedResource, getErrorMessage, http } from "../../api/http.js";
 import {
   formatVnd,
   type CustomerDetail,
@@ -267,7 +267,29 @@ export function SalePage() {
       setDone(invoice);
       resetSale();
     },
-    onError: (error) => void message.error(getErrorMessage(error, "Không bán được")),
+    onError: (error) => {
+      // Lần gửi trước đã lập hóa đơn nhưng máy khách mất kết nối trước khi
+      // nhận kết quả: mở đúng hóa đơn đó ra, tuyệt đối không để người bán
+      // tưởng là thất bại rồi bán lại lần nữa.
+      const committed = getCommittedResource(error);
+      if (committed?.resourceType === "invoice") {
+        void (async () => {
+          try {
+            const invoice = (await http.get<Envelope<Invoice>>(`/invoices/${committed.resourceId}`)).data.data;
+            void message.warning("Đơn này đã được lập từ lần bấm trước, mở lại hóa đơn đã lưu", 8);
+            setDone(invoice);
+            resetSale();
+          } catch {
+            void message.error(
+              `Đơn đã được lập từ lần bấm trước (mã chứng từ ${committed.resourceId}). Mở màn Hóa đơn để kiểm tra trước khi bán lại.`,
+              10,
+            );
+          }
+        })();
+        return;
+      }
+      void message.error(getErrorMessage(error, "Không bán được"));
+    },
   });
 
   /** Dòng đơn thuốc còn khớp được với một sản phẩm: đúng thuốc, chưa bán hết theo đơn. */

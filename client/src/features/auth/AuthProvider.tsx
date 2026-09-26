@@ -1,3 +1,4 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import {
@@ -22,6 +23,30 @@ type AuthState = {
 
 const AuthContext = createContext<AuthState | null>(null);
 
+/**
+ * Cửa hàng đang làm việc được nhớ lại giữa các lần tải trang. Không nhớ thì
+ * mỗi lần bấm F5 người dùng bị đưa về cửa hàng mặc định trong khi vẫn tưởng
+ * mình đang ở cửa hàng vừa chọn — rất dễ bán nhầm kho.
+ */
+const STORE_KEY = "gpp.store";
+
+function rememberedStore(): string | null {
+  try {
+    return window.localStorage.getItem(STORE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function rememberStore(storeId: string | null): void {
+  try {
+    if (storeId) window.localStorage.setItem(STORE_KEY, storeId);
+    else window.localStorage.removeItem(STORE_KEY);
+  } catch {
+    // Trình duyệt chặn localStorage thì chỉ mất tiện ích nhớ cửa hàng.
+  }
+}
+
 export function useAuth(): AuthState {
   const value = useContext(AuthContext);
   if (!value) throw new Error("useAuth phải nằm trong AuthProvider");
@@ -35,10 +60,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const applyMe = useCallback((data: Me) => {
     setMe(data);
+    // Ưu tiên cửa hàng đang làm dở, nhưng chỉ khi người dùng còn quyền ở đó.
+    const remembered = rememberedStore();
     const preferred =
-      data.user.defaultStoreId ?? (data.stores.length > 0 ? data.stores[0]!.id : null);
+      (remembered && data.stores.some((item) => item.id === remembered) ? remembered : null) ??
+      data.user.defaultStoreId ??
+      (data.stores.length > 0 ? data.stores[0]!.id : null);
     setStoreId(preferred);
     setCurrentStoreId(preferred);
+    rememberStore(preferred);
     setStatus("authenticated");
   }, []);
 
@@ -95,10 +125,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [clear]);
 
-  const selectStore = useCallback((next: string) => {
-    setStoreId(next);
-    setCurrentStoreId(next);
-  }, []);
+  const queryClient = useQueryClient();
+
+  const selectStore = useCallback(
+    (next: string) => {
+      setStoreId(next);
+      setCurrentStoreId(next);
+      rememberStore(next);
+      // Dữ liệu đã tải thuộc về cửa hàng cũ: xóa sạch bộ nhớ đệm để mọi màn
+      // hình nạp lại theo cửa hàng mới. Không làm bước này thì người dùng vẫn
+      // thấy hóa đơn, tồn kho, báo cáo của cửa hàng vừa rời đi.
+      queryClient.clear();
+    },
+    [queryClient],
+  );
 
   // Chỉ làm mới hồ sơ, giữ nguyên cửa hàng đang chọn.
   const reloadMe = useCallback(async () => {
