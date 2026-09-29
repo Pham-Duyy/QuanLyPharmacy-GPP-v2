@@ -54,6 +54,7 @@ model Store {
   loyaltyLedger      LoyaltyTransaction[]
   documentCounters   DocumentCounter[]
   idempotencyKeys    IdempotencyKey[]
+  nationalSyncJobs   NationalSyncJob[]
 
   @@map("stores")
 }
@@ -115,6 +116,8 @@ model User {
   healthProfilesUpdated    CustomerHealthProfile[]
   stockMovements           StockMovement[]
   loyaltyEntriesCreated    LoyaltyTransaction[]
+  nationalSyncConfigs      NationalSyncConfig[]
+  nationalDrugLinks        NationalDrugLink[]
 
   @@index([defaultStoreId])
   @@map("users")
@@ -336,6 +339,7 @@ model Product {
   images              ProductImage[]
   stockCountLines     StockCountLine[]
   supplierReturnLines SupplierReturnLine[]
+  nationalDrugLink    NationalDrugLink?
 
   @@index([categoryId])
   @@index([productType, drugClass])
@@ -1366,4 +1370,108 @@ model DocumentCounter {
 
   @@id([storeId, scope])
   @@map("document_counters")
+}
+
+// ---------------------------------------------------------------------------
+// Liên thông Hệ thống Cơ sở dữ liệu về Dược quốc gia (csdlduoc.com.vn, API v1.1)
+// ---------------------------------------------------------------------------
+
+/// Cấu hình kết nối, đúng một dòng (khóa chính là hằng TRUE).
+model NationalSyncConfig {
+  id                   Boolean   @id @default(true)
+  enabled              Boolean   @default(false)
+  environment          String    @default("SANDBOX")
+  username             String?
+  /// AES-256-GCM; không bao giờ trả về cho giao diện.
+  passwordCipher       String?   @map("password_cipher")
+  practiceLicenseCode  String?   @map("practice_license_code")
+  /// Ngày phiếu kiểm hàng đầu kỳ; chứng từ trước ngày này không gửi.
+  startDate            DateTime? @map("start_date") @db.Date
+  lastMasterSyncAt     DateTime? @map("last_master_sync_at") @db.Timestamptz(6)
+  updatedAt            DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy            String?   @map("updated_by") @db.Uuid
+
+  updatedByUser User? @relation(fields: [updatedBy], references: [id])
+
+  @@map("national_sync_config")
+}
+
+/// Bản sao danh mục thuốc quốc gia, làm nguồn ghép mã và tra cứu ngoại tuyến.
+model NationalDrug {
+  id                    String    @id
+  name                  String
+  drugGroupId           String?   @map("drug_group_id")
+  registrationNumber    String?   @map("registration_number")
+  oldRegistrationNumber String?   @map("old_registration_number")
+  activeIngredient      String?   @map("active_ingredient")
+  strength              String?
+  prescriptionStatus    Int?      @map("prescription_status") @db.SmallInt
+  specialControlType    Int?      @map("special_control_type") @db.SmallInt
+  manufacturerId        String?   @map("manufacturer_id")
+  manufacturerName      String?   @map("manufacturer_name")
+  manufacturerCountry   String?   @map("manufacturer_country")
+  packagings            Json      @default("[]")
+  lastUpdateTime        DateTime? @map("last_update_time") @db.Timestamptz(6)
+  syncedAt              DateTime  @default(now()) @map("synced_at") @db.Timestamptz(6)
+
+  @@index([registrationNumber])
+  @@map("national_drugs")
+}
+
+model NationalUnit {
+  id       String   @id
+  name     String
+  syncedAt DateTime @default(now()) @map("synced_at") @db.Timestamptz(6)
+
+  @@map("national_units")
+}
+
+/// Ghép mặt hàng của nhà thuốc với mã thuốc quốc gia. Số lượng gửi lên luôn
+/// quy về đơn vị cơ bản, nên mỗi mặt hàng chỉ cần một dòng.
+model NationalDrugLink {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  productId   String    @unique @map("product_id") @db.Uuid
+  drugId      String    @map("drug_id")
+  unitId      String    @map("unit_id")
+  gtin        String?
+  matchedBy   String    @map("matched_by")
+  confirmedBy String?   @map("confirmed_by") @db.Uuid
+  confirmedAt DateTime? @map("confirmed_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  product         Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  confirmedByUser User?   @relation(fields: [confirmedBy], references: [id])
+
+  @@map("national_drug_links")
+}
+
+/// Hộp thư đi: mỗi chứng từ cần liên thông là một dòng. Payload dựng lại từ
+/// chứng từ ngay trước khi gửi nên luôn khớp dữ liệu hiện tại.
+model NationalSyncJob {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  storeId             String    @map("store_id") @db.Uuid
+  kind                String
+  sourceType          String    @map("source_type")
+  sourceId            String    @map("source_id") @db.Uuid
+  referenceNumber     String    @map("reference_number")
+  reason              String
+  documentDate        DateTime  @map("document_date") @db.Date
+  status              String    @default("PENDING")
+  attempts            Int       @default(0)
+  nextAttemptAt       DateTime  @default(now()) @map("next_attempt_at") @db.Timestamptz(6)
+  remoteTransactionId String?   @map("remote_transaction_id")
+  sentPayload         Json?     @map("sent_payload")
+  lastError           String?   @map("last_error")
+  messages            Json?
+  submittedAt         DateTime? @map("submitted_at") @db.Timestamptz(6)
+  settledAt           DateTime? @map("settled_at") @db.Timestamptz(6)
+  createdAt           DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  store Store @relation(fields: [storeId], references: [id])
+
+  @@unique([kind, sourceType, sourceId])
+  @@index([status, nextAttemptAt])
+  @@index([storeId, createdAt(sort: Desc)])
+  @@map("national_sync_jobs")
 }

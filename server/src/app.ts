@@ -45,6 +45,7 @@ import { supplierDebtsRouter } from "./modules/inventory/supplier-debts.routes.j
 import { supplierReturnsRouter } from "./modules/inventory/supplier-returns.routes.js";
 import { labelsRouter } from "./modules/printing/labels.routes.js";
 import { loyaltyRouter } from "./modules/loyalty/loyalty.routes.js";
+import { nationalSyncRouter } from "./modules/national-sync/nds.routes.js";
 
 /**
  * Lắp ráp ứng dụng Express. Thứ tự middleware quan trọng:
@@ -122,6 +123,7 @@ export function createApp() {
   app.use("/api/v1", supplierReturnsRouter);
   app.use("/api/v1", labelsRouter);
   app.use("/api/v1", loyaltyRouter);
+  app.use("/api/v1", nationalSyncRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

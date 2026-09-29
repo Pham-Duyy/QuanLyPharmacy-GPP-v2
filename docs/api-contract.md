@@ -1495,3 +1495,99 @@ Toàn bộ P1–P17 được nhóm xác nhận ngày **12/09/2026**. Bảng dư�
 2. ~~Viết kiểm thử cho các bảng trạng thái ở §5 và các kịch bản đồng thời~~ — đã có bộ kiểm thử tích hợp chạy trên PostgreSQL thật, gồm xác nhận một phiếu nhập hai lần và hai quầy bán lô cuối cùng cùng lúc. Còn thiếu: hai phiếu trả song song cho cùng một dòng, duyệt điều chỉnh trong lúc đang bán.
 3. **Dựng khung dự án và CSDL local**, rồi mới viết endpoint theo thứ tự: ~~cửa hàng, người dùng, phân quyền~~ → ~~danh mục, đơn vị, giá~~ → ~~phiếu nhập~~ → ~~bán hàng~~ → ~~trả hàng, hủy hóa đơn~~ → ~~thu hồi~~. Toàn bộ mục 3 và §12 (đơn thuốc) đã xong trọn vẹn, kể cả tải ảnh đơn: kiểm tra theo nội dung tệp (không tin đuôi/Content-Type), xóa EXIF viết tay cho JPEG/PNG (không dùng thư viện ảnh nặng), lưu ngoài thư mục public, xem qua URL có chữ ký HMAC hạn 5 phút. Không còn mục nào bỏ ngỏ trong §12. §11 (khách hàng) cũng đã xong: tìm/tạo/sửa, hồ sơ sức khỏe và dị ứng (bắt buộc đồng ý mới lưu — P8), lịch sử mua, gắn vào màn bán hàng và cảnh báo dị ứng đã kiểm chứng đầu cuối. Chưa làm thao tác ẩn danh hóa khách (is_anonymized) — để sau vì không nằm trong ưu tiên gần nhất.
 4. Thêm vào bộ kiểm thử một nhóm riêng cho phạm vi cửa hàng: tài khoản của cửa hàng A không đọc, không sửa được dữ liệu của cửa hàng B ở **mọi** endpoint thuộc phạm vi cửa hàng.
+
+---
+
+## 25. Liên thông Hệ thống Cơ sở dữ liệu về Dược quốc gia
+
+Nguồn: đặc tả API v1.1 của Trung tâm Thông tin Y tế Quốc gia, tài liệu công bố tại
+`https://docs-sandbox.csdlduoc.com.vn`. Sandbox `https://api-sandbox.csdlduoc.com.vn/v2`,
+hệ thống thật `https://api.csdlduoc.com.vn/v2`.
+
+### 25.1 Nguyên tắc thiết kế
+
+**Liên thông là hậu kiểm, không nằm trong đường bán hàng.** Không một giao dịch bán
+hàng, nhập hàng hay kiểm kê nào gọi API quốc gia. Một lượt quét định kỳ (5 phút) đối
+chiếu bảng chứng từ với hàng đợi `national_sync_jobs` và tạo việc cho chứng từ chưa
+gửi. Hệ quả:
+
+- CSDL Dược sập, mạng đứt hay token hết hạn đều không chặn việc bán thuốc.
+- Không mất chứng từ: nguồn sự thật là bảng chứng từ, không phải hàng đợi. Máy chủ
+  tắt giữa chừng thì lượt quét sau vẫn tìm ra.
+- Payload được dựng lại ngay trước khi gửi nên luôn khớp dữ liệu hiện tại.
+
+### 25.2 Bảng dữ liệu
+
+| Bảng | Vai trò |
+|---|---|
+| `national_sync_config` | Cấu hình kết nối, đúng một dòng (khóa chính là hằng TRUE). Mật khẩu lưu dạng AES-256-GCM, khóa dẫn xuất từ `JWT_SECRET`. |
+| `national_drugs`, `national_units` | Bản sao danh mục quốc gia. API không thông báo khi danh mục đổi nên phần mềm tự hỏi qua `last_update_from`. |
+| `national_drug_links` | Ghép mặt hàng ↔ mã thuốc quốc gia, **một dòng mỗi mặt hàng**. |
+| `national_sync_jobs` | Hàng đợi, khóa duy nhất `(kind, source_type, source_id)`. |
+
+### 25.3 Quy ước đơn vị tính
+
+**Số lượng gửi lên luôn quy về đơn vị cơ bản của mặt hàng.** Thẻ kho và phân bổ lô của
+phần mềm đều tính theo đơn vị cơ bản; báo cáo theo hộp rồi bán lẻ theo vỉ là lệch ngay.
+Vì vậy mỗi mặt hàng chỉ cần ghép mã một lần, và `price` gửi lên là giá quy về đơn vị cơ
+bản, làm tròn 2 chữ số thập phân.
+
+### 25.4 Độ tin cậy của mã ghép
+
+| `matched_by` | Ý nghĩa | Được gửi dữ liệu? |
+|---|---|---|
+| `REGISTRATION_NUMBER` | Khớp số đăng ký do Bộ Y tế cấp | Có, ngay |
+| `NAME` | Chỉ khớp tên sau khi chuẩn hóa | Không, tới khi có người xác nhận |
+| `MANUAL` | Người dùng tự chọn | Có (việc chọn đã là xác nhận) |
+
+Hai thuốc trùng tên trong danh mục quốc gia thì không ghép tự động theo tên.
+
+### 25.5 Ánh xạ chứng từ
+
+| Chứng từ nội bộ | Điều kiện | `kind` | `reason` |
+|---|---|---|---|
+| `goods_receipts` type `PURCHASE` | `CONFIRMED` | `STOCK_IN` | `supplier` |
+| `goods_receipts` type `OPENING_BALANCE` | `CONFIRMED` | `STOCK_IN` | `opening-balance` |
+| `invoices` | `COMPLETED` | `STOCK_OUT` | `sale-retail` |
+| `returns` (khách trả) | `disposition = RESTOCK` | `STOCK_IN` | `return` |
+| `supplier_returns` | `CONFIRMED` | `STOCK_OUT` | `return` |
+| `stock_counts` | `CLOSED` | `STOCK_TAKING` | — |
+
+`reference_number` là mã chứng từ nội bộ. Hệ thống quốc gia không có API xóa: sửa là
+gửi lại cùng `reference_number`, nên một chứng từ chỉ có một dòng trong hàng đợi.
+
+Số lượng trên hóa đơn đã **trừ phần khách trả lại** (`returned_base_quantity`), để số
+thực xuất khớp thẻ kho.
+
+### 25.6 Trạng thái hàng đợi
+
+`PENDING` → `SENDING` → `ACCEPTED` → `PROCESSING` → `COMPLETED`.
+Nhánh lỗi: `BLOCKED` (thiếu mã thuốc), `FAILED` (lỗi tạm thời, tự thử lại với giãn cách
+1′ → 5′ → 15′ → 1h → 6h → 24h), `REJECTED` (dữ liệu không tuân thủ hoặc sai tài khoản —
+không tự thử lại), `NEEDS_REVIEW` (chứng từ đổi sau khi đã gửi).
+
+Giành quyền gửi bằng `UPDATE ... WHERE status IN (...)` có điều kiện, nên hai tiến trình
+chạy song song không gửi trùng một chứng từ.
+
+### 25.7 Tồn đầu kỳ
+
+`POST /api/v1/national-sync/opening-stock-taking` gửi ảnh chụp toàn bộ tồn hiện tại dưới
+dạng phiếu kiểm hàng, **đúng một lần**. Ngày gửi được chốt vào `start_date`; chứng từ
+phát sinh trước mốc này không gửi, vì hệ thống quốc gia chỉ ghi nhận chứng từ sau ngày
+của phiếu đầu kỳ. Gửi lần hai trả `409 INVALID_STATE`.
+
+### 25.8 Điểm chưa rõ trong đặc tả
+
+| # | Vấn đề | Cách xử lý hiện tại |
+|---|---|---|
+| N1 | `items[].batch_no` ghi kiểu `integer` nhưng độ dài 50 ký tự | Gửi chuỗi; số lô thật gần như luôn có chữ |
+| N2 | Không nêu định dạng `transaction_date` | ISO 8601 kèm `+07:00` |
+| N3 | Không có API xóa; cách sửa chứng từ đã gửi chỉ được mô tả bằng lời | Gửi lại cùng `reference_number` |
+| N4 | Hóa đơn bị hủy sau khi đã gửi | Đánh dấu `NEEDS_REVIEW`, xử lý trên cổng — không tự suy diễn |
+| N5 | Khách trả hàng rồi tiêu hủy (`DISPOSE`) | Không gửi: thẻ kho không tăng. Cần hỏi 19008255 |
+| N6 | Đường dẫn xem trạng thái phiếu nhập ghi số ít `/transaction/stock-in/...` khác hai loại kia | Giữ đúng từng đường dẫn như tài liệu |
+
+### 25.9 Quyền
+
+`national_sync.read` (xem trạng thái) và `national_sync.manage` (cấu hình, ghép mã, gửi).
+Chủ nhà thuốc và dược sĩ phụ trách chuyên môn có cả hai; kiểm toán chỉ đọc.
