@@ -36,3 +36,7 @@ Thumbs.db
 
 # Ảnh chụp màn hình do kịch bản kiểm thử giao diện sinh ra
 shots/
+
+# Thư mục dựng tài liệu tạm và file khóa của Word
+.tmp/
+~$*
