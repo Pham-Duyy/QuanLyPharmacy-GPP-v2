@@ -14,6 +14,7 @@ import {
   FileTextOutlined,
   InboxOutlined,
   MedicineBoxOutlined,
+  PictureOutlined,
   RollbackOutlined,
   SafetyCertificateOutlined,
   SettingOutlined,
@@ -85,6 +86,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { path: "/cong-no-ncc", icon: <CreditCardOutlined />, label: "Công nợ nhà cung cấp", permission: "supplier_debt.read", keywords: "cong no tra tien nha cung cap thanh toan" },
       { path: "/danh-muc", icon: <TagsOutlined />, label: "Danh mục nền", permission: "catalog.read", keywords: "nhom hang hoat chat" },
       { path: "/in-tem", icon: <BarcodeOutlined />, label: "In tem mã vạch", permission: "catalog.read", keywords: "in tem ma vach nhan ke gia barcode" },
+      { path: "/anh-san-pham", icon: <PictureOutlined />, label: "Ảnh sản phẩm", permission: "catalog.manage", keywords: "anh hinh anh thuoc tai anh hang loat image" },
       {
         path: "/excel",
         icon: <FileExcelOutlined />,
