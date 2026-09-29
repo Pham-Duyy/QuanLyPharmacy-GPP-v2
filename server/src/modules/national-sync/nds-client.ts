@@ -65,11 +65,27 @@ const DEFAULT_TOKEN_TTL_SECONDS = 3_600;
 
 type Token = { value: string; expiresAt: number };
 
+/** Biến môi trường đang trỏ API sang địa chỉ khác địa chỉ chính thức. */
+export function baseUrlOverride(): string | null {
+  // Đọc thẳng process.env chứ không dùng bản đã chốt lúc khởi động: test và
+  // máy chủ mô phỏng cần đổi địa chỉ sau khi tiến trình đã chạy. `env` vẫn
+  // kiểm tra biến này lúc khởi động nên cấu hình sai vẫn bị chặn sớm.
+  return process.env["NDS_BASE_URL"] ?? env.NDS_BASE_URL ?? null;
+}
+
+/**
+ * Địa chỉ API thực sự đang được gọi.
+ *
+ * Giao diện phải hiện đúng địa chỉ này chứ không phải địa chỉ suy ra từ môi
+ * trường đã chọn: đang chạy với máy chủ mô phỏng mà màn hình ghi
+ * "api-sandbox.csdlduoc.com.vn" là nói sai với người dùng.
+ */
+export function resolveBaseUrl(environment: NdsEnvironment): string {
+  return baseUrlOverride() ?? NDS_ENDPOINTS[environment];
+}
+
 function baseUrlFor(environment: NdsEnvironment): string {
-  // Đọc thẳng process.env chứ không dùng bản đã chốt lúc khởi động: test cần
-  // trỏ sang máy chủ giả sau khi tiến trình đã chạy. `env` vẫn kiểm tra biến
-  // này lúc khởi động nên cấu hình sai vẫn bị chặn sớm.
-  return process.env["NDS_BASE_URL"] ?? env.NDS_BASE_URL ?? NDS_ENDPOINTS[environment];
+  return resolveBaseUrl(environment);
 }
 
 function describe(status: number, body: string): NdsError {

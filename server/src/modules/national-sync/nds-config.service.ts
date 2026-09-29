@@ -1,6 +1,6 @@
 import { prisma } from "../../db/prisma.js";
 import { AppError } from "../../lib/app-error.js";
-import { NdsClient, NDS_ENDPOINTS, type NdsEnvironment } from "./nds-client.js";
+import { baseUrlOverride, NdsClient, resolveBaseUrl, type NdsEnvironment } from "./nds-client.js";
 import { decryptSecret, encryptSecret } from "./nds-crypto.js";
 
 /** Bảng cấu hình chỉ có một dòng; khóa chính là hằng TRUE. */
@@ -9,7 +9,10 @@ const ROW = { id: true };
 export type NdsConfigView = {
   enabled: boolean;
   environment: NdsEnvironment;
+  /** Địa chỉ API thực sự đang gọi, đã tính cả biến môi trường ghi đè. */
   baseUrl: string;
+  /** True khi đang trỏ sang địa chỉ khác địa chỉ chính thức (máy chủ mô phỏng). */
+  baseUrlOverridden: boolean;
   username: string | null;
   /** Không bao giờ trả mật khẩu ra ngoài, chỉ cho biết đã lưu hay chưa. */
   hasPassword: boolean;
@@ -35,7 +38,8 @@ export async function getConfigView(): Promise<NdsConfigView> {
   return {
     enabled: row.enabled,
     environment,
-    baseUrl: NDS_ENDPOINTS[environment],
+    baseUrl: resolveBaseUrl(environment),
+    baseUrlOverridden: baseUrlOverride() !== null,
     username: row.username,
     hasPassword: Boolean(row.passwordCipher),
     practiceLicenseCode: row.practiceLicenseCode,
@@ -112,6 +116,18 @@ export async function updateConfig(patch: ConfigPatch, userId: string): Promise<
 }
 
 /**
+ * Máy khách đang dùng, giữ lại giữa các lượt gọi.
+ *
+ * Token nằm trong máy khách, nên dựng máy khách mới mỗi lần là vứt token đi
+ * và đăng nhập lại — một lượt chạy nền gọi cả gửi lẫn hỏi trạng thái sẽ tốn
+ * hai lần đăng nhập vô ích, trong khi API này có giới hạn tần suất.
+ *
+ * Khóa gồm cả bản mã mật khẩu: đổi tài khoản hay đổi mật khẩu là khóa đổi
+ * theo, máy khách cũ bị bỏ, không có chuyện dùng nhầm tài khoản cũ.
+ */
+let cachedClient: { key: string; client: NdsClient } | null = null;
+
+/**
  * Dựng máy khách từ cấu hình đã lưu. Trả `null` khi chưa đủ thông tin để
  * gọi API — bên gọi tự quyết định báo lỗi hay bỏ qua lượt chạy.
  */
@@ -122,11 +138,13 @@ export async function buildClient(): Promise<NdsClient | null> {
   const password = decryptSecret(row.passwordCipher);
   if (password === null) return null;
 
-  return new NdsClient({
-    environment: environmentOf(row.environment),
-    username: row.username,
-    password,
-  });
+  const environment = environmentOf(row.environment);
+  const key = [environment, row.username, row.passwordCipher, resolveBaseUrl(environment)].join("|");
+  if (cachedClient?.key === key) return cachedClient.client;
+
+  const client = new NdsClient({ environment, username: row.username, password });
+  cachedClient = { key, client };
+  return client;
 }
 
 /** Như `buildClient` nhưng báo lỗi rõ ràng cho người dùng cuối. */

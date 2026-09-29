@@ -37,6 +37,7 @@ import { DrugPickerModal } from "./DrugPickerModal.js";
 import {
   autoMatch,
   confirmMapping,
+  confirmMappings,
   drainNow,
   fetchConfig,
   fetchJobs,
@@ -272,7 +273,14 @@ function ConnectionTab({
 
       <Card title="Trạng thái">
         <Descriptions column={{ xs: 1, sm: 2 }} size="small" bordered>
-          <Descriptions.Item label="Địa chỉ API">{config.baseUrl}</Descriptions.Item>
+          <Descriptions.Item label="Địa chỉ API">
+            <Space direction="vertical" size={2}>
+              <span>{config.baseUrl}</span>
+              {config.baseUrlOverridden ? (
+                <Tag color="purple">Máy chủ mô phỏng — không phải hệ thống của Bộ Y tế</Tag>
+              ) : null}
+            </Space>
+          </Descriptions.Item>
           <Descriptions.Item label="Gửi dữ liệu tự động">
             <Space>
               <Switch
@@ -335,6 +343,15 @@ function MappingTab({ canManage, onChanged }: { canManage: boolean; onChanged: (
     onError: (error) => void message.error(getErrorMessage(error, "Không ghép tự động được")),
   });
 
+  const confirmMany = useMutation({
+    mutationFn: (productIds: string[]) => confirmMappings(productIds),
+    onSuccess: async (result) => {
+      void message.success(`Đã xác nhận ${result.confirmed} mã ghép`);
+      await onChanged();
+    },
+    onError: (error) => void message.error(getErrorMessage(error, "Không xác nhận được")),
+  });
+
   const confirm = useMutation({
     mutationFn: confirmMapping,
     onSuccess: async () => {
@@ -354,6 +371,10 @@ function MappingTab({ canManage, onChanged }: { canManage: boolean; onChanged: (
   });
 
   const summary = mapping.data?.summary;
+  /** Những dòng đang hiển thị mà còn chờ xác nhận — chỉ xác nhận đúng cái đang thấy. */
+  const pendingIds = (mapping.data?.items ?? [])
+    .filter((row) => row.link !== null && !row.link.usable)
+    .map((row) => row.productId);
 
   return (
     <Space direction="vertical" size="middle" style={{ width: "100%" }}>
@@ -401,6 +422,19 @@ function MappingTab({ canManage, onChanged }: { canManage: boolean; onChanged: (
           style={{ width: 280 }}
           onSearch={setSearch}
         />
+        {pendingIds.length > 0 ? (
+          <Popconfirm
+            title={`Xác nhận ${pendingIds.length} mã ghép đang hiển thị?`}
+            description="Hãy đối chiếu từng dòng trên bảng trước khi xác nhận. Sau bước này dữ liệu sẽ được gửi lên Bộ Y tế theo các mã đó."
+            okText="Tôi đã đối chiếu, xác nhận"
+            cancelText="Để xem lại"
+            onConfirm={() => confirmMany.mutate(pendingIds)}
+          >
+            <Button icon={<CheckCircleOutlined />} loading={confirmMany.isPending} disabled={!canManage}>
+              Xác nhận {pendingIds.length} dòng đang hiển thị
+            </Button>
+          </Popconfirm>
+        ) : null}
       </Space>
 
       <Table<MappingRow>

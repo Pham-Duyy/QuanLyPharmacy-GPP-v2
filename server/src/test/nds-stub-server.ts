@@ -21,6 +21,14 @@ export type StubOptions = {
   units: Array<{ id: string; name: string }>;
   drugs: unknown[];
   pageSize?: number;
+  /** Cổng cố định; bỏ trống thì lấy cổng trống bất kỳ (test dùng cách này). */
+  port?: number;
+  /**
+   * Tự chuyển trạng thái theo thời gian như hệ thống thật: `accepted` →
+   * `processing` sau ngần này mili-giây → `completed` sau gấp đôi. Test để
+   * trống để tự điều khiển bằng `setStatus`.
+   */
+  autoAdvanceMs?: number;
 };
 
 export type StubServer = {
@@ -50,6 +58,8 @@ export async function startStubServer(options: StubOptions): Promise<StubServer>
   const pageSize = options.pageSize ?? 50;
   const requests: StubServer["requests"] = [];
   const submissions = new Map<string, { kind: string; payload: unknown; status: string }>();
+  const submittedAt = new Map<string, number>();
+  const overridden = new Set<string>();
   const messagesByTransaction = new Map<string, string[]>();
   const validTokens = new Set<string>();
 
@@ -57,6 +67,18 @@ export async function startStubServer(options: StubOptions): Promise<StubServer>
   let loginCount = 0;
   let failTimes = 0;
   let failStatus = 500;
+
+  /**
+   * Hệ thống thật xử lý bất đồng bộ. Tính trạng thái ngay lúc được hỏi thay
+   * vì hẹn giờ: không có timer nào phải dọn, và test vẫn tự điều khiển được.
+   */
+  const effectiveStatus = (transactionId: string, stored: string): string => {
+    if (!options.autoAdvanceMs || overridden.has(transactionId)) return stored;
+    const elapsed = Date.now() - (submittedAt.get(transactionId) ?? Date.now());
+    if (elapsed >= options.autoAdvanceMs * 2) return "completed";
+    if (elapsed >= options.autoAdvanceMs) return "processing";
+    return "accepted";
+  };
 
   const json = (res: ServerResponse, status: number, body: unknown): void => {
     res.writeHead(status, { "Content-Type": "application/json" });
@@ -135,6 +157,8 @@ export async function startStubServer(options: StubOptions): Promise<StubServer>
           payload: parsedBody,
           status: "accepted",
         });
+        submittedAt.set(transactionId, Date.now());
+        overridden.delete(transactionId);
         return json(res, 200, { transaction_id: transactionId, status: "accepted" });
       }
 
@@ -147,7 +171,7 @@ export async function startStubServer(options: StubOptions): Promise<StubServer>
         if (!found) return json(res, 404, { message: "Không tìm thấy giao dịch" });
         return json(res, 200, {
           transaction_id: transactionId,
-          status: found.status,
+          status: effectiveStatus(transactionId, found.status),
           messages: messagesByTransaction.get(transactionId) ?? [],
           submitted_at: new Date().toISOString(),
         });
@@ -157,7 +181,7 @@ export async function startStubServer(options: StubOptions): Promise<StubServer>
     })();
   });
 
-  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  await new Promise<void>((resolve) => server.listen(options.port ?? 0, "127.0.0.1", resolve));
   const { port } = server.address() as AddressInfo;
 
   return {
@@ -173,6 +197,8 @@ export async function startStubServer(options: StubOptions): Promise<StubServer>
     setStatus: (transactionId, status, messages) => {
       const found = submissions.get(transactionId);
       if (found) found.status = status;
+      // Đặt tay thì thôi tự chuyển trạng thái theo thời gian.
+      overridden.add(transactionId);
       if (messages) messagesByTransaction.set(transactionId, messages);
     },
     loginCount: () => loginCount,

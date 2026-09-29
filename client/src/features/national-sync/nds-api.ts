@@ -7,6 +7,8 @@ export type NdsConfig = {
   enabled: boolean;
   environment: "SANDBOX" | "PRODUCTION";
   baseUrl: string;
+  /** True khi đang trỏ sang địa chỉ khác địa chỉ chính thức (máy chủ mô phỏng). */
+  baseUrlOverridden: boolean;
   username: string | null;
   hasPassword: boolean;
   practiceLicenseCode: string | null;
@@ -132,6 +134,10 @@ export async function setMapping(
 
 export async function confirmMapping(productId: string): Promise<void> {
   await http.post(`${BASE}/mapping/${productId}/confirm`, {});
+}
+
+export async function confirmMappings(productIds: string[]): Promise<{ confirmed: number }> {
+  return (await http.post<Envelope<{ confirmed: number }>>(`${BASE}/mapping/confirm-many`, { productIds })).data.data;
 }
 
 export async function removeMapping(productId: string): Promise<void> {
