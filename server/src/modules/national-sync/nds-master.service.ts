@@ -317,6 +317,43 @@ export async function confirmLink(productId: string, userId: string): Promise<vo
   });
 }
 
+/**
+ * Xác nhận một loạt mã ghép đã được xem trên màn hình.
+ *
+ * Nhận **danh sách mã cụ thể** chứ không phải lệnh "xác nhận hết": giao diện
+ * gửi lên đúng những dòng đang hiển thị, nên người dùng đã nhìn thấy từng
+ * cặp mặt hàng ↔ thuốc trước khi xác nhận. Nhà thuốc vài trăm mặt hàng mà
+ * bắt bấm từng cái thì người ta sẽ bấm bừa, lúc đó luật kiểm soát còn tệ hơn.
+ */
+export async function confirmLinks(productIds: string[], userId: string): Promise<number> {
+  const unique = [...new Set(productIds)];
+  if (unique.length === 0) return 0;
+
+  const links = await prisma.nationalDrugLink.findMany({
+    where: { productId: { in: unique }, confirmedAt: null },
+    select: { productId: true, drugId: true },
+  });
+  if (links.length === 0) return 0;
+
+  const now = new Date();
+  await prisma.nationalDrugLink.updateMany({
+    where: { productId: { in: links.map((link) => link.productId) } },
+    data: { confirmedBy: userId, confirmedAt: now },
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      actorId: userId,
+      action: "NATIONAL_DRUG_LINK_CONFIRM_BULK",
+      resourceType: "national_drug_link",
+      resourceId: null,
+      after: { count: links.length, links },
+    },
+  });
+
+  return links.length;
+}
+
 export async function removeLink(productId: string, userId: string): Promise<void> {
   const link = await prisma.nationalDrugLink.findUnique({ where: { productId } });
   if (!link) throw AppError.notFound("Mặt hàng chưa được ghép mã thuốc quốc gia");

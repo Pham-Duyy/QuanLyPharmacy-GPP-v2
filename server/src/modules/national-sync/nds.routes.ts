@@ -240,6 +240,20 @@ nationalSyncRouter.post(
   },
 );
 
+/** Xác nhận hàng loạt những dòng người dùng đang nhìn thấy trên màn hình. */
+nationalSyncRouter.post(
+  "/national-sync/mapping/confirm-many",
+  requirePermission("national_sync.manage"),
+  async (req, res) => {
+    const input = parseOrThrow(
+      z.object({ productIds: z.array(z.uuid()).min(1).max(1000) }),
+      req.body,
+    );
+    const confirmed = await master.confirmLinks(input.productIds, req.auth!.userId);
+    sendData(res, { confirmed });
+  },
+);
+
 nationalSyncRouter.delete(
   "/national-sync/mapping/:productId",
   requirePermission("national_sync.manage"),
@@ -303,7 +317,8 @@ nationalSyncRouter.post(
   requirePermission("national_sync.manage"),
   async (_req, res) => {
     const sent = await queue.drainQueue();
-    const polled = await queue.pollStatuses();
+    // Bấm tay thì hỏi trạng thái ngay, không chờ lịch lùi giờ của bộ chạy nền.
+    const polled = await queue.pollStatuses(25, { force: true });
     sendData(res, { sent, polled });
   },
 );

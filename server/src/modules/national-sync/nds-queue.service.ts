@@ -325,8 +325,13 @@ const REMOTE_TO_LOCAL: Record<string, string> = {
 
 export type PollResult = { checked: number; completed: number; rejected: number };
 
-/** Hỏi lại kết quả xử lý của các chứng từ đã gửi. */
-export async function pollStatuses(limit = 25): Promise<PollResult> {
+/**
+ * Hỏi lại kết quả xử lý của các chứng từ đã gửi.
+ *
+ * `force` bỏ qua lịch hẹn giờ: người dùng bấm "Gửi ngay" là muốn biết kết quả
+ * ngay lúc đó, không phải chờ hết chu kỳ lùi giờ dành cho bộ chạy nền.
+ */
+export async function pollStatuses(limit = 25, options: { force?: boolean } = {}): Promise<PollResult> {
   const result: PollResult = { checked: 0, completed: 0, rejected: 0 };
   const config = await readConfigRow();
   if (!config.enabled) return result;
@@ -338,7 +343,7 @@ export async function pollStatuses(limit = 25): Promise<PollResult> {
     where: {
       status: { in: ["ACCEPTED", "PROCESSING"] },
       remoteTransactionId: { not: null },
-      nextAttemptAt: { lte: new Date() },
+      ...(options.force ? {} : { nextAttemptAt: { lte: new Date() } }),
     },
     orderBy: { submittedAt: "asc" },
     take: limit,

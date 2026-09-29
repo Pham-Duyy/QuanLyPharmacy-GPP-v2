@@ -28,7 +28,7 @@ const payloadOf = (entry: { body: unknown }): SentPayload => entry.body as SentP
 
 type MappingItem = {
   code: string;
-  link: { matchedBy: string; usable: boolean } | null;
+  link: { matchedBy: string; usable: boolean; confirmedAt: string | null } | null;
 };
 const USERNAME = "0101234567-001";
 const PASSWORD = "MatKhauLienThong@1";
@@ -305,6 +305,37 @@ describe("Liên thông CSDL Dược — danh mục và ghép mã", () => {
     const mapping = await api().get(`${BASE}/mapping`).set(h()).expect(200);
     expect(mapping.body.data.items[0].link.usable).toBe(true);
     expect(mapping.body.data.summary.needsReview).toBe(0);
+  });
+
+  it("xác nhận hàng loạt chỉ tác động đúng những mặt hàng được gửi lên", async () => {
+    await configure();
+    await api().post(`${BASE}/master-sync`).set(h()).send({ full: true }).expect(200);
+    const first = await seedProduct({ code: "TH002", name: "Amlodipin 5mg" });
+    const second = await seedProduct({ code: "TH001", name: "Paracetamol 500mg" });
+    await api().post(`${BASE}/auto-match`).set(h()).send({}).expect(200);
+
+    // Chỉ xác nhận mặt hàng thứ nhất.
+    const result = await api()
+      .post(`${BASE}/mapping/confirm-many`)
+      .set(h())
+      .send({ productIds: [first.product.id] })
+      .expect(200);
+    expect(result.body.data.confirmed).toBe(1);
+
+    const mapping = await api().get(`${BASE}/mapping`).set(h()).expect(200);
+    const byCode = new Map((mapping.body.data.items as MappingItem[]).map((row) => [row.code, row]));
+    expect(byCode.get("TH002")!.link!.usable).toBe(true);
+    // Mặt hàng không được gửi lên vẫn giữ nguyên trạng thái chờ.
+    expect(byCode.get("TH001")!.link!.confirmedAt).toBeNull();
+    expect(second.product.id).toBeTruthy();
+
+    // Gọi lại không nhân đôi: những dòng đã xác nhận rồi thì bỏ qua.
+    const again = await api()
+      .post(`${BASE}/mapping/confirm-many`)
+      .set(h())
+      .send({ productIds: [first.product.id] })
+      .expect(200);
+    expect(again.body.data.confirmed).toBe(0);
   });
 
   it("không ghép bừa khi hai thuốc trùng tên", async () => {
