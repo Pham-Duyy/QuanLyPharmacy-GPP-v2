@@ -133,7 +133,51 @@ async function main(): Promise<void> {
   process.on("SIGTERM", () => void stop());
 }
 
+/**
+ * Báo lỗi bằng tiếng Việt kèm cách xử lý.
+ *
+ * Script này hay được chạy ngay trước lúc trình bày; gặp một stack trace của
+ * Node lúc đó thì rất khó xoay. Những lỗi đoán trước được thì nói thẳng phải
+ * làm gì.
+ */
+function explain(error: unknown): string[] {
+  const code = (error as { code?: string } | null)?.code;
+
+  if (code === "EADDRINUSE") {
+    return [
+      `Cổng ${PORT} đang bị chiếm — nhiều khả năng máy chủ mô phỏng đã chạy ở một cửa sổ khác.`,
+      "",
+      "  • Nếu đang chạy rồi thì dùng luôn, không cần mở thêm.",
+      "  • Muốn xem ai giữ cổng:   netstat -ano | findstr :" + PORT,
+      "  • Muốn chạy ở cổng khác:  set NDS_MOCK_PORT=4011 && npm run nds:mock",
+      "    (nhớ sửa NDS_BASE_URL trong server/.env cho khớp cổng mới)",
+    ];
+  }
+
+  if (code === "EACCES") {
+    return [`Không có quyền mở cổng ${PORT}. Hãy chọn cổng khác: set NDS_MOCK_PORT=4011`];
+  }
+
+  const message = error instanceof Error ? error.message : String(error);
+  if (/database|connect|ECONNREFUSED|P1001/i.test(message)) {
+    return [
+      "Không kết nối được CSDL để dựng danh mục thuốc mô phỏng.",
+      "",
+      "  • Kiểm tra Docker đã chạy và container gpp-postgres đang khỏe.",
+      "  • Kiểm tra DATABASE_URL trong server/.env.",
+      "",
+      `Chi tiết: ${message}`,
+    ];
+  }
+
+  return [message];
+}
+
 main().catch((error: unknown) => {
-  console.error(error);
+  console.error("");
+  console.error("  Không khởi động được máy chủ mô phỏng CSDL Dược.");
+  console.error("");
+  for (const line of explain(error)) console.error(line ? `  ${line}` : "");
+  console.error("");
   process.exitCode = 1;
 });
