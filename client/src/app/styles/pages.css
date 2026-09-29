@@ -2589,6 +2589,17 @@
   margin-bottom: 12px;
 }
 
+/* Tải ảnh hàng loạt */
+
+.image-bulk-pick {
+  display: block;
+  margin-bottom: 12px;
+}
+
+.image-nomatch {
+  color: var(--c-danger, #cf1322);
+}
+
 .image-dropzone-icon {
   margin: 0;
   color: var(--c-primary);

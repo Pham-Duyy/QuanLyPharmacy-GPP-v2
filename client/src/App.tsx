@@ -20,6 +20,7 @@ const PrescriptionsPage = page(() => import("./features/prescriptions/Prescripti
 const CustomersPage = page(() => import("./features/customers/CustomersPage.js"), "CustomersPage");
 const ProductsPage = page(() => import("./features/catalog/ProductsPage.js"), "ProductsPage");
 const CatalogDataPage = page(() => import("./features/catalog/CatalogDataPage.js"), "CatalogDataPage");
+const ProductImagesBulkPage = page(() => import("./features/catalog/ProductImagesBulkPage.js"), "ProductImagesBulkPage");
 const SuppliersPage = page(() => import("./features/catalog/SuppliersPage.js"), "SuppliersPage");
 const GoodsReceiptsPage = page(() => import("./features/inventory/GoodsReceiptsPage.js"), "GoodsReceiptsPage");
 const BatchesPage = page(() => import("./features/inventory/BatchesPage.js"), "BatchesPage");
@@ -64,6 +65,7 @@ const ROUTES: Array<{ path: string; element: ReactNode }> = [
   { path: "/nha-cung-cap", element: <SuppliersPage /> },
   { path: "/danh-muc", element: <CatalogDataPage /> },
   { path: "/in-tem", element: <LabelsPage /> },
+  { path: "/anh-san-pham", element: <ProductImagesBulkPage /> },
   { path: "/excel", element: <ExcelHubPage /> },
   { path: "/nhan-vien", element: <UsersPage /> },
   { path: "/cua-hang", element: <StoresPage /> },

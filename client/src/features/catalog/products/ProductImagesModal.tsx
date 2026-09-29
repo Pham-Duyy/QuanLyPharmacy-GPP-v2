@@ -3,45 +3,10 @@ import { useMutation } from "@tanstack/react-query";
 import { Alert, App, Button, Image, Modal, Popconfirm, Tag, Tooltip, Upload } from "antd";
 import { useState } from "react";
 import { getErrorMessage, http } from "../../../api/http.js";
-import type { Envelope, ProductImage } from "../../../api/types.js";
+import type { ProductImage } from "../../../api/types.js";
 import { IMAGE_FALLBACK } from "./product-labels.js";
+import { IMAGE_ACCEPT, MAX_IMAGES_PER_PRODUCT, uploadProductImage } from "./product-image-upload.js";
 import { ProductThumb } from "./ProductThumb.js";
-
-const MAX_INPUT_BYTES = 15 * 1024 * 1024;
-const MAX_IMAGES = 8;
-const ACCEPT = ["image/jpeg", "image/png", "image/webp"];
-
-/**
- * Thu nhỏ ảnh ngay trên trình duyệt: ảnh chụp điện thoại thường vài MB,
- * danh sách chỉ cần vài chục KB. Vẽ lại qua canvas cũng bỏ luôn EXIF.
- */
-async function resize(file: File, maxSide: number, keepPng: boolean): Promise<Blob> {
-  const bitmap = await createImageBitmap(file).catch(() => {
-    throw new Error("Tệp không phải ảnh hợp lệ hoặc đã hỏng");
-  });
-  try {
-    const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
-    const width = Math.max(1, Math.round(bitmap.width * scale));
-    const height = Math.max(1, Math.round(bitmap.height * scale));
-    const canvas = document.createElement("canvas");
-    canvas.width = width;
-    canvas.height = height;
-    const context = canvas.getContext("2d");
-    if (!context) throw new Error("Trình duyệt không xử lý được ảnh");
-    const type = keepPng ? "image/png" : "image/jpeg";
-    if (!keepPng) {
-      // JPEG không có nền trong suốt: tô trắng để ảnh PNG/WEBP trong suốt không thành nền đen.
-      context.fillStyle = "#ffffff";
-      context.fillRect(0, 0, width, height);
-    }
-    context.drawImage(bitmap, 0, 0, width, height);
-    return await new Promise<Blob>((resolve, reject) =>
-      canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error("Không nén được ảnh"))), type, 0.86),
-    );
-  } finally {
-    bitmap.close();
-  }
-}
 
 type Props = {
   productId: string;
@@ -56,32 +21,44 @@ type Props = {
 export function ProductImagesModal({ productId, productName, images, open, onClose, onChanged }: Props) {
   const { message } = App.useApp();
   const [uploadError, setUploadError] = useState<string | null>(null);
-  const [uploadingName, setUploadingName] = useState<string | null>(null);
-  const full = images.length >= MAX_IMAGES;
+  const [progress, setProgress] = useState<{ name: string; done: number; total: number } | null>(null);
+  const room = MAX_IMAGES_PER_PRODUCT - images.length;
+  const full = room <= 0;
 
   const upload = useMutation({
-    mutationFn: async (file: File) => {
-      if (!ACCEPT.includes(file.type)) throw new Error("Chỉ nhận ảnh JPG, PNG hoặc WEBP");
-      if (file.size > MAX_INPUT_BYTES) throw new Error("Ảnh lớn hơn 15 MB, hãy chọn ảnh khác");
-      const keepPng = file.type === "image/png";
-      let main = await resize(file, 1600, keepPng);
-      if (main.size > 4.5 * 1024 * 1024) main = await resize(file, 1600, false);
-      const thumb = await resize(file, 320, false);
-      const form = new FormData();
-      form.append("file", main, keepPng && main.type === "image/png" ? "anh.png" : "anh.jpg");
-      form.append("thumb", thumb, "thumb.jpg");
-      await http.post<Envelope<ProductImage>>(`/products/${productId}/images`, form);
+    /**
+     * Tải lần lượt từng ảnh: mỗi ảnh là một yêu cầu riêng, gửi song song dễ
+     * tranh nhau suất "ảnh chính" và bị server trả 409.
+     */
+    mutationFn: async (files: File[]) => {
+      const picked = files.slice(0, Math.max(0, room));
+      const failed: string[] = [];
+      for (const [index, file] of picked.entries()) {
+        setProgress({ name: file.name, done: index, total: picked.length });
+        try {
+          await uploadProductImage(productId, file);
+        } catch (error) {
+          const reason =
+            error instanceof Error && !("isAxiosError" in error)
+              ? error.message
+              : getErrorMessage(error, "Không tải được ảnh");
+          failed.push(`${file.name}: ${reason}`);
+        }
+      }
+      return { uploaded: picked.length - failed.length, skipped: files.length - picked.length, failed };
     },
-    onMutate: (file) => {
-      setUploadError(null);
-      setUploadingName(file.name);
-    },
-    onSuccess: async () => {
-      void message.success("Đã tải ảnh lên");
+    onMutate: () => setUploadError(null),
+    onSuccess: async ({ uploaded, skipped, failed }) => {
+      if (uploaded > 0) void message.success(uploaded === 1 ? "Đã tải ảnh lên" : `Đã tải lên ${uploaded} ảnh`);
+      const notes = [
+        ...failed,
+        ...(skipped > 0 ? [`Bỏ qua ${skipped} ảnh vì mỗi sản phẩm tối đa ${MAX_IMAGES_PER_PRODUCT} ảnh.`] : []),
+      ];
+      if (notes.length > 0) setUploadError(notes.join("\n"));
       await onChanged();
     },
-    onError: (error) => setUploadError(error instanceof Error && !("isAxiosError" in error) ? error.message : getErrorMessage(error, "Không tải được ảnh")),
-    onSettled: () => setUploadingName(null),
+    onError: (error) => setUploadError(getErrorMessage(error, "Không tải được ảnh")),
+    onSettled: () => setProgress(null),
   });
 
   const setPrimary = useMutation({
@@ -104,20 +81,27 @@ export function ProductImagesModal({ productId, productName, images, open, onClo
 
   const busy = upload.isPending || setPrimary.isPending || remove.isPending;
 
+  function dropzoneText(): string {
+    if (progress) return `Đang tải ${progress.name} (${progress.done + 1}/${progress.total})…`;
+    if (full) return `Đã đủ ${MAX_IMAGES_PER_PRODUCT} ảnh — gỡ bớt để thêm ảnh mới`;
+    return "Bấm hoặc kéo ảnh vào đây để tải lên — chọn được nhiều ảnh một lượt";
+  }
+
   return (
     <Modal open={open} onCancel={onClose} title={`Quản lý ảnh — ${productName}`} width={640} footer={<Button onClick={onClose}>Xong</Button>} destroyOnHidden>
       <p className="image-rules">
-        JPG, PNG hoặc WEBP, tối đa 15 MB mỗi ảnh; hệ thống tự thu nhỏ trước khi lưu. Tối đa {MAX_IMAGES} ảnh. Chỉ dùng ảnh chụp đúng sản phẩm thật.
+        JPG, PNG hoặc WEBP, tối đa 15 MB mỗi ảnh; hệ thống tự thu nhỏ trước khi lưu. Tối đa {MAX_IMAGES_PER_PRODUCT} ảnh. Chỉ dùng ảnh chụp đúng sản phẩm thật.
       </p>
-      {uploadError ? <Alert type="error" showIcon closable title="Tải ảnh thất bại" description={uploadError} onClose={() => setUploadError(null)} className="image-alert" /> : null}
+      {uploadError ? <Alert type="error" showIcon closable title="Có ảnh chưa tải được" description={<span style={{ whiteSpace: "pre-line" }}>{uploadError}</span>} onClose={() => setUploadError(null)} className="image-alert" /> : null}
 
       <Upload.Dragger
-        accept={ACCEPT.join(",")}
-        multiple={false}
+        accept={IMAGE_ACCEPT.join(",")}
+        multiple
         showUploadList={false}
         disabled={full || busy}
-        beforeUpload={(file) => {
-          upload.mutate(file);
+        beforeUpload={(file, fileList) => {
+          // antd gọi beforeUpload cho từng tệp; gom cả lượt chọn vào một hàng đợi.
+          if (file === fileList[0]) upload.mutate(fileList);
           return false;
         }}
         className="image-dropzone"
@@ -125,7 +109,7 @@ export function ProductImagesModal({ productId, productName, images, open, onClo
         <p className="image-dropzone-icon">
           <UploadOutlined />
         </p>
-        <p className="image-dropzone-text">{upload.isPending ? `Đang tải ${uploadingName ?? "ảnh"}…` : full ? `Đã đủ ${MAX_IMAGES} ảnh — gỡ bớt để thêm ảnh mới` : "Bấm hoặc kéo ảnh vào đây để tải lên"}</p>
+        <p className="image-dropzone-text">{dropzoneText()}</p>
       </Upload.Dragger>
 
       {images.length === 0 ? (
