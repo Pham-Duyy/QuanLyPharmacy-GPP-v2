@@ -51,6 +51,12 @@ export const PERMISSIONS: Array<{ code: string; description: string }> = [
   { code: "supplier_payment.manage", description: "Ghi nhận thanh toán cho nhà cung cấp" },
   { code: "loyalty.manage", description: "Điều chỉnh điểm tích lũy của khách bằng tay" },
   { code: "ai.use", description: "Dùng tính năng AI" },
+  { code: "national_sync.read", description: "Xem trạng thái liên thông CSDL Dược quốc gia" },
+  {
+    code: "national_sync.manage",
+    description:
+      "Cấu hình kết nối, ghép mã thuốc và gửi dữ liệu lên CSDL Dược quốc gia",
+  },
 ];
 
 export const ROLES: Array<{ code: string; name: string; permissions: string[] }> = [
@@ -92,6 +98,8 @@ export const ROLES: Array<{ code: string; name: string; permissions: string[] }>
       "supplier_debt.read",
       "supplier_payment.manage",
       "loyalty.manage",
+      "national_sync.read",
+      "national_sync.manage",
     ],
   },
   {
@@ -128,6 +136,8 @@ export const ROLES: Array<{ code: string; name: string; permissions: string[] }>
       "controlled.read",
       "loyalty.manage",
       "ai.use",
+      "national_sync.read",
+      "national_sync.manage",
     ],
   },
   {
@@ -175,6 +185,7 @@ export const ROLES: Array<{ code: string; name: string; permissions: string[] }>
       "audit.read",
       "controlled.read",
       "supplier_debt.read",
+      "national_sync.read",
     ],
   },
 ];

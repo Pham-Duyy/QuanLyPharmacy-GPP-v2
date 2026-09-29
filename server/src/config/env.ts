@@ -18,6 +18,12 @@ const envSchema = z.object({
   BACKUP_PG_DUMP: z.string().default("pg_dump"),
   /** Tên container khi PostgreSQL chạy bằng Docker (khi đó dùng pg_dump trong container). */
   BACKUP_DOCKER_CONTAINER: z.string().optional(),
+  /**
+   * Địa chỉ API Hệ thống CSDL về Dược. Bỏ trống thì lấy theo môi trường đã
+   * chọn ở màn cấu hình (sandbox hoặc thật). Đặt biến này để trỏ sang máy
+   * chủ giả khi chạy test, hoặc khi Bộ Y tế đổi tên miền.
+   */
+  NDS_BASE_URL: z.string().url().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);

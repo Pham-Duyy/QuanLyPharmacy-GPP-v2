@@ -1,4 +1,5 @@
 import {
+  ApiOutlined,
   AppstoreOutlined,
   AuditOutlined,
   BarcodeOutlined,
@@ -102,6 +103,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { path: "/nhan-vien", icon: <UserSwitchOutlined />, label: "Nhân viên", permission: "user.manage", keywords: "tai khoan vai tro" },
       { path: "/cua-hang", icon: <ShopOutlined />, label: "Cửa hàng", permission: "store.manage" },
+      { path: "/lien-thong-duoc", icon: <ApiOutlined />, label: "Liên thông CSDL Dược", permission: "national_sync.read", keywords: "lien thong csdl duoc quoc gia bo y te csdlduoc api" },
       { path: "/audit-log", icon: <AuditOutlined />, label: "Nhật ký hệ thống", permission: "audit.read", keywords: "audit log" },
       { path: "/sao-luu", icon: <CloudServerOutlined />, label: "Sao lưu dữ liệu", permission: "backup.manage", keywords: "backup phuc hoi du lieu an toan" },
       { path: "/cai-dat", icon: <SettingOutlined />, label: "Cài đặt", permission: "settings.manage", keywords: "thiet lap mau in hoa don phieu nhap tra hang dieu chinh kho giay logo" },

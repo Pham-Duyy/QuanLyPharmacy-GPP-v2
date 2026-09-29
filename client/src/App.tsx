@@ -40,6 +40,7 @@ const PurchaseSuggestionsPage = page(() => import("./features/inventory/Purchase
 const StockCountsPage = page(() => import("./features/inventory/stock-counts/StockCountsPage.js"), "StockCountsPage");
 const BackupPage = page(() => import("./features/backup/BackupPage.js"), "BackupPage");
 const ExcelHubPage = page(() => import("./features/excel/ExcelHubPage.js"), "ExcelHubPage");
+const NationalSyncPage = page(() => import("./features/national-sync/NationalSyncPage.js"), "NationalSyncPage");
 const ReportsPage = page(() => import("./features/reports/ReportsPage.js"), "ReportsPage");
 
 const ROUTES: Array<{ path: string; element: ReactNode }> = [
@@ -66,6 +67,7 @@ const ROUTES: Array<{ path: string; element: ReactNode }> = [
   { path: "/danh-muc", element: <CatalogDataPage /> },
   { path: "/in-tem", element: <LabelsPage /> },
   { path: "/anh-san-pham", element: <ProductImagesBulkPage /> },
+  { path: "/lien-thong-duoc", element: <NationalSyncPage /> },
   { path: "/excel", element: <ExcelHubPage /> },
   { path: "/nhan-vien", element: <UsersPage /> },
   { path: "/cua-hang", element: <StoresPage /> },
