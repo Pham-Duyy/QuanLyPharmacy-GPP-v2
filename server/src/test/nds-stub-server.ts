@@ -181,7 +181,15 @@ export async function startStubServer(options: StubOptions): Promise<StubServer>
     })();
   });
 
-  await new Promise<void>((resolve) => server.listen(options.port ?? 0, "127.0.0.1", resolve));
+  // Lỗi mở cổng phải thành promise bị từ chối. Để mặc thì Node ném
+  // 'error' không ai bắt và giết cả tiến trình bằng một stack trace.
+  await new Promise<void>((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(options.port ?? 0, "127.0.0.1", () => {
+      server.off("error", reject);
+      resolve();
+    });
+  });
   const { port } = server.address() as AddressInfo;
 
   return {
