@@ -29,6 +29,114 @@ function dayOffset(days: number): Date {
   return date;
 }
 
+/**
+ * Đưa hàng vào kho đúng đường chứng từ: phiếu tồn đầu kỳ đã kiểm nhập, có
+ * dòng phiếu, có lô và có thẻ kho. Lô đã tồn tại mà thiếu thẻ kho (do bản
+ * script cũ tạo thẳng vào bảng lô) cũng được vá lại ở đây.
+ */
+async function ensureBatchWithLedger(
+  storeId: string,
+  userId: string,
+  item: {
+    productId: string;
+    productUnitId: string;
+    batchNumber: string;
+    expiryDate: Date;
+    baseQuantity: number;
+    unitCost: number;
+    note: string;
+  },
+): Promise<void> {
+  let missing = 0;
+  const existing = await prisma.batch.findFirst({
+    where: { storeId, productId: item.productId, batchNumber: item.batchNumber },
+  });
+  if (existing) {
+    const movements = await prisma.stockMovement.aggregate({
+      where: { batchId: existing.id },
+      _sum: { baseQuantity: true },
+    });
+    const ledger = movements._sum.baseQuantity ?? 0;
+    if (ledger === existing.quantityOnHand) return;
+    // Thiếu bao nhiêu thì ghi bù bấy nhiêu, không đụng tới số tồn đang có.
+    missing = existing.quantityOnHand - ledger;
+    if (missing <= 0) return;
+  }
+
+  const now = new Date();
+  const prefix = `PN-${(await prisma.store.findUniqueOrThrow({ where: { id: storeId } })).code}-${new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Ho_Chi_Minh" }).format(now).replace(/-/g, "")}-`;
+  const countToday = await prisma.goodsReceipt.count({ where: { storeId, code: { startsWith: prefix } } });
+  const quantity = existing ? missing : item.baseQuantity;
+  const lineCost = BigInt(item.unitCost) * BigInt(quantity);
+
+  await prisma.$transaction(async (tx) => {
+    const receipt = await tx.goodsReceipt.create({
+      data: {
+        storeId,
+        code: `${prefix}${String(countToday + 950).padStart(4, "0")}`,
+        type: "OPENING_BALANCE",
+        receivedAt: now,
+        status: "CONFIRMED",
+        note: item.note,
+        goodsAmount: lineCost,
+        totalCost: lineCost,
+        createdBy: userId,
+        confirmedBy: userId,
+        confirmedAt: now,
+      },
+    });
+
+    const line = await tx.goodsReceiptLine.create({
+      data: {
+        goodsReceiptId: receipt.id,
+        lineNo: 1,
+        productId: item.productId,
+        productUnitId: item.productUnitId,
+        quantity,
+        baseQuantity: quantity,
+        unitCost: BigInt(item.unitCost),
+        lineCost,
+        batchNumber: item.batchNumber,
+        expiryDate: item.expiryDate,
+      },
+    });
+
+    const batch =
+      existing ??
+      (await tx.batch.create({
+        data: {
+          storeId,
+          productId: item.productId,
+          batchNumber: item.batchNumber,
+          expiryDate: item.expiryDate,
+          quantityOnHand: quantity,
+          unitCost: item.unitCost,
+          shelfLocation: "Kệ A1",
+          status: "AVAILABLE",
+          sourceType: "GOODS_RECEIPT",
+          sourceId: receipt.id,
+        },
+      }));
+
+    await tx.goodsReceiptLine.update({ where: { id: line.id }, data: { batchId: batch.id } });
+
+    await tx.stockMovement.create({
+      data: {
+        storeId,
+        batchId: batch.id,
+        productId: item.productId,
+        type: "OPENING_BALANCE",
+        baseQuantity: quantity,
+        balanceAfter: batch.quantityOnHand,
+        sourceType: "GOODS_RECEIPT",
+        sourceId: receipt.id,
+        sourceLineId: line.id,
+        userId,
+      },
+    });
+  });
+}
+
 async function main(): Promise<void> {
   const url = process.env["DATABASE_URL"] ?? "";
   const dbName = url.split("/").pop()?.split("?")[0] ?? "(không rõ)";
@@ -103,26 +211,18 @@ async function main(): Promise<void> {
   }
 
   // 2. Lô sắp hết hạn: màn "Hàng cận hạn" có dữ liệu đỏ ---------------------
-  await prisma.batch.upsert({
-    where: {
-      storeId_productId_batchNumber: {
-        storeId: store.id,
-        productId: para.id,
-        batchNumber: "DEMO-CANHAN",
-      },
-    },
-    update: { quantityOnHand: 240, expiryDate: dayOffset(18) },
-    create: {
-      storeId: store.id,
-      productId: para.id,
-      batchNumber: "DEMO-CANHAN",
-      expiryDate: dayOffset(18),
-      quantityOnHand: 240,
-      unitCost: 700,
-      shelfLocation: "Kệ A1",
-      status: "AVAILABLE",
-      sourceType: "OPENING_BALANCE",
-    },
+  //
+  // Hàng vào kho phải đi qua chứng từ và ghi thẻ kho, kể cả dữ liệu demo:
+  // tạo thẳng vào bảng lô sẽ phá bất biến "tồn của lô bằng tổng thẻ kho" mà
+  // `npm run check:invariants` kiểm tra.
+  await ensureBatchWithLedger(store.id, demoUser.id, {
+    productId: para.id,
+    productUnitId: paraBase.id,
+    batchNumber: "DEMO-CANHAN",
+    expiryDate: dayOffset(18),
+    baseQuantity: 240,
+    unitCost: 700,
+    note: "Lô cận hạn chuẩn bị cho buổi demo",
   });
 
   // 3. Mặt hàng dưới tồn tối thiểu: màn "Đề xuất đặt hàng" có dữ liệu -------

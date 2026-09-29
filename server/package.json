@@ -20,7 +20,8 @@
     "lint": "oxlint",
     "format": "prettier --write \"src/**/*.ts\" \"prisma/**/*.ts\"",
     "format:check": "prettier --check \"src/**/*.ts\" \"prisma/**/*.ts\"",
-    "db:demo": "tsx prisma/demo-seed.ts"
+    "db:demo": "tsx prisma/demo-seed.ts",
+    "db:catalog": "tsx prisma/seed-catalog-extra.ts"
   },
   "type": "module",
   "dependencies": {
