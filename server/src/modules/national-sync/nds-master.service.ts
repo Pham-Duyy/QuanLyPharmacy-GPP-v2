@@ -1,7 +1,7 @@
 import { prisma } from "../../db/prisma.js";
 import { AppError } from "../../lib/app-error.js";
 import type { NdsClient } from "./nds-client.js";
-import type { NationalDrugDto } from "./nds-schemas.js";
+import type { NationalDrugDto, NationalUnitDto } from "./nds-schemas.js";
 
 /** Trần số trang mỗi lượt đồng bộ: chặn vòng lặp vô tận nếu API trả `total` sai. */
 const MAX_PAGES = 400;
@@ -52,6 +52,70 @@ function drugRow(dto: NationalDrugDto) {
   };
 }
 
+/**
+ * Ghi cả trang danh mục bằng MỘT câu lệnh.
+ *
+ * Danh mục thuốc quốc gia có hàng chục nghìn dòng; upsert từng dòng nghĩa là
+ * từng ấy lượt đi về CSDL, lượt đồng bộ đầu tiên sẽ chạy rất lâu. Prisma
+ * chưa có upsert hàng loạt nên dùng thẳng `INSERT ... ON CONFLICT DO UPDATE`.
+ */
+async function upsertUnits(items: NationalUnitDto[]): Promise<void> {
+  if (items.length === 0) return;
+  await prisma.$executeRaw`
+    INSERT INTO "national_units" ("id", "name", "synced_at")
+    SELECT id, name, now()
+    FROM UNNEST(
+      ${items.map((item) => item.id)}::text[],
+      ${items.map((item) => item.name)}::text[]
+    ) AS t(id, name)
+    ON CONFLICT ("id") DO UPDATE
+      SET "name" = EXCLUDED."name", "synced_at" = EXCLUDED."synced_at"`;
+}
+
+type DrugRow = ReturnType<typeof drugRow>;
+
+async function upsertDrugs(rows: DrugRow[]): Promise<void> {
+  if (rows.length === 0) return;
+  await prisma.$executeRaw`
+    INSERT INTO "national_drugs" (
+      "id", "name", "drug_group_id", "registration_number", "old_registration_number",
+      "active_ingredient", "strength", "prescription_status", "special_control_type",
+      "manufacturer_id", "manufacturer_name", "manufacturer_country", "packagings",
+      "last_update_time", "synced_at")
+    SELECT * FROM UNNEST(
+      ${rows.map((row) => row.id)}::text[],
+      ${rows.map((row) => row.name)}::text[],
+      ${rows.map((row) => row.drugGroupId)}::text[],
+      ${rows.map((row) => row.registrationNumber)}::text[],
+      ${rows.map((row) => row.oldRegistrationNumber)}::text[],
+      ${rows.map((row) => row.activeIngredient)}::text[],
+      ${rows.map((row) => row.strength)}::text[],
+      ${rows.map((row) => row.prescriptionStatus)}::smallint[],
+      ${rows.map((row) => row.specialControlType)}::smallint[],
+      ${rows.map((row) => row.manufacturerId)}::text[],
+      ${rows.map((row) => row.manufacturerName)}::text[],
+      ${rows.map((row) => row.manufacturerCountry)}::text[],
+      ${rows.map((row) => JSON.stringify(row.packagings))}::jsonb[],
+      ${rows.map((row) => row.lastUpdateTime)}::timestamptz[],
+      ${rows.map((row) => row.syncedAt)}::timestamptz[]
+    )
+    ON CONFLICT ("id") DO UPDATE SET
+      "name" = EXCLUDED."name",
+      "drug_group_id" = EXCLUDED."drug_group_id",
+      "registration_number" = EXCLUDED."registration_number",
+      "old_registration_number" = EXCLUDED."old_registration_number",
+      "active_ingredient" = EXCLUDED."active_ingredient",
+      "strength" = EXCLUDED."strength",
+      "prescription_status" = EXCLUDED."prescription_status",
+      "special_control_type" = EXCLUDED."special_control_type",
+      "manufacturer_id" = EXCLUDED."manufacturer_id",
+      "manufacturer_name" = EXCLUDED."manufacturer_name",
+      "manufacturer_country" = EXCLUDED."manufacturer_country",
+      "packagings" = EXCLUDED."packagings",
+      "last_update_time" = EXCLUDED."last_update_time",
+      "synced_at" = EXCLUDED."synced_at"`;
+}
+
 export type MasterSyncResult = {
   units: number;
   drugs: number;
@@ -83,13 +147,7 @@ export async function syncMasterData(
   for (let page = 1; page <= MAX_PAGES; page += 1) {
     const { items, total } = await client.fetchUnitsPage(page, PAGE_SIZE);
     if (items.length === 0) break;
-    for (const item of items) {
-      await prisma.nationalUnit.upsert({
-        where: { id: item.id },
-        create: { id: item.id, name: item.name },
-        update: { name: item.name, syncedAt: new Date() },
-      });
-    }
+    await upsertUnits(items);
     units += items.length;
     if (units >= total || items.length < PAGE_SIZE) break;
   }
@@ -101,11 +159,7 @@ export async function syncMasterData(
       ...(updatedFrom ? { updatedFrom } : {}),
     });
     if (items.length === 0) break;
-    for (const item of items) {
-      const row = drugRow(item);
-      const { id: _id, ...updatable } = row;
-      await prisma.nationalDrug.upsert({ where: { id: row.id }, create: row, update: updatable });
-    }
+    await upsertDrugs(items.map(drugRow));
     drugs += items.length;
     if (drugs >= total || items.length < PAGE_SIZE) break;
   }
@@ -131,10 +185,12 @@ function packagingsOf(value: unknown): Packaging[] {
  * quy cách đóng gói của chính thuốc đó (có kèm mã GTIN), không có thì tra
  * danh mục đơn vị tính chung.
  */
-async function resolveUnit(
+function resolveUnit(
   drugPackagings: unknown,
   baseUnitName: string,
-): Promise<{ unitId: string; gtin: string | null } | null> {
+  /** Danh mục đơn vị tính đã nạp sẵn: tra trong vòng lặp không được gọi lại CSDL. */
+  unitsByName: Map<string, string>,
+): { unitId: string; gtin: string | null } | null {
   const target = normalizeDrugName(baseUnitName);
 
   for (const packaging of packagingsOf(drugPackagings)) {
@@ -143,9 +199,8 @@ async function resolveUnit(
     }
   }
 
-  const units = await prisma.nationalUnit.findMany();
-  const hit = units.find((unit) => normalizeDrugName(unit.name) === target);
-  return hit ? { unitId: hit.id, gtin: null } : null;
+  const unitId = unitsByName.get(target);
+  return unitId ? { unitId, gtin: null } : null;
 }
 
 export type AutoMatchResult = {
@@ -168,7 +223,13 @@ export async function autoMatchProducts(): Promise<AutoMatchResult> {
     include: { units: { where: { conversionToBase: 1 } } },
   });
 
-  const drugs = await prisma.nationalDrug.findMany();
+  // Nạp một lần rồi tra trong bộ nhớ: vòng lặp bên dưới không gọi lại CSDL.
+  const [drugs, units] = await Promise.all([
+    prisma.nationalDrug.findMany(),
+    prisma.nationalUnit.findMany(),
+  ]);
+  const unitsByName = new Map(units.map((unit) => [normalizeDrugName(unit.name), unit.id]));
+
   const byRegistration = new Map<string, (typeof drugs)[number]>();
   const byName = new Map<string, (typeof drugs)[number]>();
   const ambiguousNames = new Set<string>();
@@ -189,6 +250,13 @@ export async function autoMatchProducts(): Promise<AutoMatchResult> {
     matchedByName: 0,
     unmatched: 0,
   };
+  const created: Array<{
+    productId: string;
+    drugId: string;
+    unitId: string;
+    gtin: string | null;
+    matchedBy: string;
+  }> = [];
 
   for (const product of products) {
     const baseUnit = product.units[0];
@@ -213,7 +281,7 @@ export async function autoMatchProducts(): Promise<AutoMatchResult> {
       continue;
     }
 
-    const unit = await resolveUnit(drug.packagings, baseUnit.name);
+    const unit = resolveUnit(drug.packagings, baseUnit.name, unitsByName);
     if (!unit) {
       // Ghép được thuốc nhưng không ra đơn vị tính thì vẫn là chưa ghép được:
       // gửi thiếu unit_id chắc chắn bị từ chối.
@@ -221,19 +289,20 @@ export async function autoMatchProducts(): Promise<AutoMatchResult> {
       continue;
     }
 
-    await prisma.nationalDrugLink.create({
-      data: {
-        productId: product.id,
-        drugId: drug.id,
-        unitId: unit.unitId,
-        gtin: unit.gtin,
-        matchedBy,
-      },
+    created.push({
+      productId: product.id,
+      drugId: drug.id,
+      unitId: unit.unitId,
+      gtin: unit.gtin,
+      matchedBy,
     });
 
     if (matchedBy === "REGISTRATION_NUMBER") result.matchedByRegistration += 1;
     else result.matchedByName += 1;
   }
+
+  // Ghi một lượt thay vì từng dòng: danh mục lớn thì chênh lệch rất rõ.
+  if (created.length > 0) await prisma.nationalDrugLink.createMany({ data: created });
 
   return result;
 }

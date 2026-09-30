@@ -263,6 +263,57 @@ describe("Liên thông CSDL Dược — danh mục và ghép mã", () => {
     expect(await prisma.nationalUnit.count()).toBe(2);
   });
 
+  it("ghi được cả dòng thiếu dữ liệu: không số đăng ký, không nhà sản xuất, không quy cách", async () => {
+    // Danh mục quốc gia có dòng khuyết trường; ghi cả lô bằng SQL thô nên
+    // phải chắc chắn NULL và mảng rỗng không làm hỏng câu lệnh.
+    await stub.close();
+    stub = await startStubServer({
+      username: USERNAME,
+      password: PASSWORD,
+      units: [{ id: "U01", name: "Viên" }],
+      drugs: [
+        {
+          id: "D9001",
+          name: "Thuốc thiếu thông tin",
+          registration_number: null,
+          old_registration_number: null,
+          active_pharmaceutical_ingredient: null,
+          strength: null,
+          prescription_status: null,
+          special_control_type: null,
+          packagings: [],
+          manufacturer: null,
+          last_update_time: null,
+        },
+        ...NATIONAL_DRUGS,
+      ],
+    });
+    process.env["NDS_BASE_URL"] = stub.baseUrl;
+
+    await configure();
+    const result = await api().post(`${BASE}/master-sync`).set(h()).send({ full: true }).expect(200);
+    expect(result.body.data.drugs).toBe(3);
+
+    const saved = await prisma.nationalDrug.findUniqueOrThrow({ where: { id: "D9001" } });
+    expect(saved.name).toBe("Thuốc thiếu thông tin");
+    expect(saved.registrationNumber).toBeNull();
+    expect(saved.manufacturerName).toBeNull();
+    expect(saved.lastUpdateTime).toBeNull();
+    expect(saved.packagings).toEqual([]);
+  });
+
+  it("đồng bộ lần hai thì cập nhật chứ không nhân đôi dòng", async () => {
+    await configure();
+    await api().post(`${BASE}/master-sync`).set(h()).send({ full: true }).expect(200);
+    await prisma.nationalDrug.update({ where: { id: "D0001" }, data: { name: "Tên cũ sai" } });
+
+    await api().post(`${BASE}/master-sync`).set(h()).send({ full: true }).expect(200);
+
+    expect(await prisma.nationalDrug.count()).toBe(2);
+    const refreshed = await prisma.nationalDrug.findUniqueOrThrow({ where: { id: "D0001" } });
+    expect(refreshed.name).toBe("Paracetamol 500mg");
+  });
+
   it("ghép theo số đăng ký thì dùng được ngay, ghép theo tên thì phải xác nhận", async () => {
     await configure();
     await api().post(`${BASE}/master-sync`).set(h()).send({ full: true }).expect(200);

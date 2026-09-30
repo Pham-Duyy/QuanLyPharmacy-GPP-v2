@@ -204,7 +204,7 @@ function ConnectionTab({
   });
 
   return (
-    <Space direction="vertical" size="large" style={{ width: "100%" }}>
+    <Space orientation="vertical" size="large" style={{ width: "100%" }}>
       <Card title="Tài khoản liên thông">
         <Form
           form={form}
@@ -274,10 +274,10 @@ function ConnectionTab({
       <Card title="Trạng thái">
         <Descriptions column={{ xs: 1, sm: 2 }} size="small" bordered>
           <Descriptions.Item label="Địa chỉ API">
-            <Space direction="vertical" size={2}>
+            <Space orientation="vertical" size={2}>
               <span>{config.baseUrl}</span>
               {config.baseUrlOverridden ? (
-                <Tag color="purple">Máy chủ mô phỏng — không phải hệ thống của Bộ Y tế</Tag>
+                <Tag color="purple">Địa chỉ do cấu hình NDS_BASE_URL chỉ định, không phải địa chỉ chính thức</Tag>
               ) : null}
             </Space>
           </Descriptions.Item>
@@ -377,7 +377,7 @@ function MappingTab({ canManage, onChanged }: { canManage: boolean; onChanged: (
     .map((row) => row.productId);
 
   return (
-    <Space direction="vertical" size="middle" style={{ width: "100%" }}>
+    <Space orientation="vertical" size="middle" style={{ width: "100%" }}>
       <Alert
         type="info"
         showIcon
@@ -579,7 +579,7 @@ function JobsTab({
   const summary = jobs.data?.summary;
 
   return (
-    <Space direction="vertical" size="middle" style={{ width: "100%" }}>
+    <Space orientation="vertical" size="middle" style={{ width: "100%" }}>
       {!config.startDate ? (
         <Alert
           type="warning"

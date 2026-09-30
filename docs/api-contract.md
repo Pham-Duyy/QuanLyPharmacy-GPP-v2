@@ -1601,25 +1601,18 @@ trước khi xác nhận. Nhà thuốc vài trăm mặt hàng mà bắt bấm t�
 ta sẽ bấm bừa — lúc đó luật kiểm soát còn kém an toàn hơn. Thao tác ghi một
 dòng audit log kèm số lượng và danh sách mã đã xác nhận.
 
-### 25.11 Máy chủ mô phỏng để chạy thử
+### 25.11 Chạy thử khi chưa có tài khoản
 
 Tài khoản liên thông chỉ cấp cho cơ sở dược có giấy phép; môi trường sandbox
 của Bộ Y tế phải liên hệ 19008255 (nhánh 2) hoặc gửi công văn tới Trung tâm
-Thông tin Y tế Quốc gia mới được mở. Trong lúc chưa có tài khoản, chạy:
+Thông tin Y tế Quốc gia mới được mở.
 
-```
-npm run nds:mock
-```
+Trong lúc chưa có tài khoản, phần này được kiểm chứng bằng máy chủ giả dựng
+theo đúng đặc tả (`src/test/nds-stub-server.ts`): đăng nhập form-urlencoded
+kèm mật khẩu base64, phân trang danh mục, nhận chứng từ trả `transaction_id`,
+hỏi lại trạng thái. Tệp này nằm trong `src/test` và không có đường nào từ
+`app.ts` dẫn tới, nên không chạy được trong môi trường thật.
 
-Máy chủ này nói đúng giao thức trong đặc tả (đăng nhập form-urlencoded + mật
-khẩu base64, phân trang danh mục, nhận chứng từ trả `transaction_id`, trạng
-thái chuyển dần `accepted` → `processing` → `completed`), và dựng danh mục
-thuốc từ chính danh mục của nhà thuốc để việc ghép mã ra kết quả có nghĩa.
-
-Mọi mã đều mang tiền tố `MOCK-`, số đăng ký dạng `MOCK-VD-...`. Trỏ phần mềm
-sang nó bằng biến `NDS_BASE_URL`; khi biến này được đặt, màn Liên thông hiện
-địa chỉ thật đang gọi kèm thẻ **"Máy chủ mô phỏng — không phải hệ thống của Bộ
-Y tế"**, để không ai nhầm dữ liệu thử với dữ liệu đã nộp thật.
-
-Mã của máy chủ mô phỏng nằm ở `src/test/`, không có đường nào từ `app.ts` dẫn
-tới, nên không thể chạy trong môi trường thật.
+Biến `NDS_BASE_URL` để trỏ API sang địa chỉ khác (bộ kiểm thử dùng, hoặc khi
+Bộ Y tế đổi tên miền). Khi biến này được đặt, màn Liên thông hiện địa chỉ thật
+đang gọi kèm thẻ cảnh báo, để không ai nhầm với địa chỉ chính thức.

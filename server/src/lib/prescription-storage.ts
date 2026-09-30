@@ -14,7 +14,3 @@ export function saveImageFile(
 export function readImageFile(storageKey: string): Promise<Buffer> {
   return storage.read(storageKey);
 }
-
-export function deleteImageFile(storageKey: string): Promise<void> {
-  return storage.remove(storageKey);
-}

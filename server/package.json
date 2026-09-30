@@ -21,8 +21,7 @@
     "format": "prettier --write \"src/**/*.ts\" \"prisma/**/*.ts\"",
     "format:check": "prettier --check \"src/**/*.ts\" \"prisma/**/*.ts\"",
     "db:demo": "tsx prisma/demo-seed.ts",
-    "db:catalog": "tsx prisma/seed-catalog-extra.ts",
-    "nds:mock": "tsx scripts/nds-mock.ts"
+    "db:catalog": "tsx prisma/seed-catalog-extra.ts"
   },
   "type": "module",
   "dependencies": {
@@ -43,7 +42,6 @@
     "zod": "^4.6.2"
   },
   "devDependencies": {
-    "@types/bcryptjs": "^2.4.6",
     "@types/cookie-parser": "^1.4.10",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",

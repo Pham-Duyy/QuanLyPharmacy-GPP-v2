@@ -25,7 +25,7 @@ function normalize(text: string): string {
 }
 
 /** Bỏ phần mở rộng; tên bắt đầu bằng dấu chấm thì giữ nguyên. */
-export function fileStem(fileName: string): string {
+function fileStem(fileName: string): string {
   const dot = fileName.lastIndexOf(".");
   return dot > 0 ? fileName.slice(0, dot) : fileName;
 }

@@ -1,5 +1,4 @@
 import { prisma } from "../../db/prisma.js";
-import { AppError } from "../../lib/app-error.js";
 
 /**
  * Sổ theo dõi thuốc kiểm soát đặc biệt (gây nghiện, hướng thần, tiền chất).
@@ -285,6 +284,3 @@ export function reconcile(ledger: LedgerProduct[], periodEndsToday: boolean) {
     .map((product) => ({ productId: product.productId, name: product.name, closingBalance: product.closingBalance, stockOnHand: product.stockOnHand }));
 }
 
-export function requireControlledAccess(canRead: boolean): void {
-  if (!canRead) throw new AppError(403, "FORBIDDEN", "Bạn không có quyền xem sổ thuốc kiểm soát đặc biệt");
-}
