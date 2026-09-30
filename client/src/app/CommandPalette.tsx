@@ -10,7 +10,8 @@ import { formatVnd, type CustomerSearchItem, type Envelope, type InvoiceListItem
 import { useAuth } from "../features/auth/AuthProvider.js";
 import { useDebounced } from "../ui/useDebounced.js";
 import { confirmLeave } from "./leave-guard.js";
-import { foldText, isAllowed, NAV_ITEMS } from "./navigation.js";
+import { allowedPages } from "./access.js";
+import { foldText } from "./fold-text.js";
 
 type Result = { key: string; icon: ReactNode; title: string; subtitle?: string; path: string };
 type Section = { label: string; results: Result[]; loading: boolean };
@@ -48,7 +49,8 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
 
   const sections = useMemo<Section[]>(() => {
     const folded = foldText(query.trim());
-    const pages = NAV_ITEMS.filter((item) => isAllowed(item, can))
+    // Tìm trong toàn bộ trang được phép, kể cả công cụ không nằm trên sidebar.
+    const pages = allowedPages(can)
       .filter((item) => !folded || foldText(`${item.label} ${item.keywords ?? ""}`).includes(folded))
       .slice(0, folded ? 5 : 8)
       .map<Result>((item) => ({ key: `page:${item.path}`, icon: item.icon, title: item.label, subtitle: "Mở trang", path: item.path }));

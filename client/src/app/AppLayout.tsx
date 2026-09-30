@@ -17,27 +17,25 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router";
 import { useAuth } from "../features/auth/AuthProvider.js";
 import { ChangePasswordModal } from "../features/auth/ChangePasswordModal.js";
+import { activeNav, visibleSidebar } from "./access.js";
 import { CommandPalette } from "./CommandPalette.js";
 import { confirmLeave } from "./leave-guard.js";
-import { isAllowed, NAV_GROUPS, NAV_ITEMS } from "./navigation.js";
+import { DEFAULT_MENU_PREFS, dropLegacyMenuPrefs, readMenuPrefs, sanitizeOpenGroup, writeMenuPrefs, type MenuPrefs } from "./menu-prefs.js";
 import { NotificationBell } from "./NotificationBell.js";
-
-const COLLAPSED_KEY = "gpp.sider.collapsed";
-
-function readCollapsed(): boolean {
-  try {
-    return window.localStorage.getItem(COLLAPSED_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
 
 function initialsOf(fullName: string): string {
   const words = fullName.trim().split(/\s+/);
   return (words.at(-1)?.[0] ?? "?").toUpperCase();
 }
 
+type MenuItem = NonNullable<MenuProps["items"]>[number];
+
 const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
+
+/** Nhóm vừa được mở trong danh sách antd trả về; đóng nhóm đang mở thì ra `null`. */
+function newlyOpened(keys: string[], current: string | null): string | null {
+  return keys.filter((key) => key !== current).at(-1) ?? null;
+}
 
 export function AppLayout() {
   const { me, storeId, selectStore, logout, can } = useAuth();
@@ -45,10 +43,36 @@ export function AppLayout() {
   const location = useLocation();
   const screens = Grid.useBreakpoint();
   const isDesktop = screens.lg ?? true;
-  const [collapsed, setCollapsed] = useState(readCollapsed);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [passwordOpen, setPasswordOpen] = useState(false);
+  /** Nhóm đang bung ra dạng khung nổi khi menu thu gọn; không ghi nhớ. */
+  const [popupGroup, setPopupGroup] = useState<string | null>(null);
+
+  // --- Tùy chọn menu theo từng tài khoản ------------------------------------
+  // Đổi tài khoản trên cùng trình duyệt thì nạp lại tùy chọn của người mới
+  // ngay trong lượt render, không để người sau thấy cách bày của người trước.
+  const userId = me?.user.id ?? null;
+  const [prefsOwner, setPrefsOwner] = useState<string | null>(null);
+  const [prefs, setPrefs] = useState<MenuPrefs>(DEFAULT_MENU_PREFS);
+  /** Đường dẫn đã hiển thị gần nhất mà phần tự mở nhóm đã xét. */
+  const [handledPath, setHandledPath] = useState<string | undefined>(undefined);
+  /** Trang đang tới mà người dùng đã tự chọn nhóm trong lúc chờ nó tải. */
+  const [userChoseFor, setUserChoseFor] = useState<string | null>(null);
+  if (userId !== prefsOwner) {
+    setPrefsOwner(userId);
+    setPrefs(userId ? readMenuPrefs(userId) : DEFAULT_MENU_PREFS);
+    setHandledPath(undefined);
+    setUserChoseFor(null);
+  }
+
+  function updatePrefs(next: MenuPrefs): void {
+    setPrefs(next);
+    if (userId) writeMenuPrefs(userId, next);
+  }
+
+  // Hai khóa lưu chung của bản cũ: xóa một lần để không tài khoản nào nhận nhầm.
+  useEffect(() => dropLegacyMenuPrefs(), []);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -61,43 +85,74 @@ export function AppLayout() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
+  // --- Nội dung sidebar -----------------------------------------------------
+  // Tính lại theo `can`, nên đổi cửa hàng là menu đổi theo quyền tại cửa hàng mới.
+  const visible = useMemo(() => visibleSidebar(can), [can]);
+  const groupKeys = useMemo(() => visible.flatMap((entry) => (entry.kind === "group" ? [entry.key] : [])), [visible]);
+  const nav = useMemo(() => activeNav(location.pathname), [location.pathname]);
+  const activeGroup = nav.groupKey !== null && groupKeys.includes(nav.groupKey) ? nav.groupKey : null;
+  /** Nhóm đang mở; nhóm đã lưu mà không còn quyền thấy thì coi như chưa mở. */
+  const openGroup = sanitizeOpenGroup(prefs.openGroup, groupKeys);
+
+  /**
+   * Sang trang thuộc nhóm khác thì mở nhóm đó — và vì mỗi lúc chỉ một nhóm
+   * mở, nhóm cũ tự gập. Mục đang chọn không bị giấu sau nhóm gập, kể cả khi
+   * tới bằng Ctrl+K hay thông báo.
+   *
+   * Chỉ xét khi **đường dẫn đã hiển thị** thật sự đổi. React Router chuyển
+   * trang trong một transition: URL đổi ngay nhưng giao diện giữ trang cũ tới
+   * khi tải xong trang mới, và trong lúc đó vẫn có những lượt render mang
+   * đường dẫn cũ. Lượt đó trùng với lần đã xét nên không làm gì.
+   *
+   * Không ghi nhớ bước này: tải lại trang thì nhóm của trang đó vẫn tự mở.
+   */
+  if (location.pathname !== handledPath) {
+    setHandledPath(location.pathname);
+    setUserChoseFor(null);
+    const userChose = userChoseFor === location.pathname;
+    // Cập nhật dạng hàm: cùng lượt render này có thể vừa nạp tùy chọn của tài
+    // khoản ở trên, không được ghi đè mất trạng thái thu gọn đã lưu.
+    if (activeGroup !== null && !userChose) {
+      setPrefs((current) => (current.openGroup === activeGroup ? current : { ...current, openGroup: activeGroup }));
+    }
+  }
+
+  /**
+   * Người dùng tự mở/gập nhóm. Nếu lúc đó đang có trang mới chờ tải (URL đã
+   * đổi mà giao diện chưa), lựa chọn này phải thắng: ghi nhận cho đúng trang
+   * đang tới, để khi trang hiện ra không tự bung nhóm khác đè lên.
+   */
+  function changeOpenGroup(keys: string[]): void {
+    if (window.location.pathname !== location.pathname) setUserChoseFor(window.location.pathname);
+    updatePrefs({ ...prefs, openGroup: newlyOpened(keys, openGroup) });
+  }
+
+  /**
+   * Cùng một cấu trúc cho menu mở rộng và thu gọn. Thu gọn chỉ còn biểu
+   * tượng của các mục cấp đầu (tối đa 9), bấm vào nhóm thì hiện danh sách
+   * trang trong khung nổi — không trải cả chục biểu tượng thành một cột dài.
+   */
   const menuItems = useMemo<MenuProps["items"]>(
     () =>
-      NAV_GROUPS.flatMap((group) => {
-        const visible = group.items.filter((item) => isAllowed(item, can));
-        if (visible.length === 0) return [];
-        return [
-          {
-            type: "group" as const,
-            key: group.key,
-            label: group.label,
-            children: visible.map((item) => ({ key: item.path, icon: item.icon, label: item.label })),
-          },
-        ];
+      visible.flatMap((entry): MenuItem[] => {
+        if (entry.kind === "page") return [{ key: entry.page.path, icon: entry.page.icon, label: entry.page.label }];
+        const group = {
+          key: entry.key,
+          icon: entry.icon,
+          label: entry.label,
+          children: entry.pages.map((page) => ({ key: page.path, icon: page.icon, label: page.label })),
+        };
+        return entry.divided ? [{ type: "divider" as const, key: `divider-${entry.key}` }, group] : [group];
       }),
-    [can],
+    [visible],
   );
 
   if (!me) return null;
 
+  const collapsed = isDesktop && prefs.collapsed;
   const store = me.stores.find((item) => item.id === storeId);
-  const selectedKey =
-    NAV_ITEMS.filter((item) => location.pathname.startsWith(item.path)).sort((a, b) => b.path.length - a.path.length)[0]
-      ?.path ?? "";
   const roleNames = me.roles.filter((role) => role.storeId === null || role.storeId === storeId).map((role) => role.name);
   const roleText = roleNames.length === 0 ? "Chưa được gán vai trò" : roleNames.join(" · ");
-
-  function toggleCollapsed() {
-    setCollapsed((value) => {
-      const next = !value;
-      try {
-        window.localStorage.setItem(COLLAPSED_KEY, next ? "1" : "0");
-      } catch {
-        // Trình duyệt chặn lưu trữ: vẫn thu gọn được trong phiên hiện tại.
-      }
-      return next;
-    });
-  }
 
   const sidebar = (compact: boolean) => (
     <div className="sider-inner">
@@ -117,10 +172,18 @@ export function AppLayout() {
           theme="dark"
           mode="inline"
           inlineCollapsed={compact}
-          selectedKeys={[selectedKey]}
+          // Mở nhóm bằng bấm, kể cả khi thu gọn: máy tính bảng ở quầy không rê chuột được.
+          triggerSubMenuAction="click"
+          selectedKeys={nav.selectedPath ? [nav.selectedPath] : []}
+          openKeys={compact ? (popupGroup ? [popupGroup] : []) : openGroup ? [openGroup] : []}
+          onOpenChange={(keys) => {
+            if (compact) setPopupGroup(newlyOpened(keys, popupGroup));
+            else changeOpenGroup(keys);
+          }}
           items={menuItems}
           onClick={({ key }) => {
             setDrawerOpen(false);
+            setPopupGroup(null);
             if (key !== location.pathname) confirmLeave(() => void navigate(key));
           }}
         />
@@ -176,7 +239,11 @@ export function AppLayout() {
               type="text"
               className="header-icon-btn"
               icon={isDesktop ? collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined /> : <MenuOutlined />}
-              onClick={() => (isDesktop ? toggleCollapsed() : setDrawerOpen(true))}
+              onClick={() => {
+                if (!isDesktop) return setDrawerOpen(true);
+                setPopupGroup(null);
+                updatePrefs({ ...prefs, collapsed: !prefs.collapsed });
+              }}
               aria-label={isDesktop ? (collapsed ? "Mở rộng menu" : "Thu gọn menu") : "Mở menu"}
             />
           </Tooltip>
