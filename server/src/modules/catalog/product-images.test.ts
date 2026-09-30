@@ -1,3 +1,4 @@
+import { useTestRole } from "../../test/helpers.js";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { prisma } from "../../db/prisma.js";
 import {
@@ -137,7 +138,8 @@ describe("Ảnh sản phẩm", () => {
     await api().post(`/api/v1/products/${productId}/images`).set(h()).expect(400);
   });
 
-  it("nhân viên bán hàng không có quyền quản lý ảnh", async () => {
+  it("tài khoản thiếu quyền không có quyền quản lý ảnh", async () => {
+    await useTestRole(fixture.salesId, "auditor", fixture.storeId, []);
     await upload(PNG, "anh.png", undefined, salesToken).expect(403);
     const created = await upload(PNG).expect(201);
     await api()

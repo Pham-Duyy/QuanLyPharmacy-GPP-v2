@@ -1,4 +1,5 @@
 import { prisma } from "../../db/prisma.js";
+import { ROLES, additionalPermissionsFor } from "../../config/permissions.js";
 
 /**
  * Ngữ cảnh phân quyền của một request.
@@ -95,7 +96,20 @@ export async function loadAuthContext(
   const storePermissions = new Map<string, Set<string>>();
 
   for (const assignment of user.userRoles) {
-    const codes = assignment.role.permissions.map((item) => item.permissionCode);
+    // Bản ứng dụng mới không tiếp tục cấp quyền cho vai trò đã ngừng dùng,
+    // kể cả trước khi hoàn tất chuyển đổi dữ liệu vai trò.
+    const definition = ROLES.find((role) => role.code === assignment.role.code);
+    if (!definition) continue;
+    const codes = assignment.role.permissions
+      .map((item) => item.permissionCode)
+      .filter((code) => definition.permissions.includes(code));
+    if (assignment.storeId !== null) {
+      codes.push(
+        ...assignment.additionalPermissions.filter((code) =>
+          additionalPermissionsFor(assignment.role.code).includes(code),
+        ),
+      );
+    }
     if (assignment.storeId === null) {
       for (const code of codes) chainPermissions.add(code);
       continue;

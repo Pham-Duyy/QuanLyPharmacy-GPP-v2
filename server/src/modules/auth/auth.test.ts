@@ -14,7 +14,7 @@ let fixture: Fixture;
 
 beforeEach(async () => {
   await truncateAll();
-  fixture = await seedFixture();
+  fixture = await seedFixture({ sellingAdmin: false });
 });
 
 afterAll(async () => {

@@ -1,6 +1,6 @@
 import { DeleteOutlined, EditOutlined, KeyOutlined, PlusOutlined, PoweroffOutlined, SafetyOutlined, UserOutlined, UserSwitchOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, App, Button, Card, Empty, Form, Input, Modal, Popconfirm, Select, Skeleton, Table, Tag, Typography } from "antd";
+import { Alert, App, Button, Card, Checkbox, Empty, Form, Input, Modal, Popconfirm, Select, Skeleton, Table, Tag, Typography } from "antd";
 import { useEffect, useState } from "react";
 import { getErrorMessage, http } from "../../api/http.js";
 import { type Envelope, type RoleItem, type StoreDetail, type UserDetail, type UserListItem, type UserRoleAssignment } from "../../api/types.js";
@@ -282,7 +282,9 @@ function UserPanel({ id, onClose, onChanged }: { id: string | null; onClose: () 
               user.roles.map((role, index) => (
                 <div className="line-item" key={`${role.roleCode}-${index}`}>
                   <div className="line-item-main">
-                    <strong>{role.roleName}</strong>
+                    <strong>{role.roleName}{role.responsibleProfessional ? " · Chịu trách nhiệm chuyên môn" : ""}</strong>
+                    {role.additionalPermissions?.length ? <span>{role.additionalPermissions.length} quyền bổ sung tại cửa hàng</span> : null}
+                    {role.roleCode === "pharmacist" ? <span>{role.qualificationReference ? `Căn cứ chuyên môn: ${role.qualificationReference}` : "Chưa ghi căn cứ kiểm tra chuyên môn — cần rà soát"}</span> : null}
                     <span>{role.storeId ? (role.storeName ?? role.storeId) : "Toàn chuỗi"}</span>
                   </div>
                 </div>
@@ -388,7 +390,7 @@ function EditUserModal({ open, user, onClose, onSaved }: { open: boolean; user: 
   );
 }
 
-type RoleRow = { key: string; roleCode: string; storeId: string | null };
+type RoleRow = { key: string; roleCode: string; storeId: string | null; additionalPermissions: string[]; qualificationReference: string; responsibleProfessional: boolean };
 
 function ChangeRolesModal({ open, user, onClose, onSaved }: { open: boolean; user: UserDetail; onClose: () => void; onSaved: () => Promise<void> }) {
   const { message } = App.useApp();
@@ -399,11 +401,11 @@ function ChangeRolesModal({ open, user, onClose, onSaved }: { open: boolean; use
 
   useEffect(() => {
     if (!open) return;
-    setRows(user.roles.map((role: UserRoleAssignment, index: number) => ({ key: `${role.roleCode}-${index}`, roleCode: role.roleCode, storeId: role.storeId })));
+    setRows(user.roles.map((role: UserRoleAssignment, index: number) => ({ key: `${role.roleCode}-${index}`, roleCode: role.roleCode, storeId: role.storeId, additionalPermissions: role.additionalPermissions ?? [], qualificationReference: role.qualificationReference ?? "", responsibleProfessional: role.responsibleProfessional ?? false })));
   }, [open, user.roles]);
 
   const save = useMutation({
-    mutationFn: () => http.put(`/users/${user.id}/roles`, rows.map((row) => ({ roleCode: row.roleCode, storeId: row.storeId }))),
+    mutationFn: () => http.put(`/users/${user.id}/roles`, rows.map((row) => ({ roleCode: row.roleCode, storeId: row.storeId, additionalPermissions: row.additionalPermissions, qualificationReference: row.qualificationReference || null, responsibleProfessional: row.responsibleProfessional }))),
     onSuccess: async () => {
       void message.success("Đã cập nhật vai trò");
       await onSaved();
@@ -419,20 +421,20 @@ function ChangeRolesModal({ open, user, onClose, onSaved }: { open: boolean; use
       cancelText="Hủy"
       onCancel={onClose}
       onOk={() => save.mutate()}
-      okButtonProps={{ disabled: rows.some((row) => !row.roleCode) }}
+      okButtonProps={{ disabled: rows.some((row) => !row.roleCode || (row.roleCode === "pharmacist" && !row.qualificationReference.trim())) }}
       confirmLoading={save.isPending}
-      width={640}
+      width={760}
       destroyOnHidden
     >
       <div className="detail-stack">
         <Alert type="warning" showIcon title="Lưu sẽ thay toàn bộ vai trò hiện có và đăng xuất mọi phiên đang đăng nhập của người này." />
         {rows.map((row) => (
-          <div key={row.key} className="role-row">
+          <div key={row.key} className="detail-stack" style={{ borderBottom: "1px solid #eee", paddingBottom: 16 }}><div className="role-row">
             <Select
               placeholder="Chọn vai trò"
               loading={roles.isLoading}
               value={row.roleCode || undefined}
-              onChange={(roleCode) => setRows((current) => current.map((item) => (item.key === row.key ? { ...item, roleCode } : item)))}
+              onChange={(roleCode) => setRows((current) => current.map((item) => (item.key === row.key ? { ...item, roleCode, additionalPermissions: [], responsibleProfessional: false, qualificationReference: "" } : item)))}
               options={(roles.data ?? []).map((role) => ({ value: role.code, label: role.name }))}
             />
             <Select
@@ -440,13 +442,31 @@ function ChangeRolesModal({ open, user, onClose, onSaved }: { open: boolean; use
               placeholder="Toàn chuỗi"
               loading={stores.isLoading}
               value={row.storeId ?? undefined}
-              onChange={(storeId) => setRows((current) => current.map((item) => (item.key === row.key ? { ...item, storeId: storeId ?? null } : item)))}
+              onChange={(storeId) => setRows((current) => current.map((item) => (item.key === row.key ? { ...item, storeId: storeId ?? null, additionalPermissions: [], responsibleProfessional: false } : item)))}
               options={(stores.data ?? []).map((store) => ({ value: store.id, label: `${store.code} — ${store.name}` }))}
             />
             <Button type="text" danger icon={<DeleteOutlined />} aria-label="Xóa vai trò" onClick={() => setRows((current) => current.filter((item) => item.key !== row.key))} />
           </div>
+          {row.roleCode === "pharmacist" ? <>
+            <Typography.Text>Căn cứ đã kiểm tra bằng cấp chuyên môn</Typography.Text>
+            <Input aria-label="Căn cứ kiểm tra chuyên môn" maxLength={500} placeholder="Trình độ, số văn bằng hoặc mã hồ sơ đã đối chiếu" value={row.qualificationReference}
+              onChange={(e) => setRows((current) => current.map((item) => item.key === row.key ? { ...item, qualificationReference: e.target.value } : item))} />
+            <Typography.Text type="secondary">Người lưu xác nhận đã kiểm tra hồ sơ phù hợp với công việc. Thông tin nhập không thay thế việc xác minh văn bằng.</Typography.Text>
+            {row.storeId ? <>
+              <Typography.Text>Quyền bổ sung tại cửa hàng</Typography.Text>
+              <Select mode="multiple" aria-label="Quyền bổ sung" placeholder="Chỉ cấp quyền theo nhiệm vụ được phân công" value={row.additionalPermissions}
+                options={(roles.data?.find((role) => role.code === row.roleCode)?.additionalPermissions ?? []).map((p) => ({ value: p.code, label: p.description }))}
+                onChange={(additionalPermissions: string[]) => setRows((current) => current.map((item) => item.key === row.key ? { ...item, additionalPermissions } : item))} />
+              <Checkbox checked={row.responsibleProfessional} disabled={!user.practiceCertificateNumber?.trim() || !user.isActive}
+                onChange={(e) => setRows((current) => current.map((item) => item.key === row.key ? { ...item, responsibleProfessional: e.target.checked } : item))}>
+                Phân công chịu trách nhiệm chuyên môn tại cửa hàng này
+              </Checkbox>
+              <Typography.Text type="secondary">Cần hồ sơ chứng chỉ hành nghề và tài khoản đang hoạt động. Chức danh này không tự cấp thêm quyền.</Typography.Text>
+            </> : <Typography.Text type="secondary">Để cấp quyền bổ sung hoặc phân công phụ trách, thêm một dòng Dược sĩ tại cửa hàng cụ thể.</Typography.Text>}
+          </> : null}
+          </div>
         ))}
-        <Button type="dashed" icon={<PlusOutlined />} onClick={() => setRows((current) => [...current, { key: crypto.randomUUID(), roleCode: "", storeId: null }])}>
+        <Button type="dashed" icon={<PlusOutlined />} onClick={() => setRows((current) => [...current, { key: crypto.randomUUID(), roleCode: "", storeId: null, additionalPermissions: [], qualificationReference: "", responsibleProfessional: false }])}>
           Thêm vai trò
         </Button>
         <Typography.Text type="secondary">Để trống “Phạm vi” nghĩa là vai trò áp dụng cho toàn chuỗi.</Typography.Text>

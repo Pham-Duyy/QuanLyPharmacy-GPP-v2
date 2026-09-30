@@ -63,33 +63,53 @@ describe("danh sách đăng ký trang", () => {
 });
 
 describe("quyền mở trang", () => {
+  it("quản lý thuần không vào quầy, quản lý kiêm dược sĩ được vào", () => {
+    expect(pageAccess("/ban-hang", canFor("admin"))).toBe("forbidden");
+    expect(pageAccess("/ban-hang", canFor("admin", "pharmacist"))).toBe("allowed");
+    expect(
+      visibleSidebar(canFor("admin")).some(
+        (entry) => entry.kind === "page" && entry.page.path === "/ban-hang",
+      ),
+    ).toBe(false);
+  });
+
+  it("chỉ còn bốn vai trò và vai trò bán hàng cũ không được cấp quyền", () => {
+    expect(ROLES.map((role) => role.code).sort()).toEqual([
+      "admin",
+      "auditor",
+      "pharmacist",
+      "warehouse_staff",
+    ]);
+    expect(allowedPages(canFor("sales_staff"))).toEqual([]);
+  });
+
   it("trang chưa đăng ký bị từ chối, kể cả với người có mọi quyền", () => {
     expect(pageAccess("/trang-khong-ton-tai", ALL)).toBe("unregistered");
   });
 
   it("thiếu quyền thì từ chối, đủ quyền thì cho mở", () => {
-    expect(pageAccess("/nhan-vien", canFor("sales_staff"))).toBe("forbidden");
+    expect(pageAccess("/nhan-vien", canFor("pharmacist"))).toBe("forbidden");
     expect(pageAccess("/nhan-vien", canFor("admin"))).toBe("allowed");
   });
 
   it("trang nhận nhiều quyền thì có một trong số đó là đủ", () => {
     // Điều chỉnh tồn: người lập hoặc người duyệt đều mở được.
     expect(pageAccess("/dieu-chinh-ton", canFor("warehouse_staff"))).toBe("allowed");
-    expect(pageAccess("/dieu-chinh-ton", canFor("sales_staff"))).toBe("forbidden");
+    expect(pageAccess("/dieu-chinh-ton", canFor("auditor"))).toBe("forbidden");
   });
 
   it("công cụ đã rời sidebar vẫn giữ quyền riêng", () => {
-    // Quản lý ảnh cần catalog.manage; nhân viên bán hàng chỉ có catalog.read.
-    expect(pageAccess("/anh-san-pham", canFor("sales_staff"))).toBe("forbidden");
+    // Quản lý ảnh cần catalog.manage: dược sĩ có, nhân viên kho chỉ có catalog.read.
+    expect(pageAccess("/anh-san-pham", canFor("warehouse_staff"))).toBe("forbidden");
     expect(pageAccess("/anh-san-pham", canFor("pharmacist"))).toBe("allowed");
-    expect(pageAccess("/in-tem", canFor("sales_staff"))).toBe("allowed");
+    expect(pageAccess("/in-tem", canFor("pharmacist"))).toBe("allowed");
   });
 
   it("Ctrl+K tìm được công cụ không nằm trên sidebar nếu có quyền", () => {
     const paths = allowedPages(canFor("pharmacist")).map((page) => page.path);
     expect(paths).toContain("/anh-san-pham");
     expect(paths).toContain("/danh-muc");
-    expect(allowedPages(canFor("sales_staff")).map((page) => page.path)).not.toContain("/anh-san-pham");
+    expect(allowedPages(canFor("warehouse_staff")).map((page) => page.path)).not.toContain("/anh-san-pham");
   });
 
   it("không có quyền nào thì không thấy trang nào", () => {
@@ -100,22 +120,22 @@ describe("quyền mở trang", () => {
 
 describe("sidebar theo quyền", () => {
   it("nhóm không còn trang nào thì ẩn hẳn, nhóm còn trang thì chỉ hiện trang được phép", () => {
-    const entries = visibleSidebar(canFor("sales_staff"));
+    const entries = visibleSidebar(canFor("pharmacist"));
     const keys = entries.map((entry) => (entry.kind === "page" ? entry.page.path : entry.key));
-    // Nhân viên bán hàng không có quyền nào trong Hồ sơ GPP, không xem báo cáo.
-    expect(keys).not.toContain("gpp");
+    // Dược sĩ thấy hồ sơ GPP nhưng không có report.sales.
+    expect(keys).toContain("gpp");
     expect(keys).not.toContain("/bao-cao");
     expect(keys).toContain("/ban-hang");
 
     const purchasing = entries.find((entry) => entry.kind === "group" && entry.key === "purchasing");
     const purchasingPaths = purchasing?.kind === "group" ? purchasing.pages.map((page) => page.path) : [];
-    // Có stock.read và catalog.read nên thấy Đề xuất đặt hàng và Nhà cung cấp, không thấy Phiếu nhập.
-    expect(purchasingPaths).toEqual(["/de-xuat-dat-hang", "/nha-cung-cap"]);
+    // Có stock.read và catalog.read nên thấy Đề xuất đặt hàng và Nhà cung cấp, dược sĩ còn xem được Phiếu nhập và Trả nhà cung cấp.
+    expect(purchasingPaths).toEqual(["/phieu-nhap", "/de-xuat-dat-hang", "/tra-hang-ncc", "/nha-cung-cap"]);
   });
 
-  it("nhóm Quản trị của nhân viên bán hàng chỉ còn Nhập / xuất Excel", () => {
+  it("nhóm Quản trị của dược sĩ chỉ còn Nhập / xuất Excel", () => {
     // Hệ quả của việc giữ nguyên quyền trang Excel (ai có catalog.read cũng mở được).
-    const admin = visibleSidebar(canFor("sales_staff")).find((entry) => entry.kind === "group" && entry.key === "admin");
+    const admin = visibleSidebar(canFor("pharmacist")).find((entry) => entry.kind === "group" && entry.key === "admin");
     expect(admin?.kind === "group" ? admin.pages.map((page) => page.path) : []).toEqual(["/excel"]);
   });
 
@@ -156,17 +176,16 @@ describe("trang bắt đầu theo vai trò", () => {
     ["auditor", "/tai-khoan"],
     ["warehouse_staff", "/ton-kho"],
     ["pharmacist", "/ban-hang"],
-    ["sales_staff", "/ban-hang"],
   ])("%s → %s", (role, expected) => {
     expect(startPageFor([{ code: role, storeId: NT01 }], NT01, canFor(role))).toBe(expected);
   });
 
-  it("nhiều vai trò thì theo thứ tự ưu tiên: kho đứng trước bán hàng", () => {
+  it("nhiều vai trò thì theo thứ tự ưu tiên: kho đứng trước quầy bán", () => {
     const roles = [
-      { code: "sales_staff", storeId: NT01 },
+      { code: "pharmacist", storeId: NT01 },
       { code: "warehouse_staff", storeId: NT01 },
     ];
-    expect(startPageFor(roles, NT01, canFor("sales_staff", "warehouse_staff"))).toBe("/ton-kho");
+    expect(startPageFor(roles, NT01, canFor("pharmacist", "warehouse_staff"))).toBe("/ton-kho");
   });
 
   it("chỉ xét vai trò toàn chuỗi hoặc tại cửa hàng đang chọn", () => {
@@ -194,7 +213,7 @@ describe("trang bắt đầu theo vai trò", () => {
   });
 
   it("không có quyền nào thì không có trang bắt đầu", () => {
-    expect(startPageFor([{ code: "sales_staff", storeId: NT01 }], NT01, NONE)).toBeNull();
+    expect(startPageFor([{ code: "pharmacist", storeId: NT01 }], NT01, NONE)).toBeNull();
   });
 });
 

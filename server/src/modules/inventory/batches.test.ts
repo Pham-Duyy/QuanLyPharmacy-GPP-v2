@@ -1,3 +1,4 @@
+import { useTestRole } from "../../test/helpers.js";
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { prisma } from "../../db/prisma.js";
@@ -178,7 +179,8 @@ describe("Biệt trữ lô", () => {
     expect(response.body.error.code).toBe("IDEMPOTENCY_KEY_REQUIRED");
   });
 
-  it("nhân viên bán hàng không có quyền biệt trữ", async () => {
+  it("tài khoản thiếu quyền không có quyền biệt trữ", async () => {
+    await useTestRole(fixture.salesId, "auditor", fixture.storeId, []);
     const batch = await makeBatch("AVAILABLE");
 
     const response = await api()

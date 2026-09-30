@@ -102,7 +102,7 @@ export function activeNav(pathname: string): ActiveNav {
 const START_RULES: ReadonlyArray<{ roles: readonly string[]; path: PagePath }> = [
   { roles: ["admin", "auditor"], path: "/tai-khoan" },
   { roles: ["warehouse_staff"], path: "/ton-kho" },
-  { roles: ["pharmacist", "sales_staff"], path: "/ban-hang" },
+  { roles: ["pharmacist"], path: "/ban-hang" },
 ];
 
 export type RoleAssignment = { code: string; storeId: string | null };

@@ -633,6 +633,9 @@ export type StorageLogSummaryLocation = {
 // --- Người dùng và vai trò (contract §21) -----------------------------------
 
 export type UserRoleAssignment = {
+  additionalPermissions?: string[];
+  qualificationReference?: string | null;
+  responsibleProfessional?: boolean;
   roleCode: string;
   roleName: string;
   storeId: string | null;
@@ -662,6 +665,7 @@ export type UserDetail = {
 };
 
 export type RoleItem = {
+  additionalPermissions: Array<{ code: string; description: string }>;
   code: string;
   name: string;
   description: string | null;

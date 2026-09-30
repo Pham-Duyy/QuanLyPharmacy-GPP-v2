@@ -288,60 +288,67 @@ Quy tắc:
 | `loyalty.manage` | Điều chỉnh điểm tích lũy của khách bằng tay |
 | `ai.use` | Dùng tính năng AI |
 
-### 4.2 Ma trận vai trò → permission [Đã chốt – P5]
+### 4.2 Bốn vai trò và quyền bổ sung theo cửa hàng
 
-| Permission | admin | pharmacist | sales_staff | warehouse_staff | auditor |
-|---|:-:|:-:|:-:|:-:|:-:|
-| `store.manage` | ✓ | | | | |
-| `user.manage` | ✓ | | | | |
-| `settings.manage` | ✓ | | | | |
-| `report.chain` | ✓ | | | | ✓ |
-| `catalog.read` | ✓ | ✓ | ✓ | ✓ | ✓ |
-| `catalog.manage` | ✓ | ✓ | | | |
-| `price.manage` | ✓ | | | | |
-| `stock.read` | ✓ | ✓ | ✓ | ✓ | ✓ |
-| `stock.cost.read` | ✓ | | | | ✓ |
-| `goods_receipt.read` | ✓ | ✓ | | ✓ | ✓ |
-| `goods_receipt.create` | ✓ | ✓ | | ✓ | |
-| `goods_receipt.confirm` | ✓ | ✓ | | | |
-| `stock.adjust.create` | ✓ | ✓ | | ✓ | |
-| `stock.adjust.approve` | ✓ | ✓ | | | |
-| `stock.opening_balance` | ✓ | | | | |
-| `batch.quarantine` | ✓ | ✓ | | | |
-| `recall.manage` | ✓ | ✓ | | | |
-| `invoice.read` | ✓ | ✓ | ✓ | | ✓ |
-| `invoice.create` | ✓ | ✓ | ✓ | | |
-| `invoice.void` | ✓ | ✓ | | | |
-| `sale.prescription_drug` | | ✓ | | | |
-| `sale.batch_override` | | ✓ | | | |
-| `sale.discount` | ✓ | ✓ | ✓ | | |
-| `sale.discount.override` | ✓ | | | | |
-| `safety.ack` | | ✓ | | | |
-| `return.create` | ✓ | ✓ | | | |
-| `prescription.read` | | ✓ | ✓ | | |
-| `prescription.create` | | ✓ | ✓ | | |
-| `prescription.verify` | | ✓ | | | |
-| `customer.read` | ✓ | ✓ | ✓ | | |
-| `customer.manage` | ✓ | ✓ | ✓ | | |
-| `customer.sensitive` | | ✓ | | | |
-| `storage_log.read` | ✓ | ✓ | | ✓ | ✓ |
-| `storage_log.write` | | ✓ | | ✓ | |
-| `report.sales` | ✓ | | | | ✓ |
-| `report.inventory` | ✓ | ✓ | | | ✓ |
-| `audit.read` | ✓ | | | | ✓ |
-| `backup.manage` | ✓ | | | | |
-| `controlled.read` | ✓ | ✓ | | | ✓ |
-| `supplier_debt.read` | ✓ | | | | ✓ |
-| `supplier_payment.manage` | ✓ | | | | |
-| `loyalty.manage` | ✓ | ✓ | | | |
-| `ai.use` | | ✓ | ✓ | | |
+Mô hình cập nhật ngày 30/09/2026. `admin`: quản lý; `pharmacist`: dược sĩ; `warehouse_staff`: kho; `auditor`: chỉ đọc. Không còn gán vai trò `sales_staff`.
 
-Ghi chú:
+| Permission | admin | pharmacist | warehouse_staff | auditor |
+|---|:-:|:-:|:-:|:-:|
+| `store.manage` | ✓ |  |  |  |
+| `user.manage` | ✓ |  |  |  |
+| `settings.manage` | ✓ |  |  |  |
+| `report.chain` | ✓ |  |  | ✓ |
+| `catalog.read` | ✓ | ✓ | ✓ | ✓ |
+| `catalog.manage` | ✓ | ✓ |  |  |
+| `price.manage` | ✓ |  |  |  |
+| `stock.read` | ✓ | ✓ | ✓ | ✓ |
+| `stock.cost.read` | ✓ |  |  | ✓ |
+| `goods_receipt.read` | ✓ | ✓ | ✓ | ✓ |
+| `goods_receipt.create` | ✓ | ✓ | ✓ |  |
+| `goods_receipt.confirm` | ✓ |  |  |  |
+| `stock.adjust.create` | ✓ | ✓ | ✓ |  |
+| `stock.adjust.approve` | ✓ |  |  |  |
+| `stock.opening_balance` | ✓ |  |  |  |
+| `batch.quarantine` | ✓ | ✓ |  |  |
+| `recall.manage` | ✓ |  |  |  |
+| `invoice.read` | ✓ | ✓ |  | ✓ |
+| `invoice.create` |  | ✓ |  |  |
+| `invoice.void` | ✓ |  |  |  |
+| `sale.prescription_drug` |  | ✓ |  |  |
+| `sale.batch_override` |  |  |  |  |
+| `sale.discount` | ✓ | ✓ |  |  |
+| `sale.discount.override` | ✓ |  |  |  |
+| `safety.ack` |  |  |  |  |
+| `return.create` | ✓ | ✓ |  |  |
+| `prescription.read` |  | ✓ |  |  |
+| `prescription.create` |  | ✓ |  |  |
+| `prescription.verify` |  |  |  |  |
+| `customer.read` | ✓ | ✓ |  |  |
+| `customer.manage` | ✓ | ✓ |  |  |
+| `customer.sensitive` |  | ✓ |  |  |
+| `storage_log.read` | ✓ | ✓ | ✓ | ✓ |
+| `storage_log.write` |  | ✓ | ✓ |  |
+| `report.sales` | ✓ |  |  | ✓ |
+| `report.inventory` | ✓ | ✓ |  | ✓ |
+| `audit.read` | ✓ |  |  | ✓ |
+| `backup.manage` | ✓ |  |  |  |
+| `controlled.read` | ✓ | ✓ |  | ✓ |
+| `supplier_debt.read` | ✓ |  |  | ✓ |
+| `supplier_payment.manage` | ✓ |  |  |  |
+| `loyalty.manage` | ✓ |  |  |  |
+| `ai.use` |  | ✓ |  |  |
+| `national_sync.read` | ✓ | ✓ |  | ✓ |
+| `national_sync.manage` | ✓ |  |  |  |
 
-- `sale.prescription_drug` chỉ gán cho vai trò `pharmacist` như ma trận trên. Nếu có nhân viên khác đủ điều kiện theo quy định, admin gán thêm vai trò `pharmacist` cho người đó, không gán lẻ permission ra ngoài ma trận. **[Đã chốt – P14]**
-- Chủ nhà thuốc đồng thời là dược sĩ thì giữ cả `admin` và `pharmacist`.
-- `auditor` chỉ có quyền đọc.
-- **Vai trò gán theo cửa hàng.** Mỗi lần gán gồm `roleCode` và `storeId`; `storeId = null` nghĩa là vai trò áp dụng cho toàn chuỗi. Ví dụ: chủ chuỗi giữ `admin` toàn chuỗi, còn dược sĩ phụ trách cửa hàng NT01 giữ `pharmacist` tại đúng cửa hàng đó. Backend kiểm tra permission **trong phạm vi cửa hàng của request** (§2.8). **[Đã chốt – P18]**
+- Quản lý thuần không có `invoice.create`. Quản lý trực tiếp bán phải đủ điều kiện chuyên môn và được gán thêm Dược sĩ. Vai trò phần mềm không thay thế điều kiện hành nghề.
+- Dược sĩ cơ bản không mặc nhiên có các quyền duyệt. `additionalPermissions` chỉ nhận danh sách cố định trong `ADDITIONAL_PERMISSIONS` của `server/src/config/permissions.ts`, gắn vào dòng vai trò Dược sĩ tại một cửa hàng cụ thể. Không cấp quyền bổ sung toàn chuỗi hoặc quyền tùy ý.
+- Một người có thể giữ nhiều vai trò, tại một cửa hàng hoặc toàn chuỗi (`storeId = null`). Quyền hiệu lực là hợp các vai trò phù hợp phạm vi cộng quyền bổ sung tại cửa hàng đó.
+- `qualificationReference` bắt buộc khi lưu dòng vai trò Dược sĩ: ghi căn cứ người quản lý đã đối chiếu hồ sơ chuyên môn. `assignedBy`, `assignedAt` và audit ghi người xác nhận, thời điểm, dữ liệu trước/sau. Không tự xác minh văn bằng chỉ bằng một chuỗi nhập.
+- `responsibleProfessional` là chức danh theo cửa hàng, chỉ áp dụng cho Dược sĩ đang hoạt động có số chứng chỉ hành nghề. Mỗi cửa hàng tối đa một người được ghi nhận; có thể chưa phân công khi đang thiết lập. Chức danh không tự thêm quyền. Phải kết thúc phân công trước khi khóa tài khoản hoặc xóa chứng chỉ.
+- Chuyển vai trò thay thế toàn bộ các dòng, quyền bổ sung và phân công của người đó trong cùng transaction; thu hồi mọi phiên cũ. Không được tự đổi vai trò, gỡ hoặc khóa admin hoạt động cuối cùng.
+- Tài khoản `sales_staff` cũ không tự chuyển sang Dược sĩ. Migration lưu phân công cũ vào audit, gỡ vai trò đã ngừng dùng và giữ nguyên tài khoản/chứng từ. Người quản lý phải kiểm tra hồ sơ trước khi gán lại.
+- Dược sĩ đã có từ trước giữ vai trò cơ bản; không tự suy diễn căn cứ chuyên môn hay chức danh. Các dòng thiếu căn cứ được giao diện đánh dấu để rà soát. Quyền nâng cao cũ của Dược sĩ được thu hồi theo ma trận mới, chỉ cấp lại khi đã phân công.
+- `PUT /users/{id}/roles` tiếp tục nhận mảng, mỗi dòng: `{ roleCode, storeId, additionalPermissions?: string[], qualificationReference?: string|null, responsibleProfessional?: boolean }`. Quyền bổ sung mặc định rỗng, chức danh mặc định false. `GET /roles` trả thêm danh sách quyền bổ sung hợp lệ và nhãn cho từng vai trò.
 
 ---
 
@@ -533,7 +540,7 @@ Quy tắc:
 
 - Giảm giá gửi dưới dạng `{ "type": "PERCENT" | "AMOUNT", "value": number, "reason": string }`, áp cho từng dòng hoặc cả hóa đơn.
 - Backend tự tính số tiền giảm, không nhận số tiền giảm tính sẵn từ Frontend.
-- Người có `sale.discount` chỉ được giảm trong hạn mức cấu hình cho vai trò (đề xuất: tối đa 5% với `sales_staff`, 10% với `pharmacist`). Vượt hạn mức cần `sale.discount.override`, nếu không trả `422 DISCOUNT_LIMIT_EXCEEDED`. **[Đã chốt – P10]**
+- Người có `sale.discount` chỉ được giảm trong hạn mức cấu hình cho vai trò (mặc định: tối đa 10% với `pharmacist`). Vượt hạn mức cần `sale.discount.override`, nếu không trả `422 DISCOUNT_LIMIT_EXCEEDED`. **[Đã chốt – P10]**
 - Hóa đơn lưu loại, giá trị, lý do và người áp dụng giảm giá.
 
 ---

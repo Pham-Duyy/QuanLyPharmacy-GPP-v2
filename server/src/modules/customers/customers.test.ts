@@ -1,3 +1,4 @@
+import { useTestRole } from "../../test/helpers.js";
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { prisma } from "../../db/prisma.js";
@@ -21,7 +22,7 @@ function idem(): Record<string, string> {
 
 beforeEach(async () => {
   await truncateAll();
-  fixture = await seedFixture();
+  fixture = await seedFixture({ sellingAdmin: false });
   adminToken = (await login("admin")).token;
   pharmacistToken = (await login("duocsi")).token;
   salesToken = (await login("banhang")).token;
@@ -287,7 +288,8 @@ describe("Sửa khách hàng không được xóa hết định danh", () => {
 });
 
 describe("Hồ sơ sức khỏe — permission tách biệt với customer.read/manage", () => {
-  it("admin và nhân viên bán hàng không xem được hồ sơ sức khỏe", async () => {
+  it("quản lý thuần và tài khoản thiếu quyền không xem được hồ sơ sức khỏe", async () => {
+    await useTestRole(fixture.salesId, "admin", fixture.storeId, []);
     const id = await createCustomer();
 
     for (const token of [adminToken, salesToken]) {
@@ -497,7 +499,8 @@ describe("Lịch sử mua hàng", () => {
     expect(audit).toBe(1);
   });
 
-  it("nhân viên bán hàng không xem được lịch sử mua (thiếu customer.sensitive)", async () => {
+  it("tài khoản thiếu quyền không xem được lịch sử mua (thiếu customer.sensitive)", async () => {
+    await useTestRole(fixture.salesId, "admin", fixture.storeId, []);
     const customerId = await createCustomer();
     const response = await api()
       .get(`/api/v1/customers/${customerId}/invoices`)
@@ -640,7 +643,8 @@ describe("Ẩn danh khách hàng", () => {
     expect(response.body.data).toHaveLength(0);
   });
 
-  it("nhân viên bán hàng không có quyền ẩn danh (thiếu customer.sensitive)", async () => {
+  it("tài khoản thiếu quyền không có quyền ẩn danh (thiếu customer.sensitive)", async () => {
+    await useTestRole(fixture.salesId, "admin", fixture.storeId, []);
     const customerId = await createCustomer();
     const response = await api()
       .post(`/api/v1/customers/${customerId}/anonymize`)

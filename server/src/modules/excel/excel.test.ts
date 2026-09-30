@@ -1,3 +1,4 @@
+import { useTestRole } from "../../test/helpers.js";
 import { randomUUID } from "node:crypto";
 import ExcelJS from "exceljs";
 import type { Response as SuperResponse } from "supertest";
@@ -15,7 +16,7 @@ const h = (token = adminToken) => authHeaders(token, fixture.storeId);
 
 beforeEach(async () => {
   await truncateAll();
-  fixture = await seedFixture();
+  fixture = await seedFixture({ sellingAdmin: false });
   [adminToken, pharmacistToken, salesToken] = await Promise.all([
     login("admin").then((item) => item.token),
     login("duocsi").then((item) => item.token),
@@ -91,7 +92,7 @@ describe("Danh mục nhập/xuất Excel", () => {
     expect(admin.exports.map((item: { type: string }) => item.type)).not.toContain("rx-sales");
 
     const sales = (await api().get("/api/v1/excel/catalog").set(h(salesToken)).expect(200)).body.data;
-    expect(sales.imports.map((item: { type: string }) => item.type)).toEqual(["customers"]);
+    expect(sales.imports.map((item: { type: string }) => item.type)).toEqual(["products", "suppliers", "customers", "stock-count"]);
   });
 
   it("tệp mẫu có tiêu đề đánh dấu cột bắt buộc, dòng ví dụ và sheet hướng dẫn", async () => {
@@ -211,7 +212,8 @@ describe("Nhập danh mục sản phẩm", () => {
     await importFile("products", missing, "commit").expect(422);
   });
 
-  it("nhân viên bán hàng không nhập được danh mục", async () => {
+  it("tài khoản thiếu quyền không nhập được danh mục", async () => {
+    await useTestRole(fixture.salesId, "auditor", fixture.storeId, []);
     const file = await xlsx(PRODUCT_HEADERS, []);
     await importFile("products", file, "preview", salesToken).expect(403);
   });
@@ -335,6 +337,7 @@ describe("Xuất báo cáo", () => {
   });
 
   it("hóa đơn và sổ bán thuốc kê đơn: kiểm tra khoảng ngày, có sheet chi tiết", async () => {
+    await useTestRole(fixture.salesId, "auditor", fixture.storeId, []);
     await api().get("/api/v1/excel/exports/invoices?from=2026-05-01&to=2026-01-01").set(h()).expect(422);
     await api().get("/api/v1/excel/exports/invoices?from=2024-01-01&to=2026-01-01").set(h()).expect(422);
     await api().get("/api/v1/excel/exports/invoices?from=2026-02-30").set(h()).expect(422);

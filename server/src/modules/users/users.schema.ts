@@ -27,6 +27,9 @@ export const patchUserSchema = z.object({
 const roleAssignmentSchema = z.object({
   roleCode: z.string().trim().min(1, "Thiếu roleCode"),
   storeId: z.uuid("storeId không hợp lệ").nullish(),
+  additionalPermissions: z.array(z.string()).default([]),
+  qualificationReference: z.string().trim().min(1).max(500).nullish(),
+  responsibleProfessional: z.boolean().default(false),
 });
 
 /** `PUT /users/{id}/roles`: thân request là chính mảng gán vai trò (contract §21). */

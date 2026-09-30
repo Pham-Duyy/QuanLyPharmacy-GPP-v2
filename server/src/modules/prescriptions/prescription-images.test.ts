@@ -33,7 +33,7 @@ function fakeJpegWithExif(): Buffer {
 
 beforeEach(async () => {
   await truncateAll();
-  fixture = await seedFixture();
+  fixture = await seedFixture({ sellingAdmin: false });
   pharmacistToken = (await login("duocsi")).token;
   adminToken = (await login("admin")).token;
 

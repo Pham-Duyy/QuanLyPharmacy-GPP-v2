@@ -109,6 +109,7 @@ describe("Đổi vai trò", () => {
       {
         roleCode: "warehouse_staff",
         roleName: expect.any(String),
+        additionalPermissions: [], qualificationReference: null, responsibleProfessional: false,
         storeId: fixture.storeId,
         storeName: expect.any(String),
       },
@@ -142,7 +143,7 @@ describe("Đổi vai trò", () => {
     await api()
       .put(`/api/v1/users/${otherAdmin.body.data.id}/roles`)
       .set(h())
-      .send([{ roleCode: "sales_staff", storeId: fixture.storeId }])
+      .send([{ roleCode: "warehouse_staff", storeId: fixture.storeId }])
       .expect(200);
 
     // Chỉ còn đúng một admin (tài khoản seed). Luật "không tự đổi vai trò
@@ -153,7 +154,7 @@ describe("Đổi vai trò", () => {
     const { replaceRoles } = await import("./users.service.js");
     await expect(
       replaceRoles(admin.id, otherAdmin.body.data.id, [
-        { roleCode: "sales_staff", storeId: fixture.storeId },
+        { roleCode: "warehouse_staff", storeId: fixture.storeId, additionalPermissions: [], responsibleProfessional: false },
       ]),
     ).rejects.toMatchObject({ status: 422, code: "VALIDATION_ERROR" });
 
@@ -189,7 +190,7 @@ describe("Vô hiệu hóa / kích hoạt lại", () => {
     await api()
       .put(`/api/v1/users/${created.body.data.id}/roles`)
       .set(h())
-      .send([{ roleCode: "sales_staff", storeId: fixture.storeId }])
+      .send([{ roleCode: "warehouse_staff", storeId: fixture.storeId }])
       .expect(200);
 
     const firstLogin = await api()
@@ -234,7 +235,7 @@ describe("Đặt lại mật khẩu", () => {
     await api()
       .put(`/api/v1/users/${created.body.data.id}/roles`)
       .set(h())
-      .send([{ roleCode: "sales_staff", storeId: fixture.storeId }])
+      .send([{ roleCode: "warehouse_staff", storeId: fixture.storeId }])
       .expect(200);
 
     const oldLogin = await api()
@@ -304,7 +305,7 @@ describe("Danh sách vai trò", () => {
     const response = await api().get("/api/v1/roles").set(h()).expect(200);
     const codes = response.body.data.map((item: { code: string }) => item.code);
     expect(codes).toEqual(
-      expect.arrayContaining(["admin", "pharmacist", "sales_staff", "warehouse_staff", "auditor"]),
+      expect.arrayContaining(["admin", "pharmacist", "warehouse_staff", "auditor"]),
     );
     const admin = response.body.data.find((item: { code: string }) => item.code === "admin");
     expect(admin.permissions).toContain("user.manage");

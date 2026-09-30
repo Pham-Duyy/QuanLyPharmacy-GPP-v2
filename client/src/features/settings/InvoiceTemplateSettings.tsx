@@ -23,7 +23,7 @@ const PAPER_OPTIONS: Array<{ value: InvoicePaperSize; label: string; hint: strin
 const DISPLAY_OPTIONS: Array<{ key: keyof PrintTemplate["display"]; label: string }> = [
   { key: "logo", label: "Logo" },
   { key: "customer", label: "Khách hàng" },
-  { key: "seller", label: "Nhân viên bán hàng" },
+  { key: "seller", label: "Người bán" },
   { key: "unit", label: "Đơn vị tính" },
   { key: "discount", label: "Chiết khấu" },
   { key: "paymentMethod", label: "Phương thức thanh toán" },

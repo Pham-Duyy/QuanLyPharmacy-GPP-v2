@@ -1,3 +1,4 @@
+import { useTestRole } from "../../test/helpers.js";
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { prisma } from "../../db/prisma.js";
@@ -195,7 +196,8 @@ describe("Xác nhận và hủy phiếu trả hàng", () => {
     expect(late.body.error.message).toContain("Chỉ hủy được phiếu còn nháp");
   });
 
-  it("phân quyền: nhân viên bán hàng không lập, không xác nhận", async () => {
+  it("phân quyền: tài khoản thiếu quyền không lập, không xác nhận", async () => {
+    await useTestRole(fixture.salesId, "auditor", fixture.storeId, ["goods_receipt.read"]);
     const received = await receive(1, 50000, "L1");
     await api().get("/api/v1/supplier-returns").set(h(salesToken)).expect(403);
     await createReturn({ supplierId, reason: "Hàng lỗi", lines: [{ batchId: received.batchId, unitId: boxId, quantity: 1 }] }, salesToken).expect(403);
