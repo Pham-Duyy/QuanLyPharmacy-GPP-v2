@@ -80,38 +80,115 @@
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 8px 0 16px;
-  scrollbar-color: rgba(255, 255, 255, 0.16) transparent;
+  padding: 6px 0 16px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.14) transparent;
+}
+
+/* Thanh cuộn chỉ hiện khi rê chuột vào menu: lúc đứng yên nhìn sạch hơn. */
+.sider-nav::-webkit-scrollbar {
+  width: 6px;
+}
+
+.sider-nav::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 3px;
+}
+
+.sider-nav:hover::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.16);
 }
 
 .sider-nav .ant-menu {
   border-inline-end: 0 !important;
 }
 
-.sider-nav .ant-menu-item-group-title {
-  padding: 14px 24px 6px !important;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.sider-nav .ant-menu-inline-collapsed .ant-menu-item-group-title {
-  height: 1px;
-  margin: 10px 18px 6px;
-  padding: 0 !important;
-  overflow: hidden;
-  background: var(--c-nav-line);
-  color: transparent;
-}
-
-.sider-nav .ant-menu-item {
+/*
+ * Mục cấp đầu và tiêu đề nhóm trông như nhau: cả hai là điểm vào ngang hàng
+ * (Quầy bán cạnh Hàng hóa). Khác biệt duy nhất là nhóm có mũi tên gập/mở.
+ */
+.sider-nav .ant-menu-item,
+.sider-nav .ant-menu-submenu > .ant-menu-submenu-title {
+  /* Thấp hơn mặc định để vừa nhiều mục hơn mà vẫn đủ vùng bấm. */
+  height: 38px !important;
+  margin-inline: 10px !important;
+  padding-inline: 12px !important;
+  width: auto !important;
+  border-radius: 8px;
+  color: var(--c-nav-text);
+  font-size: 13.5px;
   font-weight: 500;
+  line-height: 38px !important;
 }
 
-.sider-nav .ant-menu-item-selected {
+.sider-nav .ant-menu-item .anticon,
+.sider-nav .ant-menu-submenu-title .anticon {
+  font-size: 16px;
+}
+
+.sider-nav .ant-menu-item:not(.ant-menu-item-selected):hover,
+.sider-nav .ant-menu-submenu > .ant-menu-submenu-title:hover {
+  background: rgba(255, 255, 255, 0.06) !important;
+  color: #fff;
+}
+
+/* Nhóm chứa trang đang mở: tiêu đề sáng lên, kể cả khi nhóm đang gập. */
+.sider-nav .ant-menu-submenu-selected > .ant-menu-submenu-title {
+  color: #fff !important;
   font-weight: 600;
-  box-shadow: 0 6px 14px rgba(8, 118, 235, 0.32);
+}
+
+.sider-nav .ant-menu-submenu .ant-menu-submenu-arrow {
+  color: inherit;
+}
+
+/* Trang trong nhóm thụt vào để thấy rõ cấp bậc. */
+.sider-nav .ant-menu-sub.ant-menu-inline {
+  background: transparent !important;
+}
+
+.sider-nav .ant-menu-sub .ant-menu-item {
+  padding-inline-start: 38px !important;
+  font-size: 13px;
+}
+
+/* Gạch ngăn trước Quản trị: việc ít dùng nằm riêng ở cuối. */
+.sider-nav .ant-menu-item-divider {
+  margin: 10px 18px !important;
+  border-color: var(--c-nav-line) !important;
+}
+
+/*
+ * Mục đang mở: nền nhạt kèm vạch màu bên trái thay cho khối đặc đổ bóng.
+ * Nhìn tĩnh hơn, và khi cuộn danh sách dài mắt vẫn bắt được vị trí ngay.
+ */
+.sider-nav .ant-menu-item-selected {
+  position: relative;
+  background: rgba(8, 118, 235, 0.18) !important;
+  color: #fff !important;
+  font-weight: 600;
+  box-shadow: none;
+}
+
+.sider-nav .ant-menu-item-selected::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: -10px;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--c-accent);
+}
+
+/* Thu gọn: không còn chỗ cho vạch bên trái, đánh dấu bằng nền đậm hơn. */
+.sider-nav .ant-menu-inline-collapsed .ant-menu-item-selected::before {
+  display: none;
+}
+
+.sider-nav .ant-menu-inline-collapsed .ant-menu-item-selected,
+.sider-nav .ant-menu-inline-collapsed .ant-menu-submenu-selected > .ant-menu-submenu-title {
+  background: rgba(8, 118, 235, 0.32) !important;
 }
 
 .app-drawer .ant-drawer-body {
