@@ -875,7 +875,7 @@ Nếu dược sĩ chọn `DISPOSE`, có thêm một dòng `DISPOSAL` `−30` và
 8. `storage_locations`, `storage_logs`, `ai_logs`, `idempotency_keys`, `audit_logs`, `refresh_sessions`.
 9. Các `CHECK` phức tạp, chỉ mục từng phần, chỉ mục trigram và lệnh thu hồi quyền — viết tay trong migration SQL.
 
-Nếu dùng Prisma: chạy `npx prisma migrate dev --create-only`, mở file SQL vừa sinh rồi thêm phần ở bước 9, sau đó chạy `npx prisma migrate dev`. Những ràng buộc này Prisma không mô tả được trong `schema.prisma`, nhưng chúng chính là phần bảo vệ dữ liệu quan trọng nhất.
+Migration viết tay trong thư mục mới dưới `server/prisma/migrations/` rồi áp bằng `npm run db:migrate` (`prisma migrate deploy`), không dùng `prisma migrate dev` — xem README mục "Cơ sở dữ liệu và migration". Những ràng buộc ở bước 9 Prisma không mô tả được trong `schema.prisma`, nên lệnh tự sinh migration sẽ đề nghị xóa chúng, trong khi chúng chính là phần bảo vệ dữ liệu quan trọng nhất.
 
 **Dữ liệu seed**, chạy theo thứ tự:
 

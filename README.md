@@ -59,12 +59,28 @@ Lược đồ mô tả trong `server/prisma/schema.prisma`, các ràng buộc m�
 ```bash
 cd server
 npm install              # tự chạy prisma generate
-npm run db:migrate       # áp dụng migration còn thiếu
+npm run db:migrate       # kiểm tra rồi áp các migration đã viết mà CSDL chưa có
+npm run check:migrations # chỉ kiểm tra, không áp
 npm run db:studio        # xem dữ liệu bằng giao diện
 npm run db:reset         # XÓA sạch CSDL dev rồi tạo lại từ đầu
 ```
 
-Sửa lược đồ thì làm theo thứ tự: sửa `schema.prisma`, chạy `npx prisma migrate dev --create-only --name <ten>`, mở file SQL vừa sinh để thêm ràng buộc viết tay nếu cần, rồi chạy `npm run db:migrate`. Không sửa file migration đã được áp dụng.
+`npm run db:migrate` chạy `prisma migrate deploy --config prisma7.config.ts`: **chỉ áp migration đã viết sẵn, không tự sinh migration**. Trước đó nó tự kiểm tra và dừng nếu:
+
+- có file `migration.sql` dùng xuống dòng CRLF;
+- một migration đã áp bị sửa nội dung (mã băm khác lúc áp).
+
+Prisma lưu mã băm từng byte của file lúc áp; lệch mã băm làm `prisma migrate dev` đòi reset CSDL. Chi tiết và lần xử lý ngày 30/09/2026: [docs/migration-checksum-log.md](docs/migration-checksum-log.md).
+
+**Không dùng `prisma migrate dev` trong dự án này.** Các ràng buộc viết tay (khóa ngoại tùy chỉnh, `CHECK`, chỉ mục từng phần) không có trong `schema.prisma`, nên lệnh đó sinh ra migration xóa chúng.
+
+Thêm một thay đổi lược đồ:
+
+1. Tạo thư mục mới `server/prisma/migrations/<YYYYMMDDHHMMSS>_<ten>/migration.sql`, viết SQL bằng tay, lưu dạng LF. Có thể xem bản nháp từ `npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script`, nhưng phải bỏ mọi lệnh xóa ràng buộc viết tay trong đó.
+2. Cập nhật `schema.prisma` cho khớp, chạy `npm run db:generate`.
+3. Chạy `npm run db:migrate`.
+
+Không sửa file migration đã được áp dụng; thay đổi tiếp theo luôn là một migration mới. Không sửa mã băm trong bảng `_prisma_migrations` để vượt qua cảnh báo.
 
 ## Máy chủ
 
