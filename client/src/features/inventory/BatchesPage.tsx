@@ -3,6 +3,7 @@ import {
   DatabaseOutlined,
   ExclamationCircleOutlined,
   FieldTimeOutlined,
+  ImportOutlined,
   LockOutlined,
   StopOutlined,
   UnlockOutlined,
@@ -25,6 +26,7 @@ import {
 } from "../../api/types.js";
 import { daysUntil, formatDate, formatDateTime, formatNumber } from "../../ui/format.js";
 import { ExcelExportButton } from "../excel/ExcelButtons.js";
+import { ExcelImportModal } from "../excel/ExcelImportModal.js";
 import { PageHeader } from "../../ui/PageHeader.js";
 import { StatCard, StatGrid } from "../../ui/StatCard.js";
 import { useDebounced } from "../../ui/useDebounced.js";
@@ -64,9 +66,14 @@ function ExpiryCell({ value }: { value: string }) {
 
 /** Tồn kho: theo lô (biệt trữ/mở biệt trữ, thẻ kho) và theo sản phẩm (tổng hợp, dưới mức tối thiểu). */
 export function BatchesPage() {
-  const { storeId } = useAuth();
+  const { storeId, can, me } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [selected, setSelected] = useState<BatchListItem | null>(null);
+  const [importingOpening, setImportingOpening] = useState(false);
+  // Tồn đầu kỳ ghi vào cửa hàng đang chọn nên bắt buộc đã chọn cửa hàng.
+  const canImportOpening = can("stock.opening_balance") && Boolean(storeId);
+  const storeName = me?.stores.find((item) => item.id === storeId)?.name;
 
   // Cùng queryKey với Tổng quan và chuông thông báo: số đếm do máy chủ tính trên toàn bộ lô.
   const dashboard = useQuery({
@@ -90,6 +97,11 @@ export function BatchesPage() {
         description="Theo dõi tồn theo lô và hạn dùng, biệt trữ lô nghi ngờ chất lượng, tra thẻ kho từng lô."
         extra={
           <>
+            {canImportOpening ? (
+              <Button icon={<ImportOutlined />} onClick={() => setImportingOpening(true)}>
+                Nhập tồn đầu kỳ
+              </Button>
+            ) : null}
             <ExcelExportButton type="inventory" label="Xuất tồn theo lô" tooltip="Tồn từng lô theo hạn dùng, dùng khi kiểm kê" />
             <Button icon={<BellOutlined />} onClick={() => void navigate("/canh-bao")}>
               Xem cảnh báo
@@ -97,6 +109,17 @@ export function BatchesPage() {
           </>
         }
       />
+      {canImportOpening ? (
+        <ExcelImportModal
+          type="opening-balance"
+          title="Tồn đầu kỳ"
+          open={importingOpening}
+          hint={`Tồn được ghi vào ${storeName ?? "cửa hàng đang chọn"}. Chỉ nhập được trước hóa đơn bán đầu tiên của cửa hàng.`}
+          onClose={() => setImportingOpening(false)}
+          // Tồn đầu kỳ thay đổi lô, tồn theo sản phẩm lẫn số liệu tổng quan.
+          onDone={() => void queryClient.invalidateQueries()}
+        />
+      ) : null}
 
       <StatGrid>
         <StatCard tone="orange" icon={<WarningOutlined />} label="Lô sắp hết hạn" value={formatNumber(counts?.expiring)} loading={dashboard.isLoading} hint="Trong 90 ngày tới" />

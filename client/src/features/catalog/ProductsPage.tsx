@@ -6,6 +6,7 @@ import type { ReactNode } from "react";
 import { useSearchParams } from "react-router";
 import { getErrorMessage, http } from "../../api/http.js";
 import type { CategoryItem, Envelope, Paged, ProductListItem } from "../../api/types.js";
+import { PageToolsMenu } from "../../app/PageToolsMenu.js";
 import { ExcelMenuButton } from "../excel/ExcelButtons.js";
 import { ExcelImportModal } from "../excel/ExcelImportModal.js";
 import { PageHeader } from "../../ui/PageHeader.js";
@@ -346,6 +347,8 @@ export function ProductsPage() {
         description={`Danh mục toàn chuỗi · Tồn kho tại ${storeName ?? "cửa hàng đang chọn"}`}
         extra={
           <>
+            {/* Công cụ làm hàng loạt trên danh mục; từng sản phẩm thì có nút riêng trong khung chi tiết. */}
+            <PageToolsMenu paths={["/anh-san-pham", "/in-tem", "/danh-muc"]} />
             <ExcelMenuButton onImport={can("catalog.manage") ? () => setImporting(true) : undefined} exportType="products" exportLabel="Xuất danh mục ra Excel" />
             {can("catalog.manage") ? (
               <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreating(true)}>
