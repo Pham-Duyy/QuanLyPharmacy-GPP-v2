@@ -54,8 +54,7 @@ export const PERMISSIONS: Array<{ code: string; description: string }> = [
   { code: "national_sync.read", description: "Xem trạng thái liên thông CSDL Dược quốc gia" },
   {
     code: "national_sync.manage",
-    description:
-      "Cấu hình kết nối, ghép mã thuốc và gửi dữ liệu lên CSDL Dược quốc gia",
+    description: "Cấu hình kết nối, ghép mã thuốc và gửi dữ liệu lên CSDL Dược quốc gia",
   },
 ];
 
@@ -82,7 +81,6 @@ export const ROLES: Array<{ code: string; name: string; permissions: string[] }>
       "batch.quarantine",
       "recall.manage",
       "invoice.read",
-      "invoice.create",
       "invoice.void",
       "sale.discount",
       "sale.discount.override",
@@ -104,29 +102,22 @@ export const ROLES: Array<{ code: string; name: string; permissions: string[] }>
   },
   {
     code: "pharmacist",
-    name: "Dược sĩ phụ trách chuyên môn",
+    name: "Dược sĩ",
     permissions: [
       "catalog.read",
       "catalog.manage",
       "stock.read",
       "goods_receipt.read",
       "goods_receipt.create",
-      "goods_receipt.confirm",
       "stock.adjust.create",
-      "stock.adjust.approve",
       "batch.quarantine",
-      "recall.manage",
       "invoice.read",
       "invoice.create",
-      "invoice.void",
       "sale.prescription_drug",
-      "sale.batch_override",
       "sale.discount",
-      "safety.ack",
       "return.create",
       "prescription.read",
       "prescription.create",
-      "prescription.verify",
       "customer.read",
       "customer.manage",
       "customer.sensitive",
@@ -134,26 +125,8 @@ export const ROLES: Array<{ code: string; name: string; permissions: string[] }>
       "storage_log.write",
       "report.inventory",
       "controlled.read",
-      "loyalty.manage",
       "ai.use",
       "national_sync.read",
-      "national_sync.manage",
-    ],
-  },
-  {
-    code: "sales_staff",
-    name: "Nhân viên bán hàng",
-    permissions: [
-      "catalog.read",
-      "stock.read",
-      "invoice.read",
-      "invoice.create",
-      "sale.discount",
-      "prescription.read",
-      "prescription.create",
-      "customer.read",
-      "customer.manage",
-      "ai.use",
     ],
   },
   {
@@ -189,3 +162,20 @@ export const ROLES: Array<{ code: string; name: string; permissions: string[] }>
     ],
   },
 ];
+
+/** Chỉ các quyền bổ sung đã định nghĩa; không phải trình tạo vai trò tùy ý.
+ * Gắn với một cửa hàng cụ thể, không suy ra từ chức danh phụ trách chuyên môn. */
+export const ADDITIONAL_PERMISSIONS = [
+  "goods_receipt.confirm",
+  "stock.adjust.approve",
+  "invoice.void",
+  "sale.discount.override",
+  "sale.batch_override",
+  "safety.ack",
+  "prescription.verify",
+  "loyalty.manage",
+] as const;
+
+export function additionalPermissionsFor(roleCode: string): readonly string[] {
+  return roleCode === "pharmacist" ? ADDITIONAL_PERMISSIONS : [];
+}

@@ -1,3 +1,4 @@
+import { useTestRole } from "../../test/helpers.js";
 import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
 import { prisma } from "../../db/prisma.js";
 import { api, authHeaders, login, seedFixture, truncateAll, type Fixture } from "../../test/helpers.js";
@@ -246,7 +247,8 @@ describe("Liên thông CSDL Dược — cấu hình và xác thực", () => {
     expect(response.body.error.code).toBe("NDS_AUTH");
   });
 
-  it("nhân viên bán hàng không được xem hay sửa cấu hình", async () => {
+  it("tài khoản thiếu quyền không được xem hay sửa cấu hình", async () => {
+    await useTestRole(fixture.salesId, "warehouse_staff", fixture.storeId, []);
     await api().get(`${BASE}/config`).set(h(salesToken)).expect(403);
     await api().patch(`${BASE}/config`).set(h(salesToken)).send({ enabled: false }).expect(403);
   });

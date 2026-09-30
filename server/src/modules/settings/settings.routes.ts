@@ -20,7 +20,7 @@ settingsRouter.use("/settings", authenticate, storeContext, requireStore);
 
 /**
  * GET /api/v1/settings/invoice-print-template: mẫu in đang áp dụng.
- * Nhân viên bán hàng cũng cần đọc (để biết khổ giấy khi in), nên nhận cả
+ * Người bán ở quầy cũng cần đọc (để biết khổ giấy khi in), nên nhận cả
  * `invoice.read`; chỉ quyền `settings.manage` mới được sửa.
  */
 settingsRouter.get("/settings/invoice-print-template", async (req, res) => {

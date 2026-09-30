@@ -1,3 +1,4 @@
+import { useTestRole } from "../../test/helpers.js";
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { prisma } from "../../db/prisma.js";
@@ -478,7 +479,8 @@ describe("Tạo hóa đơn", () => {
     expect(response.body.error.code).toBe("CONTROLLED_BUYER_REQUIRED");
   });
 
-  it("chặn nhân viên bán hàng bán thuốc kê đơn", async () => {
+  it("chặn tài khoản thiếu quyền bán thuốc kê đơn", async () => {
+    await useTestRole(fixture.salesId, "auditor", fixture.storeId, []);
     await makeBatch({ productId: amox.id, batchNumber: "L1", quantity: 100 });
 
     const response = await sell(salesToken, { lines: [line(amox, "Viên", 1)] }).expect(403);

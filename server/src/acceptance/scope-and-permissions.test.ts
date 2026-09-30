@@ -1,3 +1,4 @@
+import { useTestRole } from "../test/helpers.js";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { prisma } from "../db/prisma.js";
 import { api, truncateAll } from "../test/helpers.js";
@@ -112,7 +113,8 @@ describe("Phạm vi cửa hàng", () => {
 });
 
 describe("Phân quyền chặn ở máy chủ", () => {
-  it("nhân viên bán hàng không nhập hàng, không duyệt điều chỉnh, không bán thuốc kê đơn", async () => {
+  it("tài khoản thiếu quyền không nhập hàng, không duyệt điều chỉnh, không bán thuốc kê đơn", async () => {
+    await useTestRole(stage.fixture.salesId, "auditor", stage.fixture.storeId, []);
     const receipt = await draftReceipt(
       stage,
       {
@@ -140,7 +142,7 @@ describe("Phân quyền chặn ở máy chủ", () => {
     });
     await makeBatch(stage, { product: amox, batchNumber: "RX-Q", quantity: 50, unitCost: 1200, expiryInDays: 180 });
     const rx = await sell(stage, { lines: [line(amox, "Viên", 1)] }, stage.sellerA).expect(403);
-    expect(rx.body.error.message).toContain("sale.prescription_drug");
+    expect(rx.body.error.message).toContain("invoice.create");
   });
 
   it("giảm giá vượt hạn mức của vai trò bị chặn ở máy chủ", async () => {

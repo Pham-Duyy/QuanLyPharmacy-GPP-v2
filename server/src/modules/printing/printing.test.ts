@@ -1,3 +1,4 @@
+import { useTestRole } from "../../test/helpers.js";
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { prisma } from "../../db/prisma.js";
@@ -146,7 +147,8 @@ describe("In phiếu nhập kho", () => {
     expect(await prisma.goodsReceipt.findUniqueOrThrow({ where: { id } })).toEqual(before);
   });
 
-  it("nhân viên bán hàng không có quyền xem phiếu nhập thì không in được", async () => {
+  it("tài khoản thiếu quyền không có quyền xem phiếu nhập thì không in được", async () => {
+    await useTestRole(fixture.salesId, "auditor", fixture.storeId, ["goods_receipt.read"]);
     const id = await createReceipt();
     await api().get(`/api/v1/goods-receipts/${id}/print`).set(h(salesToken)).expect(403);
   });

@@ -13,7 +13,7 @@ const DEFAULTS = {
   prescriptionValidityDays: 5, // (*) P14
   returnWindowDays: 7,
   invoiceVoidWindow: "SAME_BUSINESS_DAY",
-  discountLimitPercent: { sales_staff: 5, pharmacist: 10 } as Record<string, number>,
+  discountLimitPercent: { pharmacist: 10 } as Record<string, number>,
   storageLogPerDay: 2,
   backupSettings: {
     enabled: true,

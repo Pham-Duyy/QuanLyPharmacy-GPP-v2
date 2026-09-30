@@ -1,3 +1,4 @@
+import { ADDITIONAL_PERMISSIONS } from "../config/permissions.js";
 import { randomUUID } from "node:crypto";
 import { prisma } from "../db/prisma.js";
 import { api, authHeaders, login, seedFixture, type Fixture } from "../test/helpers.js";
@@ -18,9 +19,9 @@ export type Stage = {
   pharmacist: string;
   /** Dược sĩ thứ hai của cửa hàng A, để thử hai quầy cùng bán thuốc kê đơn. */
   pharmacistB: string;
-  /** Nhân viên bán hàng cửa hàng A. */
+  /** Người bán cửa hàng A: Dược sĩ cơ bản, không có quyền bổ sung. */
   sellerA: string;
-  /** Nhân viên bán hàng cửa hàng B. */
+  /** Người bán cửa hàng B: Dược sĩ cơ bản, không có quyền bổ sung. */
   sellerB: string;
   sellerBId: string;
   supplierId: string;
@@ -31,7 +32,9 @@ export const idem = () => ({ "Idempotency-Key": randomUUID() });
 
 /** Ngày tương đối theo ngày làm việc giờ Việt Nam, dạng YYYY-MM-DD. */
 export function dayKey(offsetDays = 0): string {
-  const vnToday = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Ho_Chi_Minh" }).format(new Date());
+  const vnToday = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Ho_Chi_Minh" }).format(
+    new Date(),
+  );
   const date = new Date(`${vnToday}T00:00:00.000Z`);
   date.setUTCDate(date.getUTCDate() + offsetDays);
   return date.toISOString().slice(0, 10);
@@ -43,7 +46,7 @@ export const dayDate = (offsetDays = 0): Date => new Date(`${dayKey(offsetDays)}
 export async function setupStage(): Promise<Stage> {
   const fixture = await seedFixture();
 
-  const salesRole = await prisma.role.findUniqueOrThrow({ where: { code: "sales_staff" } });
+  const salesRole = await prisma.role.findUniqueOrThrow({ where: { code: "pharmacist" } });
   const pharmacistRole = await prisma.role.findUniqueOrThrow({ where: { code: "pharmacist" } });
   const passwordHash = await hashPassword("MatKhau@12345");
 
@@ -57,7 +60,13 @@ export async function setupStage(): Promise<Stage> {
     },
   });
   await prisma.userRole.create({
-    data: { userId: pharmacistBUser.id, roleId: pharmacistRole.id, storeId: fixture.storeId },
+    data: {
+      userId: pharmacistBUser.id,
+      roleId: pharmacistRole.id,
+      storeId: fixture.storeId,
+      qualificationReference: "Hồ sơ kiểm thử",
+      additionalPermissions: [...ADDITIONAL_PERMISSIONS],
+    },
   });
   const sellerBUser = await prisma.user.create({
     data: {

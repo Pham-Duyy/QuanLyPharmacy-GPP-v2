@@ -25,7 +25,7 @@ const SETTINGS: Array<{ key: string; value: unknown }> = [
   { key: "prescriptionValidityDays", value: 5 },
   { key: "returnWindowDays", value: 7 },
   { key: "invoiceVoidWindow", value: "SAME_BUSINESS_DAY" },
-  { key: "discountLimitPercent", value: { sales_staff: 5, pharmacist: 10 } },
+  { key: "discountLimitPercent", value: { pharmacist: 10 } },
   { key: "storageLogPerDay", value: 2 },
 ];
 
@@ -346,7 +346,10 @@ async function seedOpeningBalance(storeId: string, adminId: string) {
         }
       }
 
-      await tx.goodsReceipt.update({ where: { id: receipt.id }, data: { goodsAmount: totalCost, totalCost } });
+      await tx.goodsReceipt.update({
+        where: { id: receipt.id },
+        data: { goodsAmount: totalCost, totalCost },
+      });
     },
     { timeout: 30_000 },
   );

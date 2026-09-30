@@ -5,6 +5,8 @@ import { generateTempPassword, hashPassword } from "../../lib/password.js";
 import { withMappedErrors } from "../../lib/prisma-errors.js";
 import type { CreateUserInput, PatchUserInput, RoleAssignmentInput } from "./users.schema.js";
 
+import { ROLES, PERMISSIONS, additionalPermissionsFor } from "../../config/permissions.js";
+
 const ADMIN_ROLE_CODE = "admin";
 
 function toListItem(user: {
@@ -75,6 +77,9 @@ export async function getDetail(id: string) {
       roleName: item.role.name,
       storeId: item.storeId,
       storeName: item.store?.name ?? null,
+      additionalPermissions: item.additionalPermissions,
+      qualificationReference: item.qualificationReference,
+      responsibleProfessional: item.responsibleProfessional,
     })),
   };
 }
@@ -117,129 +122,195 @@ export async function create(
 
 export async function update(id: string, input: PatchUserInput): Promise<void> {
   const { version, ...fields } = input;
-
-  await updateWithVersion({
-    notFoundMessage: "Không tìm thấy người dùng",
-    update: () =>
-      prisma.user.updateMany({
-        where: { id, version },
-        data: {
-          ...(fields.fullName !== undefined ? { fullName: fields.fullName } : {}),
-          ...(fields.phone !== undefined ? { phone: fields.phone } : {}),
-          ...(fields.practiceCertificateNumber !== undefined
-            ? { practiceCertificateNumber: fields.practiceCertificateNumber }
-            : {}),
-          version: { increment: 1 },
-        },
-      }),
-    exists: async () => (await prisma.user.count({ where: { id } })) > 0,
+  await prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(724091)`;
+    if (
+      fields.practiceCertificateNumber !== undefined &&
+      !fields.practiceCertificateNumber?.trim() &&
+      (await tx.userRole.count({ where: { userId: id, responsibleProfessional: true } }))
+    ) {
+      throw AppError.validation(
+        "Kết thúc phân công phụ trách chuyên môn trước khi xóa chứng chỉ hành nghề",
+      );
+    }
+    await updateWithVersion({
+      notFoundMessage: "Không tìm thấy người dùng",
+      update: () =>
+        tx.user.updateMany({
+          where: { id, version },
+          data: {
+            ...(fields.fullName !== undefined ? { fullName: fields.fullName } : {}),
+            ...(fields.phone !== undefined ? { phone: fields.phone } : {}),
+            ...(fields.practiceCertificateNumber !== undefined
+              ? { practiceCertificateNumber: fields.practiceCertificateNumber }
+              : {}),
+            version: { increment: 1 },
+          },
+        }),
+      exists: async () => (await tx.user.count({ where: { id } })) > 0,
+    });
   });
 }
 
-/** Số người hiện giữ vai trò admin (không phân biệt cửa hàng) — dùng để chặn gỡ người cuối cùng. */
-async function countAdmins(): Promise<number> {
-  const rows = await prisma.userRole.findMany({
-    where: { role: { code: ADMIN_ROLE_CODE } },
-    select: { userId: true },
-    distinct: ["userId"],
-  });
-  return rows.length;
-}
-
-/**
- * Thay toàn bộ vai trò của một người (contract §21). Không ai tự đổi vai
- * trò của chính mình, và không được gỡ vai trò admin của người cuối cùng
- * còn giữ nó — hai luật này chặn đứt việc tự khóa quyền quản trị của cả hệ
- * thống. Đổi vai trò thì thu hồi mọi phiên đăng nhập hiện có (contract §3).
- */
+/** Vai trò, quyền bổ sung và chức danh được thay nguyên tử, có nhật ký.
+ * Khóa chung tránh hai quản lý đồng thời gỡ admin cuối hoặc phân công hai
+ * người phụ trách cùng cửa hàng. Đây là thao tác quản trị ít xảy ra. */
 export async function replaceRoles(
   targetUserId: string,
   actorId: string,
   assignments: RoleAssignmentInput[],
 ): Promise<void> {
-  if (targetUserId === actorId) {
+  if (targetUserId === actorId)
     throw AppError.validation("Không thể tự đổi vai trò của chính mình");
-  }
-
-  const target = await prisma.user.findUnique({ where: { id: targetUserId } });
-  if (!target) throw AppError.notFound("Không tìm thấy người dùng");
-
-  const roleCodes = [...new Set(assignments.map((item) => item.roleCode))];
-  const roles =
-    roleCodes.length > 0 ? await prisma.role.findMany({ where: { code: { in: roleCodes } } }) : [];
-  if (roles.length !== roleCodes.length) {
-    throw AppError.validation("Có mã vai trò không tồn tại");
-  }
-  const roleByCode = new Map(roles.map((role) => [role.code, role]));
-
-  const storeIds = [
-    ...new Set(assignments.flatMap((item) => (item.storeId ? [item.storeId] : []))),
-  ];
-  if (storeIds.length > 0) {
-    const storeCount = await prisma.store.count({ where: { id: { in: storeIds } } });
-    if (storeCount !== storeIds.length) throw AppError.validation("Có storeId không tồn tại");
-  }
-
-  const currentlyAdmin = await prisma.userRole.findFirst({
-    where: { userId: targetUserId, role: { code: ADMIN_ROLE_CODE } },
-  });
-  const willStillBeAdmin = assignments.some((item) => item.roleCode === ADMIN_ROLE_CODE);
-  if (currentlyAdmin && !willStillBeAdmin && (await countAdmins()) <= 1) {
-    throw AppError.validation("Không thể gỡ vai trò admin của người cuối cùng còn giữ nó");
-  }
-
-  await prisma.$transaction([
-    prisma.userRole.deleteMany({ where: { userId: targetUserId } }),
-    ...(assignments.length > 0
-      ? [
-          prisma.userRole.createMany({
-            data: assignments.map((item) => ({
+  await withMappedErrors(
+    () =>
+      prisma.$transaction(async (tx) => {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(724091)`;
+        const target = await tx.user.findUnique({
+          where: { id: targetUserId },
+          include: { userRoles: { include: { role: true } } },
+        });
+        if (!target) throw AppError.notFound("Không tìm thấy người dùng");
+        const codes = [...new Set(assignments.map((a) => a.roleCode))];
+        if (codes.some((code) => !ROLES.some((r) => r.code === code)))
+          throw AppError.validation("Vai trò không hợp lệ hoặc đã ngừng sử dụng");
+        const roles = await tx.role.findMany({ where: { code: { in: codes } } });
+        if (roles.length !== codes.length) throw AppError.validation("Có mã vai trò không tồn tại");
+        const roleByCode = new Map(roles.map((r) => [r.code, r]));
+        const seen = new Set<string>();
+        for (const a of assignments) {
+          const key = `${a.roleCode}:${a.storeId ?? "chain"}`;
+          if (seen.has(key)) throw AppError.validation("Vai trò bị lặp trong cùng phạm vi");
+          seen.add(key);
+          if (
+            a.storeId &&
+            !(await tx.store.findFirst({ where: { id: a.storeId, isActive: true } }))
+          )
+            throw AppError.validation("Cửa hàng không tồn tại hoặc đã ngừng hoạt động");
+          if (
+            a.additionalPermissions.length &&
+            (!a.storeId ||
+              a.additionalPermissions.some(
+                (code) => !additionalPermissionsFor(a.roleCode).includes(code),
+              ))
+          ) {
+            throw AppError.validation(
+              "Quyền bổ sung phải thuộc danh sách cho phép và một cửa hàng cụ thể",
+            );
+          }
+          if (a.roleCode === "pharmacist" && !a.qualificationReference)
+            throw AppError.validation(
+              "Cần ghi căn cứ đã kiểm tra bằng cấp chuyên môn trước khi gán vai trò Dược sĩ",
+            );
+          if (a.responsibleProfessional) {
+            if (
+              a.roleCode !== "pharmacist" ||
+              !a.storeId ||
+              !target.isActive ||
+              !target.practiceCertificateNumber?.trim()
+            )
+              throw AppError.validation(
+                "Người phụ trách phải là dược sĩ đang hoạt động, có chứng chỉ hành nghề và được phân công tại một cửa hàng cụ thể",
+              );
+            const existing = await tx.userRole.findFirst({
+              where: {
+                storeId: a.storeId,
+                responsibleProfessional: true,
+                userId: { not: targetUserId },
+              },
+            });
+            if (existing)
+              throw AppError.validation(
+                "Cửa hàng đã có người chịu trách nhiệm chuyên môn; cần kết thúc phân công cũ trước",
+              );
+          }
+        }
+        const removingAdmin =
+          target.userRoles.some((a) => a.role.code === ADMIN_ROLE_CODE) &&
+          !assignments.some((a) => a.roleCode === ADMIN_ROLE_CODE);
+        if (
+          removingAdmin &&
+          !(await tx.userRole.findFirst({
+            where: {
+              role: { code: ADMIN_ROLE_CODE },
+              user: { isActive: true },
+              userId: { not: targetUserId },
+            },
+          }))
+        )
+          throw AppError.validation("Không thể gỡ vai trò admin của người cuối cùng còn giữ nó");
+        await tx.userRole.deleteMany({ where: { userId: targetUserId } });
+        if (assignments.length)
+          await tx.userRole.createMany({
+            data: assignments.map((a) => ({
               userId: targetUserId,
-              roleId: roleByCode.get(item.roleCode)!.id,
-              storeId: item.storeId ?? null,
+              roleId: roleByCode.get(a.roleCode)!.id,
+              storeId: a.storeId ?? null,
               assignedBy: actorId,
+              additionalPermissions: [...new Set(a.additionalPermissions)],
+              qualificationReference:
+                a.roleCode === "pharmacist" ? (a.qualificationReference ?? null) : null,
+              responsibleProfessional: a.responsibleProfessional,
             })),
-          }),
-        ]
-      : []),
-    prisma.refreshSession.updateMany({
-      where: { userId: targetUserId, revokedAt: null },
-      data: { revokedAt: new Date(), revokedReason: "ROLES_CHANGED" },
-    }),
-    prisma.auditLog.create({
-      data: {
-        actorId,
-        action: "USER_ROLES_REPLACE",
-        resourceType: "user",
-        resourceId: targetUserId,
-        after: { roles: assignments },
-      },
-    }),
-  ]);
+          });
+        await tx.refreshSession.updateMany({
+          where: { userId: targetUserId, revokedAt: null },
+          data: { revokedAt: new Date(), revokedReason: "ROLES_CHANGED" },
+        });
+        await tx.auditLog.create({
+          data: {
+            actorId,
+            action: "USER_ROLES_REPLACE",
+            resourceType: "user",
+            resourceId: targetUserId,
+            before: {
+              roles: target.userRoles.map((a) => ({
+                roleCode: a.role.code,
+                storeId: a.storeId,
+                additionalPermissions: a.additionalPermissions,
+                qualificationReference: a.qualificationReference,
+                responsibleProfessional: a.responsibleProfessional,
+              })),
+            },
+            after: { roles: assignments },
+          },
+        });
+      }),
+    { conflictMessage: "Phân công bị trùng; tải lại thông tin trước khi lưu" },
+  );
 }
 
-/** Vô hiệu hóa và thu hồi mọi phiên (contract §3, §21); không được là admin cuối cùng. */
+/** Không khóa admin cuối hoặc người đang được phân công phụ trách chuyên môn. */
 export async function deactivate(targetUserId: string, actorId: string): Promise<void> {
-  const target = await prisma.user.findUnique({ where: { id: targetUserId } });
-  if (!target) throw AppError.notFound("Không tìm thấy người dùng");
-
-  const currentlyAdmin = await prisma.userRole.findFirst({
-    where: { userId: targetUserId, role: { code: ADMIN_ROLE_CODE } },
-  });
-  if (currentlyAdmin && (await countAdmins()) <= 1) {
-    throw AppError.validation("Không thể vô hiệu hóa admin cuối cùng trong hệ thống");
-  }
-
-  await prisma.$transaction([
-    prisma.user.updateMany({ where: { id: targetUserId }, data: { isActive: false } }),
-    prisma.refreshSession.updateMany({
+  await prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(724091)`;
+    const target = await tx.user.findUnique({ where: { id: targetUserId } });
+    if (!target) throw AppError.notFound("Không tìm thấy người dùng");
+    if (await tx.userRole.count({ where: { userId: targetUserId, responsibleProfessional: true } }))
+      throw AppError.validation("Kết thúc phân công phụ trách chuyên môn trước khi khóa tài khoản");
+    const isAdmin = await tx.userRole.findFirst({
+      where: { userId: targetUserId, role: { code: ADMIN_ROLE_CODE } },
+    });
+    if (
+      isAdmin &&
+      !(await tx.userRole.findFirst({
+        where: {
+          role: { code: ADMIN_ROLE_CODE },
+          user: { isActive: true },
+          userId: { not: targetUserId },
+        },
+      }))
+    )
+      throw AppError.validation("Không thể vô hiệu hóa admin cuối cùng trong hệ thống");
+    await tx.user.update({ where: { id: targetUserId }, data: { isActive: false } });
+    await tx.refreshSession.updateMany({
       where: { userId: targetUserId, revokedAt: null },
       data: { revokedAt: new Date(), revokedReason: "USER_DEACTIVATED" },
-    }),
-    prisma.auditLog.create({
+    });
+    await tx.auditLog.create({
       data: { actorId, action: "USER_DEACTIVATE", resourceType: "user", resourceId: targetUserId },
-    }),
-  ]);
+    });
+  });
 }
 
 export async function activate(targetUserId: string, actorId: string): Promise<void> {
@@ -291,6 +362,7 @@ export async function resetPassword(targetUserId: string, actorId: string): Prom
 /** `GET /roles`: danh sách vai trò và permission của từng vai trò (contract §21). */
 export async function listRoles() {
   const roles = await prisma.role.findMany({
+    where: { code: { in: ROLES.map((r) => r.code) } },
     include: { permissions: { select: { permissionCode: true } } },
     orderBy: { name: "asc" },
   });
@@ -298,6 +370,10 @@ export async function listRoles() {
     code: role.code,
     name: role.name,
     description: role.description,
+    additionalPermissions: additionalPermissionsFor(role.code).map((code) => ({
+      code,
+      description: PERMISSIONS.find((p) => p.code === code)!.description,
+    })),
     permissions: role.permissions.map((item) => item.permissionCode).sort(),
   }));
 }

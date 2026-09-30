@@ -1,3 +1,4 @@
+import { useTestRole } from "../../test/helpers.js";
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { prisma } from "../../db/prisma.js";
@@ -174,7 +175,8 @@ describe("Bán thuốc kiểm soát đặc biệt", () => {
     }).expect(201);
   });
 
-  it("nhân viên bán hàng không bán được thuốc kiểm soát đặc biệt", async () => {
+  it("tài khoản thiếu quyền không bán được thuốc kiểm soát đặc biệt", async () => {
+    await useTestRole(fixture.salesId, "warehouse_staff", fixture.storeId, []);
     await makeBatch("MOR01", 100);
     const prescription = await makePrescription();
     const response = await sell(
@@ -267,6 +269,7 @@ describe("Sổ theo dõi thuốc kiểm soát đặc biệt", () => {
   });
 
   it("chỉ vai trò được cấp quyền mới xem được sổ", async () => {
+    await useTestRole(fixture.salesId, "warehouse_staff", fixture.storeId, []);
     await api().get("/api/v1/controlled-drugs/ledger").set(h(salesToken)).expect(403);
     await api().get("/api/v1/controlled-drugs/ledger").set(h(adminToken)).expect(200);
     await api().get("/api/v1/controlled-drugs").set(h(pharmacistToken)).expect(200);

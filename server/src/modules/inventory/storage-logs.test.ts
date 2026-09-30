@@ -1,3 +1,4 @@
+import { useTestRole } from "../../test/helpers.js";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { prisma } from "../../db/prisma.js";
 import {
@@ -134,7 +135,8 @@ describe("Ghi sổ nhiệt độ – độ ẩm", () => {
     expect(list.body.data).toHaveLength(2);
   });
 
-  it("nhân viên bán hàng không có quyền ghi sổ", async () => {
+  it("tài khoản thiếu quyền không có quyền ghi sổ", async () => {
+    await useTestRole(fixture.salesId, "auditor", fixture.storeId, []);
     const response = await record(
       { location: retailAreaCode, recordedAt: new Date().toISOString(), temperatureC: 25 },
       salesToken,

@@ -1,3 +1,4 @@
+import { useTestRole } from "../../test/helpers.js";
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { prisma } from "../../db/prisma.js";
@@ -135,7 +136,8 @@ describe("Mở đợt kiểm kê", () => {
     await open({ scopeType: "CATEGORY" }).expect(422);
   });
 
-  it("nhân viên bán hàng xem được nhưng không mở được đợt kiểm kê", async () => {
+  it("tài khoản thiếu quyền xem được nhưng không mở được đợt kiểm kê", async () => {
+    await useTestRole(fixture.salesId, "auditor", fixture.storeId, []);
     await makeBatch(product.id, "L1", 100);
     await open({}, salesToken).expect(403);
     const id = (await open().expect(201)).body.data.count.id;

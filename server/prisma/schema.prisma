@@ -168,6 +168,9 @@ model UserRole {
   storeId    String?  @map("store_id") @db.Uuid
   assignedAt DateTime @default(now()) @map("assigned_at") @db.Timestamptz(6)
   assignedBy String?  @map("assigned_by") @db.Uuid
+  additionalPermissions String[] @default([]) @map("additional_permissions")
+  qualificationReference String? @map("qualification_reference")
+  responsibleProfessional Boolean @default(false) @map("responsible_professional")
 
   user           User   @relation("UserRoleUser", fields: [userId], references: [id], onDelete: Cascade)
   role           Role   @relation(fields: [roleId], references: [id])

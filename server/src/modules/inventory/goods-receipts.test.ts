@@ -1,3 +1,4 @@
+import { useTestRole } from "../../test/helpers.js";
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { prisma } from "../../db/prisma.js";
@@ -421,7 +422,8 @@ describe("Hủy phiếu và phân quyền", () => {
     expect(response.body.error.code).toBe("INVALID_STATE");
   });
 
-  it("nhân viên bán hàng không được tạo phiếu nhập", async () => {
+  it("tài khoản thiếu quyền không được tạo phiếu nhập", async () => {
+    await useTestRole(fixture.salesId, "auditor", fixture.storeId, []);
     const sales = await login("banhang");
     const response = await api()
       .post("/api/v1/goods-receipts")

@@ -1,3 +1,4 @@
+import { useTestRole } from "../../test/helpers.js";
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { prisma } from "../../db/prisma.js";
@@ -169,6 +170,7 @@ describe("Kế hoạch xử lý lô cận hạn", () => {
   });
 
   it("kiểm tra quyền, lô không thuộc cửa hàng và dữ liệu sai", async () => {
+    await useTestRole(fixture.salesId, "auditor", fixture.storeId, []);
     const batchId = await makeBatch("D30", 20);
     await api().get("/api/v1/expiry-alerts").set(h(salesToken)).expect(200);
     await plan({ batchId, action: "DISPOSE" }, salesToken).expect(403);

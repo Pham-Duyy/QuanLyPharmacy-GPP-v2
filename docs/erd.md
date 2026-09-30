@@ -227,14 +227,14 @@ Lô thuốc (`batches`) là trung tâm: mọi đường hàng vào và hàng ra 
 
 ### 3.2 `roles`, `permissions` và hai bảng nối
 
-- `roles`: `id uuid PK`, `code text UNIQUE` (`admin`, `pharmacist`, `sales_staff`, `warehouse_staff`, `auditor`), `name`, `description`, `is_system boolean`.
+- `roles`: `id uuid PK`, `code text UNIQUE` (`admin`, `pharmacist`, `warehouse_staff`, `auditor`), `name`, `description`, `is_system boolean`.
 - `permissions`: **`code text PK`** (`invoice.create`, `stock.adjust.approve`…), `description`. Dùng luôn mã làm khóa chính vì mã cố định và đọc dữ liệu thô dễ hiểu.
 - `role_permissions`: `role_id`, `permission_code`, `PK (role_id, permission_code)`.
-- `user_roles`: `id uuid PK`, `user_id`, `role_id`, `store_id uuid NULL`, `assigned_at`, `assigned_by`, kèm `UNIQUE NULLS NOT DISTINCT (user_id, role_id, store_id)`.
+- `user_roles`: `id uuid PK`, `user_id`, `role_id`, `store_id uuid NULL`, `assigned_at`, `assigned_by`, kèm `UNIQUE NULLS NOT DISTINCT (user_id, role_id, store_id)`. Bổ sung `additional_permissions text[]`, `qualification_reference text NULL`, `responsible_professional boolean`. Chỉ mục duy nhất từng phần bảo đảm tối đa một người phụ trách chuyên môn tại mỗi cửa hàng; chức danh bắt buộc có `store_id`. Xem contract §4.2 về kiểm tra chuyên môn và quyền bổ sung.
 
 Vai trò gán **theo cửa hàng** (§1.8): một dược sĩ có thể phụ trách cửa hàng A, còn chủ chuỗi giữ vai trò `admin` với `store_id = NULL` để bao toàn chuỗi.
 
-Ma trận §4.2 của contract được nạp vào `role_permissions` bằng script seed, không viết cứng trong mã.
+Ma trận §4.2 được nạp vào `role_permissions` bằng migration/seed. Auth giới hạn quyền nền trong danh sách vai trò được hỗ trợ và chỉ nhận quyền bổ sung thuộc danh sách cho phép tại cửa hàng cụ thể.
 
 ### 3.3 `refresh_sessions`
 
@@ -292,7 +292,7 @@ Nơi chứa mọi giá trị cấu hình mà contract nhắc tới, để đổi
 | `prescriptionValidityDays` | 5 |
 | `returnWindowDays` | 7 |
 | `invoiceVoidWindow` | `SAME_BUSINESS_DAY` |
-| `discountLimitPercent` | `{ "sales_staff": 5, "pharmacist": 10 }` |
+| `discountLimitPercent` | `{ "pharmacist": 10 }` |
 | `storageLogPerDay` | 2 |
 
 ---

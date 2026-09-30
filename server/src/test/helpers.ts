@@ -3,7 +3,7 @@ import type { Express } from "express";
 import { createApp } from "../app.js";
 import { prisma } from "../db/prisma.js";
 import { hashPassword } from "../lib/password.js";
-import { PERMISSIONS, ROLES } from "../config/permissions.js";
+import { ADDITIONAL_PERMISSIONS, PERMISSIONS, ROLES } from "../config/permissions.js";
 
 export const app: Express = createApp();
 export const api = () => request(app);
@@ -33,7 +33,7 @@ export type Fixture = {
  * một tài khoản admin bao toàn chuỗi và một dược sĩ chỉ thuộc cửa hàng 1.
  * Có hai cửa hàng để kiểm tra được việc không lộ dữ liệu chéo cửa hàng.
  */
-export async function seedFixture(): Promise<Fixture> {
+export async function seedFixture(options: { sellingAdmin?: boolean } = {}): Promise<Fixture> {
   const [store, otherStore] = await Promise.all([
     prisma.store.create({ data: { code: "NT01", name: "Nhà thuốc kiểm thử 1" } }),
     prisma.store.create({ data: { code: "NT02", name: "Nhà thuốc kiểm thử 2" } }),
@@ -59,23 +59,46 @@ export async function seedFixture(): Promise<Fixture> {
     data: { userId: admin.id, roleId: roleByCode.get("admin")!, storeId: null },
   });
 
+  // Workflow fixtures use a manager who is also a qualified pharmacist.
+  // Authorization tests explicitly request sellingAdmin: false.
+  if (options.sellingAdmin !== false)
+    await prisma.userRole.create({
+      data: {
+        userId: admin.id,
+        roleId: roleByCode.get("pharmacist")!,
+        storeId: null,
+        qualificationReference: "Hồ sơ dược sĩ giả lập cho kiểm thử",
+      },
+    });
+
   const pharmacist = await prisma.user.create({
     data: { username: "duocsi", passwordHash, fullName: "Dược sĩ", defaultStoreId: store.id },
   });
   await prisma.userRole.create({
-    data: { userId: pharmacist.id, roleId: roleByCode.get("pharmacist")!, storeId: store.id },
+    data: {
+      userId: pharmacist.id,
+      roleId: roleByCode.get("pharmacist")!,
+      storeId: store.id,
+      qualificationReference: "Hồ sơ kiểm thử",
+      additionalPermissions: ADDITIONAL_PERMISSIONS.filter((p) => p !== "sale.discount.override"),
+    },
   });
 
   const sales = await prisma.user.create({
     data: {
       username: "banhang",
       passwordHash,
-      fullName: "Nhân viên bán hàng",
+      fullName: "Dược sĩ tại quầy",
       defaultStoreId: store.id,
     },
   });
   await prisma.userRole.create({
-    data: { userId: sales.id, roleId: roleByCode.get("sales_staff")!, storeId: store.id },
+    data: {
+      userId: sales.id,
+      roleId: roleByCode.get("pharmacist")!,
+      storeId: store.id,
+      qualificationReference: "Hồ sơ kiểm thử",
+    },
   });
 
   return {
@@ -105,4 +128,21 @@ export function authHeaders(token: string, storeId?: string): Record<string, str
     Authorization: `Bearer ${token}`,
     ...(storeId ? { "X-Store-Id": storeId } : {}),
   };
+}
+
+/** Dựng điều kiện thiếu quyền bằng một vai trò còn được hỗ trợ, không tái tạo
+ * vai trò sales_staff đã ngừng dùng. Chỉ dùng trên CSDL kiểm thử đã cô lập. */
+export async function useTestRole(
+  userId: string,
+  roleCode: string,
+  storeId: string,
+  withoutPermissions: string[] = [],
+): Promise<void> {
+  const role = await prisma.role.findUniqueOrThrow({ where: { code: roleCode } });
+  await prisma.userRole.deleteMany({ where: { userId } });
+  await prisma.userRole.create({ data: { userId, roleId: role.id, storeId } });
+  if (withoutPermissions.length)
+    await prisma.rolePermission.deleteMany({
+      where: { roleId: role.id, permissionCode: { in: withoutPermissions } },
+    });
 }

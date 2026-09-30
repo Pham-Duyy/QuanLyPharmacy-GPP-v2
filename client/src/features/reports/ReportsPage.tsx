@@ -318,7 +318,7 @@ function GoodsTab({ data }: { data: ReportsSummary }) {
 
 function StaffTab({ data }: { data: ReportsSummary }) {
   return (
-    <Card title="Doanh thu theo nhân viên bán hàng">
+    <Card title="Doanh thu theo người bán">
       <Table
         rowKey="userId"
         pagination={false}

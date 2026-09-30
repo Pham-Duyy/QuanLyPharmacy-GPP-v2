@@ -1,3 +1,4 @@
+import { useTestRole } from "../../test/helpers.js";
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { prisma } from "../../db/prisma.js";
@@ -253,6 +254,7 @@ describe("Thống kê mua hàng và nhóm khách", () => {
 
 describe("Xuất danh sách khách hàng", () => {
   it("chỉ quyền customer.sensitive được xuất, có số điện thoại đầy đủ, chặn công thức và ghi audit", async () => {
+    await useTestRole(fixture.salesId, "admin", fixture.storeId, []);
     await createCustomer({ fullName: '=HYPERLINK("x")', phone: "0905000001", address: 'Q1, "TP"' });
 
     await api().get("/api/v1/customers/export").set(authHeaders(salesToken)).expect(403);
