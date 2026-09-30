@@ -8,7 +8,7 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit",
-    "db:migrate": "prisma migrate dev",
+    "db:migrate": "tsx src/scripts/check-migrations.ts && prisma migrate deploy --config prisma7.config.ts",
     "db:generate": "prisma generate",
     "db:studio": "prisma studio",
     "db:reset": "prisma migrate reset",
@@ -21,7 +21,8 @@
     "format": "prettier --write \"src/**/*.ts\" \"prisma/**/*.ts\"",
     "format:check": "prettier --check \"src/**/*.ts\" \"prisma/**/*.ts\"",
     "db:demo": "tsx prisma/demo-seed.ts",
-    "db:catalog": "tsx prisma/seed-catalog-extra.ts"
+    "db:catalog": "tsx prisma/seed-catalog-extra.ts",
+    "check:migrations": "tsx src/scripts/check-migrations.ts"
   },
   "type": "module",
   "dependencies": {

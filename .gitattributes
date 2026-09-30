@@ -6,6 +6,13 @@
 # người, rất mất thời gian tìm.
 * text=auto eol=lf
 
+# Migration SQL bắt buộc LF, ghi riêng cho rõ: Prisma lưu mã băm từng byte của
+# file lúc áp, file bị áp ở dạng CRLF rồi git đổi sang LF là mã băm lệch và
+# `prisma migrate dev` đòi reset CSDL. Xem docs/migration-checksum-log.md.
+# Quy tắc này chỉ có hiệu lực lúc commit/checkout; `npm run db:migrate` còn
+# tự chặn file CRLF trước khi áp.
+server/prisma/migrations/**/migration.sql text eol=lf
+
 # File nhị phân giữ nguyên byte, không đụng vào ký tự xuống dòng.
 *.png binary
 *.jpg binary
