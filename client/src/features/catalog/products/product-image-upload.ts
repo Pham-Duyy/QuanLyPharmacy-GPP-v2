@@ -4,14 +4,14 @@ import type { Envelope, ProductImage } from "../../../api/types.js";
 /** Trình duyệt giải mã được; server chỉ nhận JPG/PNG nên WEBP được vẽ lại thành JPG. */
 export const IMAGE_ACCEPT = ["image/jpeg", "image/png", "image/webp"];
 /** Ảnh gốc trước khi thu nhỏ: ảnh máy ảnh rời cũng hiếm khi vượt mức này. */
-export const MAX_INPUT_BYTES = 15 * 1024 * 1024;
+const MAX_INPUT_BYTES = 15 * 1024 * 1024;
 export const MAX_IMAGES_PER_PRODUCT = 8;
 
 /**
  * Thu nhỏ ảnh ngay trên trình duyệt: ảnh chụp điện thoại thường vài MB,
  * danh sách chỉ cần vài chục KB. Vẽ lại qua canvas cũng bỏ luôn EXIF.
  */
-export async function resizeImage(file: File, maxSide: number, keepPng: boolean): Promise<Blob> {
+async function resizeImage(file: File, maxSide: number, keepPng: boolean): Promise<Blob> {
   const bitmap = await createImageBitmap(file).catch(() => {
     throw new Error("Tệp không phải ảnh hợp lệ hoặc đã hỏng");
   });
@@ -44,7 +44,7 @@ export async function resizeImage(file: File, maxSide: number, keepPng: boolean)
 }
 
 /** Chặn sớm tệp không phải ảnh để không tốn công gửi lên rồi bị server từ chối. */
-export function checkImageFile(file: File): void {
+function checkImageFile(file: File): void {
   if (!IMAGE_ACCEPT.includes(file.type)) throw new Error("Chỉ nhận ảnh JPG, PNG hoặc WEBP");
   if (file.size > MAX_INPUT_BYTES) throw new Error("Ảnh lớn hơn 15 MB, hãy chọn ảnh khác");
 }
