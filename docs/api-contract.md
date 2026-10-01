@@ -281,7 +281,6 @@ Quy tắc:
 | `report.sales` | Báo cáo doanh thu, bán chạy |
 | `report.inventory` | Báo cáo xuất – nhập – tồn, hạn dùng |
 | `audit.read` | Đọc audit log |
-| `backup.manage` | Xem, chạy và tải bản sao lưu dữ liệu |
 | `controlled.read` | Xem sổ theo dõi thuốc kiểm soát đặc biệt |
 | `supplier_debt.read` | Xem công nợ nhà cung cấp |
 | `supplier_payment.manage` | Ghi nhận thanh toán cho nhà cung cấp |
@@ -331,7 +330,6 @@ Mô hình cập nhật ngày 30/09/2026. `admin`: quản lý; `pharmacist`: dư�
 | `report.sales` | ✓ |  |  | ✓ |
 | `report.inventory` | ✓ | ✓ |  | ✓ |
 | `audit.read` | ✓ |  |  | ✓ |
-| `backup.manage` | ✓ |  |  |  |
 | `controlled.read` | ✓ | ✓ |  | ✓ |
 | `supplier_debt.read` | ✓ |  |  | ✓ |
 | `supplier_payment.manage` | ✓ |  |  |  |
@@ -1414,28 +1412,6 @@ Loại xuất:
 | `controlled-ledger` | `controlled.read` | Có | Sổ thuốc kiểm soát đặc biệt (§10.8): sheet Tổng hợp và Chi tiết; ghi audit `EXCEL_EXPORT` |
 
 Giá trị trong ô luôn được ghi dạng dữ liệu, không bao giờ là công thức. Thời điểm (giờ bán, giờ nhận hàng) ghi theo giờ Việt Nam.
-
-### Sao lưu dữ liệu
-
-Một bản sao lưu gồm **tệp dump CSDL** (`pg_dump --format=custom`) và **bản chép thư mục `storage`** (ảnh đơn thuốc, ảnh sản phẩm) — thiếu một trong hai là không phục hồi đủ hồ sơ. Phạm vi toàn chuỗi, không theo cửa hàng.
-
-| Method | Endpoint | Mô tả | Quyền |
-|---|---|---|---|
-| GET | `/backups` | `{ status, items }`: tình trạng bảo vệ dữ liệu và lịch sử các lượt | `backup.manage` |
-| POST | `/backups` | Sao lưu ngay; `409` nếu đang có lượt chạy; ghi audit `BACKUP_RUN` hoặc `BACKUP_FAILED` | `backup.manage` |
-| PUT | `/backups/settings` | Lịch chạy, số bản giữ lại, ngưỡng cảnh báo; ghi audit `SETTING_UPDATE` | `backup.manage` |
-| GET | `/backups/{id}/download` | Tải tệp dump về máy khác hoặc USB; ghi audit `BACKUP_DOWNLOAD` | `backup.manage` |
-
-`status` gồm `lastSuccessAt`, `isStale`, `nextRunAt`, `keptCount`, `totalBytes`, `backupDir`, `toolMode` (`docker` hoặc `local`) và `restoreCommands`. Cài đặt lưu ở khóa `backupSettings` (chung toàn chuỗi): `enabled`, `hour`, `minute` (giờ Việt Nam), `keepCount`, `includeStorage`, `staleAfterHours`.
-
-Quy tắc:
-
-- Lượt theo lịch chạy mỗi ngày một lần tại mốc đã đặt; máy tắt đúng giờ hẹn thì lần bật máy tiếp theo **trong ngày** chạy bù.
-- Chỉ một lượt chạy tại một thời điểm. Lượt lỗi bị xóa thư mục dở dang, giữ lại dòng lịch sử kèm lý do.
-- Quá `keepCount` bản thì tệp cũ bị dọn, dòng lịch sử vẫn còn và được đánh dấu `deletedAt`.
-- **Không có API phục hồi.** Phục hồi ghi đè toàn bộ dữ liệu đang chạy nên phải làm thủ công bằng `pg_restore`; hệ thống chỉ trả về câu lệnh kèm đường dẫn thật.
-
-Cấu hình bằng biến môi trường: `BACKUP_DIR` (nên trỏ sang ổ đĩa khác), `BACKUP_DOCKER_CONTAINER` khi PostgreSQL chạy trong Docker, `BACKUP_PG_DUMP` khi PostgreSQL cài trực tiếp trên máy.
 
 ---
 

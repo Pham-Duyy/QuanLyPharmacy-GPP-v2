@@ -33,7 +33,6 @@ const SupplierDebtsPage = page(() => import("../features/inventory/SupplierDebts
 const ExpiryAlertsPage = page(() => import("../features/inventory/ExpiryAlertsPage.js"), "ExpiryAlertsPage");
 const PurchaseSuggestionsPage = page(() => import("../features/inventory/PurchaseSuggestionsPage.js"), "PurchaseSuggestionsPage");
 const StockCountsPage = page(() => import("../features/inventory/stock-counts/StockCountsPage.js"), "StockCountsPage");
-const BackupPage = page(() => import("../features/backup/BackupPage.js"), "BackupPage");
 const ExcelHubPage = page(() => import("../features/excel/ExcelHubPage.js"), "ExcelHubPage");
 const NationalSyncPage = page(() => import("../features/national-sync/NationalSyncPage.js"), "NationalSyncPage");
 const ReportsPage = page(() => import("../features/reports/ReportsPage.js"), "ReportsPage");
@@ -71,7 +70,6 @@ export const PAGE_ELEMENTS: Record<PagePath, ReactNode> = {
   "/nhan-vien": <UsersPage />,
   "/cua-hang": <StoresPage />,
   "/cai-dat": <SettingsPage />,
-  "/sao-luu": <BackupPage />,
   "/audit-log": <AuditLogPage />,
   "/excel": <ExcelHubPage />,
 };
