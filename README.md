@@ -82,6 +82,23 @@ Thêm một thay đổi lược đồ:
 
 Không sửa file migration đã được áp dụng; thay đổi tiếp theo luôn là một migration mới. Không sửa mã băm trong bảng `_prisma_migrations` để vượt qua cảnh báo.
 
+## Sao lưu CSDL
+
+Phần mềm không có chức năng sao lưu; Nhật ký hệ thống chỉ ghi ai làm gì, không phục hồi được dữ liệu. Trước khi áp migration, dọn dữ liệu hay demo, sao lưu bằng tay và để tệp **ngoài thư mục dự án**:
+
+```bash
+# Sao lưu (định dạng custom của pg_dump)
+docker exec gpp-postgres pg_dump -U gpp -d pharmacy_gpp -Fc > "D:/sao-luu/pharmacy_gpp-$(date +%Y%m%d-%H%M).dump"
+
+# Kiểm tra tệp đọc được
+docker exec -i gpp-postgres pg_restore -l < "D:/sao-luu/<tệp>.dump" | head
+
+# Phục hồi: GHI ĐÈ toàn bộ dữ liệu hiện có
+docker exec -i gpp-postgres pg_restore -U gpp -d pharmacy_gpp --clean --if-exists < "D:/sao-luu/<tệp>.dump"
+```
+
+Ảnh đơn thuốc và ảnh sản phẩm nằm ở `server/storage/`, không có trong tệp dump; chép thư mục này kèm theo nếu cần giữ đủ hồ sơ.
+
 ## Máy chủ
 
 ```bash

@@ -5,7 +5,6 @@ import {
   BarChartOutlined,
   BellOutlined,
   BulbOutlined,
-  CloudServerOutlined,
   ContainerOutlined,
   ControlOutlined,
   CreditCardOutlined,
@@ -98,7 +97,6 @@ export const PAGES = [
   { path: "/nhan-vien", label: "Nhân viên", icon: <UserSwitchOutlined />, permission: "user.manage", keywords: "tai khoan vai tro phan quyen" },
   { path: "/cua-hang", label: "Cửa hàng", icon: <ShopOutlined />, permission: "store.manage", keywords: "cua hang chi nhanh" },
   { path: "/cai-dat", label: "Cài đặt", icon: <ControlOutlined />, permission: "settings.manage", keywords: "thiet lap mau in hoa don phieu nhap tra hang dieu chinh kho giay logo" },
-  { path: "/sao-luu", label: "Sao lưu dữ liệu", icon: <CloudServerOutlined />, permission: "backup.manage", keywords: "backup phuc hoi du lieu an toan" },
   { path: "/audit-log", label: "Nhật ký hệ thống", icon: <AuditOutlined />, permission: "audit.read", keywords: "audit log lich su thao tac nhat ky" },
   {
     path: "/excel",

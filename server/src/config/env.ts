@@ -12,12 +12,6 @@ const envSchema = z.object({
   JWT_SECRET: z.string().min(16, "JWT_SECRET phải dài ít nhất 16 ký tự"),
   CORS_ORIGIN: z.string().default("http://localhost:5173"),
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info"),
-  /** Nơi để các bản sao lưu. Nên trỏ sang ổ đĩa khác với ổ chạy CSDL. */
-  BACKUP_DIR: z.string().default("backups"),
-  /** Đường dẫn pg_dump khi PostgreSQL cài trực tiếp trên máy. */
-  BACKUP_PG_DUMP: z.string().default("pg_dump"),
-  /** Tên container khi PostgreSQL chạy bằng Docker (khi đó dùng pg_dump trong container). */
-  BACKUP_DOCKER_CONTAINER: z.string().optional(),
   /**
    * Địa chỉ API Hệ thống CSDL về Dược. Bỏ trống thì lấy theo môi trường đã
    * chọn ở màn cấu hình (sandbox hoặc thật). Đặt biến này để trỏ sang máy

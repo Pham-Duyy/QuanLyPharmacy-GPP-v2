@@ -36,7 +36,6 @@ import { auditRouter } from "./modules/audit/audit.routes.js";
 import { reportsRouter } from "./modules/reports/reports.routes.js";
 import { settingsRouter } from "./modules/settings/settings.routes.js";
 import { excelRouter } from "./modules/excel/excel.routes.js";
-import { backupRouter } from "./modules/backup/backup.routes.js";
 import { stockCountsRouter } from "./modules/inventory/stock-counts.routes.js";
 import { controlledRouter } from "./modules/controlled/controlled.routes.js";
 import { purchaseSuggestionsRouter } from "./modules/inventory/purchase-suggestions.routes.js";
@@ -114,7 +113,6 @@ export function createApp() {
   app.use("/api/v1", reportsRouter);
   app.use("/api/v1", settingsRouter);
   app.use("/api/v1", excelRouter);
-  app.use("/api/v1", backupRouter);
   app.use("/api/v1", stockCountsRouter);
   app.use("/api/v1", controlledRouter);
   app.use("/api/v1", purchaseSuggestionsRouter);
