@@ -1291,16 +1291,20 @@ Nguyên tắc (giữ từ bản gốc, bổ sung):
 |---|---|---|---|
 | GET | `/users` | Danh sách, tìm kiếm | `user.manage` |
 | GET | `/users/{id}` | Chi tiết | `user.manage` |
-| POST | `/users` | Tạo tài khoản với mật khẩu tạm; bắt đổi ở lần đăng nhập đầu | `user.manage` |
+| POST | `/users` | Tạo tài khoản. Có thể gửi kèm `password`, `mustChangePassword`, `roles` để tạo tài khoản, mật khẩu và phân quyền trong một giao dịch (xem dưới) | `user.manage` |
 | PATCH | `/users/{id}` | Sửa `fullName`, `phone`, `practiceCertificateNumber` (số chứng chỉ hành nghề) | `user.manage` |
-| PUT | `/users/{id}/roles` | Thay toàn bộ vai trò; body là mảng `{ roleCode, storeId }`, `storeId = null` là toàn chuỗi; ghi audit | `user.manage` |
+| PUT | `/users/{id}/roles` | Thay toàn bộ vai trò; body là mảng `{ roleCode, storeId }`, `storeId = null` là toàn chuỗi; ghi audit. Người sửa phải quản lý nhân sự ở mọi phạm vi cũ và mới (`403`) | `user.manage` |
 | POST | `/users/{id}/deactivate` | Vô hiệu hóa, thu hồi mọi phiên | `user.manage` |
 | POST | `/users/{id}/activate` | Kích hoạt lại | `user.manage` |
 | POST | `/users/{id}/reset-password` | Đặt mật khẩu tạm, thu hồi mọi phiên | `user.manage` |
-| GET | `/roles` | Danh sách vai trò và permission của từng vai trò | `user.manage` |
+| GET | `/roles` | Danh sách vai trò, `permissions` (mã) và `permissionDetails` (`{ code, description }`) của từng vai trò | `user.manage` |
 
 - Không ai tự đổi vai trò của chính mình. Không vô hiệu hóa hoặc gỡ vai trò của admin cuối cùng (`422`).
 - `PATCH /users/{id}` không nhận `roles`, `password`, `isActive`; các trường này có endpoint riêng.
+- `POST /users` có hai cách dùng:
+  - Chỉ thông tin cơ bản: máy chủ sinh mật khẩu tạm, trả `tempPassword` đúng một lần, bắt đổi ở lần đăng nhập đầu; vai trò gán sau bằng `PUT /users/{id}/roles`.
+  - Kèm `password` (luật như đổi mật khẩu: 10–200 ký tự, có chữ và số), `mustChangePassword` (mặc định `true`) và `roles` (cùng cấu trúc như `PUT /users/{id}/roles`): tài khoản, mật khẩu và phân quyền được tạo **trong một giao dịch**; phân quyền không hợp lệ (`422`) hoặc ngoài phạm vi (`403`) thì không có tài khoản nào được tạo. Response không bao giờ chứa mật khẩu người tạo đặt; audit `USER_CREATE` ghi `password: SET_BY_MANAGER | TEMPORARY`, không ghi mật khẩu.
+- Phạm vi người giao vai trò: vai trò toàn chuỗi (`storeId = null`) cần `user.manage` toàn chuỗi; vai trò tại cửa hàng cần `user.manage` tại đúng cửa hàng đó. Áp dụng cho cả `POST /users` và `PUT /users/{id}/roles`; với `PUT`, xét cả vai trò đang có của người bị sửa, nên quản lý một cửa hàng không gỡ được vai trò ở cửa hàng khác hay vai trò toàn chuỗi.
 
 ### Cửa hàng [Đã chốt – P18]
 

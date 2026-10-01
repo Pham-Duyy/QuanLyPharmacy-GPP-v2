@@ -1,476 +1,186 @@
-import { DeleteOutlined, EditOutlined, KeyOutlined, PlusOutlined, PoweroffOutlined, SafetyOutlined, UserOutlined, UserSwitchOutlined } from "@ant-design/icons";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, App, Button, Card, Checkbox, Empty, Form, Input, Modal, Popconfirm, Select, Skeleton, Table, Tag, Typography } from "antd";
-import { useEffect, useState } from "react";
-import { getErrorMessage, http } from "../../api/http.js";
-import { type Envelope, type RoleItem, type StoreDetail, type UserDetail, type UserListItem, type UserRoleAssignment } from "../../api/types.js";
+import {
+  CalendarOutlined,
+  ExperimentOutlined,
+  FileTextOutlined,
+  LineChartOutlined,
+  PlusOutlined,
+  StarOutlined,
+  TeamOutlined,
+  UnorderedListOutlined,
+  UserOutlined,
+  UserSwitchOutlined,
+} from "@ant-design/icons";
+import { Alert, Button, Card, Empty, Segmented, Tabs } from "antd";
+import { useState, type ReactNode } from "react";
 import { PageHeader } from "../../ui/PageHeader.js";
-import { PanelEmpty } from "../../ui/PanelEmpty.js";
-import { useDebounced } from "../../ui/useDebounced.js";
 import { useAuth } from "../auth/AuthProvider.js";
+import { CreateStaffModal } from "./CreateStaffModal.js";
+import { PayrollTab } from "./preview/PayrollTab.js";
+import { PersonalView } from "./preview/PersonalView.js";
+import { usePreview } from "./preview/preview-context.js";
+import { PreviewProvider } from "./preview/preview-store.js";
+import { PreviewStaffList } from "./preview/PreviewStaffList.js";
+import { ReviewsTab } from "./preview/ReviewsTab.js";
+import { SalesBonusTab } from "./preview/SalesBonusTab.js";
+import { ScheduleTab } from "./preview/ScheduleTab.js";
+import { StaffList } from "./StaffList.js";
 
-/** Quản lý tài khoản nhân viên và vai trò (contract §21). */
+type Mode = "live" | "preview";
+type TabKey = "list" | "schedule" | "sales" | "payroll" | "reviews" | "personal";
+
+const TABS: Array<{ key: TabKey; label: string; icon: ReactNode; previewOnly?: boolean }> = [
+  { key: "list", label: "Danh sách", icon: <UnorderedListOutlined /> },
+  { key: "schedule", label: "Lịch làm & chấm công", icon: <CalendarOutlined /> },
+  { key: "sales", label: "Doanh số & thưởng", icon: <LineChartOutlined /> },
+  { key: "payroll", label: "Bảng lương", icon: <FileTextOutlined /> },
+  { key: "reviews", label: "Đánh giá & phát triển", icon: <StarOutlined /> },
+  { key: "personal", label: "Góc nhìn nhân viên", icon: <UserOutlined />, previewOnly: true },
+];
+
+/** Những phần nhân sự chưa có API ở chế độ dữ liệu thật: nói rõ, không hiện số giả. */
+const MISSING_API: Record<Exclude<TabKey, "list" | "personal">, string> = {
+  schedule: "Lịch làm, chấm công và yêu cầu điều chỉnh công",
+  sales: "Mục tiêu doanh số, chính sách và xét thưởng",
+  payroll: "Kỳ lương, phiếu lương và trạng thái thanh toán",
+  reviews: "Đánh giá tháng và đề xuất thăng chức",
+};
+
+/** Phân mục Nhân viên: tài khoản thật + bản xem trước các nghiệp vụ nhân sự chưa có backend. */
 export function UsersPage() {
+  return (
+    <PreviewProvider>
+      <StaffWorkspace />
+    </PreviewProvider>
+  );
+}
+
+function StaffWorkspace() {
   const { can } = useAuth();
-  const [search, setSearch] = useState("");
-  const [openId, setOpenId] = useState<string | null>(null);
+  const { state } = usePreview();
+  const [mode, setMode] = useState<Mode>("live");
+  const [tab, setTab] = useState<TabKey>("list");
+  const [liveSelected, setLiveSelected] = useState<string | null>(null);
+  // Chọn nhân viên mẫu dùng chung giữa các tab xem trước, để đổi tab vẫn đúng người.
+  const [previewSelected, setPreviewSelected] = useState(state.employees[0]!.id);
   const [creating, setCreating] = useState(false);
-  const queryClient = useQueryClient();
-  const term = useDebounced(search.trim(), 300);
 
-  const list = useQuery({
-    queryKey: ["users", term],
-    queryFn: async () => (await http.get<Envelope<UserListItem[]>>("/users", { params: { search: term || undefined } })).data.data,
-    placeholderData: (previous) => previous,
-  });
+  const switchMode = (next: Mode) => {
+    setMode(next);
+    if (next === "live" && tab === "personal") setTab("list");
+  };
 
-  async function refresh(): Promise<void> {
-    await queryClient.invalidateQueries({ queryKey: ["users"] });
+  let content: ReactNode;
+  if (mode === "live") {
+    content =
+      tab === "list" ? (
+        <StaffList selectedId={liveSelected} onSelect={setLiveSelected} />
+      ) : (
+        <Card className="staff-card">
+          <Empty
+            image={Empty.PRESENTED_IMAGE_SIMPLE}
+            description={
+              <div className="staff-missing-api">
+                <strong>Chưa có dữ liệu thật</strong>
+                <span>
+                  {MISSING_API[tab as keyof typeof MISSING_API]} chưa có API và nơi lưu trữ trong hệ
+                  thống.
+                </span>
+              </div>
+            }
+          >
+            <Button icon={<ExperimentOutlined />} onClick={() => switchMode("preview")}>
+              Xem bản xem trước nhân sự
+            </Button>
+          </Empty>
+        </Card>
+      );
+  } else {
+    content = {
+      list: (
+        <PreviewStaffList
+          selectedId={previewSelected}
+          onSelect={setPreviewSelected}
+          onOpenTab={(key) => setTab(key as TabKey)}
+        />
+      ),
+      schedule: <ScheduleTab />,
+      sales: <SalesBonusTab selectedId={previewSelected} onSelect={setPreviewSelected} />,
+      payroll: (
+        <PayrollTab
+          onOpenBonus={(employeeId) => {
+            setPreviewSelected(employeeId);
+            setTab("sales");
+          }}
+        />
+      ),
+      reviews: <ReviewsTab selectedId={previewSelected} onSelect={setPreviewSelected} />,
+      personal: <PersonalView viewerId={previewSelected} onViewerChange={setPreviewSelected} />,
+    }[tab];
   }
 
   return (
-    <div>
+    <div className="staff-workspace">
       <PageHeader
         icon={<UserSwitchOutlined />}
         title="Nhân viên"
-        description="Tài khoản đăng nhập và vai trò theo từng cửa hàng. Mỗi thay đổi vai trò đều đăng xuất các phiên cũ của người đó."
+        description="Quản lý hồ sơ, tài khoản và hiệu quả làm việc."
         extra={
-          can("user.manage") ? (
-            <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreating(true)}>
-              Thêm tài khoản
-            </Button>
-          ) : null
+          <>
+            <Segmented<Mode>
+              aria-label="Nguồn dữ liệu"
+              value={mode}
+              onChange={switchMode}
+              options={[
+                { value: "live", label: "Dữ liệu thật", icon: <TeamOutlined /> },
+                { value: "preview", label: "Bản xem trước nhân sự", icon: <ExperimentOutlined /> },
+              ]}
+            />
+            {can("user.manage") ? (
+              <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreating(true)}>
+                {mode === "live" ? "Thêm nhân viên" : "Thêm nhân viên mẫu"}
+              </Button>
+            ) : null}
+          </>
         }
       />
-      <div className="split-layout">
-        <Card>
-          <div className="toolbar">
-            <Input.Search allowClear className="toolbar-grow" placeholder="Tìm theo họ tên hoặc tên đăng nhập" value={search} onChange={(event) => setSearch(event.target.value)} />
-          </div>
-          <Table
-            rowKey="id"
-            loading={list.isFetching}
-            dataSource={list.data ?? []}
-            scroll={{ x: 640 }}
-            onRow={(row) => ({ onClick: () => setOpenId(row.id), style: { cursor: "pointer" } })}
-            rowClassName={(row) => (row.id === openId ? "row-selected" : "")}
-            pagination={{ pageSize: 20, showSizeChanger: false, hideOnSinglePage: true }}
-            locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={list.isError ? getErrorMessage(list.error, "Không tải được danh sách") : "Chưa có tài khoản"} /> }}
-            columns={[
-              {
-                title: "Nhân viên",
-                key: "name",
-                render: (_: unknown, row: UserListItem) => (
-                  <div className="person-cell">
-                    <span className="person-avatar">
-                      <UserOutlined />
-                    </span>
-                    <div className="cell-main">
-                      <strong>{row.fullName}</strong>
-                      <span className="mono">@{row.username}</span>
-                    </div>
-                  </div>
-                ),
-              },
-              {
-                title: "Vai trò",
-                key: "roles",
-                render: (_: unknown, row: UserListItem) =>
-                  row.roles.length === 0 ? (
-                    <Typography.Text type="secondary">Chưa gán</Typography.Text>
-                  ) : (
-                    row.roles.map((role, index) => (
-                      <Tag key={`${role.roleCode}-${role.storeId ?? "chain"}-${index}`} color={role.storeId ? "blue" : "purple"} style={{ marginBottom: 2 }}>
-                        {role.roleName}
-                        {role.storeId ? "" : " · toàn chuỗi"}
-                      </Tag>
-                    ))
-                  ),
-              },
-              { title: "Trạng thái", key: "active", width: 120, render: (_: unknown, row: UserListItem) => (row.isActive ? <Tag color="green">Đang dùng</Tag> : <Tag>Đã khóa</Tag>) },
-            ]}
-          />
-        </Card>
-        <aside className="split-aside">
-          <UserPanel id={openId} onClose={() => setOpenId(null)} onChanged={refresh} />
-        </aside>
-      </div>
-      <CreateUserModal
+
+      {mode === "preview" ? (
+        <Alert
+          type="warning"
+          showIcon
+          icon={<ExperimentOutlined />}
+          className="staff-preview-banner"
+          title="Bản xem trước nhân sự · Dữ liệu minh họa"
+          description="Lịch làm, chấm công, thưởng, lương và đánh giá chưa có API. Mọi thao tác ở đây chỉ lưu trong trang này, không tạo tài khoản, không ghi lương hay quyền thật; tải lại trang sẽ đặt lại dữ liệu mẫu."
+        />
+      ) : null}
+
+      <Tabs
+        className="staff-tabs"
+        activeKey={tab}
+        onChange={(key) => setTab(key as TabKey)}
+        items={TABS.filter((item) => mode === "preview" || !item.previewOnly).map((item) => ({
+          key: item.key,
+          label: (
+            <span className="staff-tab-label">
+              {item.icon} {item.label}
+            </span>
+          ),
+          children: item.key === tab ? content : null,
+        }))}
+      />
+
+      <CreateStaffModal
         open={creating}
+        mode={mode}
         onClose={() => setCreating(false)}
-        onCreated={async (id) => {
+        onCreated={(result) => {
           setCreating(false);
-          await refresh();
-          setOpenId(id);
+          setTab("list");
+          if (result.mode === "live") setLiveSelected(result.user.id);
+          else setPreviewSelected(result.id);
         }}
       />
     </div>
-  );
-}
-
-function TempPasswordAlert({ username, tempPassword }: { username: string; tempPassword: string }) {
-  return (
-    <Alert
-      type="success"
-      showIcon
-      title={`Mật khẩu tạm cho “${username}”`}
-      description={
-        <div className="detail-stack" style={{ gap: 8 }}>
-          <span>Chỉ hiển thị đúng một lần — chép lại ngay để gửi cho nhân viên.</span>
-          <Typography.Text code copyable style={{ fontSize: 16 }}>
-            {tempPassword}
-          </Typography.Text>
-        </div>
-      }
-    />
-  );
-}
-
-type CreateUserValues = { username: string; fullName: string; phone?: string; practiceCertificateNumber?: string };
-
-function CreateUserModal({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated: (id: string) => Promise<void> }) {
-  const { message } = App.useApp();
-  const [form] = Form.useForm<CreateUserValues>();
-  const [created, setCreated] = useState<{ id: string; username: string; tempPassword: string } | null>(null);
-
-  useEffect(() => {
-    if (open) setCreated(null);
-  }, [open]);
-
-  const create = useMutation({
-    mutationFn: async (values: CreateUserValues) => (await http.post<Envelope<UserDetail & { tempPassword: string }>>("/users", values)).data.data,
-    onSuccess: (data) => setCreated({ id: data.id, username: data.username, tempPassword: data.tempPassword }),
-    onError: (error) => void message.error(getErrorMessage(error, "Không tạo được tài khoản")),
-  });
-
-  return (
-    <Modal
-      open={open}
-      title="Thêm tài khoản"
-      okText={created ? "Xong" : "Tạo tài khoản"}
-      cancelText="Hủy"
-      cancelButtonProps={{ hidden: created !== null }}
-      onCancel={() => {
-        form.resetFields();
-        if (created) void onCreated(created.id);
-        else onClose();
-      }}
-      onOk={() => (created ? void onCreated(created.id) : void form.validateFields().then((values) => create.mutate(values)))}
-      confirmLoading={create.isPending}
-      destroyOnHidden
-    >
-      {created ? (
-        <TempPasswordAlert username={created.username} tempPassword={created.tempPassword} />
-      ) : (
-        <Form form={form} layout="vertical">
-          <Form.Item name="username" label="Tên đăng nhập" rules={[{ required: true, message: "Nhập tên đăng nhập" }]}>
-            <Input placeholder="Ví dụ: duocsi2" autoFocus />
-          </Form.Item>
-          <Form.Item name="fullName" label="Họ tên" rules={[{ required: true, whitespace: true, message: "Nhập họ tên" }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item name="phone" label="Số điện thoại">
-            <Input inputMode="tel" />
-          </Form.Item>
-          <Form.Item name="practiceCertificateNumber" label="Số chứng chỉ hành nghề (nếu có)">
-            <Input />
-          </Form.Item>
-          <Typography.Paragraph type="secondary">Hệ thống tự sinh mật khẩu tạm; nhân viên cần đổi mật khẩu sau lần đăng nhập đầu tiên. Gán vai trò sau khi tạo.</Typography.Paragraph>
-        </Form>
-      )}
-    </Modal>
-  );
-}
-
-function UserPanel({ id, onClose, onChanged }: { id: string | null; onClose: () => void; onChanged: () => Promise<void> }) {
-  const { can, me } = useAuth();
-  const { message } = App.useApp();
-  const [editing, setEditing] = useState(false);
-  const [changingRoles, setChangingRoles] = useState(false);
-  const [resetResult, setResetResult] = useState<{ userId: string; password: string } | null>(null);
-  const queryClient = useQueryClient();
-
-  const detail = useQuery({
-    queryKey: ["user", id],
-    enabled: id !== null,
-    queryFn: async () => (await http.get<Envelope<UserDetail>>(`/users/${id}`)).data.data,
-  });
-
-  async function refresh(): Promise<void> {
-    await Promise.all([queryClient.invalidateQueries({ queryKey: ["user", id] }), onChanged()]);
-  }
-
-  const toggleActive = useMutation({
-    mutationFn: () => http.post(`/users/${id}/${detail.data?.isActive ? "deactivate" : "activate"}`),
-    onSuccess: async () => {
-      void message.success(detail.data?.isActive ? "Đã khóa tài khoản" : "Đã kích hoạt lại tài khoản");
-      await refresh();
-    },
-    onError: (error) => void message.error(getErrorMessage(error, "Không cập nhật được trạng thái")),
-  });
-
-  const resetPassword = useMutation({
-    mutationFn: async () => (await http.post<Envelope<{ tempPassword: string }>>(`/users/${id}/reset-password`)).data.data,
-    onSuccess: (data) => setResetResult({ userId: id!, password: data.tempPassword }),
-    onError: (error) => void message.error(getErrorMessage(error, "Không đặt lại được mật khẩu")),
-  });
-
-  if (id === null) {
-    return (
-      <Card title="Chi tiết tài khoản">
-        <PanelEmpty icon={<UserOutlined />} title="Chưa chọn nhân viên" description="Bấm vào một tài khoản để xem vai trò, đặt lại mật khẩu hoặc khóa tài khoản." />
-      </Card>
-    );
-  }
-
-  const user = detail.data;
-  const isSelf = user?.id === me?.user.id;
-
-  return (
-    <Card
-      title="Chi tiết tài khoản"
-      extra={
-        <Button type="text" size="small" onClick={onClose}>
-          Đóng
-        </Button>
-      }
-    >
-      {detail.isLoading || !user ? (
-        <Skeleton active paragraph={{ rows: 6 }} />
-      ) : (
-        <div className="detail-stack">
-          <div className="person-head">
-            <span className="person-avatar lg">
-              <UserOutlined />
-            </span>
-            <div>
-              <h3 className="detail-title">{user.fullName}</h3>
-              <span className="detail-sub">
-                <span className="mono">@{user.username}</span> · {user.isActive ? <Tag color="green">Đang dùng</Tag> : <Tag>Đã khóa</Tag>}
-              </span>
-            </div>
-          </div>
-          {resetResult?.userId === user.id ? <TempPasswordAlert username={user.username} tempPassword={resetResult.password} /> : null}
-          {user.mustChangePassword ? <Alert type="info" showIcon title="Nhân viên chưa đổi mật khẩu tạm." /> : null}
-          <dl className="kv-list">
-            <div>
-              <dt>Điện thoại</dt>
-              <dd>{user.phone ?? "—"}</dd>
-            </div>
-            <div>
-              <dt>Chứng chỉ hành nghề</dt>
-              <dd>{user.practiceCertificateNumber ?? "—"}</dd>
-            </div>
-          </dl>
-
-          <div className="line-list">
-            <div className="line-list-head">
-              <span>
-                <SafetyOutlined /> Vai trò
-              </span>
-              {can("user.manage") && !isSelf ? (
-                <Button size="small" type="link" onClick={() => setChangingRoles(true)}>
-                  Đổi vai trò
-                </Button>
-              ) : null}
-            </div>
-            {user.roles.length === 0 ? (
-              <div className="line-item">
-                <span>Chưa gán vai trò nào — tài khoản chưa dùng được hệ thống.</span>
-              </div>
-            ) : (
-              user.roles.map((role, index) => (
-                <div className="line-item" key={`${role.roleCode}-${index}`}>
-                  <div className="line-item-main">
-                    <strong>{role.roleName}{role.responsibleProfessional ? " · Chịu trách nhiệm chuyên môn" : ""}</strong>
-                    {role.additionalPermissions?.length ? <span>{role.additionalPermissions.length} quyền bổ sung tại cửa hàng</span> : null}
-                    {role.roleCode === "pharmacist" ? <span>{role.qualificationReference ? `Căn cứ chuyên môn: ${role.qualificationReference}` : "Chưa ghi căn cứ kiểm tra chuyên môn — cần rà soát"}</span> : null}
-                    <span>{role.storeId ? (role.storeName ?? role.storeId) : "Toàn chuỗi"}</span>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-
-          {can("user.manage") ? (
-            <div className="panel-actions-row">
-              <Button icon={<EditOutlined />} onClick={() => setEditing(true)}>
-                Sửa thông tin
-              </Button>
-              <Popconfirm title="Đặt lại mật khẩu?" description="Mật khẩu tạm mới sẽ hiện một lần, mọi phiên đăng nhập của người này bị đăng xuất." okText="Đặt lại" cancelText="Quay lại" onConfirm={() => resetPassword.mutate()}>
-                <Button icon={<KeyOutlined />} loading={resetPassword.isPending}>
-                  Đặt lại mật khẩu
-                </Button>
-              </Popconfirm>
-              {!isSelf ? (
-                <Popconfirm
-                  title={user.isActive ? "Khóa tài khoản này?" : "Kích hoạt lại tài khoản này?"}
-                  okText={user.isActive ? "Khóa" : "Kích hoạt"}
-                  okButtonProps={{ danger: user.isActive }}
-                  cancelText="Quay lại"
-                  onConfirm={() => toggleActive.mutate()}
-                >
-                  <Button danger={user.isActive} icon={<PoweroffOutlined />} loading={toggleActive.isPending}>
-                    {user.isActive ? "Khóa tài khoản" : "Kích hoạt lại"}
-                  </Button>
-                </Popconfirm>
-              ) : null}
-            </div>
-          ) : null}
-        </div>
-      )}
-
-      {user ? (
-        <EditUserModal
-          open={editing}
-          user={user}
-          onClose={() => setEditing(false)}
-          onSaved={async () => {
-            setEditing(false);
-            await refresh();
-          }}
-        />
-      ) : null}
-      {user ? (
-        <ChangeRolesModal
-          open={changingRoles}
-          user={user}
-          onClose={() => setChangingRoles(false)}
-          onSaved={async () => {
-            setChangingRoles(false);
-            await refresh();
-          }}
-        />
-      ) : null}
-    </Card>
-  );
-}
-
-type EditUserValues = { fullName: string; phone?: string; practiceCertificateNumber?: string };
-
-function EditUserModal({ open, user, onClose, onSaved }: { open: boolean; user: UserDetail; onClose: () => void; onSaved: () => Promise<void> }) {
-  const { message } = App.useApp();
-  const [form] = Form.useForm<EditUserValues>();
-
-  const save = useMutation({
-    mutationFn: (values: EditUserValues) => http.patch(`/users/${user.id}`, { ...values, version: user.version }),
-    onSuccess: async () => {
-      void message.success("Đã lưu thông tin tài khoản");
-      await onSaved();
-    },
-    onError: (error) => void message.error(getErrorMessage(error, "Không lưu được thông tin")),
-  });
-
-  return (
-    <Modal
-      open={open}
-      title="Sửa thông tin tài khoản"
-      okText="Lưu"
-      cancelText="Hủy"
-      onCancel={onClose}
-      onOk={() => void form.validateFields().then((values) => save.mutate(values))}
-      confirmLoading={save.isPending}
-      afterOpenChange={(visible) => {
-        if (visible) form.setFieldsValue({ fullName: user.fullName, phone: user.phone ?? "", practiceCertificateNumber: user.practiceCertificateNumber ?? "" });
-      }}
-      destroyOnHidden
-    >
-      <Form form={form} layout="vertical">
-        <Form.Item name="fullName" label="Họ tên" rules={[{ required: true, whitespace: true, message: "Nhập họ tên" }]}>
-          <Input />
-        </Form.Item>
-        <Form.Item name="phone" label="Số điện thoại">
-          <Input inputMode="tel" />
-        </Form.Item>
-        <Form.Item name="practiceCertificateNumber" label="Số chứng chỉ hành nghề">
-          <Input />
-        </Form.Item>
-      </Form>
-    </Modal>
-  );
-}
-
-type RoleRow = { key: string; roleCode: string; storeId: string | null; additionalPermissions: string[]; qualificationReference: string; responsibleProfessional: boolean };
-
-function ChangeRolesModal({ open, user, onClose, onSaved }: { open: boolean; user: UserDetail; onClose: () => void; onSaved: () => Promise<void> }) {
-  const { message } = App.useApp();
-  const [rows, setRows] = useState<RoleRow[]>([]);
-
-  const roles = useQuery({ queryKey: ["all-roles"], enabled: open, queryFn: async () => (await http.get<Envelope<RoleItem[]>>("/roles")).data.data });
-  const stores = useQuery({ queryKey: ["all-stores"], enabled: open, queryFn: async () => (await http.get<Envelope<{ items: StoreDetail[] }>>("/stores")).data.data.items });
-
-  useEffect(() => {
-    if (!open) return;
-    setRows(user.roles.map((role: UserRoleAssignment, index: number) => ({ key: `${role.roleCode}-${index}`, roleCode: role.roleCode, storeId: role.storeId, additionalPermissions: role.additionalPermissions ?? [], qualificationReference: role.qualificationReference ?? "", responsibleProfessional: role.responsibleProfessional ?? false })));
-  }, [open, user.roles]);
-
-  const save = useMutation({
-    mutationFn: () => http.put(`/users/${user.id}/roles`, rows.map((row) => ({ roleCode: row.roleCode, storeId: row.storeId, additionalPermissions: row.additionalPermissions, qualificationReference: row.qualificationReference || null, responsibleProfessional: row.responsibleProfessional }))),
-    onSuccess: async () => {
-      void message.success("Đã cập nhật vai trò");
-      await onSaved();
-    },
-    onError: (error) => void message.error(getErrorMessage(error, "Không cập nhật được vai trò")),
-  });
-
-  return (
-    <Modal
-      open={open}
-      title={`Đổi vai trò — ${user.fullName}`}
-      okText="Lưu vai trò"
-      cancelText="Hủy"
-      onCancel={onClose}
-      onOk={() => save.mutate()}
-      okButtonProps={{ disabled: rows.some((row) => !row.roleCode || (row.roleCode === "pharmacist" && !row.qualificationReference.trim())) }}
-      confirmLoading={save.isPending}
-      width={760}
-      destroyOnHidden
-    >
-      <div className="detail-stack">
-        <Alert type="warning" showIcon title="Lưu sẽ thay toàn bộ vai trò hiện có và đăng xuất mọi phiên đang đăng nhập của người này." />
-        {rows.map((row) => (
-          <div key={row.key} className="detail-stack" style={{ borderBottom: "1px solid #eee", paddingBottom: 16 }}><div className="role-row">
-            <Select
-              placeholder="Chọn vai trò"
-              loading={roles.isLoading}
-              value={row.roleCode || undefined}
-              onChange={(roleCode) => setRows((current) => current.map((item) => (item.key === row.key ? { ...item, roleCode, additionalPermissions: [], responsibleProfessional: false, qualificationReference: "" } : item)))}
-              options={(roles.data ?? []).map((role) => ({ value: role.code, label: role.name }))}
-            />
-            <Select
-              allowClear
-              placeholder="Toàn chuỗi"
-              loading={stores.isLoading}
-              value={row.storeId ?? undefined}
-              onChange={(storeId) => setRows((current) => current.map((item) => (item.key === row.key ? { ...item, storeId: storeId ?? null, additionalPermissions: [], responsibleProfessional: false } : item)))}
-              options={(stores.data ?? []).map((store) => ({ value: store.id, label: `${store.code} — ${store.name}` }))}
-            />
-            <Button type="text" danger icon={<DeleteOutlined />} aria-label="Xóa vai trò" onClick={() => setRows((current) => current.filter((item) => item.key !== row.key))} />
-          </div>
-          {row.roleCode === "pharmacist" ? <>
-            <Typography.Text>Căn cứ đã kiểm tra bằng cấp chuyên môn</Typography.Text>
-            <Input aria-label="Căn cứ kiểm tra chuyên môn" maxLength={500} placeholder="Trình độ, số văn bằng hoặc mã hồ sơ đã đối chiếu" value={row.qualificationReference}
-              onChange={(e) => setRows((current) => current.map((item) => item.key === row.key ? { ...item, qualificationReference: e.target.value } : item))} />
-            <Typography.Text type="secondary">Người lưu xác nhận đã kiểm tra hồ sơ phù hợp với công việc. Thông tin nhập không thay thế việc xác minh văn bằng.</Typography.Text>
-            {row.storeId ? <>
-              <Typography.Text>Quyền bổ sung tại cửa hàng</Typography.Text>
-              <Select mode="multiple" aria-label="Quyền bổ sung" placeholder="Chỉ cấp quyền theo nhiệm vụ được phân công" value={row.additionalPermissions}
-                options={(roles.data?.find((role) => role.code === row.roleCode)?.additionalPermissions ?? []).map((p) => ({ value: p.code, label: p.description }))}
-                onChange={(additionalPermissions: string[]) => setRows((current) => current.map((item) => item.key === row.key ? { ...item, additionalPermissions } : item))} />
-              <Checkbox checked={row.responsibleProfessional} disabled={!user.practiceCertificateNumber?.trim() || !user.isActive}
-                onChange={(e) => setRows((current) => current.map((item) => item.key === row.key ? { ...item, responsibleProfessional: e.target.checked } : item))}>
-                Phân công chịu trách nhiệm chuyên môn tại cửa hàng này
-              </Checkbox>
-              <Typography.Text type="secondary">Cần hồ sơ chứng chỉ hành nghề và tài khoản đang hoạt động. Chức danh này không tự cấp thêm quyền.</Typography.Text>
-            </> : <Typography.Text type="secondary">Để cấp quyền bổ sung hoặc phân công phụ trách, thêm một dòng Dược sĩ tại cửa hàng cụ thể.</Typography.Text>}
-          </> : null}
-          </div>
-        ))}
-        <Button type="dashed" icon={<PlusOutlined />} onClick={() => setRows((current) => [...current, { key: crypto.randomUUID(), roleCode: "", storeId: null, additionalPermissions: [], qualificationReference: "", responsibleProfessional: false }])}>
-          Thêm vai trò
-        </Button>
-        <Typography.Text type="secondary">Để trống “Phạm vi” nghĩa là vai trò áp dụng cho toàn chuỗi.</Typography.Text>
-      </div>
-    </Modal>
   );
 }
