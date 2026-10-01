@@ -1312,7 +1312,7 @@ Nguyên tắc (giữ từ bản gốc, bổ sung):
 |---|---|---|---|
 | GET | `/stores` | Danh sách cửa hàng người dùng được phép làm việc | Đã đăng nhập |
 | GET | `/stores/{id}` | Chi tiết cửa hàng | Có vai trò tại cửa hàng, hoặc `store.manage` |
-| POST | `/stores` | Mở cửa hàng mới trong chuỗi | `store.manage` |
+| POST | `/stores` | Mở cửa hàng mới trong chuỗi. Người tạo không có `store.manage` toàn chuỗi được gán vai trò quản lý tại cửa hàng mới trong cùng giao dịch, để thấy và vào được ngay; audit `STORE_CREATE` ghi `creatorAssignedRoles` | `store.manage` |
 | PATCH | `/stores/{id}` | Sửa thông tin cửa hàng | `store.manage` |
 | POST | `/stores/{id}/deactivate` | Ngừng hoạt động; chặn mọi nghiệp vụ mới tại cửa hàng đó | `store.manage` |
 

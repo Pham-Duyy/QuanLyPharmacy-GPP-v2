@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { ROLES } from "../../config/permissions.js";
 import { prisma } from "../../db/prisma.js";
 import { AppError } from "../../lib/app-error.js";
 import { updateWithVersion } from "../../lib/optimistic.js";
@@ -69,35 +70,69 @@ storesRouter.get("/stores/:id", async (req, res) => {
   });
 });
 
-/** POST /api/v1/stores: mở cửa hàng mới trong chuỗi (contract §21). */
+/** Vai trò mang quyền mở/quản lý cửa hàng — gán cho người tạo tại cửa hàng mới. */
+const STORE_MANAGER_ROLES = ROLES.filter((role) => role.permissions.includes("store.manage")).map(
+  (role) => role.code,
+);
+
+/**
+ * POST /api/v1/stores: mở cửa hàng mới trong chuỗi (contract §21).
+ *
+ * Danh sách cửa hàng chỉ gồm nơi người dùng có vai trò (trừ vai trò toàn
+ * chuỗi). Người tạo không có `store.manage` toàn chuỗi thì được gán vai trò
+ * quản lý tại cửa hàng mới, cùng giao dịch — nếu không, chính họ không thấy
+ * và không vào được cửa hàng vừa mở.
+ */
 storesRouter.post("/stores", requirePermission("store.manage"), async (req, res) => {
   const input = parseOrThrow(createStoreSchema, req.body);
+  const auth = req.auth!;
+  const assignCreator = !auth.chainPermissions.has("store.manage");
 
   const store = await withMappedErrors(
     () =>
-      prisma.store.create({
-        data: {
-          code: input.code.toUpperCase(),
-          name: input.name,
-          address: input.address ?? null,
-          phone: input.phone ?? null,
-          gppCertificateNumber: input.gppCertificateNumber ?? null,
-          licenseNumber: input.licenseNumber ?? null,
-        },
+      prisma.$transaction(async (tx) => {
+        const created = await tx.store.create({
+          data: {
+            code: input.code.toUpperCase(),
+            name: input.name,
+            address: input.address ?? null,
+            phone: input.phone ?? null,
+            gppCertificateNumber: input.gppCertificateNumber ?? null,
+            licenseNumber: input.licenseNumber ?? null,
+          },
+        });
+
+        const roles = assignCreator
+          ? await tx.role.findMany({ where: { code: { in: STORE_MANAGER_ROLES } } })
+          : [];
+        if (roles.length)
+          await tx.userRole.createMany({
+            data: roles.map((role) => ({
+              userId: auth.userId,
+              roleId: role.id,
+              storeId: created.id,
+              assignedBy: auth.userId,
+            })),
+          });
+
+        await tx.auditLog.create({
+          data: {
+            storeId: created.id,
+            actorId: auth.userId,
+            action: "STORE_CREATE",
+            resourceType: "store",
+            resourceId: created.id,
+            after: {
+              code: created.code,
+              name: created.name,
+              creatorAssignedRoles: roles.map((role) => role.code),
+            },
+          },
+        });
+        return created;
       }),
     { conflictMessage: "Mã cửa hàng đã tồn tại" },
   );
-
-  await prisma.auditLog.create({
-    data: {
-      storeId: store.id,
-      actorId: req.auth!.userId,
-      action: "STORE_CREATE",
-      resourceType: "store",
-      resourceId: store.id,
-      after: { code: store.code, name: store.name },
-    },
-  });
 
   sendData(res, store, 201);
 });
