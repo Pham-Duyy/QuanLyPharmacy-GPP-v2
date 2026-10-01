@@ -6,6 +6,7 @@ import {
   login,
   seedFixture,
   truncateAll,
+  useTestRole,
   type Fixture,
 } from "../../test/helpers.js";
 
@@ -109,7 +110,9 @@ describe("Đổi vai trò", () => {
       {
         roleCode: "warehouse_staff",
         roleName: expect.any(String),
-        additionalPermissions: [], qualificationReference: null, responsibleProfessional: false,
+        additionalPermissions: [],
+        qualificationReference: null,
+        responsibleProfessional: false,
         storeId: fixture.storeId,
         storeName: expect.any(String),
       },
@@ -152,9 +155,25 @@ describe("Đổi vai trò", () => {
     // khác (mô phỏng trường hợp permission user.manage được cấp cho vai
     // trò khác trong tương lai, vẫn phải bị chặn).
     const { replaceRoles } = await import("./users.service.js");
+    const { AuthContext } = await import("../auth/auth.context.js");
+    const actor = new AuthContext({
+      userId: otherAdmin.body.data.id,
+      username: "khac",
+      fullName: "Người quản lý khác",
+      sessionId: "test",
+      mustChangePassword: false,
+      defaultStoreId: null,
+      chainPermissions: new Set(["user.manage"]),
+      storePermissions: new Map(),
+    });
     await expect(
-      replaceRoles(admin.id, otherAdmin.body.data.id, [
-        { roleCode: "warehouse_staff", storeId: fixture.storeId, additionalPermissions: [], responsibleProfessional: false },
+      replaceRoles(admin.id, actor, [
+        {
+          roleCode: "warehouse_staff",
+          storeId: fixture.storeId,
+          additionalPermissions: [],
+          responsibleProfessional: false,
+        },
       ]),
     ).rejects.toMatchObject({ status: 422, code: "VALIDATION_ERROR" });
 
@@ -177,6 +196,55 @@ describe("Đổi vai trò", () => {
       .send([{ roleCode: "khong_ton_tai", storeId: null }])
       .expect(422);
     expect(response.body.error.code).toBe("VALIDATION_ERROR");
+  });
+});
+
+describe("Phạm vi người đổi vai trò", () => {
+  it("quản lý tại một cửa hàng không giao được vai trò toàn chuỗi hay ở cửa hàng khác", async () => {
+    await useTestRole(fixture.salesId, "admin", fixture.storeId);
+    const storeManager = (await login("banhang")).token;
+    const kho = {
+      roleCode: "warehouse_staff",
+      additionalPermissions: [],
+      responsibleProfessional: false,
+    };
+
+    const chain = await api()
+      .put(`/api/v1/users/${fixture.pharmacistId}/roles`)
+      .set(h(storeManager))
+      .send([{ ...kho, storeId: null }])
+      .expect(403);
+    expect(chain.body.error.message).toMatch(/toàn chuỗi/);
+
+    await api()
+      .put(`/api/v1/users/${fixture.pharmacistId}/roles`)
+      .set(h(storeManager))
+      .send([{ ...kho, storeId: fixture.otherStoreId }])
+      .expect(403);
+  });
+
+  it("không gỡ được vai trò người khác đang giữ ở phạm vi mình không quản lý", async () => {
+    await useTestRole(fixture.salesId, "admin", fixture.storeId);
+    const storeManager = (await login("banhang")).token;
+    // Admin toàn chuỗi: quản lý NT01 không được thay vai trò của người này.
+    await api()
+      .put(`/api/v1/users/${fixture.adminId}/roles`)
+      .set(h(storeManager))
+      .send([{ roleCode: "warehouse_staff", storeId: fixture.storeId }])
+      .expect(403);
+    expect(
+      await prisma.userRole.count({ where: { userId: fixture.adminId, storeId: null } }),
+    ).toBeGreaterThan(0);
+  });
+
+  it("quản lý cửa hàng vẫn đổi được vai trò trong cửa hàng của mình", async () => {
+    await useTestRole(fixture.salesId, "admin", fixture.storeId);
+    const storeManager = (await login("banhang")).token;
+    await api()
+      .put(`/api/v1/users/${fixture.pharmacistId}/roles`)
+      .set(h(storeManager))
+      .send([{ roleCode: "warehouse_staff", storeId: fixture.storeId }])
+      .expect(200);
   });
 });
 
@@ -309,6 +377,119 @@ describe("Danh sách vai trò", () => {
     );
     const admin = response.body.data.find((item: { code: string }) => item.code === "admin");
     expect(admin.permissions).toContain("user.manage");
+    // Mô tả quyền lấy từ cấu hình, để giao diện tóm tắt quyền mà không viết cứng.
+    expect(admin.permissionDetails).toContainEqual({
+      code: "user.manage",
+      description: "Quản lý tài khoản, vai trò",
+    });
+    expect(admin.permissionDetails).toHaveLength(admin.permissions.length);
+  });
+});
+
+describe("Tạo nhân viên kèm mật khẩu và phân quyền trong một giao dịch", () => {
+  const PASSWORD = "Khoi2026dau";
+
+  function newStaff(overrides: Record<string, unknown> = {}) {
+    return {
+      username: "kho01",
+      fullName: "Nhân viên kho",
+      password: PASSWORD,
+      roles: [{ roleCode: "warehouse_staff", storeId: fixture.storeId }],
+      ...overrides,
+    };
+  }
+
+  it("tạo tài khoản, mật khẩu do người tạo đặt và vai trò cùng lúc; không trả lại mật khẩu", async () => {
+    const response = await api().post("/api/v1/users").set(h()).send(newStaff()).expect(201);
+
+    expect(response.body.data.tempPassword).toBeUndefined();
+    expect(JSON.stringify(response.body)).not.toContain(PASSWORD);
+    expect(response.body.data.mustChangePassword).toBe(true);
+    expect(response.body.data.roles).toEqual([
+      expect.objectContaining({ roleCode: "warehouse_staff", storeId: fixture.storeId }),
+    ]);
+
+    const loginResponse = await api()
+      .post("/api/v1/auth/login")
+      .send({ username: "kho01", password: PASSWORD })
+      .expect(200);
+    expect(loginResponse.body.data.accessToken).toBeTruthy();
+
+    const audit = await prisma.auditLog.findFirstOrThrow({
+      where: { action: "USER_CREATE", resourceId: response.body.data.id },
+    });
+    expect(JSON.stringify(audit)).not.toContain(PASSWORD);
+    expect(audit.after).toMatchObject({ password: "SET_BY_MANAGER", mustChangePassword: true });
+  });
+
+  it("tôn trọng lựa chọn không bắt đổi mật khẩu ở lần đăng nhập đầu", async () => {
+    const response = await api()
+      .post("/api/v1/users")
+      .set(h())
+      .send(newStaff({ mustChangePassword: false }))
+      .expect(201);
+    expect(response.body.data.mustChangePassword).toBe(false);
+  });
+
+  it("phân quyền không hợp lệ thì không tạo tài khoản nào", async () => {
+    // Dược sĩ thiếu căn cứ chuyên môn: bị chặn ở bước phân quyền.
+    const response = await api()
+      .post("/api/v1/users")
+      .set(h())
+      .send(newStaff({ roles: [{ roleCode: "pharmacist", storeId: fixture.storeId }] }))
+      .expect(422);
+    expect(response.body.error.message).toMatch(/căn cứ/);
+    expect(await prisma.user.count({ where: { username: "kho01" } })).toBe(0);
+  });
+
+  it("chặn cặp cửa hàng / vai trò bị lặp", async () => {
+    const role = { roleCode: "warehouse_staff", storeId: fixture.storeId };
+    await api()
+      .post("/api/v1/users")
+      .set(h())
+      .send(newStaff({ roles: [role, role] }))
+      .expect(422);
+    expect(await prisma.user.count({ where: { username: "kho01" } })).toBe(0);
+  });
+
+  it("mật khẩu phải đúng chính sách hiện hành", async () => {
+    const response = await api()
+      .post("/api/v1/users")
+      .set(h())
+      .send(newStaff({ password: "chuachuso" }))
+      .expect(422);
+    expect(JSON.stringify(response.body.error)).toMatch(/ít nhất 10 ký tự|phải có số/);
+    expect(await prisma.user.count({ where: { username: "kho01" } })).toBe(0);
+  });
+
+  it("báo rõ tên đăng nhập đã tồn tại", async () => {
+    const response = await api()
+      .post("/api/v1/users")
+      .set(h())
+      .send(newStaff({ username: "ADMIN" }))
+      .expect(409);
+    expect(response.body.error.message).toBe("Tên đăng nhập đã tồn tại");
+  });
+
+  it("quản lý tại một cửa hàng chỉ giao được vai trò trong cửa hàng đó", async () => {
+    await useTestRole(fixture.salesId, "admin", fixture.storeId);
+    const storeManager = (await login("banhang")).token;
+
+    const chain = await api()
+      .post("/api/v1/users")
+      .set(h(storeManager))
+      .send(newStaff({ roles: [{ roleCode: "auditor", storeId: null }] }))
+      .expect(403);
+    expect(chain.body.error.message).toMatch(/toàn chuỗi/);
+
+    await api()
+      .post("/api/v1/users")
+      .set(h(storeManager))
+      .send(newStaff({ roles: [{ roleCode: "warehouse_staff", storeId: fixture.otherStoreId }] }))
+      .expect(403);
+    expect(await prisma.user.count({ where: { username: "kho01" } })).toBe(0);
+
+    await api().post("/api/v1/users").set(h(storeManager)).send(newStaff()).expect(201);
   });
 });
 

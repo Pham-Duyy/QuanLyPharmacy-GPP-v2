@@ -193,7 +193,7 @@ describe("Bốn vai trò và phân công theo cửa hàng", () => {
   it("quản lý kiêm dược sĩ mới được bán; không cấp quyền phê duyệt ngoài danh sách", async () => {
     await replaceRoles(
       f.salesId,
-      f.adminId,
+      (await loadAuthContext(f.adminId, "test"))!,
       replaceRolesSchema.parse([{ roleCode: "admin", storeId: f.storeId }, assignment()]),
     );
     const auth = (await loadAuthContext(f.salesId, "test"))!;

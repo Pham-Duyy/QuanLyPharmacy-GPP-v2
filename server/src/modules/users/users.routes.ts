@@ -26,11 +26,16 @@ usersRouter.get("/users/:id", async (req, res) => {
 
 usersRouter.post("/users", async (req, res) => {
   const input = parseOrThrow(createUserSchema, req.body);
-  const result = await service.create(input, req.auth!.userId);
+  const result = await service.create(input, req.auth!);
   const detail = await service.getDetail(result.id);
-  // Mật khẩu tạm chỉ xuất hiện đúng một lần trong response này, không lưu
-  // lại ở đâu khác — người tạo phải chép/gửi ngay cho nhân sự.
-  sendData(res, { ...detail, tempPassword: result.tempPassword }, 201);
+  // Mật khẩu tạm (khi máy chủ tự sinh) chỉ xuất hiện đúng một lần trong
+  // response này, không lưu lại ở đâu khác. Mật khẩu do người tạo đặt thì
+  // không bao giờ được trả lại.
+  sendData(
+    res,
+    result.tempPassword ? { ...detail, tempPassword: result.tempPassword } : detail,
+    201,
+  );
 });
 
 usersRouter.patch("/users/:id", async (req, res) => {
@@ -43,7 +48,7 @@ usersRouter.patch("/users/:id", async (req, res) => {
 usersRouter.put("/users/:id/roles", async (req, res) => {
   const input = parseOrThrow(replaceRolesSchema, req.body);
   const id = String(req.params.id);
-  await service.replaceRoles(id, req.auth!.userId, input);
+  await service.replaceRoles(id, req.auth!, input);
   sendData(res, await service.getDetail(id));
 });
 

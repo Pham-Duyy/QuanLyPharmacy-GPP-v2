@@ -5,14 +5,17 @@ export const loginSchema = z.object({
   password: z.string().min(1, "Thiếu mật khẩu").max(200),
 });
 
+/** Luật mật khẩu dùng chung: đổi mật khẩu và đặt mật khẩu khi tạo tài khoản. */
+export const newPasswordSchema = z
+  .string()
+  .min(10, "Mật khẩu mới phải dài ít nhất 10 ký tự")
+  .max(200)
+  .regex(/[a-zA-Z]/, "Mật khẩu mới phải có chữ")
+  .regex(/[0-9]/, "Mật khẩu mới phải có số");
+
 export const changePasswordSchema = z.object({
   currentPassword: z.string().min(1, "Thiếu mật khẩu hiện tại").max(200),
-  newPassword: z
-    .string()
-    .min(10, "Mật khẩu mới phải dài ít nhất 10 ký tự")
-    .max(200)
-    .regex(/[a-zA-Z]/, "Mật khẩu mới phải có chữ")
-    .regex(/[0-9]/, "Mật khẩu mới phải có số"),
+  newPassword: newPasswordSchema,
 });
 
 export type LoginInput = z.infer<typeof loginSchema>;

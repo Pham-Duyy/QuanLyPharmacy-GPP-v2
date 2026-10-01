@@ -670,6 +670,8 @@ export type RoleItem = {
   name: string;
   description: string | null;
   permissions: string[];
+  /** Mô tả từng quyền của vai trò, lấy từ cấu hình máy chủ. */
+  permissionDetails: Array<{ code: string; description: string }>;
 };
 
 // --- Cửa hàng (contract §21) -------------------------------------------------

@@ -1,5 +1,21 @@
 import { z } from "zod";
+import { newPasswordSchema } from "../auth/auth.schema.js";
 
+const roleAssignmentSchema = z.object({
+  roleCode: z.string().trim().min(1, "Thiếu roleCode"),
+  storeId: z.uuid("storeId không hợp lệ").nullish(),
+  additionalPermissions: z.array(z.string()).default([]),
+  qualificationReference: z.string().trim().min(1).max(500).nullish(),
+  responsibleProfessional: z.boolean().default(false),
+});
+
+/**
+ * `POST /users`. Hai cách dùng (contract §21):
+ * - Chỉ thông tin cơ bản: máy chủ sinh mật khẩu tạm, trả về một lần; vai trò
+ *   gán sau bằng `PUT /users/{id}/roles`.
+ * - Kèm `password` và/hoặc `roles`: tài khoản, mật khẩu và phân quyền được
+ *   tạo trong cùng một giao dịch — lỗi ở phân quyền thì không có tài khoản nào.
+ */
 export const createUserSchema = z.object({
   username: z
     .string()
@@ -11,6 +27,10 @@ export const createUserSchema = z.object({
   phone: z.string().trim().max(20).nullish(),
   practiceCertificateNumber: z.string().trim().max(100).nullish(),
   defaultStoreId: z.uuid("defaultStoreId không hợp lệ").nullish(),
+  password: newPasswordSchema.optional(),
+  /** Chỉ có nghĩa khi gửi `password`; mật khẩu tạm do máy chủ sinh luôn bắt đổi. */
+  mustChangePassword: z.boolean().default(true),
+  roles: z.array(roleAssignmentSchema).max(20).optional(),
 });
 
 /**
@@ -22,14 +42,6 @@ export const patchUserSchema = z.object({
   phone: z.string().trim().max(20).nullish(),
   practiceCertificateNumber: z.string().trim().max(100).nullish(),
   version: z.coerce.number().int().positive("Thiếu version"),
-});
-
-const roleAssignmentSchema = z.object({
-  roleCode: z.string().trim().min(1, "Thiếu roleCode"),
-  storeId: z.uuid("storeId không hợp lệ").nullish(),
-  additionalPermissions: z.array(z.string()).default([]),
-  qualificationReference: z.string().trim().min(1).max(500).nullish(),
-  responsibleProfessional: z.boolean().default(false),
 });
 
 /** `PUT /users/{id}/roles`: thân request là chính mảng gán vai trò (contract §21). */
