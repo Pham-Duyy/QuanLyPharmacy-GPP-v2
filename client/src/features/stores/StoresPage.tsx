@@ -12,7 +12,7 @@ type StoreListItem = { id: string; code: string; name: string; address: string |
 
 /** Quản lý cửa hàng trong chuỗi (contract §21). */
 export function StoresPage() {
-  const { can } = useAuth();
+  const { can, reloadMe } = useAuth();
   const [openId, setOpenId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const queryClient = useQueryClient();
@@ -23,7 +23,9 @@ export function StoresPage() {
   });
 
   async function refresh(): Promise<void> {
-    await queryClient.invalidateQueries({ queryKey: ["all-stores-page"] });
+    // Ô chọn cửa hàng trên đầu trang đọc danh sách từ /auth/me: tải lại để cửa
+    // hàng vừa mở (hoặc vừa ngừng) hiện đúng ngay, không cần đăng nhập lại.
+    await Promise.all([queryClient.invalidateQueries({ queryKey: ["all-stores-page"] }), queryClient.invalidateQueries({ queryKey: ["all-stores"] }), reloadMe()]);
   }
 
   return (

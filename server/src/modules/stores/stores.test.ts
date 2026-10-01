@@ -6,6 +6,7 @@ import {
   login,
   seedFixture,
   truncateAll,
+  useTestRole,
   type Fixture,
 } from "../../test/helpers.js";
 
@@ -45,6 +46,47 @@ describe("Mở cửa hàng mới", () => {
 
     const list = await api().get("/api/v1/stores").set(h()).expect(200);
     expect(list.body.data.items.some((item: { code: string }) => item.code === "NT03")).toBe(true);
+  });
+
+  it("quản lý một cửa hàng mở cửa hàng mới: được gán quản lý tại đó, thấy và vào được ngay", async () => {
+    await useTestRole(fixture.salesId, "admin", fixture.storeId);
+    const manager = (await login("banhang")).token;
+
+    const created = await api()
+      .post("/api/v1/stores")
+      .set(h(manager))
+      .send({ code: "nt05", name: "Nhà thuốc chi nhánh 5" })
+      .expect(201);
+    const id = created.body.data.id as string;
+
+    const list = await api().get("/api/v1/stores").set(h(manager)).expect(200);
+    expect(list.body.data.items.map((item: { code: string }) => item.code)).toContain("NT05");
+    const detail = await api()
+      .get(`/api/v1/stores/${id}`)
+      .set(authHeaders(manager, id))
+      .expect(200);
+    expect(detail.body.data.permissions).toContain("store.manage");
+
+    const roles = await prisma.userRole.findMany({
+      where: { userId: fixture.salesId, storeId: id },
+      include: { role: true },
+    });
+    expect(roles.map((item) => item.role.code)).toEqual(["admin"]);
+    const audit = await prisma.auditLog.findFirstOrThrow({
+      where: { action: "STORE_CREATE", resourceId: id },
+    });
+    expect(audit.after).toMatchObject({ creatorAssignedRoles: ["admin"] });
+  });
+
+  it("admin toàn chuỗi mở cửa hàng: không gán thêm vai trò (vốn đã thấy mọi cửa hàng)", async () => {
+    const created = await api()
+      .post("/api/v1/stores")
+      .set(h())
+      .send({ code: "nt06", name: "Nhà thuốc chi nhánh 6" })
+      .expect(201);
+    expect(
+      await prisma.userRole.count({ where: { storeId: created.body.data.id as string } }),
+    ).toBe(0);
   });
 
   it("chặn trùng mã cửa hàng", async () => {
