@@ -232,3 +232,66 @@ describe("Chi tiết theo sản phẩm, nhóm hàng, thanh toán, nhân viên", 
     expect(response.body.data.staffPerformance[0]).toMatchObject({ invoiceCount: 2 });
   });
 });
+
+describe("Doanh thu thuần theo người bán", () => {
+  it("hàng trả trừ vào người bán của hóa đơn gốc, không phải người nhận trả; tổng khớp KPI", async () => {
+    const product = await makeProduct("TH0100", "Paracetamol 500mg", 10000);
+    await makeBatch(product.id, "L1", 100, 4000);
+    // Dược sĩ "banhang" bán 10 viên; dược sĩ "duocsi" bán 3 viên.
+    const soldByOther = await sell(product, 10, salesToken);
+    await sell(product, 3, pharmacistToken);
+    // "duocsi" nhận trả 4 viên trên hóa đơn của "banhang".
+    await receiveReturn(soldByOther.body.data.id, {
+      disposition: "RESTOCK",
+      lines: [
+        { invoiceLineId: soldByOther.body.data.lines[0].id, unitId: product.unitId, quantity: 4 },
+      ],
+    });
+
+    const data = (await fetchReport(todayStr(0), todayStr(1)).expect(200)).body.data;
+    const byId = new Map(data.staffPerformance.map((row: { userId: string }) => [row.userId, row]));
+    expect(byId.get(fixture.salesId)).toMatchObject({
+      revenue: 100_000,
+      refund: 40_000,
+      netRevenue: 60_000,
+      invoiceCount: 1,
+      returnCount: 1,
+    });
+    expect(byId.get(fixture.pharmacistId)).toMatchObject({
+      revenue: 30_000,
+      refund: 0,
+      netRevenue: 30_000,
+    });
+    const totalNet = data.staffPerformance.reduce(
+      (sum: number, row: { netRevenue: number }) => sum + row.netRevenue,
+      0,
+    );
+    expect(totalNet).toBe(data.kpis.netRevenue);
+  });
+
+  it("kỳ chỉ có hàng trả của hóa đơn kỳ trước: người bán gốc vẫn có dòng, doanh thu thuần âm", async () => {
+    const product = await makeProduct("TH0101", "Vitamin C", 10000);
+    await makeBatch(product.id, "L1", 100, 4000);
+    const invoice = await sell(product, 5, salesToken);
+    await prisma.invoice.update({
+      where: { id: invoice.body.data.id },
+      data: { businessDate: dayOffset(-3) },
+    });
+    await receiveReturn(invoice.body.data.id, {
+      disposition: "RESTOCK",
+      lines: [
+        { invoiceLineId: invoice.body.data.lines[0].id, unitId: product.unitId, quantity: 2 },
+      ],
+    });
+
+    const data = (await fetchReport(todayStr(0), todayStr(1)).expect(200)).body.data;
+    expect(data.staffPerformance).toEqual([
+      expect.objectContaining({
+        userId: fixture.salesId,
+        revenue: 0,
+        refund: 20_000,
+        netRevenue: -20_000,
+      }),
+    ]);
+  });
+});

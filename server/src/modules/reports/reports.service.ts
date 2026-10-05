@@ -272,7 +272,13 @@ type TopProductRow = {
 };
 type CategoryRow = { category_name: string; revenue: bigint };
 type PaymentRow = { payment_method: string; amount: bigint; count: bigint };
-type StaffRow = { seller_id: string; revenue: bigint; invoice_count: bigint };
+type StaffRow = {
+  seller_id: string;
+  revenue: bigint;
+  invoice_count: bigint;
+  refund: bigint;
+  return_count: bigint;
+};
 
 /** Báo cáo kinh doanh theo khoảng ngày tùy chọn — không nằm trong danh sách endpoint gốc của §19, dùng dữ liệu thật sẵn có (giá vốn theo lô, phân bổ hóa đơn), không có số minh họa. */
 export async function getReportsSummary(storeId: string, from: Date, to: Date) {
@@ -290,14 +296,13 @@ export async function getReportsSummary(storeId: string, from: Date, to: Date) {
     categoryRows,
     paymentRows,
     staffRows,
-  ] =
-    await Promise.all([
-      getTotals(storeId, from, to),
-      getTotals(storeId, previousFrom, previousTo),
-      getDailyTrend(storeId, from, to),
-      getCostCounts(storeId, from, to),
-      getCostCounts(storeId, previousFrom, previousTo),
-      prisma.$queryRaw<TopProductRow[]>(Prisma.sql`
+  ] = await Promise.all([
+    getTotals(storeId, from, to),
+    getTotals(storeId, previousFrom, previousTo),
+    getDailyTrend(storeId, from, to),
+    getCostCounts(storeId, from, to),
+    getCostCounts(storeId, previousFrom, previousTo),
+    prisma.$queryRaw<TopProductRow[]>(Prisma.sql`
       SELECT il.product_id::text, MAX(il.product_name) AS product_name, SUM(il.base_quantity)::int AS quantity, SUM(il.line_total)::bigint AS revenue
       FROM invoice_lines il
       JOIN invoices i ON i.id = il.invoice_id
@@ -306,7 +311,7 @@ export async function getReportsSummary(storeId: string, from: Date, to: Date) {
       ORDER BY revenue DESC
       LIMIT 10
     `),
-      prisma.$queryRaw<CategoryRow[]>(Prisma.sql`
+    prisma.$queryRaw<CategoryRow[]>(Prisma.sql`
       SELECT c.name AS category_name, SUM(il.line_total)::bigint AS revenue
       FROM invoice_lines il
       JOIN invoices i ON i.id = il.invoice_id
@@ -317,21 +322,39 @@ export async function getReportsSummary(storeId: string, from: Date, to: Date) {
       ORDER BY revenue DESC
       LIMIT 8
     `),
-      prisma.$queryRaw<PaymentRow[]>(Prisma.sql`
+    prisma.$queryRaw<PaymentRow[]>(Prisma.sql`
       SELECT payment_method, SUM(total_amount)::bigint AS amount, COUNT(*)::bigint AS count
       FROM invoices
       WHERE store_id = ${storeId}::uuid AND status = 'COMPLETED' AND business_date >= ${from}::date AND business_date < ${to}::date
       GROUP BY payment_method
     `),
-      prisma.$queryRaw<StaffRow[]>(Prisma.sql`
-      SELECT seller_id::text, SUM(total_amount)::bigint AS revenue, COUNT(*)::bigint AS invoice_count
-      FROM invoices
-      WHERE store_id = ${storeId}::uuid AND status = 'COMPLETED' AND business_date >= ${from}::date AND business_date < ${to}::date
-      GROUP BY seller_id
-      ORDER BY revenue DESC
-      LIMIT 10
+    // Doanh thu thuần theo người bán, cùng luật với KPI toàn cửa hàng: hóa
+    // đơn hoàn thành trong kỳ trừ tiền hoàn của phiếu trả lập trong kỳ (theo
+    // ngày trả). Hàng trả quy về người bán của hóa đơn gốc, không phải người
+    // nhận trả. Đủ mọi người bán, không cắt top — tổng khớp KPI netRevenue.
+    prisma.$queryRaw<StaffRow[]>(Prisma.sql`
+      WITH sold AS (
+        SELECT seller_id, SUM(total_amount) AS revenue, COUNT(*) AS invoice_count
+        FROM invoices
+        WHERE store_id = ${storeId}::uuid AND status = 'COMPLETED' AND business_date >= ${from}::date AND business_date < ${to}::date
+        GROUP BY seller_id
+      ), returned AS (
+        SELECT i.seller_id, SUM(r.refund_amount) AS refund, COUNT(*) AS return_count
+        FROM returns r
+        JOIN invoices i ON i.id = r.invoice_id
+        WHERE r.store_id = ${storeId}::uuid AND r.business_date >= ${from}::date AND r.business_date < ${to}::date
+        GROUP BY i.seller_id
+      )
+      SELECT COALESCE(s.seller_id, rt.seller_id)::text AS seller_id,
+             COALESCE(s.revenue, 0)::bigint AS revenue,
+             COALESCE(s.invoice_count, 0)::bigint AS invoice_count,
+             COALESCE(rt.refund, 0)::bigint AS refund,
+             COALESCE(rt.return_count, 0)::bigint AS return_count
+      FROM sold s
+      FULL OUTER JOIN returned rt ON rt.seller_id = s.seller_id
+      ORDER BY COALESCE(s.revenue, 0) - COALESCE(rt.refund, 0) DESC, 1
     `),
-    ]);
+  ]);
 
   const currentNet = netOf(current);
   const previousNet = netOf(previous);
@@ -394,8 +417,13 @@ export async function getReportsSummary(storeId: string, from: Date, to: Date) {
     staffPerformance: staffRows.map((row) => ({
       userId: row.seller_id,
       fullName: staffNameById.get(row.seller_id) ?? "Không rõ",
+      /** Doanh thu bán: tổng hóa đơn hoàn thành trong kỳ, chưa trừ hàng trả. */
       revenue: Number(row.revenue),
       invoiceCount: Number(row.invoice_count),
+      /** Tiền hoàn của phiếu trả trong kỳ trên hóa đơn của người này. */
+      refund: Number(row.refund),
+      returnCount: Number(row.return_count),
+      netRevenue: Number(row.revenue) - Number(row.refund),
     })),
   };
 }
