@@ -51,6 +51,7 @@ export const PERMISSIONS: Array<{ code: string; description: string }> = [
   { code: "loyalty.manage", description: "Điều chỉnh điểm tích lũy của khách bằng tay" },
   { code: "ai.use", description: "Dùng tính năng AI" },
   { code: "national_sync.read", description: "Xem trạng thái liên thông CSDL Dược quốc gia" },
+  { code: "einvoice.manage", description: "Cấu hình và phát hành hóa đơn điện tử" },
   {
     code: "national_sync.manage",
     description: "Cấu hình kết nối, ghép mã thuốc và gửi dữ liệu lên CSDL Dược quốc gia",
@@ -96,6 +97,7 @@ export const ROLES: Array<{ code: string; name: string; permissions: string[] }>
       "loyalty.manage",
       "national_sync.read",
       "national_sync.manage",
+      "einvoice.manage",
     ],
   },
   {

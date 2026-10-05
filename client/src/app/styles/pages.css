@@ -3792,3 +3792,20 @@
   flex: 1 1 120px;
   min-width: 0;
 }
+
+/* ---------- Hóa đơn điện tử ---------- */
+.einvoice-layout {
+  display: grid;
+  grid-template-columns: minmax(320px, 420px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+.einvoice-form-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+@media (max-width: 1200px) {
+  .einvoice-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

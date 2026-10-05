@@ -56,6 +56,8 @@ model Store {
   idempotencyKeys    IdempotencyKey[]
   nationalSyncJobs   NationalSyncJob[]
   nationalSyncConfig NationalSyncStoreConfig?
+  einvoiceConfig     EInvoiceStoreConfig?
+  eInvoices          EInvoice[]
 
   @@map("stores")
 }
@@ -118,6 +120,7 @@ model User {
   loyaltyEntriesCreated    LoyaltyTransaction[]
   nationalSyncConfigs      NationalSyncConfig[]
   nationalSyncStoreConfigs NationalSyncStoreConfig[]
+  einvoiceStoreConfigs     EInvoiceStoreConfig[]
   nationalDrugLinks        NationalDrugLink[]
 
   @@index([defaultStoreId])
@@ -876,6 +879,7 @@ model Invoice {
   safetyAcks     InvoiceSafetyAck[]
   controlledSale ControlledSaleDetail?
   returns        Return[]
+  eInvoice       EInvoice?
   loyaltyLedger  LoyaltyTransaction[]
 
   @@index([storeId, businessDate, status])
@@ -1468,4 +1472,55 @@ model NationalSyncJob {
   @@index([status, nextAttemptAt])
   @@index([storeId, createdAt(sort: Desc)])
   @@map("national_sync_jobs")
+}
+
+/// Cấu hình hóa đơn điện tử máy tính tiền của một cửa hàng (nhà cung cấp MISA).
+model EInvoiceStoreConfig {
+  storeId        String    @id @map("store_id") @db.Uuid
+  enabled        Boolean   @default(false)
+  provider       String    @default("MISA")
+  environment    String    @default("SANDBOX")
+  appId          String?   @map("app_id")
+  taxCode        String?   @map("tax_code")
+  username       String?
+  /// AES-256-GCM; không bao giờ trả về cho giao diện.
+  passwordCipher String?   @map("password_cipher")
+  /// Ký hiệu hóa đơn máy tính tiền đã đăng ký, ví dụ 1C26MAB.
+  invSeries      String?   @map("inv_series")
+  /// Chỉ phát hành cho hóa đơn bán từ thời điểm này trở đi.
+  enabledFrom    DateTime? @map("enabled_from") @db.Timestamptz(6)
+  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy      String?   @map("updated_by") @db.Uuid
+
+  store         Store @relation(fields: [storeId], references: [id])
+  updatedByUser User? @relation(fields: [updatedBy], references: [id])
+
+  @@map("einvoice_store_configs")
+}
+
+/// Hóa đơn điện tử của một hóa đơn bán; hàng đợi phát hành qua nhà cung cấp.
+model EInvoice {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  storeId          String    @map("store_id") @db.Uuid
+  invoiceId        String    @unique @map("invoice_id") @db.Uuid
+  status           String    @default("PENDING")
+  attempts         Int       @default(0)
+  nextAttemptAt    DateTime  @default(now()) @map("next_attempt_at") @db.Timestamptz(6)
+  invSeries        String?   @map("inv_series")
+  invNo            String?   @map("inv_no")
+  transactionId    String?   @map("transaction_id")
+  taxAuthorityCode String?   @map("tax_authority_code")
+  sentPayload      Json?     @map("sent_payload")
+  lastError        String?   @map("last_error")
+  reviewReason     String?   @map("review_reason")
+  publishedAt      DateTime? @map("published_at") @db.Timestamptz(6)
+  settledAt        DateTime? @map("settled_at") @db.Timestamptz(6)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  store   Store   @relation(fields: [storeId], references: [id])
+  invoice Invoice @relation(fields: [invoiceId], references: [id])
+
+  @@index([storeId, status, nextAttemptAt], map: "e_invoices_store_status_idx")
+  @@map("e_invoices")
 }

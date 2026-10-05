@@ -18,6 +18,12 @@ const envSchema = z.object({
    * chủ giả khi chạy test, hoặc khi Bộ Y tế đổi tên miền.
    */
   NDS_BASE_URL: z.string().url().optional(),
+  /**
+   * Gốc API của nhà cung cấp hóa đơn điện tử MISA meInvoice (phần trước
+   * `/v3` và `/integration`). Bỏ trống thì lấy theo môi trường đã chọn. Đặt
+   * biến này để trỏ sang máy chủ giả khi chạy test.
+   */
+  EINVOICE_BASE_URL: z.string().url().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);

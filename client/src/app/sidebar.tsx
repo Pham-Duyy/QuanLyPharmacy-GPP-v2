@@ -18,7 +18,7 @@ export type SidebarEntry =
 export const SIDEBAR: readonly SidebarEntry[] = [
   { kind: "page", path: "/tai-khoan" },
   { kind: "page", path: "/ban-hang" },
-  { kind: "group", key: "sales", label: "Giao dịch bán", icon: <ProfileOutlined />, paths: ["/hoa-don", "/tra-hang", "/don-thuoc"] },
+  { kind: "group", key: "sales", label: "Giao dịch bán", icon: <ProfileOutlined />, paths: ["/hoa-don", "/hoa-don-dien-tu", "/tra-hang", "/don-thuoc"] },
   {
     kind: "group",
     key: "goods",

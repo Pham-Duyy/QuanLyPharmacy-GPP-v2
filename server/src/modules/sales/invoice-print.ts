@@ -40,7 +40,37 @@ export type PrintableInvoice = {
   paymentMethod: string;
   amountTendered: number | bigint | null;
   changeAmount: number | bigint | null;
+  /** Hóa đơn điện tử máy tính tiền (nếu cửa hàng đã bật). */
+  eInvoice?: {
+    status: string;
+    invSeries: string | null;
+    invNo: string | null;
+    transactionId: string | null;
+    taxAuthorityCode: string | null;
+  } | null;
 };
+
+/** Dòng hóa đơn điện tử trên phiếu: chỉ in mã thật đã nhận, không bao giờ in mã tạm. */
+function eInvoiceNote(eInvoice: PrintableInvoice["eInvoice"]): string {
+  if (!eInvoice) return "";
+  const lookup = eInvoice.transactionId
+    ? ` · Mã tra cứu: ${escapeHtml(eInvoice.transactionId)}`
+    : "";
+  const number =
+    eInvoice.invSeries && eInvoice.invNo
+      ? `Ký hiệu ${escapeHtml(eInvoice.invSeries)} · Số ${escapeHtml(eInvoice.invNo)}`
+      : "";
+  if (eInvoice.status === "COMPLETED" && eInvoice.taxAuthorityCode) {
+    return `<div class="footer">Hóa đơn điện tử: ${number}<br/>Mã CQT: ${escapeHtml(eInvoice.taxAuthorityCode)}${lookup}</div>`;
+  }
+  if (eInvoice.status === "PUBLISHED") {
+    return `<div class="footer">Hóa đơn điện tử: ${number} · đang chờ mã cơ quan thuế${lookup}</div>`;
+  }
+  if (["PENDING", "SENDING", "FAILED"].includes(eInvoice.status)) {
+    return `<div class="footer">Hóa đơn điện tử: đang chờ phát hành</div>`;
+  }
+  return "";
+}
 
 const PAYMENT_METHOD_LABEL: Record<string, string> = {
   CASH: "Tiền mặt",
@@ -163,6 +193,8 @@ export function renderInvoicePrintHtml(
         }</div>`
       : "";
 
+  const eInvoiceLine = eInvoiceNote(invoice.eInvoice);
+
   const body = `
   ${renderIssuerHeader(template)}
   <h1>${escapeHtml(template.title)}</h1>
@@ -172,6 +204,7 @@ export function renderInvoicePrintHtml(
   <hr/>
   <div class="totals">${totals}</div>
   ${loyaltyNote ? `<hr/>${loyaltyNote}` : ""}
+  ${eInvoiceLine ? `<hr/>${eInvoiceLine}` : ""}
   ${template.footer ? `<hr/><div class="footer">${escapeHtml(template.footer)}</div>` : ""}
   <div class="note">Phiếu bán hàng · Không thay thế hóa đơn điện tử</div>
 `;
