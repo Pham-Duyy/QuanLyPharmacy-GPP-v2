@@ -2,6 +2,7 @@ import { prisma } from "../../db/prisma.js";
 import { AppError } from "../../lib/app-error.js";
 import type { NdsClient } from "./nds-client.js";
 import type { NationalDrugDto, NationalUnitDto } from "./nds-schemas.js";
+import { readChainConfig } from "./nds-config.service.js";
 
 /** Trần số trang mỗi lượt đồng bộ: chặn vòng lặp vô tận nếu API trả `total` sai. */
 const MAX_PAGES = 400;
@@ -132,9 +133,9 @@ export type MasterSyncResult = {
  */
 export async function syncMasterData(
   client: NdsClient,
-  options: { full?: boolean } = {},
+  options: { full?: boolean; userId?: string } = {},
 ): Promise<MasterSyncResult> {
-  const config = await prisma.nationalSyncConfig.findUnique({ where: { id: true } });
+  const config = await readChainConfig();
 
   let updatedFrom: string | null = null;
   if (!options.full && config?.lastMasterSyncAt) {
@@ -166,7 +167,10 @@ export async function syncMasterData(
 
   await prisma.nationalSyncConfig.update({
     where: { id: true },
-    data: { lastMasterSyncAt: new Date() },
+    data: {
+      lastMasterSyncAt: new Date(),
+      ...(options.userId ? { updatedBy: options.userId } : {}),
+    },
   });
 
   return { units, drugs, updatedFrom };

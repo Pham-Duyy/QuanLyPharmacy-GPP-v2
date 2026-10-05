@@ -42,8 +42,7 @@ function unitPrice(amount: bigint, conversionToBase: number): number {
 export type MissingLink = { productId: string; code: string; name: string; reason: string };
 
 export type BuildResult =
-  | { ok: true; payload: SyncPayload }
-  | { ok: false; missing: MissingLink[]; message: string };
+  { ok: true; payload: SyncPayload } | { ok: false; missing: MissingLink[]; message: string };
 
 type LinkRow = { drugId: string; unitId: string; gtin: string | null };
 
@@ -88,7 +87,10 @@ async function resolveLinks(
 }
 
 function blocked(missing: MissingLink[]): BuildResult {
-  const names = missing.slice(0, 3).map((item) => item.code).join(", ");
+  const names = missing
+    .slice(0, 3)
+    .map((item) => item.code)
+    .join(", ");
   const more = missing.length > 3 ? ` và ${missing.length - 3} mặt hàng khác` : "";
   return {
     ok: false,
@@ -135,8 +137,9 @@ function toItems(raw: RawItem[], links: Map<string, LinkRow>) {
   });
 }
 
-async function practiceLicenseCode(): Promise<string | undefined> {
-  const config = await prisma.nationalSyncConfig.findUnique({ where: { id: true } });
+/** Mã giấy phép của đúng cửa hàng phát sinh chứng từ. */
+async function practiceLicenseCode(storeId: string): Promise<string | undefined> {
+  const config = await prisma.nationalSyncStoreConfig.findUnique({ where: { storeId } });
   return config?.practiceLicenseCode ?? undefined;
 }
 
@@ -179,7 +182,7 @@ export async function buildGoodsReceiptPayload(goodsReceiptId: string): Promise<
     links,
   );
 
-  const licence = await practiceLicenseCode();
+  const licence = await practiceLicenseCode(receipt.storeId);
   const payload = stockInPayloadSchema.parse({
     transaction_date: vnDateTime(receipt.receivedAt),
     reason: receipt.type === "OPENING_BALANCE" ? "opening-balance" : "supplier",
@@ -239,7 +242,7 @@ export async function buildInvoicePayload(invoiceId: string): Promise<BuildResul
     return { ok: false, missing: [], message: "Hóa đơn không còn dòng hàng nào để gửi" };
   }
 
-  const licence = await practiceLicenseCode();
+  const licence = await practiceLicenseCode(invoice.storeId);
   const payload = stockOutPayloadSchema.parse({
     transaction_date: vnDateTime(invoice.soldAt),
     reason: "sale-retail",
@@ -276,7 +279,7 @@ export async function buildSupplierReturnPayload(supplierReturnId: string): Prom
   const { links, missing } = await resolveLinks(supplierReturn.lines.map((line) => line.productId));
   if (missing.length > 0) return blocked(missing);
 
-  const licence = await practiceLicenseCode();
+  const licence = await practiceLicenseCode(supplierReturn.storeId);
   const payload = stockOutPayloadSchema.parse({
     transaction_date: vnDateTime(supplierReturn.returnedAt),
     reason: "return",
@@ -312,7 +315,9 @@ export async function buildCustomerReturnPayload(returnId: string): Promise<Buil
       lines: {
         include: {
           invoiceLine: {
-            include: { product: { select: { id: true, manufacturer: true, countryOfOrigin: true } } },
+            include: {
+              product: { select: { id: true, manufacturer: true, countryOfOrigin: true } },
+            },
           },
           invoiceAllocation: {
             include: { batch: { select: { batchNumber: true, expiryDate: true } } },
@@ -333,7 +338,7 @@ export async function buildCustomerReturnPayload(returnId: string): Promise<Buil
   const { links, missing } = await resolveLinks(productIds);
   if (missing.length > 0) return blocked(missing);
 
-  const licence = await practiceLicenseCode();
+  const licence = await practiceLicenseCode(customerReturn.storeId);
   const payload = stockInPayloadSchema.parse({
     transaction_date: vnDateTime(customerReturn.createdAt),
     reason: "return",
@@ -385,7 +390,7 @@ export async function buildStockCountPayload(stockCountId: string): Promise<Buil
   const { links, missing } = await resolveLinks(counted.map((line) => line.productId));
   if (missing.length > 0) return blocked(missing);
 
-  const licence = await practiceLicenseCode();
+  const licence = await practiceLicenseCode(stockCount.storeId);
   const payload = stockTakingPayloadSchema.parse({
     transaction_date: vnDateTime(stockCount.closedAt ?? stockCount.startedAt),
     reference_number: stockCount.code,
@@ -432,7 +437,7 @@ export async function buildOpeningStockTakingPayload(
   const { links, missing } = await resolveLinks(batches.map((batch) => batch.productId));
   if (missing.length > 0) return blocked(missing);
 
-  const licence = await practiceLicenseCode();
+  const licence = await practiceLicenseCode(storeId);
   const payload = stockTakingPayloadSchema.parse({
     transaction_date: vnDateTime(at),
     reference_number: referenceNumber,

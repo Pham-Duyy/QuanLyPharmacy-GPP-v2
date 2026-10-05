@@ -1,7 +1,7 @@
 import { prisma } from "../../db/prisma.js";
 import { AppError } from "../../lib/app-error.js";
 import { NdsError, type NdsClient } from "./nds-client.js";
-import { buildClient, readConfigRow } from "./nds-config.service.js";
+import { buildClient, enabledStoreConfigs } from "./nds-config.service.js";
 import {
   buildCustomerReturnPayload,
   buildGoodsReceiptPayload,
@@ -125,19 +125,28 @@ async function flagVoidedInvoices(): Promise<number> {
 
 /**
  * Tìm chứng từ đủ điều kiện liên thông mà chưa có việc trong hàng đợi.
- * Chứng từ trước `start_date` bị bỏ qua: hệ thống quốc gia chỉ ghi nhận
- * chứng từ phát sinh sau ngày của phiếu kiểm hàng đầu kỳ.
+ *
+ * Mỗi cửa hàng có mốc `start_date` riêng (ngày phiếu kiểm hàng đầu kỳ của
+ * cửa hàng đó): chứng từ trước mốc bị bỏ qua, cửa hàng chưa có mốc thì chưa
+ * quét. `storeId` giới hạn lượt quét trong một cửa hàng.
  */
-export async function scanDocuments(): Promise<ScanResult> {
-  const config = await readConfigRow();
+export async function scanDocuments(storeId?: string): Promise<ScanResult> {
   const result: ScanResult = { created: 0, byType: {}, needsReview: 0 };
-  if (!config.startDate) return result;
+  const configs = await prisma.nationalSyncStoreConfig.findMany({
+    where: { startDate: { not: null }, ...(storeId ? { storeId } : {}) },
+    select: { storeId: true, startDate: true },
+  });
+  if (configs.length === 0) return result;
 
   result.needsReview = await flagVoidedInvoices();
 
-  const from = config.startDate;
+  // Điều kiện "cửa hàng X, từ mốc của X" cho từng cửa hàng đã có mốc.
+  const since = <K extends string>(field: K) =>
+    configs.map((config) => ({ storeId: config.storeId, [field]: { gte: config.startDate! } }));
 
-  const existing = await prisma.nationalSyncJob.findMany({ select: { sourceType: true, sourceId: true } });
+  const existing = await prisma.nationalSyncJob.findMany({
+    select: { sourceType: true, sourceId: true },
+  });
   const seen = new Set(existing.map((job) => `${job.sourceType}:${job.sourceId}`));
 
   const add = async (
@@ -165,32 +174,47 @@ export async function scanDocuments(): Promise<ScanResult> {
 
   const [receipts, invoices, customerReturns, supplierReturns, stockCounts] = await Promise.all([
     prisma.goodsReceipt.findMany({
-      where: { status: "CONFIRMED", receivedAt: { gte: from } },
+      where: { status: "CONFIRMED", OR: since("receivedAt") },
       select: { id: true, storeId: true, code: true, receivedAt: true },
     }),
     prisma.invoice.findMany({
-      where: { status: "COMPLETED", businessDate: { gte: from } },
+      where: { status: "COMPLETED", OR: since("businessDate") },
       select: { id: true, storeId: true, code: true, businessDate: true },
     }),
     prisma.return.findMany({
-      where: { disposition: "RESTOCK", businessDate: { gte: from } },
+      where: { disposition: "RESTOCK", OR: since("businessDate") },
       select: { id: true, storeId: true, code: true, businessDate: true },
     }),
     prisma.supplierReturn.findMany({
-      where: { status: "CONFIRMED", returnedAt: { gte: from } },
+      where: { status: "CONFIRMED", OR: since("returnedAt") },
       select: { id: true, storeId: true, code: true, returnedAt: true },
     }),
     prisma.stockCount.findMany({
-      where: { status: "CLOSED", closedAt: { gte: from } },
+      where: { status: "CLOSED", OR: since("closedAt") },
       select: { id: true, storeId: true, code: true, closedAt: true },
     }),
   ]);
 
-  await add("goods_receipt", receipts.map((r) => ({ ...r, at: r.receivedAt })));
-  await add("invoice", invoices.map((r) => ({ ...r, at: r.businessDate })));
-  await add("customer_return", customerReturns.map((r) => ({ ...r, at: r.businessDate })));
-  await add("supplier_return", supplierReturns.map((r) => ({ ...r, at: r.returnedAt })));
-  await add("stock_count", stockCounts.map((r) => ({ ...r, at: r.closedAt! })));
+  await add(
+    "goods_receipt",
+    receipts.map((r) => ({ ...r, at: r.receivedAt })),
+  );
+  await add(
+    "invoice",
+    invoices.map((r) => ({ ...r, at: r.businessDate })),
+  );
+  await add(
+    "customer_return",
+    customerReturns.map((r) => ({ ...r, at: r.businessDate })),
+  );
+  await add(
+    "supplier_return",
+    supplierReturns.map((r) => ({ ...r, at: r.returnedAt })),
+  );
+  await add(
+    "stock_count",
+    stockCounts.map((r) => ({ ...r, at: r.closedAt! })),
+  );
 
   return result;
 }
@@ -288,26 +312,44 @@ async function sendOne(client: NdsClient, jobId: string): Promise<SendOutcome> {
   }
 }
 
-export async function drainQueue(limit = 25): Promise<DrainResult> {
+/** Cửa hàng đang bật liên thông (lọc theo `storeId` nếu có) cùng máy khách của từng cửa hàng. */
+async function activeStoreClients(storeId?: string) {
+  const configs = (await enabledStoreConfigs()).filter(
+    (config) => !storeId || config.storeId === storeId,
+  );
+  const clients = [];
+  for (const config of configs) {
+    const client = await buildClient(config.storeId);
+    if (client) clients.push({ storeId: config.storeId, client });
+  }
+  return clients;
+}
+
+/**
+ * Gửi các chứng từ tới hạn. Chứng từ của cửa hàng nào gửi bằng tài khoản của
+ * cửa hàng đó; cửa hàng chưa bật liên thông thì chứng từ nằm chờ.
+ */
+export async function drainQueue(limit = 25, storeId?: string): Promise<DrainResult> {
   const result: DrainResult = { sent: 0, blocked: 0, failed: 0, rejected: 0 };
-  const config = await readConfigRow();
-  if (!config.enabled) return result;
 
-  const client = await buildClient();
-  if (!client) return result;
+  for (const { storeId: store, client } of await activeStoreClients(storeId)) {
+    const due = await prisma.nationalSyncJob.findMany({
+      where: {
+        storeId: store,
+        status: { in: ["PENDING", "FAILED"] },
+        nextAttemptAt: { lte: new Date() },
+      },
+      orderBy: [{ documentDate: "asc" }, { createdAt: "asc" }],
+      take: limit,
+      select: { id: true },
+    });
 
-  const due = await prisma.nationalSyncJob.findMany({
-    where: { status: { in: ["PENDING", "FAILED"] }, nextAttemptAt: { lte: new Date() } },
-    orderBy: [{ documentDate: "asc" }, { createdAt: "asc" }],
-    take: limit,
-    select: { id: true },
-  });
-
-  for (const job of due) {
-    const { outcome, rateLimited } = await sendOne(client, job.id);
-    if (outcome) result[outcome] += 1;
-    // Bị chặn tần suất thì dừng cả lượt ngay, gửi tiếp chỉ càng bị chặn lâu hơn.
-    if (rateLimited) break;
+    for (const job of due) {
+      const { outcome, rateLimited } = await sendOne(client, job.id);
+      if (outcome) result[outcome] += 1;
+      // Bị chặn tần suất thì dừng lượt của tài khoản này, gửi tiếp chỉ càng bị chặn lâu hơn.
+      if (rateLimited) break;
+    }
   }
 
   return result;
@@ -331,19 +373,30 @@ export type PollResult = { checked: number; completed: number; rejected: number 
  * `force` bỏ qua lịch hẹn giờ: người dùng bấm "Gửi ngay" là muốn biết kết quả
  * ngay lúc đó, không phải chờ hết chu kỳ lùi giờ dành cho bộ chạy nền.
  */
-export async function pollStatuses(limit = 25, options: { force?: boolean } = {}): Promise<PollResult> {
+export async function pollStatuses(
+  limit = 25,
+  options: { force?: boolean; storeId?: string } = {},
+): Promise<PollResult> {
   const result: PollResult = { checked: 0, completed: 0, rejected: 0 };
-  const config = await readConfigRow();
-  if (!config.enabled) return result;
+  for (const { storeId, client } of await activeStoreClients(options.storeId)) {
+    await pollStore(client, storeId, limit, options.force ?? false, result);
+  }
+  return result;
+}
 
-  const client = await buildClient();
-  if (!client) return result;
-
+async function pollStore(
+  client: NonNullable<Awaited<ReturnType<typeof buildClient>>>,
+  storeId: string,
+  limit: number,
+  force: boolean,
+  result: PollResult,
+): Promise<void> {
   const pending = await prisma.nationalSyncJob.findMany({
     where: {
+      storeId,
       status: { in: ["ACCEPTED", "PROCESSING"] },
       remoteTransactionId: { not: null },
-      ...(options.force ? {} : { nextAttemptAt: { lte: new Date() } }),
+      ...(force ? {} : { nextAttemptAt: { lte: new Date() } }),
     },
     orderBy: { submittedAt: "asc" },
     take: limit,
@@ -378,15 +431,14 @@ export async function pollStatuses(limit = 25, options: { force?: boolean } = {}
       });
     }
   }
-
-  return result;
 }
 
 // --- Thao tác tay -----------------------------------------------------------
 
-export async function retryJob(jobId: string, userId: string): Promise<void> {
+export async function retryJob(jobId: string, userId: string, storeId: string): Promise<void> {
   const job = await prisma.nationalSyncJob.findUnique({ where: { id: jobId } });
-  if (!job) throw AppError.notFound("Không tìm thấy việc gửi dữ liệu");
+  // Chứng từ của cửa hàng khác: báo không tìm thấy, không lộ việc nó tồn tại.
+  if (!job || job.storeId !== storeId) throw AppError.notFound("Không tìm thấy việc gửi dữ liệu");
   if (job.status === "SENDING") {
     throw AppError.invalidState("Chứng từ đang được gửi, chờ xong rồi thử lại");
   }
@@ -401,6 +453,7 @@ export async function retryJob(jobId: string, userId: string): Promise<void> {
 
   await prisma.auditLog.create({
     data: {
+      storeId,
       actorId: userId,
       action: "NATIONAL_SYNC_RETRY",
       resourceType: "national_sync_job",
@@ -416,8 +469,13 @@ export type QueueSummary = {
   oldestPendingAt: string | null;
 };
 
-export async function queueSummary(): Promise<QueueSummary> {
-  const grouped = await prisma.nationalSyncJob.groupBy({ by: ["status"], _count: true });
+export async function queueSummary(storeId?: string): Promise<QueueSummary> {
+  const scope = storeId ? { storeId } : {};
+  const grouped = await prisma.nationalSyncJob.groupBy({
+    by: ["status"],
+    where: scope,
+    _count: true,
+  });
   const byStatus: Record<string, number> = {};
   let total = 0;
   for (const row of grouped) {
@@ -427,7 +485,7 @@ export async function queueSummary(): Promise<QueueSummary> {
   }
 
   const oldest = await prisma.nationalSyncJob.findFirst({
-    where: { status: { in: ["PENDING", "FAILED", "BLOCKED"] } },
+    where: { ...scope, status: { in: ["PENDING", "FAILED", "BLOCKED"] } },
     orderBy: { createdAt: "asc" },
     select: { createdAt: true },
   });

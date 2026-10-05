@@ -1,4 +1,4 @@
-import { readConfigRow } from "./nds-config.service.js";
+import { enabledStoreConfigs } from "./nds-config.service.js";
 import { drainQueue, pollStatuses, scanDocuments } from "./nds-queue.service.js";
 
 /**
@@ -16,8 +16,8 @@ let running = false;
 async function tick(): Promise<void> {
   // Lượt trước chưa xong thì bỏ lượt này: không chạy chồng.
   if (running) return;
-  const config = await readConfigRow();
-  if (!config.enabled) return;
+  // Không cửa hàng nào bật liên thông thì không làm gì.
+  if ((await enabledStoreConfigs()).length === 0) return;
 
   running = true;
   try {

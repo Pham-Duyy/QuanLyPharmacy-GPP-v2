@@ -1507,10 +1507,20 @@ gửi. Hệ quả:
 
 | Bảng | Vai trò |
 |---|---|
-| `national_sync_config` | Cấu hình kết nối, đúng một dòng (khóa chính là hằng TRUE). Mật khẩu lưu dạng AES-256-GCM, khóa dẫn xuất từ `JWT_SECRET`. |
+| `national_sync_store_configs` | Cấu hình liên thông **của từng cửa hàng** (khóa chính `store_id`): tài khoản, mật khẩu (AES-256-GCM, khóa dẫn xuất từ `JWT_SECRET`), mã giấy phép, môi trường, mốc `start_date`. Mỗi cơ sở một tài khoản; không cho hai cửa hàng dùng chung tài khoản. |
+| `national_sync_config` | Phần dùng chung toàn chuỗi, một dòng: mốc đồng bộ danh mục `last_master_sync_at`. |
 | `national_drugs`, `national_units` | Bản sao danh mục quốc gia. API không thông báo khi danh mục đổi nên phần mềm tự hỏi qua `last_update_from`. |
 | `national_drug_links` | Ghép mặt hàng ↔ mã thuốc quốc gia, **một dòng mỗi mặt hàng**. |
 | `national_sync_jobs` | Hàng đợi, khóa duy nhất `(kind, source_type, source_id)`. |
+
+### 25.2a Phạm vi cửa hàng
+
+Mỗi cơ sở bán lẻ được cấp tài khoản liên thông riêng (Công văn 934/TTYQG, 12/08/2026). Vì vậy:
+
+- `GET`/`PATCH /national-sync/config`, `test-connection`, `opening-stock-taking`, `jobs`, `scan`, `drain`, `jobs/{id}/retry` thao tác trên cửa hàng của header `X-Store-Id`; thiếu header trả `400 STORE_REQUIRED`. Việc gửi của cửa hàng khác trả `404`.
+- Bộ chạy nền gửi và hỏi trạng thái chứng từ của mỗi cửa hàng bằng tài khoản của chính cửa hàng đó; cửa hàng chưa bật thì chứng từ nằm chờ, không bao giờ gửi bằng tài khoản cửa hàng khác.
+- Mốc `start_date` và mã giấy phép theo cửa hàng; quét chứng từ dùng mốc của từng cửa hàng.
+- Danh mục thuốc quốc gia và ghép mã dùng chung toàn chuỗi; `master-sync` đọc danh mục bằng tài khoản của cửa hàng đang chọn.
 
 ### 25.3 Quy ước đơn vị tính
 

@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, type Request } from "express";
 import { z } from "zod";
 import { prisma } from "../../db/prisma.js";
 import { AppError } from "../../lib/app-error.js";
@@ -26,13 +26,29 @@ function mapRemoteError(error: unknown): never {
   throw error;
 }
 
+/**
+ * Cửa hàng của request. Cấu hình, tài khoản và chứng từ liên thông thuộc về
+ * từng cơ sở, nên các thao tác này bắt buộc phải chọn cửa hàng.
+ */
+function storeOf(req: Request): string {
+  const storeId = req.auth?.storeId;
+  if (!storeId) {
+    throw new AppError(
+      400,
+      "STORE_REQUIRED",
+      "Phải chọn cửa hàng: mỗi cơ sở có cấu hình liên thông riêng",
+    );
+  }
+  return storeId;
+}
+
 // --- Cấu hình ---------------------------------------------------------------
 
 nationalSyncRouter.get(
   "/national-sync/config",
   requirePermission("national_sync.read"),
-  async (_req, res) => {
-    sendData(res, await config.getConfigView());
+  async (req, res) => {
+    sendData(res, await config.getConfigView(storeOf(req)));
   },
 );
 
@@ -53,7 +69,7 @@ nationalSyncRouter.patch(
   requirePermission("national_sync.manage"),
   async (req, res) => {
     const input = parseOrThrow(configSchema, req.body);
-    sendData(res, await config.updateConfig(input, req.auth!.userId));
+    sendData(res, await config.updateConfig(storeOf(req), input, req.auth!.userId));
   },
 );
 
@@ -61,8 +77,8 @@ nationalSyncRouter.patch(
 nationalSyncRouter.post(
   "/national-sync/test-connection",
   requirePermission("national_sync.manage"),
-  async (_req, res) => {
-    const client = await config.requireClient();
+  async (req, res) => {
+    const client = await config.requireClient(storeOf(req));
     try {
       await client.login();
       sendData(res, { ok: true, baseUrl: client.baseUrl });
@@ -79,9 +95,13 @@ nationalSyncRouter.post(
   requirePermission("national_sync.manage"),
   async (req, res) => {
     const input = parseOrThrow(z.object({ full: z.boolean().default(false) }), req.body ?? {});
-    const client = await config.requireClient();
+    // Danh mục quốc gia dùng chung toàn chuỗi; đọc bằng tài khoản của cửa hàng đang chọn.
+    const client = await config.requireClient(storeOf(req));
     try {
-      const result = await master.syncMasterData(client, { full: input.full });
+      const result = await master.syncMasterData(client, {
+        full: input.full,
+        userId: req.auth!.userId,
+      });
       sendData(res, result);
     } catch (error) {
       mapRemoteError(error);
@@ -159,7 +179,9 @@ nationalSyncRouter.get(
       orderBy: { code: "asc" },
     });
 
-    const drugIds = products.flatMap((p) => (p.nationalDrugLink ? [p.nationalDrugLink.drugId] : []));
+    const drugIds = products.flatMap((p) =>
+      p.nationalDrugLink ? [p.nationalDrugLink.drugId] : [],
+    );
     const drugs = await prisma.nationalDrug.findMany({ where: { id: { in: drugIds } } });
     const drugById = new Map(drugs.map((drug) => [drug.id, drug]));
 
@@ -272,9 +294,10 @@ nationalSyncRouter.get(
     const query = req.query as Record<string, string | undefined>;
     const limit = Math.min(200, Math.max(1, Number(query["limit"] ?? 50)));
     const status = query["status"];
+    const storeId = storeOf(req);
 
     const jobs = await prisma.nationalSyncJob.findMany({
-      where: status ? { status } : {},
+      where: { storeId, ...(status ? { status } : {}) },
       orderBy: { createdAt: "desc" },
       take: limit,
     });
@@ -298,7 +321,7 @@ nationalSyncRouter.get(
         nextAttemptAt: job.nextAttemptAt.toISOString(),
         createdAt: job.createdAt.toISOString(),
       })),
-      summary: await queue.queueSummary(),
+      summary: await queue.queueSummary(storeId),
     });
   },
 );
@@ -306,8 +329,8 @@ nationalSyncRouter.get(
 nationalSyncRouter.post(
   "/national-sync/scan",
   requirePermission("national_sync.manage"),
-  async (_req, res) => {
-    sendData(res, await queue.scanDocuments());
+  async (req, res) => {
+    sendData(res, await queue.scanDocuments(storeOf(req)));
   },
 );
 
@@ -315,10 +338,12 @@ nationalSyncRouter.post(
 nationalSyncRouter.post(
   "/national-sync/drain",
   requirePermission("national_sync.manage"),
-  async (_req, res) => {
-    const sent = await queue.drainQueue();
+  async (req, res) => {
+    // Bấm tay chỉ gửi chứng từ của cửa hàng đang chọn, bằng tài khoản của cửa hàng đó.
+    const storeId = storeOf(req);
+    const sent = await queue.drainQueue(25, storeId);
     // Bấm tay thì hỏi trạng thái ngay, không chờ lịch lùi giờ của bộ chạy nền.
-    const polled = await queue.pollStatuses(25, { force: true });
+    const polled = await queue.pollStatuses(25, { force: true, storeId });
     sendData(res, { sent, polled });
   },
 );
@@ -327,7 +352,7 @@ nationalSyncRouter.post(
   "/national-sync/jobs/:jobId/retry",
   requirePermission("national_sync.manage"),
   async (req, res) => {
-    await queue.retryJob(String(req.params.jobId), req.auth!.userId);
+    await queue.retryJob(String(req.params.jobId), req.auth!.userId, storeOf(req));
     sendData(res, { ok: true });
   },
 );
@@ -344,12 +369,10 @@ nationalSyncRouter.post(
   requirePermission("national_sync.manage"),
   async (req, res) => {
     const auth = req.auth!;
-    if (!auth.storeId) {
-      throw new AppError(400, "BAD_REQUEST", "Phải chọn cửa hàng trước khi gửi tồn đầu kỳ");
-    }
+    const storeId = storeOf(req);
 
     const existing = await prisma.nationalSyncJob.findFirst({
-      where: { kind: "STOCK_TAKING", sourceType: "opening_balance", storeId: auth.storeId },
+      where: { kind: "STOCK_TAKING", sourceType: "opening_balance", storeId: storeId },
     });
     if (existing) {
       throw AppError.invalidState(
@@ -357,14 +380,14 @@ nationalSyncRouter.post(
       );
     }
 
-    const store = await prisma.store.findUniqueOrThrow({ where: { id: auth.storeId } });
+    const store = await prisma.store.findUniqueOrThrow({ where: { id: storeId } });
     const now = new Date();
     const referenceNumber = `TDK-${store.code}-${isoDate(now).replace(/-/g, "")}`;
 
-    const built = await buildOpeningStockTakingPayload(auth.storeId, referenceNumber, now);
+    const built = await buildOpeningStockTakingPayload(storeId, referenceNumber, now);
     if (!built.ok) throw AppError.invalidState(built.message, built.missing);
 
-    const client = await config.requireClient();
+    const client = await config.requireClient(storeId);
     try {
       const ack = await client.submit("STOCK_TAKING", built.payload);
 
@@ -373,7 +396,7 @@ nationalSyncRouter.post(
       await prisma.$transaction(async (tx) => {
         await tx.nationalSyncJob.create({
           data: {
-            storeId: auth.storeId!,
+            storeId: storeId,
             kind: "STOCK_TAKING",
             sourceType: "opening_balance",
             sourceId: store.id,
@@ -388,8 +411,8 @@ nationalSyncRouter.post(
             nextAttemptAt: new Date(Date.now() + 60 * 1000),
           },
         });
-        await tx.nationalSyncConfig.update({
-          where: { id: true },
+        await tx.nationalSyncStoreConfig.update({
+          where: { storeId },
           data: { startDate: new Date(`${isoDate(now)}T00:00:00.000Z`), updatedBy: auth.userId },
         });
       });

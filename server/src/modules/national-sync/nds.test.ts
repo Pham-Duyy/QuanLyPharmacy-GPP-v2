@@ -1,7 +1,14 @@
 import { useTestRole } from "../../test/helpers.js";
 import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
 import { prisma } from "../../db/prisma.js";
-import { api, authHeaders, login, seedFixture, truncateAll, type Fixture } from "../../test/helpers.js";
+import {
+  api,
+  authHeaders,
+  login,
+  seedFixture,
+  truncateAll,
+  type Fixture,
+} from "../../test/helpers.js";
 import { startStubServer, type StubServer } from "../../test/nds-stub-server.js";
 
 const BASE = "/api/v1/national-sync";
@@ -75,7 +82,13 @@ async function configure(overrides: Record<string, unknown> = {}) {
   return api()
     .patch(`${BASE}/config`)
     .set(h())
-    .send({ enabled: true, environment: "SANDBOX", username: USERNAME, password: PASSWORD, ...overrides })
+    .send({
+      enabled: true,
+      environment: "SANDBOX",
+      username: USERNAME,
+      password: PASSWORD,
+      ...overrides,
+    })
     .expect(200);
 }
 
@@ -213,7 +226,9 @@ describe("Liên thông CSDL Dược — cấu hình và xác thực", () => {
 
   it("lưu mật khẩu dưới dạng mã hóa, không lưu thô trong CSDL", async () => {
     await configure();
-    const row = await prisma.nationalSyncConfig.findUniqueOrThrow({ where: { id: true } });
+    const row = await prisma.nationalSyncStoreConfig.findUniqueOrThrow({
+      where: { storeId: fixture.storeId },
+    });
 
     expect(row.passwordCipher).toBeTruthy();
     expect(row.passwordCipher).not.toContain(PASSWORD);
@@ -257,7 +272,11 @@ describe("Liên thông CSDL Dược — cấu hình và xác thực", () => {
 describe("Liên thông CSDL Dược — danh mục và ghép mã", () => {
   it("kéo danh mục thuốc và đơn vị tính về máy", async () => {
     await configure();
-    const response = await api().post(`${BASE}/master-sync`).set(h()).send({ full: true }).expect(200);
+    const response = await api()
+      .post(`${BASE}/master-sync`)
+      .set(h())
+      .send({ full: true })
+      .expect(200);
 
     expect(response.body.data.drugs).toBe(2);
     expect(response.body.data.units).toBe(2);
@@ -293,7 +312,11 @@ describe("Liên thông CSDL Dược — danh mục và ghép mã", () => {
     process.env["NDS_BASE_URL"] = stub.baseUrl;
 
     await configure();
-    const result = await api().post(`${BASE}/master-sync`).set(h()).send({ full: true }).expect(200);
+    const result = await api()
+      .post(`${BASE}/master-sync`)
+      .set(h())
+      .send({ full: true })
+      .expect(200);
     expect(result.body.data.drugs).toBe(3);
 
     const saved = await prisma.nationalDrug.findUniqueOrThrow({ where: { id: "D9001" } });
@@ -321,7 +344,11 @@ describe("Liên thông CSDL Dược — danh mục và ghép mã", () => {
     await api().post(`${BASE}/master-sync`).set(h()).send({ full: true }).expect(200);
 
     // Một mặt hàng có số đăng ký khớp, một chỉ trùng tên.
-    await seedProduct({ code: "TH001", name: "Paracetamol 500mg", registrationNumber: "VD-12345-17" });
+    await seedProduct({
+      code: "TH001",
+      name: "Paracetamol 500mg",
+      registrationNumber: "VD-12345-17",
+    });
     await seedProduct({ code: "TH002", name: "Amlodipin 5mg" });
 
     const matched = await api().post(`${BASE}/auto-match`).set(h()).send({}).expect(200);
@@ -329,7 +356,9 @@ describe("Liên thông CSDL Dược — danh mục và ghép mã", () => {
     expect(matched.body.data.matchedByName).toBe(1);
 
     const mapping = await api().get(`${BASE}/mapping`).set(h()).expect(200);
-    const byCode = new Map((mapping.body.data.items as MappingItem[]).map((row) => [row.code, row]));
+    const byCode = new Map(
+      (mapping.body.data.items as MappingItem[]).map((row) => [row.code, row]),
+    );
 
     expect(byCode.get("TH001")!.link!.matchedBy).toBe("REGISTRATION_NUMBER");
     expect(byCode.get("TH001")!.link!.usable).toBe(true);
@@ -376,7 +405,9 @@ describe("Liên thông CSDL Dược — danh mục và ghép mã", () => {
     expect(result.body.data.confirmed).toBe(1);
 
     const mapping = await api().get(`${BASE}/mapping`).set(h()).expect(200);
-    const byCode = new Map((mapping.body.data.items as MappingItem[]).map((row) => [row.code, row]));
+    const byCode = new Map(
+      (mapping.body.data.items as MappingItem[]).map((row) => [row.code, row]),
+    );
     expect(byCode.get("TH002")!.link!.usable).toBe(true);
     // Mặt hàng không được gửi lên vẫn giữ nguyên trạng thái chờ.
     expect(byCode.get("TH001")!.link!.confirmedAt).toBeNull();
@@ -501,7 +532,9 @@ describe("Liên thông CSDL Dược — gửi chứng từ", () => {
     await api().post(`${BASE}/scan`).set(h()).send({}).expect(200);
     await api().post(`${BASE}/drain`).set(h()).send({}).expect(200);
 
-    const sent = stub.requests.filter((entry) => entry.path === "/v2/transactions/stock-out").at(-1);
+    const sent = stub.requests
+      .filter((entry) => entry.path === "/v2/transactions/stock-out")
+      .at(-1);
     const item = payloadOf(sent!).items[0]!;
     // 2 hộp x 100 viên = 200 viên, đơn vị gửi lên là viên.
     expect(item.quantity).toBe(200);
@@ -565,7 +598,10 @@ describe("Liên thông CSDL Dược — gửi chứng từ", () => {
 
   it("giữ lại chứng từ có mặt hàng chưa ghép mã, không gửi lên", async () => {
     await configure({ startDate: "2026-09-01" });
-    const { product, unit, batch } = await seedProduct({ code: "TH009", name: "Thuốc chưa ghép mã" });
+    const { product, unit, batch } = await seedProduct({
+      code: "TH009",
+      name: "Thuốc chưa ghép mã",
+    });
     await seedInvoice(product, unit, batch);
 
     await api().post(`${BASE}/scan`).set(h()).send({}).expect(200);
@@ -590,7 +626,9 @@ describe("Liên thông CSDL Dược — gửi chứng từ", () => {
 
     // Hệ thống quốc gia xử lý xong; hỏi lại phải cập nhật trạng thái.
     stub.setStatus(transactionId, "completed");
-    await prisma.nationalSyncJob.updateMany({ data: { nextAttemptAt: new Date(Date.now() - 1000) } });
+    await prisma.nationalSyncJob.updateMany({
+      data: { nextAttemptAt: new Date(Date.now() - 1000) },
+    });
     await api().post(`${BASE}/drain`).set(h()).send({}).expect(200);
 
     jobs = await api().get(`${BASE}/jobs`).set(h()).expect(200);
@@ -606,7 +644,9 @@ describe("Liên thông CSDL Dược — gửi chứng từ", () => {
 
     const job = await prisma.nationalSyncJob.findFirstOrThrow();
     stub.setStatus(job.remoteTransactionId!, "rejected", ["Số lô không đúng định dạng"]);
-    await prisma.nationalSyncJob.updateMany({ data: { nextAttemptAt: new Date(Date.now() - 1000) } });
+    await prisma.nationalSyncJob.updateMany({
+      data: { nextAttemptAt: new Date(Date.now() - 1000) },
+    });
     await api().post(`${BASE}/drain`).set(h()).send({}).expect(200);
 
     const jobs = await api().get(`${BASE}/jobs`).set(h()).expect(200);
@@ -627,7 +667,9 @@ describe("Liên thông CSDL Dược — gửi chứng từ", () => {
     expect(job.nextAttemptAt.getTime()).toBeGreaterThan(Date.now());
 
     // 400: dữ liệu không hợp lệ, thử lại cũng vô ích.
-    await prisma.nationalSyncJob.updateMany({ data: { nextAttemptAt: new Date(Date.now() - 1000) } });
+    await prisma.nationalSyncJob.updateMany({
+      data: { nextAttemptAt: new Date(Date.now() - 1000) },
+    });
     stub.failNext(1, 400);
     await api().post(`${BASE}/drain`).set(h()).send({}).expect(200);
     job = await prisma.nationalSyncJob.findFirstOrThrow();
@@ -703,11 +745,7 @@ describe("Liên thông CSDL Dược — gửi chứng từ", () => {
 
   it("bỏ qua chứng từ phát sinh trước ngày bắt đầu liên thông", async () => {
     const { product, unit, batch } = await readyToSend();
-    await api()
-      .patch(`${BASE}/config`)
-      .set(h())
-      .send({ startDate: "2026-09-30" })
-      .expect(200);
+    await api().patch(`${BASE}/config`).set(h()).send({ startDate: "2026-09-30" }).expect(200);
     await seedInvoice(product, unit, batch);
 
     const scan = await api().post(`${BASE}/scan`).set(h()).send({}).expect(200);
@@ -742,11 +780,7 @@ describe("Liên thông CSDL Dược — tồn đầu kỳ", () => {
     });
     await api().post(`${BASE}/auto-match`).set(h()).send({}).expect(200);
 
-    const created = await api()
-      .post(`${BASE}/opening-stock-taking`)
-      .set(h())
-      .send({})
-      .expect(201);
+    const created = await api().post(`${BASE}/opening-stock-taking`).set(h()).send({}).expect(201);
     expect(created.body.data.items).toBe(1);
 
     const sent = stub.requests.find((entry) => entry.path === "/v2/transactions/stock-taking");
@@ -771,5 +805,193 @@ describe("Liên thông CSDL Dược — tồn đầu kỳ", () => {
 
     const response = await api().post(`${BASE}/opening-stock-taking`).set(h()).send({}).expect(409);
     expect(response.body.error.message).toContain("TH009");
+  });
+});
+
+describe("Liên thông CSDL Dược — mỗi cơ sở một tài khoản", () => {
+  const OTHER_USER = "0109876543-002";
+  const OTHER_PASS = "MatKhauCoSo2@2";
+
+  function configureStore(storeId: string, body: Record<string, unknown>) {
+    return api().patch(`${BASE}/config`).set(h(adminToken, storeId)).send(body);
+  }
+
+  /** Hóa đơn ở cửa hàng thứ hai, dùng lại sản phẩm đã ghép mã. */
+  async function seedOtherStoreInvoice(
+    product: { id: string; name: string },
+    unit: { id: string; name: string },
+  ) {
+    const batch = await prisma.batch.create({
+      data: {
+        storeId: fixture.otherStoreId,
+        productId: product.id,
+        batchNumber: "LO-B1",
+        expiryDate: new Date("2027-12-31T00:00:00.000Z"),
+        quantityOnHand: 50,
+        unitCost: "1200.0000",
+      },
+    });
+    const invoice = await prisma.invoice.create({
+      data: {
+        storeId: fixture.otherStoreId,
+        code: "HD-NT02-20260929-0001",
+        sellerId: fixture.adminId,
+        soldAt: new Date("2026-09-29T03:00:00.000Z"),
+        businessDate: new Date("2026-09-29T00:00:00.000Z"),
+        status: "COMPLETED",
+        subtotal: 6_000n,
+        totalAmount: 6_000n,
+      },
+    });
+    const line = await prisma.invoiceLine.create({
+      data: {
+        invoiceId: invoice.id,
+        lineNo: 1,
+        productId: product.id,
+        productUnitId: unit.id,
+        productName: product.name,
+        unitName: unit.name,
+        conversionToBase: 1,
+        quantity: 2,
+        baseQuantity: 2,
+        unitPrice: 3_000n,
+        vatRatePercent: "5.00",
+        lineTotal: 6_000n,
+      },
+    });
+    await prisma.invoiceAllocation.create({
+      data: {
+        invoiceLineId: line.id,
+        storeId: fixture.otherStoreId,
+        batchId: batch.id,
+        baseQuantity: 2,
+        unitCost: "1200.0000",
+        unitCostSource: "ACTUAL",
+      },
+    });
+  }
+
+  async function readyFirstStore() {
+    await configure({ startDate: "2026-09-01" });
+    await api().post(`${BASE}/master-sync`).set(h()).send({ full: true }).expect(200);
+    const seeded = await seedProduct({
+      code: "TH001",
+      name: "Paracetamol 500mg",
+      registrationNumber: "VD-12345-17",
+    });
+    await api().post(`${BASE}/auto-match`).set(h()).send({}).expect(200);
+    return seeded;
+  }
+
+  it("cấu hình theo cửa hàng đang chọn; không chọn cửa hàng thì báo lỗi rõ", async () => {
+    const response = await api().get(`${BASE}/config`).set(authHeaders(adminToken)).expect(400);
+    expect(response.body.error.code).toBe("STORE_REQUIRED");
+
+    await configure();
+    const other = await api()
+      .get(`${BASE}/config`)
+      .set(h(adminToken, fixture.otherStoreId))
+      .expect(200);
+    expect(other.body.data).toMatchObject({
+      storeId: fixture.otherStoreId,
+      enabled: false,
+      username: null,
+      hasPassword: false,
+    });
+  });
+
+  it("mỗi cửa hàng gửi chứng từ bằng tài khoản của chính cửa hàng đó", async () => {
+    await stub.close();
+    stub = await startStubServer({
+      username: USERNAME,
+      password: PASSWORD,
+      extraAccounts: { [OTHER_USER]: OTHER_PASS },
+      units: [{ id: "U01", name: "Viên" }],
+      drugs: NATIONAL_DRUGS,
+    });
+    process.env["NDS_BASE_URL"] = stub.baseUrl;
+
+    const { product, unit, batch } = await readyFirstStore();
+    await configureStore(fixture.otherStoreId, {
+      enabled: true,
+      environment: "SANDBOX",
+      username: OTHER_USER,
+      password: OTHER_PASS,
+      practiceLicenseCode: "GP-NT02",
+      startDate: "2026-09-01",
+    }).expect(200);
+    await seedInvoice(product, unit, batch);
+    await seedOtherStoreInvoice(product, unit);
+
+    for (const storeId of [fixture.storeId, fixture.otherStoreId]) {
+      await api().post(`${BASE}/scan`).set(h(adminToken, storeId)).send({}).expect(200);
+      await api().post(`${BASE}/drain`).set(h(adminToken, storeId)).send({}).expect(200);
+    }
+
+    const byRef = new Map(
+      [...stub.submissions.values()].map((entry) => [
+        payloadOf({ body: entry.payload }).reference_number,
+        entry,
+      ]),
+    );
+    expect(byRef.get("HD-NT01-20260929-0001")?.username).toBe(USERNAME);
+    expect(byRef.get("HD-NT02-20260929-0001")?.username).toBe(OTHER_USER);
+    expect(byRef.get("HD-NT02-20260929-0001")?.payload).toMatchObject({
+      practice_license_code: "GP-NT02",
+    });
+  });
+
+  it("cửa hàng chưa cấu hình thì chứng từ nằm chờ, không gửi bằng tài khoản cửa hàng khác", async () => {
+    const { product, unit } = await readyFirstStore();
+    await seedOtherStoreInvoice(product, unit);
+
+    // Quét từ cửa hàng 1: không tạo việc cho cửa hàng 2 (chưa có mốc bắt đầu).
+    const scan = await api().post(`${BASE}/scan`).set(h()).send({}).expect(200);
+    expect(scan.body.data.created).toBe(0);
+    await api().post(`${BASE}/drain`).set(h()).send({}).expect(200);
+    expect(stub.submissions.size).toBe(0);
+
+    // Cửa hàng 2 có mốc nhưng chưa bật: việc nằm chờ, bộ chạy nền không gửi.
+    await configureStore(fixture.otherStoreId, { startDate: "2026-09-01" }).expect(200);
+    await api().post(`${BASE}/scan`).set(h(adminToken, fixture.otherStoreId)).send({}).expect(200);
+    const { drainQueue } = await import("./nds-queue.service.js");
+    await drainQueue();
+    expect(stub.submissions.size).toBe(0);
+    expect(
+      await prisma.nationalSyncJob.count({
+        where: { storeId: fixture.otherStoreId, status: "PENDING" },
+      }),
+    ).toBe(1);
+  });
+
+  it("không cho hai cửa hàng dùng chung một tài khoản liên thông", async () => {
+    await configure();
+    const response = await configureStore(fixture.otherStoreId, {
+      username: USERNAME,
+      password: PASSWORD,
+    }).expect(422);
+    expect(response.body.error.message).toContain("NT01");
+  });
+
+  it("danh sách việc gửi chỉ gồm chứng từ của cửa hàng đang chọn", async () => {
+    const { product, unit, batch } = await readyFirstStore();
+    await seedInvoice(product, unit, batch);
+    await api().post(`${BASE}/scan`).set(h()).send({}).expect(200);
+
+    const mine = await api().get(`${BASE}/jobs`).set(h()).expect(200);
+    expect(mine.body.data.items).toHaveLength(1);
+    const other = await api()
+      .get(`${BASE}/jobs`)
+      .set(h(adminToken, fixture.otherStoreId))
+      .expect(200);
+    expect(other.body.data.items).toHaveLength(0);
+    expect(other.body.data.summary.total).toBe(0);
+
+    // Gửi lại bằng tay: cửa hàng khác không thao tác được việc của cửa hàng này.
+    await api()
+      .post(`${BASE}/jobs/${mine.body.data.items[0].id}/retry`)
+      .set(h(adminToken, fixture.otherStoreId))
+      .send({})
+      .expect(404);
   });
 });

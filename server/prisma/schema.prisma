@@ -55,6 +55,7 @@ model Store {
   documentCounters   DocumentCounter[]
   idempotencyKeys    IdempotencyKey[]
   nationalSyncJobs   NationalSyncJob[]
+  nationalSyncConfig NationalSyncStoreConfig?
 
   @@map("stores")
 }
@@ -77,45 +78,46 @@ model User {
 
   defaultStore Store? @relation(fields: [defaultStoreId], references: [id])
 
-  userRoles                UserRole[]              @relation("UserRoleUser")
-  assignedUserRoles        UserRole[]              @relation("UserRoleAssignedBy")
+  userRoles                UserRole[]                @relation("UserRoleUser")
+  assignedUserRoles        UserRole[]                @relation("UserRoleAssignedBy")
   refreshSessions          RefreshSession[]
   auditLogs                AuditLog[]
   aiLogs                   AiLog[]
   productPrices            ProductPrice[]
   settingsUpdated          Setting[]
-  goodsReceiptsCreated     GoodsReceipt[]          @relation("GoodsReceiptCreatedBy")
-  goodsReceiptsConfirmed   GoodsReceipt[]          @relation("GoodsReceiptConfirmedBy")
-  goodsReceiptsCancelled   GoodsReceipt[]          @relation("GoodsReceiptCancelledBy")
-  adjustmentsCreated       StockAdjustment[]       @relation("AdjustmentCreatedBy")
-  adjustmentsApproved      StockAdjustment[]       @relation("AdjustmentApprovedBy")
-  recallsCreated           Recall[]                @relation("RecallCreatedBy")
-  recallsClosed            Recall[]                @relation("RecallClosedBy")
-  invoicesSold             Invoice[]               @relation("InvoiceSeller")
-  invoicesAsPharmacist     Invoice[]               @relation("InvoicePharmacist")
-  invoicesVoided           Invoice[]               @relation("InvoiceVoidedBy")
+  goodsReceiptsCreated     GoodsReceipt[]            @relation("GoodsReceiptCreatedBy")
+  goodsReceiptsConfirmed   GoodsReceipt[]            @relation("GoodsReceiptConfirmedBy")
+  goodsReceiptsCancelled   GoodsReceipt[]            @relation("GoodsReceiptCancelledBy")
+  adjustmentsCreated       StockAdjustment[]         @relation("AdjustmentCreatedBy")
+  adjustmentsApproved      StockAdjustment[]         @relation("AdjustmentApprovedBy")
+  recallsCreated           Recall[]                  @relation("RecallCreatedBy")
+  recallsClosed            Recall[]                  @relation("RecallClosedBy")
+  invoicesSold             Invoice[]                 @relation("InvoiceSeller")
+  invoicesAsPharmacist     Invoice[]                 @relation("InvoicePharmacist")
+  invoicesVoided           Invoice[]                 @relation("InvoiceVoidedBy")
   safetyAcks               InvoiceSafetyAck[]
   returnsCreated           Return[]
-  prescriptionsCreated     Prescription[]          @relation("PrescriptionCreatedBy")
-  prescriptionsVerified    Prescription[]          @relation("PrescriptionVerifiedBy")
+  prescriptionsCreated     Prescription[]            @relation("PrescriptionCreatedBy")
+  prescriptionsVerified    Prescription[]            @relation("PrescriptionVerifiedBy")
   prescriptionImages       PrescriptionImage[]
   productImages            ProductImage[]
   storageLogs              StorageLog[]
-  stockCountsCreated       StockCount[]            @relation("StockCountCreatedBy")
-  stockCountsClosed        StockCount[]            @relation("StockCountClosedBy")
+  stockCountsCreated       StockCount[]              @relation("StockCountCreatedBy")
+  stockCountsClosed        StockCount[]              @relation("StockCountClosedBy")
   stockCountLinesCounted   StockCountLine[]
   controlledSalesRecorded  ControlledSaleDetail[]
-  expiryPlansCreated       BatchExpiryPlan[]       @relation("ExpiryPlanCreatedBy")
-  expiryPlansResolved      BatchExpiryPlan[]       @relation("ExpiryPlanResolvedBy")
-  supplierPaymentsCreated  SupplierPayment[]       @relation("SupplierPaymentCreatedBy")
-  supplierPaymentsVoided   SupplierPayment[]       @relation("SupplierPaymentVoidedBy")
-  supplierReturnsCreated   SupplierReturn[]        @relation("SupplierReturnCreatedBy")
-  supplierReturnsConfirmed SupplierReturn[]        @relation("SupplierReturnConfirmedBy")
-  supplierReturnsCancelled SupplierReturn[]        @relation("SupplierReturnCancelledBy")
+  expiryPlansCreated       BatchExpiryPlan[]         @relation("ExpiryPlanCreatedBy")
+  expiryPlansResolved      BatchExpiryPlan[]         @relation("ExpiryPlanResolvedBy")
+  supplierPaymentsCreated  SupplierPayment[]         @relation("SupplierPaymentCreatedBy")
+  supplierPaymentsVoided   SupplierPayment[]         @relation("SupplierPaymentVoidedBy")
+  supplierReturnsCreated   SupplierReturn[]          @relation("SupplierReturnCreatedBy")
+  supplierReturnsConfirmed SupplierReturn[]          @relation("SupplierReturnConfirmedBy")
+  supplierReturnsCancelled SupplierReturn[]          @relation("SupplierReturnCancelledBy")
   healthProfilesUpdated    CustomerHealthProfile[]
   stockMovements           StockMovement[]
   loyaltyEntriesCreated    LoyaltyTransaction[]
   nationalSyncConfigs      NationalSyncConfig[]
+  nationalSyncStoreConfigs NationalSyncStoreConfig[]
   nationalDrugLinks        NationalDrugLink[]
 
   @@index([defaultStoreId])
@@ -161,15 +163,15 @@ model RolePermission {
 /// Vai trò gán theo cửa hàng. storeId để trống nghĩa là áp dụng toàn chuỗi.
 /// Ràng buộc duy nhất dùng NULLS NOT DISTINCT, thêm trong SQL viết tay.
 model UserRole {
-  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId     String   @map("user_id") @db.Uuid
-  roleId     String   @map("role_id") @db.Uuid
-  storeId    String?  @map("store_id") @db.Uuid
-  assignedAt DateTime @default(now()) @map("assigned_at") @db.Timestamptz(6)
-  assignedBy String?  @map("assigned_by") @db.Uuid
-  additionalPermissions String[] @default([]) @map("additional_permissions")
-  qualificationReference String? @map("qualification_reference")
-  responsibleProfessional Boolean @default(false) @map("responsible_professional")
+  id                      String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId                  String   @map("user_id") @db.Uuid
+  roleId                  String   @map("role_id") @db.Uuid
+  storeId                 String?  @map("store_id") @db.Uuid
+  assignedAt              DateTime @default(now()) @map("assigned_at") @db.Timestamptz(6)
+  assignedBy              String?  @map("assigned_by") @db.Uuid
+  additionalPermissions   String[] @default([]) @map("additional_permissions")
+  qualificationReference  String?  @map("qualification_reference")
+  responsibleProfessional Boolean  @default(false) @map("responsible_professional")
 
   user           User   @relation("UserRoleUser", fields: [userId], references: [id], onDelete: Cascade)
   role           Role   @relation(fields: [roleId], references: [id])
@@ -834,35 +836,35 @@ model PrescriptionImage {
 // ---------------------------------------------------------------------------
 
 model Invoice {
-  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  storeId        String    @map("store_id") @db.Uuid
-  code           String    @unique
-  customerId     String?   @map("customer_id") @db.Uuid
-  prescriptionId String?   @map("prescription_id") @db.Uuid
-  sellerId       String    @map("seller_id") @db.Uuid
-  pharmacistId   String?   @map("pharmacist_id") @db.Uuid
-  soldAt         DateTime  @default(now()) @map("sold_at") @db.Timestamptz(6)
-  businessDate   DateTime  @map("business_date") @db.Date
-  status         String    @default("COMPLETED")
-  subtotal       BigInt    @default(0)
-  discountType   String?   @map("discount_type")
-  discountValue  Decimal?  @map("discount_value") @db.Decimal(12, 2)
-  discountReason String?   @map("discount_reason")
-  discountAmount BigInt    @default(0) @map("discount_amount")
-  vatAmount      BigInt    @default(0) @map("vat_amount")
-  totalAmount    BigInt    @default(0) @map("total_amount")
+  id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  storeId               String    @map("store_id") @db.Uuid
+  code                  String    @unique
+  customerId            String?   @map("customer_id") @db.Uuid
+  prescriptionId        String?   @map("prescription_id") @db.Uuid
+  sellerId              String    @map("seller_id") @db.Uuid
+  pharmacistId          String?   @map("pharmacist_id") @db.Uuid
+  soldAt                DateTime  @default(now()) @map("sold_at") @db.Timestamptz(6)
+  businessDate          DateTime  @map("business_date") @db.Date
+  status                String    @default("COMPLETED")
+  subtotal              BigInt    @default(0)
+  discountType          String?   @map("discount_type")
+  discountValue         Decimal?  @map("discount_value") @db.Decimal(12, 2)
+  discountReason        String?   @map("discount_reason")
+  discountAmount        BigInt    @default(0) @map("discount_amount")
+  vatAmount             BigInt    @default(0) @map("vat_amount")
+  totalAmount           BigInt    @default(0) @map("total_amount")
   /// Điểm khách đã đổi trên hóa đơn này và số tiền giảm tương ứng, tách
   /// riêng khỏi giảm giá của nhân viên.
-  loyaltyPointsRedeemed Int    @default(0) @map("loyalty_points_redeemed")
-  loyaltyDiscountAmount BigInt @default(0) @map("loyalty_discount_amount")
-  paymentMethod  String    @default("CASH") @map("payment_method")
-  amountTendered BigInt?   @map("amount_tendered")
-  changeAmount   BigInt?   @map("change_amount")
-  returnStatus   String    @default("NONE") @map("return_status")
-  voidedBy       String?   @map("voided_by") @db.Uuid
-  voidedAt       DateTime? @map("voided_at") @db.Timestamptz(6)
-  voidReason     String?   @map("void_reason")
-  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  loyaltyPointsRedeemed Int       @default(0) @map("loyalty_points_redeemed")
+  loyaltyDiscountAmount BigInt    @default(0) @map("loyalty_discount_amount")
+  paymentMethod         String    @default("CASH") @map("payment_method")
+  amountTendered        BigInt?   @map("amount_tendered")
+  changeAmount          BigInt?   @map("change_amount")
+  returnStatus          String    @default("NONE") @map("return_status")
+  voidedBy              String?   @map("voided_by") @db.Uuid
+  voidedAt              DateTime? @map("voided_at") @db.Timestamptz(6)
+  voidReason            String?   @map("void_reason")
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
 
   store          Store                 @relation(fields: [storeId], references: [id])
   customer       Customer?             @relation(fields: [customerId], references: [id])
@@ -918,12 +920,12 @@ model InvoiceLine {
 /// Khóa ngoại tổ hợp (batchId, storeId) chặn bán lô của cửa hàng khác.
 /// CHECK số đã trả không vượt số đã bán nằm trong SQL viết tay.
 model InvoiceAllocation {
-  id                   String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  invoiceLineId        String @map("invoice_line_id") @db.Uuid
-  storeId              String @map("store_id") @db.Uuid
-  batchId              String @map("batch_id") @db.Uuid
-  baseQuantity         Int    @map("base_quantity")
-  returnedBaseQuantity Int    @default(0) @map("returned_base_quantity")
+  id                   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  invoiceLineId        String   @map("invoice_line_id") @db.Uuid
+  storeId              String   @map("store_id") @db.Uuid
+  batchId              String   @map("batch_id") @db.Uuid
+  baseQuantity         Int      @map("base_quantity")
+  returnedBaseQuantity Int      @default(0) @map("returned_base_quantity")
   /// Giá vốn của lô tại đúng thời điểm xuất.
   unitCost             Decimal? @map("unit_cost") @db.Decimal(18, 4)
   /// ACTUAL: chụp lúc xuất. ESTIMATED: ước tính một lần từ giá vốn lô khi
@@ -971,8 +973,8 @@ model Return {
   createdBy    String   @map("created_by") @db.Uuid
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  store         Store        @relation(fields: [storeId], references: [id])
-  invoice       Invoice      @relation(fields: [invoiceId], references: [id])
+  store         Store                @relation(fields: [storeId], references: [id])
+  invoice       Invoice              @relation(fields: [invoiceId], references: [id])
   createdByUser User                 @relation(fields: [createdBy], references: [id])
   lines         ReturnLine[]
   loyaltyLedger LoyaltyTransaction[]
@@ -1355,23 +1357,37 @@ model DocumentCounter {
 // ---------------------------------------------------------------------------
 
 /// Cấu hình kết nối, đúng một dòng (khóa chính là hằng TRUE).
+/// Phần liên thông dùng chung toàn chuỗi (một dòng): mốc đồng bộ danh mục
+/// thuốc quốc gia. Tài khoản và mốc liên thông nằm ở NationalSyncStoreConfig.
 model NationalSyncConfig {
-  id                   Boolean   @id @default(true)
-  enabled              Boolean   @default(false)
-  environment          String    @default("SANDBOX")
-  username             String?
-  /// AES-256-GCM; không bao giờ trả về cho giao diện.
-  passwordCipher       String?   @map("password_cipher")
-  practiceLicenseCode  String?   @map("practice_license_code")
-  /// Ngày phiếu kiểm hàng đầu kỳ; chứng từ trước ngày này không gửi.
-  startDate            DateTime? @map("start_date") @db.Date
-  lastMasterSyncAt     DateTime? @map("last_master_sync_at") @db.Timestamptz(6)
-  updatedAt            DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  updatedBy            String?   @map("updated_by") @db.Uuid
+  id               Boolean   @id @default(true)
+  lastMasterSyncAt DateTime? @map("last_master_sync_at") @db.Timestamptz(6)
+  updatedAt        DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy        String?   @map("updated_by") @db.Uuid
 
   updatedByUser User? @relation(fields: [updatedBy], references: [id])
 
   @@map("national_sync_config")
+}
+
+/// Cấu hình liên thông CSDL Dược của một cửa hàng: mỗi cơ sở một tài khoản.
+model NationalSyncStoreConfig {
+  storeId             String    @id @map("store_id") @db.Uuid
+  enabled             Boolean   @default(false)
+  environment         String    @default("SANDBOX")
+  username            String?
+  /// AES-256-GCM; không bao giờ trả về cho giao diện.
+  passwordCipher      String?   @map("password_cipher")
+  practiceLicenseCode String?   @map("practice_license_code")
+  /// Ngày phiếu kiểm hàng đầu kỳ của cửa hàng; chứng từ trước ngày này không gửi.
+  startDate           DateTime? @map("start_date") @db.Date
+  updatedAt           DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  updatedBy           String?   @map("updated_by") @db.Uuid
+
+  store         Store @relation(fields: [storeId], references: [id])
+  updatedByUser User? @relation(fields: [updatedBy], references: [id])
+
+  @@map("national_sync_store_configs")
 }
 
 /// Bản sao danh mục thuốc quốc gia, làm nguồn ghép mã và tra cứu ngoại tuyến.
