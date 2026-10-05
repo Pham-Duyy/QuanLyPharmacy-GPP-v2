@@ -212,16 +212,28 @@ export class NdsClient {
     try {
       return JSON.parse(text) as unknown;
     } catch {
-      throw new NdsError("Phản hồi không phải JSON hợp lệ", "RESPONSE", response.status, undefined, text.slice(0, 500));
+      throw new NdsError(
+        "Phản hồi không phải JSON hợp lệ",
+        "RESPONSE",
+        response.status,
+        undefined,
+        text.slice(0, 500),
+      );
     }
   }
 
   // --- Danh mục -------------------------------------------------------------
 
-  async fetchUnitsPage(page: number, pageSize = 50): Promise<{ items: NationalUnitDto[]; total: number }> {
-    const raw = await this.request("GET", "/master/units", { query: { page, page_size: pageSize } });
+  async fetchUnitsPage(
+    page: number,
+    pageSize = 50,
+  ): Promise<{ items: NationalUnitDto[]; total: number }> {
+    const raw = await this.request("GET", "/master/units", {
+      query: { page, page_size: pageSize },
+    });
     const parsed = unitsPageSchema.safeParse(raw);
-    if (!parsed.success) throw new NdsError("Danh mục đơn vị tính trả về không đúng đặc tả", "RESPONSE");
+    if (!parsed.success)
+      throw new NdsError("Danh mục đơn vị tính trả về không đúng đặc tả", "RESPONSE");
     return { items: parsed.data.data, total: parsed.data.total ?? parsed.data.data.length };
   }
 

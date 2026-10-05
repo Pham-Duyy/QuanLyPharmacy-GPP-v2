@@ -3,7 +3,9 @@ import type { Envelope } from "../../api/types.js";
 
 /** Kiểu dữ liệu của màn Liên thông CSDL Dược quốc gia. */
 
+/** Cấu hình liên thông của cửa hàng đang chọn: mỗi cơ sở một tài khoản. */
 export type NdsConfig = {
+  storeId: string;
   enabled: boolean;
   environment: "SANDBOX" | "PRODUCTION";
   baseUrl: string;
@@ -13,6 +15,7 @@ export type NdsConfig = {
   hasPassword: boolean;
   practiceLicenseCode: string | null;
   startDate: string | null;
+  /** Mốc đồng bộ danh mục thuốc quốc gia, dùng chung toàn chuỗi. */
   lastMasterSyncAt: string | null;
   updatedAt: string;
 };

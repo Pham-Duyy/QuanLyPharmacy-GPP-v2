@@ -71,11 +71,13 @@ const MATCHED_BY: Record<string, { label: string; color: string }> = {
  * chứng từ hằng ngày tự gửi.
  */
 export function NationalSyncPage() {
-  const { can } = useAuth();
+  const { can, me, storeId } = useAuth();
   const queryClient = useQueryClient();
   const canManage = can("national_sync.manage");
+  const store = me?.stores.find((item) => item.id === storeId);
 
-  const config = useQuery({ queryKey: ["nds", "config"], queryFn: fetchConfig });
+  // Cấu hình và chứng từ theo cửa hàng đang chọn: khóa truy vấn gồm storeId để đổi cửa hàng là tải lại.
+  const config = useQuery({ queryKey: ["nds", storeId, "config"], queryFn: fetchConfig, enabled: storeId !== null });
   const refreshAll = async (): Promise<void> => {
     await queryClient.invalidateQueries({ queryKey: ["nds"] });
   };
@@ -87,6 +89,16 @@ export function NationalSyncPage() {
         title="Liên thông CSDL Dược quốc gia"
         description="Gửi dữ liệu nhập, xuất và kiểm kho lên Hệ thống Cơ sở dữ liệu về Dược của Bộ Y tế (csdlduoc.com.vn)."
       />
+
+      {store ? (
+        <Alert
+          type="info"
+          showIcon
+          style={{ marginBottom: 16 }}
+          title={`Đang xem cơ sở ${store.code} · ${store.name}`}
+          description="Mỗi cơ sở dùng tài khoản liên thông riêng do chính cơ sở đó đăng ký. Tài khoản, tồn đầu kỳ và chứng từ ở đây chỉ thuộc cơ sở này; đổi cơ sở ở ô chọn cửa hàng trên đầu trang. Danh mục thuốc quốc gia và ghép mã dùng chung cho cả chuỗi."
+        />
+      ) : null}
 
       {config.isLoading ? <Skeleton active /> : null}
       {config.isError ? (
@@ -100,6 +112,7 @@ export function NationalSyncPage() {
 
       {config.data ? (
         <Tabs
+          key={storeId ?? "none"}
           defaultActiveKey="connection"
           items={[
             {
@@ -205,7 +218,7 @@ function ConnectionTab({
 
   return (
     <Space orientation="vertical" size="large" style={{ width: "100%" }}>
-      <Card title="Tài khoản liên thông">
+      <Card title="Tài khoản liên thông của cơ sở">
         <Form
           form={form}
           layout="vertical"
@@ -538,7 +551,7 @@ function JobsTab({
   const [status, setStatus] = useState<string | undefined>(undefined);
 
   const jobs = useQuery({
-    queryKey: ["nds", "jobs", status],
+    queryKey: ["nds", config.storeId, "jobs", status],
     queryFn: () => fetchJobs(status),
     refetchInterval: 30_000,
   });

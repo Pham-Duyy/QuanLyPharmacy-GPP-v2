@@ -18,6 +18,8 @@ import { AddressInfo } from "node:net";
 export type StubOptions = {
   username: string;
   password: string;
+  /** Tài khoản của các cơ sở khác (tên đăng nhập → mật khẩu). */
+  extraAccounts?: Record<string, string>;
   units: Array<{ id: string; name: string }>;
   drugs: unknown[];
   pageSize?: number;
@@ -28,7 +30,8 @@ export type StubServer = {
   close: () => Promise<void>;
   /** Mọi yêu cầu đã nhận, để test khẳng định phần mềm gửi đúng cái gì. */
   requests: Array<{ method: string; path: string; body: unknown; authorization: string | null }>;
-  submissions: Map<string, { kind: string; payload: unknown; status: string }>;
+  /** `username`: tài khoản đã gửi chứng từ, để kiểm tra đúng cơ sở. */
+  submissions: Map<string, { kind: string; payload: unknown; status: string; username: string }>;
   /** Buộc N lần gọi tiếp theo (trừ đăng nhập) trả về mã lỗi này. */
   failNext: (times: number, status: number) => void;
   /** Làm token đang phát hết hiệu lực, lần gọi sau sẽ nhận 401. */
@@ -49,7 +52,12 @@ function readBody(req: IncomingMessage): Promise<string> {
 export async function startStubServer(options: StubOptions): Promise<StubServer> {
   const pageSize = options.pageSize ?? 50;
   const requests: StubServer["requests"] = [];
-  const submissions = new Map<string, { kind: string; payload: unknown; status: string }>();
+  const submissions: StubServer["submissions"] = new Map();
+  const accounts = new Map([
+    [options.username, options.password],
+    ...Object.entries(options.extraAccounts ?? {}),
+  ]);
+  const userByToken = new Map<string, string>();
   const messagesByTransaction = new Map<string, string[]>();
   const validTokens = new Set<string>();
 
@@ -77,7 +85,12 @@ export async function startStubServer(options: StubOptions): Promise<StubServer>
           parsedBody = raw;
         }
       }
-      requests.push({ method: req.method ?? "GET", path: url.pathname, body: parsedBody, authorization });
+      requests.push({
+        method: req.method ?? "GET",
+        path: url.pathname,
+        body: parsedBody,
+        authorization,
+      });
 
       // --- Đăng nhập ---
       if (url.pathname === "/v2/auth/login" && req.method === "POST") {
@@ -88,17 +101,19 @@ export async function startStubServer(options: StubOptions): Promise<StubServer>
         const form = new URLSearchParams(raw);
         const username = form.get("username");
         const password = form.get("password");
-        if (!username || !password) return json(res, 400, { message: "Thiếu username hoặc password" });
+        if (!username || !password)
+          return json(res, 400, { message: "Thiếu username hoặc password" });
 
         // Đặc tả: mật khẩu gửi lên đã mã hóa base64.
         const decoded = Buffer.from(password, "base64").toString("utf8");
-        if (username !== options.username || decoded !== options.password) {
+        if (accounts.get(username) !== decoded) {
           return json(res, 401, { message: "Sai tài khoản hoặc mật khẩu" });
         }
 
         tokenCounter += 1;
         const token = `stub-token-${tokenCounter}`;
         validTokens.add(token);
+        userByToken.set(token, username);
         return json(res, 200, { access_token: token, token_type: "Bearer", expires_in: 3600 });
       }
 
@@ -122,7 +137,9 @@ export async function startStubServer(options: StubOptions): Promise<StubServer>
       if (url.pathname === "/v2/master/units") return json(res, 200, slice(options.units));
       if (url.pathname === "/v2/master/drugs") return json(res, 200, slice(options.drugs));
 
-      const submitMatch = url.pathname.match(/^\/v2\/transactions\/(stock-in|stock-out|stock-taking)$/);
+      const submitMatch = url.pathname.match(
+        /^\/v2\/transactions\/(stock-in|stock-out|stock-taking)$/,
+      );
       if (submitMatch && req.method === "POST") {
         const body = parsedBody as { reference_number?: string; items?: unknown[] };
         if (!body?.reference_number) {
@@ -134,6 +151,7 @@ export async function startStubServer(options: StubOptions): Promise<StubServer>
           kind: submitMatch[1]!,
           payload: parsedBody,
           status: "accepted",
+          username: userByToken.get(token) ?? "",
         });
         return json(res, 200, { transaction_id: transactionId, status: "accepted" });
       }
