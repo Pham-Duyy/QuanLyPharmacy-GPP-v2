@@ -748,7 +748,8 @@ export type ReportsSummary = {
   topProducts: Array<{ productId: string; productName: string; quantity: number; revenue: Money }>;
   categoryBreakdown: Array<{ categoryName: string; revenue: Money; percent: number }>;
   paymentMethods: Array<{ method: string; amount: Money; count: number; percent: number }>;
-  staffPerformance: Array<{ userId: string; fullName: string; revenue: Money; invoiceCount: number }>;
+  /** Mọi người bán trong kỳ. revenue chưa trừ hàng trả; refund là tiền hoàn của phiếu trả trong kỳ trên hóa đơn của người đó. */
+  staffPerformance: Array<{ userId: string; fullName: string; revenue: Money; invoiceCount: number; refund: Money; returnCount: number; netRevenue: Money }>;
 };
 
 export type InvoicePaperSize = "K80" | "K58" | "A5";

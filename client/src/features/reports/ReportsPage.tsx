@@ -318,17 +318,26 @@ function GoodsTab({ data }: { data: ReportsSummary }) {
 
 function StaffTab({ data }: { data: ReportsSummary }) {
   return (
-    <Card title="Doanh thu theo người bán">
+    <Card title="Doanh thu thuần theo người bán">
+      <Alert
+        type="info"
+        showIcon
+        style={{ marginBottom: 12 }}
+        title="Doanh thu thuần = hóa đơn hoàn thành trong kỳ − tiền hoàn của phiếu trả lập trong kỳ. Hàng trả trừ vào người bán của hóa đơn gốc (không phải người nhận trả) và tính vào kỳ của ngày trả."
+      />
       <Table
         rowKey="userId"
         pagination={false}
+        scroll={{ x: 640 }}
         dataSource={data.staffPerformance}
         locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có dữ liệu bán hàng" /> }}
         columns={[
           { title: "#", key: "rank", width: 50, render: (_: unknown, __: unknown, index: number) => (index === 0 ? <TrophyFilled style={{ color: "#f5a524", fontSize: 18 }} /> : <span className="rank-badge">{index + 1}</span>) },
           { title: "Nhân viên", dataIndex: "fullName" },
-          { title: "Số hóa đơn", dataIndex: "invoiceCount", width: 120, align: "right", render: (value: number) => formatNumber(value) },
-          { title: "Doanh thu", key: "revenue", width: 150, align: "right", render: (_: unknown, row: ReportsSummary["staffPerformance"][number]) => <Typography.Text strong>{formatVnd(row.revenue)}</Typography.Text> },
+          { title: "Số hóa đơn", dataIndex: "invoiceCount", width: 110, align: "right", render: (value: number) => formatNumber(value) },
+          { title: "Doanh thu bán", key: "revenue", width: 140, align: "right", render: (_: unknown, row: ReportsSummary["staffPerformance"][number]) => formatVnd(row.revenue) },
+          { title: "Hàng trả", key: "refund", width: 130, align: "right", render: (_: unknown, row: ReportsSummary["staffPerformance"][number]) => (row.refund ? <Typography.Text type="danger">− {formatVnd(row.refund)}</Typography.Text> : "—") },
+          { title: "Doanh thu thuần", key: "net", width: 150, align: "right", render: (_: unknown, row: ReportsSummary["staffPerformance"][number]) => <Typography.Text strong>{formatVnd(row.netRevenue)}</Typography.Text> },
         ]}
       />
     </Card>
