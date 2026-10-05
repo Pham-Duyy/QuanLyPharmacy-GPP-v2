@@ -12,6 +12,7 @@ const SalePage = page(() => import("../features/sales/SalePage.js"), "SalePage")
 const InvoicesPage = page(() => import("../features/sales/InvoicesPage.js"), "InvoicesPage");
 const ReturnsPage = page(() => import("../features/sales/ReturnsPage.js"), "ReturnsPage");
 const PrescriptionsPage = page(() => import("../features/prescriptions/PrescriptionsPage.js"), "PrescriptionsPage");
+const EInvoicesPage = page(() => import("../features/einvoice/EInvoicesPage.js"), "EInvoicesPage");
 const CustomersPage = page(() => import("../features/customers/CustomersPage.js"), "CustomersPage");
 const ProductsPage = page(() => import("../features/catalog/ProductsPage.js"), "ProductsPage");
 const CatalogDataPage = page(() => import("../features/catalog/CatalogDataPage.js"), "CatalogDataPage");
@@ -49,6 +50,7 @@ export const PAGE_ELEMENTS: Record<PagePath, ReactNode> = {
   "/bao-cao": <ReportsPage />,
   "/hoa-don": <InvoicesPage />,
   "/tra-hang": <ReturnsPage />,
+  "/hoa-don-dien-tu": <EInvoicesPage />,
   "/don-thuoc": <PrescriptionsPage />,
   "/san-pham": <ProductsPage />,
   "/ton-kho": <BatchesPage />,

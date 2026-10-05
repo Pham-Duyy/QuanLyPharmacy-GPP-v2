@@ -286,6 +286,7 @@ Quy tắc:
 | `supplier_payment.manage` | Ghi nhận thanh toán cho nhà cung cấp |
 | `loyalty.manage` | Điều chỉnh điểm tích lũy của khách bằng tay |
 | `ai.use` | Dùng tính năng AI |
+| `einvoice.manage` | Cấu hình và phát hành hóa đơn điện tử |
 
 ### 4.2 Bốn vai trò và quyền bổ sung theo cửa hàng
 
@@ -337,6 +338,7 @@ Mô hình cập nhật ngày 30/09/2026. `admin`: quản lý; `pharmacist`: dư�
 | `ai.use` |  | ✓ |  |  |
 | `national_sync.read` | ✓ | ✓ |  | ✓ |
 | `national_sync.manage` | ✓ |  |  |  |
+| `einvoice.manage` | ✓ |  |  |  |
 
 - Quản lý thuần không có `invoice.create`. Quản lý trực tiếp bán phải đủ điều kiện chuyên môn và được gán thêm Dược sĩ. Vai trò phần mềm không thay thế điều kiện hành nghề.
 - Dược sĩ cơ bản không mặc nhiên có các quyền duyệt. `additionalPermissions` chỉ nhận danh sách cố định trong `ADDITIONAL_PERMISSIONS` của `server/src/config/permissions.ts`, gắn vào dòng vai trò Dược sĩ tại một cửa hàng cụ thể. Không cấp quyền bổ sung toàn chuỗi hoặc quyền tùy ý.
@@ -1613,3 +1615,48 @@ hỏi lại trạng thái. Tệp này nằm trong `src/test` và không có đư
 Biến `NDS_BASE_URL` để trỏ API sang địa chỉ khác (bộ kiểm thử dùng, hoặc khi
 Bộ Y tế đổi tên miền). Khi biến này được đặt, màn Liên thông hiện địa chỉ thật
 đang gọi kèm thẻ cảnh báo, để không ai nhầm với địa chỉ chính thức.
+
+## 26. Hóa đơn điện tử khởi tạo từ máy tính tiền
+
+Nghị định 70/2025 (hiệu lực 01/06/2025): bán lẻ trực tiếp cho người tiêu dùng và hộ kinh doanh có doanh thu từ 1 tỷ đồng/năm phải dùng hóa đơn điện tử khởi tạo từ máy tính tiền, có mã của cơ quan thuế. Phần mềm không kết nối thẳng cơ quan thuế mà phát hành qua nhà cung cấp dịch vụ hóa đơn; hiện có **MISA meInvoice** theo tài liệu doc.meinvoice.vn (đọc ngày 05/10/2026).
+
+### 26.1 Nguyên tắc
+
+- **Không nằm trong đường bán hàng.** Bán xong, bộ chạy nền (1 phút một lượt) tạo việc phát hành cho hóa đơn hoàn tất; mất mạng hay MISA lỗi đều không chặn bán.
+- **Theo từng cửa hàng.** Mỗi cơ sở có mã số thuế, ký hiệu hóa đơn máy tính tiền (ký tự thứ 4 là `M`, ví dụ `1C26MAB`), AppID và tài khoản MISA riêng. Mọi endpoint dùng `X-Store-Id`, thiếu thì `400 STORE_REQUIRED`.
+- **Không phát hành hồi tố.** Mốc `enabled_from` chốt ở lần bật đầu tiên; hóa đơn bán trước mốc không phát hành.
+- **Không phát hành trùng.** Việc phát hành giữ chỗ trước khi gửi; lần thử lại hỏi trạng thái theo `RefID` (= id hóa đơn bán) trước, MISA đã nhận thì chỉ ghi nhận, không gửi lần hai.
+- **Không in mã giả.** Phiếu in chỉ ghi ký hiệu, số, mã tra cứu và mã CQT khi đã nhận thật; chưa phát hành thì ghi "đang chờ phát hành".
+
+### 26.2 Dữ liệu gửi
+
+Giá niêm yết đã gồm VAT, giảm giá đã phân bổ vào `line_total`. Mỗi dòng: thành tiền chưa thuế = `line_total` − VAT dòng (tách ngược như lúc bán), đơn giá chưa thuế = thành tiền chưa thuế / số lượng, `VATRateName` dạng `5%`. Không gửi dòng chiết khấu riêng (`TotalDiscountAmount = 0`) vì giảm giá đã nằm trong thành tiền. Tổng dòng phải khớp `total_amount` và `vat_amount` của hóa đơn, lệch thì không gửi (`REJECTED`). Khách lẻ không ghi thông tin người mua.
+
+Cần kiểm lại với tài khoản sandbox thật: định dạng `VATRateName`, cách MISA hiểu `UnitPrice` (chưa thuế), tên trường viết hoa/thường của phản hồi trạng thái.
+
+### 26.3 Trạng thái
+
+| Trạng thái | Nghĩa |
+|---|---|
+| `PENDING` | Chờ phát hành |
+| `SENDING` | Đang gửi (giữ chỗ) |
+| `PUBLISHED` | MISA đã phát hành, có ký hiệu/số/mã tra cứu, chờ mã CQT |
+| `COMPLETED` | Đã có mã của cơ quan thuế |
+| `FAILED` | Lỗi tạm thời (mạng, MISA 5xx, sai tài khoản), thử lại giãn dần 1–360 phút |
+| `REJECTED` | Dữ liệu bị MISA từ chối hoặc cơ quan thuế từ chối cấp mã; gửi lại bằng tay sau khi sửa |
+| `CANCELLED` | Hóa đơn bán bị hủy trước khi phát hành |
+
+Hóa đơn đã phát hành rồi bị hủy hoặc trả hàng: giữ nguyên trạng thái và mã, ghi `review_reason` để lập hóa đơn điều chỉnh/thay thế trên MISA. Phần mềm chưa tự lập chứng từ điều chỉnh (cần đối chiếu Nghị định 70/2025 trước khi làm).
+
+### 26.4 Endpoint
+
+| Method | Endpoint | Mô tả | Quyền |
+|---|---|---|---|
+| GET | `/einvoices/config` | Cấu hình của cửa hàng, không trả mật khẩu | `invoice.read` |
+| PATCH | `/einvoices/config` | `enabled`, `environment`, `appId`, `taxCode`, `username`, `password`, `invSeries`; ghi audit `EINVOICE_CONFIG_UPDATE` | `einvoice.manage` |
+| POST | `/einvoices/test-connection` | Thử lấy token, không phát hành | `einvoice.manage` |
+| GET | `/einvoices?status&needsReview&limit` | `{ items, summary }` của cửa hàng | `invoice.read` |
+| POST | `/einvoices/run` | Chạy ngay một lượt quét → phát hành → hỏi mã CQT | `einvoice.manage` |
+| POST | `/einvoices/{id}/retry` | Đưa việc `FAILED`/`REJECTED` về hàng chờ; việc của cửa hàng khác trả `404` | `einvoice.manage` |
+
+Biến môi trường `EINVOICE_BASE_URL` trỏ API MISA sang địa chỉ khác (bộ kiểm thử dùng máy chủ mô phỏng `src/test/misa-stub-server.ts`). Chưa nghiệm thu với hệ thống MISA thật: cần nhà thuốc có hợp đồng và tài khoản sandbox.

@@ -12,6 +12,7 @@ import {
   DatabaseOutlined,
   ExperimentOutlined,
   FieldTimeOutlined,
+  FileDoneOutlined,
   FileExcelOutlined,
   FileProtectOutlined,
   FileTextOutlined,
@@ -67,6 +68,7 @@ export const PAGES = [
   // --- Giao dịch bán --------------------------------------------------------
   { path: "/hoa-don", label: "Hóa đơn", icon: <FileTextOutlined />, permission: "invoice.read", keywords: "hoa don da ban huy hoa don nhan tra hang" },
   { path: "/tra-hang", label: "Khách trả hàng", icon: <RollbackOutlined />, permission: "invoice.read", keywords: "tra hang hoan tien phieu tra" },
+  { path: "/hoa-don-dien-tu", label: "Hóa đơn điện tử", icon: <FileDoneOutlined />, permission: "invoice.read", keywords: "hoa don dien tu may tinh tien ma co quan thue misa meinvoice" },
   { path: "/don-thuoc", label: "Đơn thuốc", icon: <FileProtectOutlined />, permission: "prescription.read", keywords: "ke don duyet don bac si" },
 
   // --- Hàng hóa -------------------------------------------------------------

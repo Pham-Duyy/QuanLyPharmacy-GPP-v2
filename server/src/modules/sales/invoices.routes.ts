@@ -143,11 +143,21 @@ invoicesRouter.get("/invoices/:id/print", requirePermission("invoice.read"), asy
     invoice.customer && invoice.loyaltyPointsEarned !== 0
       ? (await getBalance(invoice.customer.id)).available
       : null;
+  const eInvoice = await prisma.eInvoice.findUnique({
+    where: { invoiceId: invoice.id },
+    select: {
+      status: true,
+      invSeries: true,
+      invNo: true,
+      transactionId: true,
+      taxAuthorityCode: true,
+    },
+  });
   res
     .set("X-Paper-Size", format ?? effective.template.paperSize)
     .type("html")
     .send(
-      renderInvoicePrintHtml({ ...invoice, loyaltyBalance }, effective.template, {
+      renderInvoicePrintHtml({ ...invoice, loyaltyBalance, eInvoice }, effective.template, {
         paperSize: format,
         autoPrint: req.query["autoprint"] !== "0",
       }),
