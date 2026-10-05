@@ -112,12 +112,12 @@ describe("Đề xuất đặt hàng", () => {
     expect(find(all, "TH0004")).toMatchObject({ reason: "OK", suggestedOrderQuantity: 0 });
   });
 
-  it("trừ hàng đã lập phiếu nhập nhưng chưa kiểm nhập", async () => {
+  it("phiếu nhập nháp chỉ hiển thị để đối chiếu, không làm giảm số đề xuất", async () => {
     const product = await makeProduct("TH0005", "Omeprazole 20mg", 500);
     await stock(product.id, 100);
 
     const before = await suggest();
-    expect(find(before, "TH0005")).toMatchObject({ onOrderBaseQuantity: 0, suggestedBaseQuantity: 400 });
+    expect(find(before, "TH0005")).toMatchObject({ draftReceiptBaseQuantity: 0, suggestedBaseQuantity: 400 });
 
     const expiry = new Date();
     expiry.setUTCFullYear(expiry.getUTCFullYear() + 2);
@@ -131,8 +131,8 @@ describe("Đề xuất đặt hàng", () => {
       .expect(201);
 
     const after = await suggest();
-    // 300 viên đang trên đường về → chỉ còn thiếu 100 viên, làm tròn 1 hộp.
-    expect(find(after, "TH0005")).toMatchObject({ onOrderBaseQuantity: 300, suggestedBaseQuantity: 100, suggestedOrderQuantity: 1 });
+    // Nháp có thể chưa gửi nhà cung cấp: báo 300 viên trên phiếu nháp nhưng vẫn đề xuất đủ 400.
+    expect(find(after, "TH0005")).toMatchObject({ draftReceiptBaseQuantity: 300, suggestedBaseQuantity: 400 });
   });
 
   it("gợi ý nhà cung cấp và đơn giá theo lần nhập gần nhất", async () => {

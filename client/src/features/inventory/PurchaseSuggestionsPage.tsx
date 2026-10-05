@@ -22,7 +22,7 @@ type Suggestion = {
   orderUnit: { id: string; name: string; conversionToBase: number };
   sellableBaseQuantity: number;
   minStockBaseQuantity: number;
-  onOrderBaseQuantity: number;
+  draftReceiptBaseQuantity: number;
   soldBaseQuantity: number;
   avgDailyBaseQuantity: number;
   daysOfStock: number | null;
@@ -126,7 +126,7 @@ export function PurchaseSuggestionsPage() {
           </span>
           <span className="cell-sub">
             Tối thiểu {formatNumber(row.minStockBaseQuantity)}
-            {row.onOrderBaseQuantity > 0 ? ` · đang về ${formatNumber(row.onOrderBaseQuantity)}` : ""}
+            {row.draftReceiptBaseQuantity > 0 ? ` · trên phiếu nhập nháp ${formatNumber(row.draftReceiptBaseQuantity)} (chưa xác nhận, không trừ)` : ""}
           </span>
         </div>
       ),

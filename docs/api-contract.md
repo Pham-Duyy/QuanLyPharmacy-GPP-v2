@@ -838,7 +838,7 @@ Cách tính cho từng mặt hàng đang kinh doanh:
 
 - `avgDailyBaseQuantity` = số lượng bán trong `windowDays` ngày gần nhất (mặc định 30, chỉ hóa đơn hoàn tất) chia cho số ngày.
 - `targetBaseQuantity` = max(tốc độ bán × (`coverDays` + `leadTimeDays`), tồn tối thiểu của mặt hàng).
-- Số cần đặt = mục tiêu − tồn bán được − **hàng đã lập phiếu nhập nhưng chưa kiểm nhập**, rồi làm tròn lên theo đơn vị đặt.
+- Số cần đặt = mục tiêu − tồn bán được, rồi làm tròn lên theo đơn vị đặt. Phiếu nhập **nháp** không được trừ (nháp có thể chưa gửi nhà cung cấp); lượng trên phiếu nháp trả riêng ở `draftReceiptBaseQuantity` để người đặt hàng đối chiếu. Khi có đơn đặt hàng được nhà cung cấp xác nhận thì mới trừ phần đó.
 - Đơn vị đặt lấy theo đơn vị của lần nhập gần nhất; chưa từng nhập thì lấy đơn vị lớn nhất.
 - `lastSupplier`, `lastUnitCost` lấy từ phiếu nhập **đã kiểm nhập** gần nhất của chính mặt hàng đó.
 - `reason`: `OUT_OF_STOCK` hết hàng · `BELOW_MIN` dưới tồn tối thiểu · `RUNNING_OUT` hết trước khi hàng kịp về · `REFILL` cần bổ sung cho kỳ tới · `OK` đang đủ hàng.

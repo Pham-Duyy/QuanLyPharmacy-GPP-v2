@@ -5,8 +5,13 @@ import { prisma } from "../../db/prisma.js";
  * Đề xuất đặt hàng: trả lời câu hỏi "hôm nay cần gọi hàng gì, bao nhiêu".
  *
  * Cách tính bám theo thực tế quầy thuốc: nhìn tốc độ bán gần đây, cộng thêm
- * thời gian chờ hàng về, trừ đi hàng đã đặt nhưng chưa nhận, và không bao giờ
- * để tồn thấp hơn mức tối thiểu đã cài cho mặt hàng đó.
+ * thời gian chờ hàng về, và không bao giờ để tồn thấp hơn mức tối thiểu đã cài
+ * cho mặt hàng đó.
+ *
+ * Phiếu nhập NHÁP không được trừ khỏi nhu cầu: nháp có thể chỉ là bản soạn chưa
+ * gửi nhà cung cấp, coi là "hàng đang về" sẽ đề xuất thiếu. Lượng trên phiếu
+ * nháp chỉ trả kèm để người đặt hàng tự đối chiếu. Khi có đơn đặt hàng đã được
+ * nhà cung cấp xác nhận thì mới trừ phần đó.
  */
 
 export type SuggestionQuery = {
@@ -32,7 +37,8 @@ export type Suggestion = {
   orderUnit: { id: string; name: string; conversionToBase: number };
   sellableBaseQuantity: number;
   minStockBaseQuantity: number;
-  onOrderBaseQuantity: number;
+  /** Lượng trên phiếu nhập nháp chưa xác nhận — chỉ để đối chiếu, KHÔNG trừ vào đề xuất. */
+  draftReceiptBaseQuantity: number;
   soldBaseQuantity: number;
   avgDailyBaseQuantity: number;
   /** Số ngày còn bán được với tốc độ hiện tại; null khi kỳ qua không bán được cái nào. */
@@ -121,13 +127,13 @@ export async function buildSuggestions(storeId: string, query: SuggestionQuery):
   ]);
 
   const productIds = overview.map((row) => row.product_id);
-  const [sold, onOrder] = await Promise.all([
+  const [sold, drafts] = await Promise.all([
     prisma.invoiceLine.groupBy({
       by: ["productId"],
       where: { productId: { in: productIds }, invoice: { storeId, status: "COMPLETED", soldAt: { gte: windowStart } } },
       _sum: { baseQuantity: true },
     }),
-    // Hàng đã lập phiếu nhập nhưng chưa kiểm nhập: coi như đang trên đường về.
+    // Phiếu nhập nháp: chỉ báo cho người đặt hàng biết, không coi là hàng đang về.
     prisma.goodsReceiptLine.findMany({
       where: { productId: { in: productIds }, goodsReceipt: { storeId, status: "DRAFT" } },
       select: { productId: true, quantity: true, productUnit: { select: { conversionToBase: true } } },
@@ -135,9 +141,9 @@ export async function buildSuggestions(storeId: string, query: SuggestionQuery):
   ]);
 
   const soldByProduct = new Map(sold.map((row) => [row.productId, row._sum.baseQuantity ?? 0]));
-  const onOrderByProduct = new Map<string, number>();
-  for (const line of onOrder) {
-    onOrderByProduct.set(line.productId, (onOrderByProduct.get(line.productId) ?? 0) + line.quantity * line.productUnit.conversionToBase);
+  const draftByProduct = new Map<string, number>();
+  for (const line of drafts) {
+    draftByProduct.set(line.productId, (draftByProduct.get(line.productId) ?? 0) + line.quantity * line.productUnit.conversionToBase);
   }
   const unitsByProduct = new Map(products.map((product) => [product.id, product.units]));
   const lastByProduct = new Map(lastPurchases.map((row) => [row.product_id, row]));
@@ -151,8 +157,8 @@ export async function buildSuggestions(storeId: string, query: SuggestionQuery):
 
     const soldBaseQuantity = soldByProduct.get(row.product_id) ?? 0;
     const avgDaily = soldBaseQuantity / query.windowDays;
-    const onOrderBaseQuantity = onOrderByProduct.get(row.product_id) ?? 0;
-    const available = row.sellable + onOrderBaseQuantity;
+    const draftReceiptBaseQuantity = draftByProduct.get(row.product_id) ?? 0;
+    const available = row.sellable;
 
     // Mục tiêu: đủ bán trong kỳ tới cộng thời gian chờ hàng, và không dưới tồn tối thiểu.
     const target = Math.max(Math.ceil(avgDaily * (query.coverDays + query.leadTimeDays)), row.min_stock_base_quantity);
@@ -184,7 +190,7 @@ export async function buildSuggestions(storeId: string, query: SuggestionQuery):
       orderUnit: orderUnit ?? { id: "", name: "", conversionToBase: 1 },
       sellableBaseQuantity: row.sellable,
       minStockBaseQuantity: row.min_stock_base_quantity,
-      onOrderBaseQuantity,
+      draftReceiptBaseQuantity,
       soldBaseQuantity,
       avgDailyBaseQuantity: Math.round(avgDaily * 100) / 100,
       daysOfStock,
