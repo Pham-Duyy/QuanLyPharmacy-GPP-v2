@@ -2,15 +2,12 @@ import {
   AppstoreOutlined,
   CheckCircleFilled,
   CheckCircleOutlined,
-  ClockCircleOutlined,
   CloseCircleOutlined,
   DatabaseOutlined,
-  DollarCircleOutlined,
   DownloadOutlined,
   EditOutlined,
   ExclamationCircleFilled,
   EyeOutlined,
-  FileDoneOutlined,
   FileSearchOutlined,
   FileTextOutlined,
   InboxOutlined,
@@ -42,7 +39,6 @@ import { daysUntil, formatDate, formatDateTime, formatNumber, vnDateKey } from "
 import { ExcelExportButton } from "../excel/ExcelButtons.js";
 import { rangeParams } from "../excel/excel-api.js";
 import { PageHeader } from "../../ui/PageHeader.js";
-import { StatCard, StatGrid, Trend } from "../../ui/StatCard.js";
 import { useDebounced } from "../../ui/useDebounced.js";
 import { useAuth } from "../auth/AuthProvider.js";
 import { printDocument, printUrl } from "../printing/printing.js";
@@ -146,7 +142,6 @@ export function GoodsReceiptsPage() {
       <PageHeader
         icon={<InboxOutlined />}
         title="Nhập hàng"
-        description="Quản lý phiếu nhập hàng từ nhà cung cấp, kiểm tra hàng hóa và nhập kho."
         extra={
           <>
             <ExcelExportButton type="goods-receipts" range={rangeParams(range)} tooltip={range ? "Xuất phiếu nhập trong khoảng ngày đang lọc" : "Xuất phiếu nhập 30 ngày gần nhất"} />
@@ -159,25 +154,26 @@ export function GoodsReceiptsPage() {
         }
       />
 
-      <StatGrid>
-        <StatCard tone="orange" icon={<ClockCircleOutlined />} label="Phiếu chờ kiểm nhập" value={formatNumber(summary.data?.draftCount)} loading={summary.isLoading} hint="Phiếu nháp chưa cộng tồn kho" />
-        <StatCard
-          tone="blue"
-          icon={<FileDoneOutlined />}
-          label="Đã nhập kho tháng này"
-          value={formatNumber(summary.data?.confirmedCount)}
-          loading={summary.isLoading}
-          hint={summary.data ? <Trend value={summary.data.confirmedCountChangePercent} suffix="so với tháng trước" /> : null}
+      {/* Chỉ nhắc việc cần làm; số liệu nhập hàng theo tháng xem ở Báo cáo. */}
+      {(summary.data?.draftCount ?? 0) > 0 && status !== "DRAFT" ? (
+        <Alert
+          type="warning"
+          showIcon
+          className="count-banner"
+          title={`${formatNumber(summary.data!.draftCount)} phiếu chờ kiểm nhập — chưa cộng tồn kho`}
+          action={
+            <Button
+              size="small"
+              onClick={() => {
+                setStatus("DRAFT");
+                resetPage();
+              }}
+            >
+              Xem
+            </Button>
+          }
         />
-        <StatCard
-          tone="purple"
-          icon={<DollarCircleOutlined />}
-          label="Giá trị nhập hàng tháng này"
-          value={formatVnd(summary.data?.confirmedValue)}
-          loading={summary.isLoading}
-          hint={summary.data ? <Trend value={summary.data.confirmedValueChangePercent} suffix="so với tháng trước" /> : null}
-        />
-      </StatGrid>
+      ) : null}
 
       <div className={openId ? "split-layout" : undefined}>
         <div className="detail-stack">

@@ -342,7 +342,7 @@ export function SalePage() {
       const items = (await http.get<Envelope<Paged<ProductListItem>>>("/products", { params: { search: value, page: 1, limit: 2 } })).data.data.items;
       if (items.length === 1) await addProduct(items[0]!.id, { scannedCode: value });
       else if (items.length === 0) void message.warning(`Không tìm thấy sản phẩm khớp “${value}”`);
-      else void message.info("Có nhiều sản phẩm khớp — dùng phím ↑ ↓ để chọn rồi Enter");
+      else void message.info("Có nhiều sản phẩm khớp — chọn dòng cần bán rồi Enter");
     } catch (error) {
       void message.error(getErrorMessage(error, "Không tìm được sản phẩm"));
     }
@@ -547,7 +547,6 @@ export function SalePage() {
       <PageHeader
         icon={<ShoppingCartOutlined />}
         title="Bán thuốc"
-        description="Tìm thuốc, kiểm tra đơn và thanh toán"
         extra={
           <div className="shortcut-hints">
             <span>

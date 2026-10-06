@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { PAGES, type PageDef, type PagePath } from "./pages.js";
+import { PAGES, type PageDef, type PagePath, type StoreFeature } from "./pages.js";
 import { SIDEBAR } from "./sidebar.js";
 
 /**
@@ -55,18 +55,29 @@ export type VisibleEntry =
   | { kind: "page"; page: PageDef }
   | { kind: "group"; key: string; label: string; icon: ReactNode; pages: PageDef[]; divided: boolean };
 
-/** Sidebar sau khi lọc quyền: bỏ trang không được mở, bỏ luôn nhóm không còn trang nào. */
-export function visibleSidebar(can: Can): VisibleEntry[] {
+export type FeatureOn = (feature: StoreFeature) => boolean;
+
+/** Trang chỉ dùng khi đã bật chức năng: ẩn khi chưa bật, trừ với người cấu hình được. */
+function inUse(page: PageDef, can: Can, featureOn: FeatureOn): boolean {
+  const rule = page.onlyWhenEnabled;
+  return !rule || featureOn(rule.feature) || can(rule.managePermission);
+}
+
+/**
+ * Sidebar sau khi lọc quyền: bỏ trang không được mở, trang chức năng cửa hàng
+ * chưa bật, và bỏ luôn nhóm không còn trang nào.
+ */
+export function visibleSidebar(can: Can, featureOn: FeatureOn = () => true): VisibleEntry[] {
+  const show = (page: PageDef | undefined): page is PageDef =>
+    page !== undefined && isAllowed(page, can) && inUse(page, can, featureOn);
   const out: VisibleEntry[] = [];
   for (const entry of SIDEBAR) {
     if (entry.kind === "page") {
       const page = findPage(entry.path);
-      if (page && isAllowed(page, can)) out.push({ kind: "page", page });
+      if (show(page)) out.push({ kind: "page", page });
       continue;
     }
-    const pages = entry.paths
-      .map((path) => findPage(path))
-      .filter((page): page is PageDef => page !== undefined && isAllowed(page, can));
+    const pages = entry.paths.map((path) => findPage(path)).filter(show);
     if (pages.length > 0) {
       out.push({ kind: "group", key: entry.key, label: entry.label, icon: entry.icon, pages, divided: entry.divided ?? false });
     }

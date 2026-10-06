@@ -15,7 +15,7 @@ type IngredientForm = { name: string; atcCode?: string };
 export function CatalogDataPage() {
   return (
     <div>
-      <PageHeader icon={<TagsOutlined />} title="Nhóm hàng – hoạt chất" description="Nhóm hàng và hoạt chất dùng chung toàn chuỗi. Hoạt chất là cơ sở để kiểm tra trùng hoạt chất và dị ứng khi bán." />
+      <PageHeader icon={<TagsOutlined />} title="Nhóm hàng – hoạt chất" />
       <Card>
         <Tabs
           items={[

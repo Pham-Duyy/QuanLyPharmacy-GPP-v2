@@ -78,7 +78,7 @@ export function AuditLogPage() {
 
   return (
     <div>
-      <PageHeader icon={<AuditOutlined />} title="Nhật ký hệ thống" description="Thao tác quan trọng được ghi tự động — chỉ xem, không sửa hay xóa được." />
+      <PageHeader icon={<AuditOutlined />} title="Nhật ký hệ thống" />
       <div className="split-layout">
         <Card>
           <div className="toolbar">

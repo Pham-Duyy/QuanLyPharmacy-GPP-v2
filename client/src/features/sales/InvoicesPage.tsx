@@ -1,17 +1,16 @@
-import { DollarCircleOutlined, EyeOutlined, FileSearchOutlined, FileTextOutlined, MoreOutlined, PlusOutlined, PrinterOutlined, RollbackOutlined, StopOutlined } from "@ant-design/icons";
+import { EyeOutlined, FileSearchOutlined, FileTextOutlined, MoreOutlined, PlusOutlined, PrinterOutlined, RollbackOutlined, StopOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { App, Button, Card, DatePicker, Dropdown, Empty, Input, Modal, Segmented, Skeleton, Table, Tag, Typography } from "antd";
 import type { Dayjs } from "dayjs";
 import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { getErrorMessage, http } from "../../api/http.js";
-import { formatVnd, type DashboardData, type Envelope, type Invoice, type InvoiceListItem, type Paged } from "../../api/types.js";
+import { formatVnd, type Envelope, type Invoice, type InvoiceListItem, type Paged } from "../../api/types.js";
 import { formatDate, formatDateTime, formatNumber, vnDateKey } from "../../ui/format.js";
 import { paymentMethodLabel } from "../../ui/labels.js";
 import { ExcelExportButton } from "../excel/ExcelButtons.js";
 import { rangeParams } from "../excel/excel-api.js";
 import { PageHeader } from "../../ui/PageHeader.js";
-import { StatCard, StatGrid, Trend } from "../../ui/StatCard.js";
 import { useDebounced } from "../../ui/useDebounced.js";
 import { useAuth } from "../auth/AuthProvider.js";
 import { printInvoice, printUrl } from "../printing/printing.js";
@@ -127,7 +126,7 @@ function StatusTags({ status, returnStatus }: { status: string; returnStatus: st
 }
 
 export function InvoicesPage() {
-  const { storeId, can } = useAuth();
+  const { can } = useAuth();
   const { message } = App.useApp();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -161,14 +160,6 @@ export function InvoicesPage() {
     placeholderData: (previous) => previous,
   });
 
-  const dashboard = useQuery({
-    queryKey: ["dashboard", storeId, 7],
-    queryFn: async () => (await http.get<Envelope<DashboardData>>("/dashboard", { params: { days: 7 } })).data.data,
-    enabled: Boolean(storeId),
-    staleTime: 60_000,
-  });
-  const today = dashboard.data?.permissions.sales ? dashboard.data.sales.today : null;
-
   const detail = useQuery({
     queryKey: ["invoice", openId],
     enabled: openId !== null,
@@ -198,7 +189,6 @@ export function InvoicesPage() {
       <PageHeader
         icon={<FileTextOutlined />}
         title="Hóa đơn"
-        description="Tra cứu hóa đơn bán hàng, in lại, nhận trả hàng hoặc hủy hóa đơn trong ngày."
         extra={
           <>
             <ExcelExportButton type="invoices" range={rangeParams(range)} tooltip={range ? "Xuất hóa đơn trong khoảng ngày đang lọc" : "Xuất hóa đơn 30 ngày gần nhất (chọn khoảng ngày để đổi kỳ)"} />
@@ -211,14 +201,6 @@ export function InvoicesPage() {
           </>
         }
       />
-
-      {today ? (
-        <StatGrid>
-          <StatCard tone="green" icon={<DollarCircleOutlined />} label="Doanh thu hôm nay" value={formatVnd(today.revenue)} hint={<Trend value={today.revenueChangePercent} suffix="so với hôm qua" />} />
-          <StatCard tone="blue" icon={<FileTextOutlined />} label="Hóa đơn hôm nay" value={formatNumber(today.invoiceCount)} hint={<Trend value={today.invoiceChangePercent} suffix="so với hôm qua" />} />
-          <StatCard tone="slate" icon={<FileSearchOutlined />} label="Kết quả đang lọc" value={formatNumber(list.data?.pagination.total)} loading={list.isLoading} hint="Theo bộ lọc bên dưới" />
-        </StatGrid>
-      ) : null}
 
       <div className={openId !== null ? "split-layout" : undefined}>
         <Card>

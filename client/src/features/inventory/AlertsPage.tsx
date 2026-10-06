@@ -71,7 +71,6 @@ export function AlertsPage() {
       <PageHeader
         icon={<BellOutlined />}
         title="Cảnh báo"
-        description="Lô hết hạn, sắp hết hạn và mặt hàng dưới mức tồn tối thiểu — tính trực tiếp từ dữ liệu kho."
         extra={
           <>
             <Button icon={<FieldTimeOutlined />} onClick={() => void navigate("/can-han")}>

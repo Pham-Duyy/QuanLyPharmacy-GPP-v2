@@ -143,7 +143,6 @@ export function LabelsPage() {
       <PageHeader
         icon={<BarcodeOutlined />}
         title="In tem mã vạch"
-        description="In tem dán lên hộp thuốc hoặc nhãn kệ: tên thuốc, mã vạch, giá bán, số lô và hạn dùng."
         extra={
           <>
             <Button icon={<EyeOutlined />} disabled={rows.length === 0} loading={render.isPending && render.variables === "preview"} onClick={() => render.mutate("preview")}>

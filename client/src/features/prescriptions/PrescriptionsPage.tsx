@@ -104,7 +104,6 @@ export function PrescriptionsPage() {
       <PageHeader
         icon={<FileProtectOutlined />}
         title="Đơn thuốc"
-        description="Nhập đơn thuốc, dược sĩ xác nhận rồi mới bán được thuốc kê đơn theo đơn."
         extra={
           can("prescription.create") ? (
             <Button

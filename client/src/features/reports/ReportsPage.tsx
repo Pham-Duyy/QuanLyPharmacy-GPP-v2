@@ -49,7 +49,6 @@ export function ReportsPage() {
       <PageHeader
         icon={<BarChartOutlined />}
         title="Báo cáo kinh doanh"
-        description="Doanh thu thuần, lợi nhuận gộp (theo giá vốn từng lô), hàng hóa và nhân viên trong kỳ."
         extra={
           <>
             <DatePicker.RangePicker

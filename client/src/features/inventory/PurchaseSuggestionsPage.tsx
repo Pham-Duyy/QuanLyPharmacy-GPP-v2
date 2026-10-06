@@ -126,7 +126,11 @@ export function PurchaseSuggestionsPage() {
           </span>
           <span className="cell-sub">
             Tối thiểu {formatNumber(row.minStockBaseQuantity)}
-            {row.draftReceiptBaseQuantity > 0 ? ` · trên phiếu nhập nháp ${formatNumber(row.draftReceiptBaseQuantity)} (chưa xác nhận, không trừ)` : ""}
+            {row.draftReceiptBaseQuantity > 0 ? (
+              <Tooltip title="Đang nằm trên phiếu nhập chưa kiểm nhập, nên chưa trừ vào số cần đặt">
+                {` · nháp ${formatNumber(row.draftReceiptBaseQuantity)}`}
+              </Tooltip>
+            ) : null}
           </span>
         </div>
       ),
@@ -190,7 +194,6 @@ export function PurchaseSuggestionsPage() {
       <PageHeader
         icon={<ShoppingOutlined />}
         title="Đề xuất đặt hàng"
-        description="Hôm nay cần gọi hàng gì và bao nhiêu, tính từ tốc độ bán thật, tồn tối thiểu và hàng đang trên đường về."
         extra={
           <>
             <Popover
@@ -227,42 +230,14 @@ export function PurchaseSuggestionsPage() {
 
       {data.isError ? <Alert type="error" showIcon title="Không tính được đề xuất đặt hàng" description={getErrorMessage(data.error)} /> : null}
 
-      {summary ? (
-        <div className="count-stats">
-          <div className="count-stat">
-            <span>Mặt hàng cần đặt</span>
-            <b>{formatNumber(summary.total)}</b>
-          </div>
-          <div className="count-stat bad">
-            <span>Đã hết hàng</span>
-            <b>{formatNumber(summary.outOfStock)}</b>
-          </div>
-          <div className="count-stat">
-            <span>Dưới tồn tối thiểu</span>
-            <b>{formatNumber(summary.belowMin)}</b>
-          </div>
-          <div className="count-stat">
-            <span>Chi phí tạm tính</span>
-            <b>{formatVnd(summary.estimatedCost)}</b>
-          </div>
-          <div className="count-stat">
-            <span>Nhà cung cấp cần gọi</span>
-            <b>{formatNumber(summary.suppliers)}</b>
-          </div>
-        </div>
-      ) : null}
-
-      {summary && summary.withoutSupplier > 0 ? (
-        <Alert
-          className="count-banner"
-          type="info"
-          showIcon
-          title={`${formatNumber(summary.withoutSupplier)} mặt hàng chưa từng nhập qua phần mềm`}
-          description="Những mặt hàng này chưa có lịch sử nhập nên chưa gợi ý được nhà cung cấp và giá. Lập phiếu nhập thủ công cho lần đầu, các lần sau hệ thống tự gợi ý."
-        />
-      ) : null}
-
       <Card>
+        {/* Một dòng tóm tắt thay cho hàng ô số liệu. */}
+        {summary && summary.total > 0 ? (
+          <p className="section-note" style={{ marginTop: 0 }}>
+            <b>{formatNumber(summary.total)}</b> mặt hàng cần đặt
+            {summary.outOfStock > 0 ? <> (<b>{formatNumber(summary.outOfStock)}</b> đã hết hàng)</> : null} · tạm tính <b>{formatVnd(summary.estimatedCost)}</b> · {formatNumber(summary.suppliers)} nhà cung cấp
+          </p>
+        ) : null}
         <div className="count-toolbar">
           <Input allowClear prefix={<SearchOutlined />} placeholder="Tìm tên thuốc hoặc mã" className="count-search" value={search} onChange={(event) => setSearch(event.target.value)} />
           <Select allowClear placeholder="Mọi nhà cung cấp" className="controlled-select" style={{ maxWidth: 280 }} value={supplierFilter} onChange={setSupplierFilter} options={suppliers} />

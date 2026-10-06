@@ -181,6 +181,15 @@ export async function describeMe(auth: AuthContext) {
     }),
   ]);
 
+  // Chức năng đã bật ở từng cửa hàng, để giao diện ẩn trang chưa dùng tới.
+  const storeIds = stores.map((store) => store.id);
+  const [einvoiceOn, syncOn] = await Promise.all([
+    prisma.eInvoiceStoreConfig.findMany({ where: { storeId: { in: storeIds }, enabled: true }, select: { storeId: true } }),
+    prisma.nationalSyncStoreConfig.findMany({ where: { storeId: { in: storeIds }, enabled: true }, select: { storeId: true } }),
+  ]);
+  const einvoiceStores = new Set(einvoiceOn.map((row) => row.storeId));
+  const syncStores = new Set(syncOn.map((row) => row.storeId));
+
   return {
     user: {
       id: auth.userId,
@@ -202,6 +211,7 @@ export async function describeMe(auth: AuthContext) {
       phone: store.phone,
       address: store.address,
       permissions: [...auth.permissionsForStore(store.id)].sort(),
+      features: { einvoice: einvoiceStores.has(store.id), nationalSync: syncStores.has(store.id) },
     })),
   };
 }

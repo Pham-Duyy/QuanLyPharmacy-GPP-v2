@@ -252,7 +252,6 @@ export function ExpiryAlertsPage() {
       <PageHeader
         icon={<FieldTimeOutlined />}
         title="Hàng cận hạn"
-        description="Lô sắp hết hạn và đã hết hạn, kèm kế hoạch xử lý cho từng lô: trả nhà cung cấp, đẩy bán, giảm giá hay xuất hủy."
         extra={
           <Button icon={<ClockCircleOutlined />} onClick={() => void navigate("/dieu-chinh-ton")}>
             Lập phiếu xuất hủy
@@ -271,7 +270,6 @@ export function ExpiryAlertsPage() {
               showIcon
               icon={<WarningFilled />}
               title={`${formatNumber(summary.overduePlans)} kế hoạch đã quá ngày hẹn mà chưa xong`}
-              description="Những lô này đã có người nhận xử lý nhưng quá hẹn. Kiểm tra lại với người phụ trách trước khi hàng hết hạn."
             />
           ) : null}
           {summary.byBucket.EXPIRED.batches > 0 ? (
@@ -280,7 +278,7 @@ export function ExpiryAlertsPage() {
               type="error"
               showIcon
               title={`${formatNumber(summary.byBucket.EXPIRED.batches)} lô đã hết hạn còn nằm trong kho`}
-              description="Hàng hết hạn không bán được nữa. Tách khỏi khu vực bán và lập phiếu điều chỉnh xuất hủy, lưu biên bản theo GPP."
+              description="Tách khỏi khu bán và lập phiếu điều chỉnh xuất hủy."
             />
           ) : null}
 

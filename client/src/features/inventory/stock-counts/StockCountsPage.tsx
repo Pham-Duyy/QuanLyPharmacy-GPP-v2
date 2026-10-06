@@ -133,7 +133,6 @@ export function StockCountsPage() {
       <PageHeader
         icon={<AuditOutlined />}
         title="Kiểm kê kho"
-        description="Đếm hàng thực tế trên kệ và đối chiếu với tồn hệ thống, chênh lệch được chuyển thành phiếu điều chỉnh chờ duyệt."
         extra={
           can("stock.adjust.create") ? (
             <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreating(true)} disabled={Boolean(list.data?.open)}>
@@ -219,7 +218,6 @@ export function StockCountsPage() {
             type="info"
             showIcon
             title="Vẫn bán hàng bình thường trong lúc kiểm kê"
-            description="Mỗi dòng được so với tồn hệ thống tại đúng thời điểm bạn ghi số đếm, nên hàng bán sau đó không bị tính thành thất thoát."
           />
         </Form>
       </Modal>

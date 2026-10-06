@@ -187,7 +187,6 @@ export function SupplierReturnsPage() {
       <PageHeader
         icon={<RollbackOutlined />}
         title="Trả hàng nhà cung cấp"
-        description="Trả lại hàng cận hạn, hàng lỗi hoặc giao sai. Xác nhận phiếu mới trừ tồn kho và ghi thẻ kho."
         extra={
           canCreate ? (
             <Button

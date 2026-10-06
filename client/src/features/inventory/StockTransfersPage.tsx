@@ -144,6 +144,7 @@ export function StockTransfersPage() {
   const [openId, setOpenId] = useState<string | null>(null);
   const [receiving, setReceiving] = useState<TransferDetail | null>(null);
   const [receiveRows, setReceiveRows] = useState<Record<string, ReceiveRow>>({});
+  const [discrepancy, setDiscrepancy] = useState(false);
   const [cancelling, setCancelling] = useState<TransferDetail | null>(null);
   const [createForm] = Form.useForm<{ note?: string }>();
   const [receiveForm] = Form.useForm<{ note?: string }>();
@@ -313,6 +314,7 @@ export function StockTransfersPage() {
         ]),
       ),
     );
+    setDiscrepancy(false);
     setReceiving(transfer);
   }
 
@@ -335,7 +337,6 @@ export function StockTransfersPage() {
       <PageHeader
         icon={<CarOutlined />}
         title="Chuyển hàng giữa cửa hàng"
-        description="Cửa hàng gửi xác nhận xuất thì trừ tồn; hàng chỉ vào tồn cửa hàng nhận sau khi bên đó kiểm nhập."
         extra={
           canCreate ? (
             <Button
@@ -523,13 +524,6 @@ export function StockTransfersPage() {
               onChange={(event) => setSearch(event.target.value)}
             />
           </div>
-          <Alert
-            type="info"
-            showIcon
-            className="count-banner"
-            title="Lô gần hết hạn đứng đầu danh sách"
-            description="Không hiện lô thu hồi, lô biệt trữ, lô hết hạn và thuốc kiểm soát đặc biệt — các lô đó không chuyển được."
-          />
           <Table
             rowKey="batchId"
             size="small"
@@ -817,11 +811,18 @@ export function StockTransfersPage() {
         title={receiving ? `Nhận hàng ${receiving.code}` : ""}
         open={Boolean(receiving)}
         onCancel={() => setReceiving(null)}
-        width={880}
-        okText="Xác nhận đã nhận"
+        width={discrepancy ? 880 : 640}
+        okText={discrepancy ? "Xác nhận đã nhận" : "Nhận đủ"}
         cancelText="Quay lại"
         confirmLoading={receive.isPending}
         onOk={() => receiveForm.submit()}
+        footer={(_, { OkBtn, CancelBtn }) => (
+          <>
+            {discrepancy ? null : <Button onClick={() => setDiscrepancy(true)}>Có sai lệch</Button>}
+            <CancelBtn />
+            <OkBtn />
+          </>
+        )}
         destroyOnHidden
       >
         {receiving ? (
@@ -840,123 +841,163 @@ export function StockTransfersPage() {
               receive.mutate(values);
             }}
           >
-            <Alert
-              type="info"
-              showIcon
-              className="count-banner"
-              title="Đếm và kiểm từng lô như kiểm nhập hàng của nhà cung cấp"
-              description="Ghi số thực nhận theo đơn vị nhỏ nhất. Phần thiếu là hao hụt khi chuyển, không cộng lại cho cửa hàng gửi. Hàng không đạt vẫn vào kho nhưng ở trạng thái biệt trữ."
-            />
-            <Table
-              rowKey="id"
-              size="small"
-              dataSource={receiving.lines}
-              pagination={false}
-              scroll={{ x: 720 }}
-              columns={[
-                {
-                  title: "Sản phẩm / lô",
-                  dataIndex: "productName",
-                  render: (_: string, row: TransferLine) => (
-                    <div className="cell-main">
-                      <span className="cell-title">{row.productName}</span>
-                      <span className="cell-sub">
-                        Lô {row.batchNumber} · HSD {formatDate(row.expiryDate)} · gửi{" "}
-                        {baseText(row.baseQuantity, row)}
-                      </span>
-                    </div>
-                  ),
-                },
-                {
-                  title: "Thực nhận",
-                  dataIndex: "id",
-                  width: 170,
-                  render: (id: string, row: TransferLine) => (
-                    <div className="count-entry">
-                      <InputNumber
-                        min={0}
-                        max={row.baseQuantity}
-                        className="count-input"
-                        aria-label={`Thực nhận lô ${row.batchNumber}`}
-                        value={receiveRows[id]?.received ?? row.baseQuantity}
-                        onChange={(value) =>
-                          setReceiveRows((state) => ({
-                            ...state,
-                            [id]: {
-                              ...state[id]!,
-                              received: Math.min(Math.max(Number(value ?? 0), 0), row.baseQuantity),
-                            },
-                          }))
-                        }
-                      />
-                      <span className="cell-sub">{row.baseUnitName}</span>
-                    </div>
-                  ),
-                },
-                {
-                  title: "Kiểm nhập",
-                  key: "passed",
-                  width: 260,
-                  render: (_: unknown, row: TransferLine) => {
-                    const current = receiveRows[row.id];
-                    return (
+            {discrepancy ? (
+              <p className="section-note" style={{ marginTop: 0 }}>
+                Ghi số thực nhận (đơn vị nhỏ nhất). Phần thiếu tính là hao hụt; hàng không đạt vào
+                biệt trữ.
+              </p>
+            ) : (
+              <p className="section-note" style={{ marginTop: 0 }}>
+                Đếm đủ và hàng đạt thì bấm <b>Nhận đủ</b>. Thiếu hoặc hỏng thì bấm{" "}
+                <b>Có sai lệch</b>.
+              </p>
+            )}
+            {discrepancy ? (
+              <Table
+                rowKey="id"
+                size="small"
+                dataSource={receiving.lines}
+                pagination={false}
+                scroll={{ x: 720 }}
+                columns={[
+                  {
+                    title: "Sản phẩm / lô",
+                    dataIndex: "productName",
+                    render: (_: string, row: TransferLine) => (
                       <div className="cell-main">
-                        <Checkbox
-                          checked={current?.passed ?? true}
-                          onChange={(event) =>
+                        <span className="cell-title">{row.productName}</span>
+                        <span className="cell-sub">
+                          Lô {row.batchNumber} · HSD {formatDate(row.expiryDate)} · gửi{" "}
+                          {baseText(row.baseQuantity, row)}
+                        </span>
+                      </div>
+                    ),
+                  },
+                  {
+                    title: "Thực nhận",
+                    dataIndex: "id",
+                    width: 170,
+                    render: (id: string, row: TransferLine) => (
+                      <div className="count-entry">
+                        <InputNumber
+                          min={0}
+                          max={row.baseQuantity}
+                          className="count-input"
+                          aria-label={`Thực nhận lô ${row.batchNumber}`}
+                          value={receiveRows[id]?.received ?? row.baseQuantity}
+                          onChange={(value) =>
                             setReceiveRows((state) => ({
                               ...state,
-                              [row.id]: { ...state[row.id]!, passed: event.target.checked },
+                              [id]: {
+                                ...state[id]!,
+                                received: Math.min(
+                                  Math.max(Number(value ?? 0), 0),
+                                  row.baseQuantity,
+                                ),
+                              },
                             }))
                           }
-                        >
-                          Đạt
-                        </Checkbox>
-                        {current && !current.passed ? (
-                          <Input
-                            size="small"
-                            maxLength={300}
-                            status={current.rejectReason.trim() ? undefined : "error"}
-                            placeholder="Lý do không đạt (bắt buộc)"
-                            value={current.rejectReason}
+                        />
+                        <span className="cell-sub">{row.baseUnitName}</span>
+                      </div>
+                    ),
+                  },
+                  {
+                    title: "Kiểm nhập",
+                    key: "passed",
+                    width: 260,
+                    render: (_: unknown, row: TransferLine) => {
+                      const current = receiveRows[row.id];
+                      return (
+                        <div className="cell-main">
+                          <Checkbox
+                            checked={current?.passed ?? true}
                             onChange={(event) =>
                               setReceiveRows((state) => ({
                                 ...state,
-                                [row.id]: { ...state[row.id]!, rejectReason: event.target.value },
+                                [row.id]: { ...state[row.id]!, passed: event.target.checked },
                               }))
                             }
-                          />
-                        ) : null}
-                      </div>
-                    );
+                          >
+                            Đạt
+                          </Checkbox>
+                          {current && !current.passed ? (
+                            <Input
+                              size="small"
+                              maxLength={300}
+                              status={current.rejectReason.trim() ? undefined : "error"}
+                              placeholder="Lý do không đạt (bắt buộc)"
+                              value={current.rejectReason}
+                              onChange={(event) =>
+                                setReceiveRows((state) => ({
+                                  ...state,
+                                  [row.id]: { ...state[row.id]!, rejectReason: event.target.value },
+                                }))
+                              }
+                            />
+                          ) : null}
+                        </div>
+                      );
+                    },
                   },
-                },
-              ]}
-            />
-            <Form.Item
-              name="note"
-              label={
-                shortageInReceive ? "Lý do hao hụt (bắt buộc khi nhận thiếu)" : "Ghi chú khi nhận"
-              }
-              style={{ marginTop: 12 }}
-              rules={
-                shortageInReceive
-                  ? [
-                      {
-                        required: true,
-                        whitespace: true,
-                        message: "Nhận thiếu phải ghi lý do hao hụt",
-                      },
-                    ]
-                  : []
-              }
-            >
-              <Input.TextArea
-                rows={2}
-                maxLength={500}
-                placeholder="Ví dụ: vỡ 1 chai khi vận chuyển"
+                ]}
               />
-            </Form.Item>
+            ) : (
+              <Table
+                rowKey="id"
+                size="small"
+                dataSource={receiving.lines}
+                pagination={false}
+                columns={[
+                  {
+                    title: "Sản phẩm / lô",
+                    dataIndex: "productName",
+                    render: (_: string, row: TransferLine) => (
+                      <div className="cell-main">
+                        <span className="cell-title">{row.productName}</span>
+                        <span className="cell-sub">
+                          Lô {row.batchNumber} · HSD {formatDate(row.expiryDate)}
+                        </span>
+                      </div>
+                    ),
+                  },
+                  {
+                    title: "Số lượng",
+                    dataIndex: "quantity",
+                    width: 130,
+                    align: "right",
+                    render: (value: number, row: TransferLine) =>
+                      `${formatNumber(value)} ${row.unitName}`,
+                  },
+                ]}
+              />
+            )}
+            {discrepancy ? (
+              <Form.Item
+                name="note"
+                label={
+                  shortageInReceive ? "Lý do hao hụt (bắt buộc khi nhận thiếu)" : "Ghi chú khi nhận"
+                }
+                style={{ marginTop: 12 }}
+                rules={
+                  shortageInReceive
+                    ? [
+                        {
+                          required: true,
+                          whitespace: true,
+                          message: "Nhận thiếu phải ghi lý do hao hụt",
+                        },
+                      ]
+                    : []
+                }
+              >
+                <Input.TextArea
+                  rows={2}
+                  maxLength={500}
+                  placeholder="Ví dụ: vỡ 1 chai khi vận chuyển"
+                />
+              </Form.Item>
+            ) : null}
           </Form>
         ) : null}
       </Modal>

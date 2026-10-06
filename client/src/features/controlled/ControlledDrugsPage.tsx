@@ -148,7 +148,6 @@ export function ControlledDrugsPage() {
       <PageHeader
         icon={<SafetyCertificateOutlined />}
         title="Thuốc kiểm soát đặc biệt"
-        description="Sổ theo dõi xuất nhập thuốc gây nghiện, hướng thần và tiền chất. Sổ dựng lại từ chứng từ thật nên luôn khớp tồn kho."
         extra={
           <>
             <DatePicker.RangePicker

@@ -5,6 +5,8 @@ export type StoreAccess = {
   phone: string | null;
   address: string | null;
   permissions: string[];
+  /** Chức năng đã bật ở cửa hàng này. */
+  features?: { einvoice: boolean; nationalSync: boolean };
 };
 
 export type Me = {

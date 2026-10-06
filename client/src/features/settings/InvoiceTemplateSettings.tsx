@@ -327,7 +327,6 @@ function TemplateEditor({ state }: { state: PrintTemplateState }) {
           showIcon
           className="tpl-default-alert"
           title="Đang dùng mẫu mặc định"
-          description="Thông tin được lấy từ hồ sơ cửa hàng. Chỉnh sửa rồi bấm “Lưu mẫu in” để áp dụng chính thức cho cửa hàng này."
         />
       ) : null}
 
