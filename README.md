@@ -1,7 +1,10 @@
 # QuanLyPharmacy-GPP
 
-Phần mềm quản lý nhà thuốc bán lẻ đạt chuẩn GPP, có AI hỗ trợ dược sĩ.
-Thiết kế sẵn cho chuỗi nhiều nhà thuốc.
+Phần mềm quản lý nhà thuốc bán lẻ đạt chuẩn GPP, thiết kế cho chuỗi nhiều nhà thuốc.
+
+Đã có: bán hàng tại quầy theo FEFO, đơn thuốc, khách hàng và tích điểm, nhập hàng, tồn kho theo lô, kiểm kê, điều chỉnh tồn, trả hàng (khách và nhà cung cấp), công nợ nhà cung cấp, thuốc kiểm soát đặc biệt, sổ nhiệt độ – độ ẩm, thu hồi thuốc, liên thông CSDL Dược quốc gia, hóa đơn điện tử qua MISA meInvoice, báo cáo, nhập/xuất Excel.
+
+Chưa có: tính năng AI (trợ lý tra cứu, OCR đơn thuốc — contract §20), sao lưu trong phần mềm, chuyển hàng giữa các cửa hàng, đơn đặt hàng gửi nhà cung cấp, MFA.
 
 - Giao diện: React + Vite
 - Máy chủ: Node.js + Express
@@ -12,7 +15,7 @@ Thiết kế sẵn cho chuỗi nhiều nhà thuốc.
 | Tài liệu | Nội dung |
 |---|---|
 | [docs/api-contract.md](docs/api-contract.md) | Contract có hiệu lực: endpoint, quyền, trạng thái, quy tắc nghiệp vụ |
-| [docs/erd.md](docs/erd.md) | Lược đồ CSDL: 41 bảng, ràng buộc, chỉ mục, thứ tự migration |
+| [docs/erd.md](docs/erd.md) | Thiết kế CSDL ban đầu (v1.1, 41 bảng): ràng buộc, chỉ mục. Các bảng thêm sau đó chỉ có trong `server/prisma/schema.prisma` và migration |
 | [docs/restful-api-review.md](docs/restful-api-review.md) | Bản đặc tả API ban đầu, giữ để tham chiếu |
 
 Đọc contract trước khi viết bất kỳ endpoint nào.
@@ -136,4 +139,4 @@ Kiểm thử chạy trên **PostgreSQL thật**, không dùng mock, vì phần l
 
 Mỗi test tự xóa sạch dữ liệu rồi dựng lại bộ dữ liệu tối thiểu gồm hai cửa hàng, đủ permission và vai trò, một tài khoản bao toàn chuỗi và một dược sĩ chỉ thuộc cửa hàng thứ nhất. Có hai cửa hàng để kiểm tra được việc không lộ dữ liệu chéo.
 
-GitHub Actions chạy lint, kiểm tra định dạng, typecheck và toàn bộ kiểm thử cho mỗi Pull Request.
+Cấu hình GitHub Actions (lint, kiểm tra định dạng, typecheck, kiểm thử) có sẵn ở `.github/workflows/ci.yml.disabled` nhưng **đang tắt** từ 12/09/2026; trước khi gộp code, chạy tay các lệnh trên.

@@ -938,6 +938,7 @@ Kiểm kê qua Excel (§ Nhập / xuất Excel): xuất `stock-count` cho ra b�
 | GET | `/customers/{id}/invoices` | Lịch sử mua; ghi audit mỗi lần xem | `customer.sensitive` |
 | GET | `/customers/{id}/loyalty` | Số dư điểm (`available`, `expiringSoon`, `nextExpiryAt`, `expired`, `totalEarned`, `totalRedeemed`, `deficit`) và 50 bút toán gần nhất | `customer.read` |
 | POST | `/customers/{id}/loyalty/adjust` | Cộng/trừ điểm tay: `points` (khác 0), `reason` bắt buộc; ghi audit `LOYALTY_ADJUST`. Cần `X-Store-Id` | `loyalty.manage` |
+| POST | `/customers/{id}/anonymize` | Ẩn danh hồ sơ khách: `reason` bắt buộc. Thay họ tên bằng mã `KH-AN-…`, xóa số điện thoại, email, địa chỉ, mốc đồng ý, hồ sơ sức khỏe và dị ứng; giữ nguyên hóa đơn, đơn thuốc. Không đảo ngược được; khách đã ẩn danh trả 409 `INVALID_STATE`. Ghi audit `CUSTOMER_ANONYMIZE` | `customer.sensitive` |
 
 - Thông tin cơ bản: `fullName`, `phone`, `email`, `address`, `birthYear`, `gender`, `note` (ghi chú chăm sóc). `code` (KH00001…) do hệ thống tự cấp.
 - Tổng mua tính trên hóa đơn `COMPLETED` toàn chuỗi, trừ tiền đã hoàn khi trả hàng. Nhóm khách tính từ dữ liệu bán, không phải hạng thành viên: **Thân thiết** từ 5 hóa đơn trong 180 ngày; **Khách mới** tạo hồ sơ trong 30 ngày; **Lâu chưa quay lại** lần mua cuối cách hơn 90 ngày. Nhóm khách tính từ dữ liệu bán, độc lập với điểm tích lũy ở §11.1. Hệ thống chưa có công nợ khách hàng.
@@ -1187,14 +1188,14 @@ hiệu giữa tiền hoàn ứng với tổng số đã trả *sau* lần này v
 |---|---|---|---|
 | POST | `/recalls` | Tạo thông báo thu hồi; cần `Idempotency-Key` | `recall.manage` |
 | GET | `/recalls` | Danh sách | `recall.manage` |
-| GET | `/recalls/{id}` | Chi tiết, các lô bị ảnh hưởng, tồn còn lại | `recall.manage` |
+| GET | `/recalls/{id}` | Chi tiết, các lô bị ảnh hưởng ở mọi cửa hàng (`productCode`, `productName`, `batchNumber`, cửa hàng, trạng thái, tồn), tồn còn lại | `recall.manage` |
 | GET | `/recalls/{id}/affected-sales` | Hóa đơn và khách hàng đã mua các lô bị thu hồi; ghi audit | `recall.manage` |
 | POST | `/recalls/{id}/close` | Đóng khi tồn các lô bị thu hồi bằng 0 | `recall.manage` |
 
-- Request tạo: `documentNumber` (số công văn), `issuedBy`, `issuedAt`, `reason`, `items: [{ productId, batchNumber }]`.
+- Request tạo: `documentNumber` (số công văn), `issuedBy`, `issuedAt` (ngày, dạng `YYYY-MM-DD`), `reason`, `items: [{ productId, batchNumber }]`.
 - Trong một transaction: tạo thu hồi `OPEN`; chuyển mọi lô khớp từ `AVAILABLE` hoặc `QUARANTINED` sang `RECALLED`; số lô không có trong kho vẫn được ghi lại để đối chiếu.
 - Từ lúc này, lô bị thu hồi không xuất hiện trong lựa chọn FEFO và không thể chỉ định để bán.
-- Xuất hàng thu hồi khỏi kho bằng phiếu điều chỉnh lý do `RECALL_DISPOSAL` (§10.3). Trả nhà cung cấp: sau MVP.
+- Xuất hàng thu hồi khỏi kho bằng phiếu điều chỉnh lý do `RECALL_DISPOSAL` (§10.3), hoặc trả nhà cung cấp bằng phiếu trả (§9.2) — phiếu trả không chặn lô `RECALLED`. Thu hồi là tài nguyên toàn chuỗi nên mỗi cửa hàng còn tồn lập phiếu riêng.
 
 ---
 
@@ -1274,6 +1275,8 @@ không hiển thị tỷ lệ so sánh khi `comparisonExact = false`.
 | POST | `/prescriptions/{id}/scan` | OCR ảnh đơn (§12) | `prescription.create`, `ai.use` | Sau MVP |
 | POST | `/ai/explanations` | Giải thích một cảnh báo của `/sales/safety-check` bằng lời dễ hiểu | `ai.use` | Sau MVP |
 | GET | `/ai/inventory-forecast` | Đọc kết quả dự báo nhập hàng do job nền tính sẵn | `report.inventory` | Sau MVP |
+
+**Hiện trạng:** chưa làm endpoint nào trong bảng trên, kể cả trợ lý tra cứu. Lược đồ có sẵn bảng `ai_logs` và quyền `ai.use` đã khai báo để làm sau; chưa có mã nào ghi vào bảng hay kiểm tra quyền đó.
 
 Đã bỏ khỏi API v1: `POST /ai/chatbot` **[Đã chốt]**, `POST /ai/ocr-prescription` (gộp vào `/prescriptions/{id}/scan`), `POST /ai/drug-interaction-check` và `POST /ai/allergy-check` (thay bằng §13).
 
@@ -1437,15 +1440,16 @@ Giá trị trong ô luôn được ghi dạng dữ liệu, không bao giờ là 
 
 Thuốc kiểm soát đặc biệt (`drugClass = CONTROLLED`) đã bán được kể từ khi có sổ theo dõi ở §10.8: phải có đơn đã xác nhận, người bán là dược sĩ và ghi đủ thông tin người mua.
 
-Về mô hình chuỗi: MVP chạy với **một cửa hàng**, nhưng dữ liệu và API đã có phạm vi cửa hàng (§2.8), nên mở cửa hàng thứ hai chỉ là thêm một dòng trong `/stores` và gán vai trò cho nhân sự. Phần còn lại của mô hình chuỗi để sau MVP: chuyển hàng giữa các cửa hàng, giá riêng theo cửa hàng, báo cáo so sánh giữa các cửa hàng.
+Về mô hình chuỗi: dữ liệu và API có phạm vi cửa hàng từ đầu (§2.8). Đã mở được cửa hàng mới qua `/stores` và gán vai trò theo cửa hàng; báo cáo hợp nhất toàn chuỗi cần `report.chain` (§19); liên thông CSDL Dược (§25.2a) và hóa đơn điện tử (§26) cấu hình riêng từng cửa hàng. Còn để sau: chuyển hàng giữa các cửa hàng, giá riêng theo cửa hàng.
 
 **Sau MVP**
 
 - Đơn đặt hàng nhà cung cấp: đã có đề xuất đặt hàng (§10.5), chưa có chứng từ đơn hàng riêng gửi nhà cung cấp.
 - Danh mục bác sĩ; OCR đơn thuốc; AI giải thích cảnh báo; dự báo nhập hàng nâng cao (đã có đề xuất đặt hàng cơ bản ở §10.5).
 - Ngăn biệt trữ theo số lượng.
-- Hóa đơn điện tử, tích hợp cổng thanh toán, liên thông dữ liệu dược với cơ quan quản lý.
-- MFA; nhiều cửa hàng.
+- Tích hợp cổng thanh toán.
+- MFA.
+- Đã làm sau MVP: liên thông CSDL Dược quốc gia (§25), hóa đơn điện tử khởi tạo từ máy tính tiền qua MISA meInvoice (§26), ẩn danh hóa khách (§11), trả hàng nhà cung cấp (§9.2), kiểm kê theo đợt (§10.7), hàng cận hạn (§10.6).
 
 ---
 
@@ -1482,7 +1486,7 @@ Toàn bộ P1–P17 được nhóm xác nhận ngày **12/09/2026**. Bảng dư�
 
 1. ~~Thiết kế ERD PostgreSQL~~ — đã xong, xem `docs/erd.md` v1.1 (41 bảng, có sẵn `store_id` cho mô hình chuỗi).
 2. ~~Viết kiểm thử cho các bảng trạng thái ở §5 và các kịch bản đồng thời~~ — đã có bộ kiểm thử tích hợp chạy trên PostgreSQL thật, gồm xác nhận một phiếu nhập hai lần và hai quầy bán lô cuối cùng cùng lúc. Còn thiếu: hai phiếu trả song song cho cùng một dòng, duyệt điều chỉnh trong lúc đang bán.
-3. **Dựng khung dự án và CSDL local**, rồi mới viết endpoint theo thứ tự: ~~cửa hàng, người dùng, phân quyền~~ → ~~danh mục, đơn vị, giá~~ → ~~phiếu nhập~~ → ~~bán hàng~~ → ~~trả hàng, hủy hóa đơn~~ → ~~thu hồi~~. Toàn bộ mục 3 và §12 (đơn thuốc) đã xong trọn vẹn, kể cả tải ảnh đơn: kiểm tra theo nội dung tệp (không tin đuôi/Content-Type), xóa EXIF viết tay cho JPEG/PNG (không dùng thư viện ảnh nặng), lưu ngoài thư mục public, xem qua URL có chữ ký HMAC hạn 5 phút. Không còn mục nào bỏ ngỏ trong §12. §11 (khách hàng) cũng đã xong: tìm/tạo/sửa, hồ sơ sức khỏe và dị ứng (bắt buộc đồng ý mới lưu — P8), lịch sử mua, gắn vào màn bán hàng và cảnh báo dị ứng đã kiểm chứng đầu cuối. Chưa làm thao tác ẩn danh hóa khách (is_anonymized) — để sau vì không nằm trong ưu tiên gần nhất.
+3. **Dựng khung dự án và CSDL local**, rồi mới viết endpoint theo thứ tự: ~~cửa hàng, người dùng, phân quyền~~ → ~~danh mục, đơn vị, giá~~ → ~~phiếu nhập~~ → ~~bán hàng~~ → ~~trả hàng, hủy hóa đơn~~ → ~~thu hồi~~. Toàn bộ mục 3 và §12 (đơn thuốc) đã xong trọn vẹn, kể cả tải ảnh đơn: kiểm tra theo nội dung tệp (không tin đuôi/Content-Type), xóa EXIF viết tay cho JPEG/PNG (không dùng thư viện ảnh nặng), lưu ngoài thư mục public, xem qua URL có chữ ký HMAC hạn 5 phút. Không còn mục nào bỏ ngỏ trong §12. §11 (khách hàng) cũng đã xong: tìm/tạo/sửa, hồ sơ sức khỏe và dị ứng (bắt buộc đồng ý mới lưu — P8), lịch sử mua, gắn vào màn bán hàng và cảnh báo dị ứng đã kiểm chứng đầu cuối. Thao tác ẩn danh hóa khách đã làm: `POST /customers/{id}/anonymize` (§11).
 4. Thêm vào bộ kiểm thử một nhóm riêng cho phạm vi cửa hàng: tài khoản của cửa hàng A không đọc, không sửa được dữ liệu của cửa hàng B ở **mọi** endpoint thuộc phạm vi cửa hàng.
 
 ---
