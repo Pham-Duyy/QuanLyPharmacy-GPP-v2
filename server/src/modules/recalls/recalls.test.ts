@@ -101,6 +101,17 @@ describe("Tạo thông báo thu hồi", () => {
 
     expect(response.body.data.status).toBe("OPEN");
     expect(response.body.data.remainingBaseQuantity).toBe(80);
+    expect(response.body.data.affectedBatches).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          productCode: "TH0001",
+          productName: "Paracetamol 500mg",
+          batchNumber: "L1",
+          quantityOnHand: 50,
+        }),
+        expect.objectContaining({ batchNumber: "L2", quantityOnHand: 30 }),
+      ]),
+    );
 
     const batches = await prisma.batch.findMany({ where: { productId } });
     const byId = new Map(batches.map((batch) => [batch.id, batch]));

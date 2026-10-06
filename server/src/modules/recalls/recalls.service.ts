@@ -146,7 +146,10 @@ export async function getDetail(recallId: string) {
   // vì một dòng RecallItem chỉ giữ được một batchId dù có thể khớp nhiều lô (nhiều cửa hàng).
   const affectedBatches = await prisma.batch.findMany({
     where: { recallId },
-    include: { store: { select: { code: true, name: true } } },
+    include: {
+      store: { select: { code: true, name: true } },
+      product: { select: { code: true, name: true } },
+    },
   });
 
   return {
@@ -169,6 +172,9 @@ export async function getDetail(recallId: string) {
     })),
     affectedBatches: affectedBatches.map((batch) => ({
       id: batch.id,
+      productCode: batch.product.code,
+      productName: batch.product.name,
+      batchNumber: batch.batchNumber,
       storeCode: batch.store.code,
       storeName: batch.store.name,
       status: batch.status,

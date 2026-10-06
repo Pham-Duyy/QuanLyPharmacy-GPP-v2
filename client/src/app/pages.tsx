@@ -18,6 +18,7 @@ import {
   FileTextOutlined,
   InboxOutlined,
   MedicineBoxOutlined,
+  NotificationOutlined,
   PictureOutlined,
   RollbackOutlined,
   SafetyCertificateOutlined,
@@ -93,6 +94,7 @@ export const PAGES = [
   // --- Hồ sơ GPP ------------------------------------------------------------
   { path: "/kiem-soat-dac-biet", label: "Thuốc kiểm soát đặc biệt", icon: <SafetyCertificateOutlined />, permission: "controlled.read", keywords: "gay nghien huong than tien chat so theo doi" },
   { path: "/so-nhiet-do", label: "Nhiệt độ – độ ẩm", icon: <ExperimentOutlined />, permission: "storage_log.read", keywords: "so nhiet do do am bao quan" },
+  { path: "/thu-hoi", label: "Thu hồi thuốc", icon: <NotificationOutlined />, permission: "recall.manage", keywords: "thu hoi thuoc so lo cong van khach da mua" },
   { path: "/lien-thong-duoc", label: "Liên thông CSDL Dược", icon: <ApiOutlined />, permission: "national_sync.read", keywords: "lien thong csdl duoc quoc gia bo y te csdlduoc api" },
 
   // --- Quản trị -------------------------------------------------------------
