@@ -51,6 +51,10 @@ const MOVEMENT_TYPES = [
   "CUSTOMER_RETURN",
   "ADJUSTMENT",
   "DISPOSAL",
+  "SUPPLIER_RETURN",
+  "TRANSFER_OUT",
+  "TRANSFER_IN",
+  "TRANSFER_CANCEL",
 ] as const;
 
 const ledgerQuerySchema = z.object({

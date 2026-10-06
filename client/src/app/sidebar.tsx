@@ -24,7 +24,7 @@ export const SIDEBAR: readonly SidebarEntry[] = [
     key: "goods",
     label: "Hàng hóa",
     icon: <AppstoreOutlined />,
-    paths: ["/san-pham", "/ton-kho", "/kiem-ke", "/dieu-chinh-ton", "/can-han"],
+    paths: ["/san-pham", "/ton-kho", "/kiem-ke", "/dieu-chinh-ton", "/chuyen-hang", "/can-han"],
   },
   {
     kind: "group",

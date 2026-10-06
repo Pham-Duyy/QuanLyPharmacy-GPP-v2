@@ -202,6 +202,8 @@ export const SOURCE_LABEL: Record<string, string> = {
   invoice: "Hóa đơn bán",
   customer_return: "Khách trả hàng",
   supplier_return: "Trả nhà cung cấp",
+  stock_transfer_out: "Chuyển hàng đi",
+  stock_transfer_in: "Nhận hàng chuyển đến",
   stock_count: "Kiểm kê",
   opening_balance: "Tồn đầu kỳ",
 };

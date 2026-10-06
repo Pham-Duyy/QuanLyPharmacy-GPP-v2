@@ -88,7 +88,11 @@ export type StockMovementType =
   | "SALE_VOID"
   | "CUSTOMER_RETURN"
   | "ADJUSTMENT"
-  | "DISPOSAL";
+  | "DISPOSAL"
+  | "SUPPLIER_RETURN"
+  | "TRANSFER_OUT"
+  | "TRANSFER_IN"
+  | "TRANSFER_CANCEL";
 
 export type StockLedgerEntry = {
   id: string;
@@ -779,7 +783,7 @@ export type PrintTemplate = {
 
 export type PrintTemplateState = { template: PrintTemplate; isDefault: boolean; updatedAt: string | null };
 
-export type DocumentPrintType = "goodsReceipt" | "return" | "stockAdjustment";
+export type DocumentPrintType = "goodsReceipt" | "return" | "stockAdjustment" | "stockTransfer";
 
 export type DocumentPrintConfig = {
   paperSize: PaperSize;

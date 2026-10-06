@@ -1,4 +1,5 @@
 import { prisma } from "../../db/prisma.js";
+import { AppError } from "../../lib/app-error.js";
 import * as receipts from "../inventory/goods-receipts.service.js";
 import * as adjustments from "../inventory/stock-adjustments.service.js";
 import * as returns from "../sales/returns.service.js";
@@ -280,8 +281,155 @@ export function stockAdjustmentDocument(item: AdjustmentForPrint): PrintDocument
 }
 
 // ---------------------------------------------------------------------------
+// Phiếu chuyển kho giữa hai cửa hàng
+// ---------------------------------------------------------------------------
+
+export type TransferForPrint = {
+  code: string;
+  status: string;
+  note: string | null;
+  fromStore: { code: string; name: string; address: string | null };
+  toStore: { code: string; name: string; address: string | null };
+  createdAt: Date | string;
+  createdBy: { fullName: string } | null;
+  shippedAt: Date | string | null;
+  shippedBy: { fullName: string } | null;
+  receivedAt: Date | string | null;
+  receivedBy: { fullName: string } | null;
+  receiveNote: string | null;
+  cancelReason: string | null;
+  lines: Array<{
+    productName: string;
+    batchNumber: string;
+    expiryDate: Date | string;
+    unitName: string;
+    quantity: number;
+    baseQuantity: number;
+    baseUnitName: string;
+    receivedBaseQuantity: number | null;
+    passed: boolean | null;
+  }>;
+};
+
+const storeLine = (store: TransferForPrint["fromStore"]) =>
+  `${store.code} · ${store.name}${store.address ? ` — ${store.address}` : ""}`;
+
+/**
+ * Phiếu đi cùng hàng. Lúc xuất kho cột "Thực nhận" để trống cho người nhận
+ * ghi tay khi đếm; nhận xong in lại thì có số thực nhận và phần hao hụt.
+ */
+export function stockTransferDocument(item: TransferForPrint): PrintDocument {
+  const stamp =
+    item.status === "DRAFT"
+      ? "Bản nháp — chưa xuất kho"
+      : item.status === "IN_TRANSIT"
+        ? "Đang vận chuyển — chờ cửa hàng nhận kiểm nhập"
+        : item.status === "CANCELLED"
+          ? `Phiếu đã hủy${item.cancelReason ? `: ${item.cancelReason}` : ""}`
+          : null;
+  const shortage = item.lines.reduce(
+    (sum, line) =>
+      sum +
+      (line.receivedBaseQuantity === null ? 0 : line.baseQuantity - line.receivedBaseQuantity),
+    0,
+  );
+  const handled = (at: Date | string | null, by: { fullName: string } | null) =>
+    at ? `${printDateTime(at)}${by ? ` · ${by.fullName}` : ""}` : null;
+
+  return {
+    code: item.code,
+    date: item.receivedAt ?? item.shippedAt ?? item.createdAt,
+    stamp,
+    info: [
+      { label: "Cửa hàng gửi", value: storeLine(item.fromStore) },
+      { label: "Cửa hàng nhận", value: storeLine(item.toStore) },
+      { label: "Xuất kho", value: handled(item.shippedAt, item.shippedBy) },
+      { label: "Nhận hàng", value: handled(item.receivedAt, item.receivedBy) },
+      { label: "Ghi chú khi nhận", value: item.receiveNote },
+    ],
+    columns: [
+      { label: "Tên thuốc", role: "name" },
+      { label: "Số lô", role: "detail", nowrap: true },
+      { label: "Hạn dùng", role: "detail", nowrap: true },
+      { label: "SL gửi", role: "detail", align: "right" },
+      { label: "Thực nhận", role: "amount", align: "right" },
+    ],
+    rows: item.lines.map((line) => [
+      line.productName,
+      line.batchNumber,
+      printDate(line.expiryDate),
+      `${num(line.quantity)} ${line.unitName}`,
+      line.receivedBaseQuantity === null
+        ? ""
+        : `${num(line.receivedBaseQuantity)} ${line.baseUnitName}${line.passed === false ? " (không đạt)" : ""}`,
+    ]),
+    totals: [
+      { label: "Số dòng", value: num(item.lines.length) },
+      ...(item.status === "RECEIVED" && shortage > 0
+        ? [{ label: "Hao hụt khi chuyển (đơn vị nhỏ nhất)", value: num(shortage), strong: true }]
+        : []),
+    ],
+    amountInWords: null,
+    note: item.note,
+    signatures: [
+      { title: "Người lập phiếu", name: item.createdBy?.fullName },
+      { title: "Thủ kho xuất", name: item.shippedBy?.fullName },
+      { title: "Người vận chuyển" },
+      { title: "Người nhận hàng", name: item.receivedBy?.fullName },
+    ],
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Nạp dữ liệu thật
 // ---------------------------------------------------------------------------
+
+/** In từ cửa hàng gửi, hoặc từ cửa hàng nhận khi phiếu đã xuất. Không in giá vốn. */
+export async function loadStockTransferDocument(
+  storeId: string,
+  id: string,
+): Promise<PrintDocument> {
+  const found = await prisma.stockTransfer.findFirst({
+    where: { id, OR: [{ fromStoreId: storeId }, { toStoreId: storeId, status: { not: "DRAFT" } }] },
+    include: {
+      fromStore: { select: { code: true, name: true, address: true } },
+      toStore: { select: { code: true, name: true, address: true } },
+      createdByUser: { select: { fullName: true } },
+      shippedByUser: { select: { fullName: true } },
+      receivedByUser: { select: { fullName: true } },
+      lines: {
+        orderBy: { lineNo: "asc" },
+        include: {
+          productUnit: { select: { name: true } },
+          product: {
+            select: {
+              name: true,
+              units: { where: { conversionToBase: 1 }, select: { name: true }, take: 1 },
+            },
+          },
+        },
+      },
+    },
+  });
+  if (!found) throw AppError.notFound("Không tìm thấy phiếu chuyển hàng");
+  return stockTransferDocument({
+    ...found,
+    createdBy: found.createdByUser,
+    shippedBy: found.shippedByUser,
+    receivedBy: found.receivedByUser,
+    lines: found.lines.map((line) => ({
+      productName: line.product.name,
+      batchNumber: line.batchNumber,
+      expiryDate: line.expiryDate,
+      unitName: line.productUnit.name,
+      quantity: line.quantity,
+      baseQuantity: line.baseQuantity,
+      baseUnitName: line.product.units[0]?.name ?? "",
+      receivedBaseQuantity: line.receivedBaseQuantity,
+      passed: line.passed,
+    })),
+  });
+}
 
 export async function loadGoodsReceiptDocument(
   storeId: string,
@@ -426,6 +574,52 @@ export function sampleDocument(type: DocumentType): PrintDocument {
           quantity: 2,
           refundAmount: 30_000,
           batchNumber: "HP2409A",
+        },
+      ],
+    });
+  }
+
+  if (type === "stockTransfer") {
+    return stockTransferDocument({
+      code: "CK-NT01-260917-0001",
+      status: "IN_TRANSIT",
+      note: "Dồn hàng cận hạn sang cửa hàng bán chạy hơn.",
+      fromStore: { code: "NT01", name: "Nhà thuốc GPP số 1", address: "12 Lê Lợi, Q.1, TP.HCM" },
+      toStore: {
+        code: "NT02",
+        name: "Nhà thuốc GPP số 2",
+        address: "48 Hai Bà Trưng, Q.3, TP.HCM",
+      },
+      createdAt: now,
+      createdBy: { fullName: "Lê Văn Kho" },
+      shippedAt: now,
+      shippedBy: { fullName: "Lê Văn Kho" },
+      receivedAt: null,
+      receivedBy: null,
+      receiveNote: null,
+      cancelReason: null,
+      lines: [
+        {
+          productName: "Paracetamol 500mg (Hapacol)",
+          batchNumber: "HP2409A",
+          expiryDate: expiry,
+          unitName: "Hộp",
+          quantity: 5,
+          baseQuantity: 500,
+          baseUnitName: "Viên",
+          receivedBaseQuantity: null,
+          passed: null,
+        },
+        {
+          productName: "Siro ho Prospan 100ml",
+          batchNumber: "PR1123",
+          expiryDate: expiry,
+          unitName: "Chai",
+          quantity: 12,
+          baseQuantity: 12,
+          baseUnitName: "Chai",
+          receivedBaseQuantity: null,
+          passed: null,
         },
       ],
     });

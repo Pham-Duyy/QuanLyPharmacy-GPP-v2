@@ -85,7 +85,8 @@ export async function insertBatchIfAbsent(
     manufactureDate: Date | null;
     expiryDate: Date;
     baseQuantity: number;
-    unitCost: Prisma.Decimal;
+    /** NULL: chưa biết giá vốn (lô chuyển đến từ lô chưa có giá vốn). */
+    unitCost: Prisma.Decimal | null;
     status: string;
     note: string | null;
     sourceType: string;

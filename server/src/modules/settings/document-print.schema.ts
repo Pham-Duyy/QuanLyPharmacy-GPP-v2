@@ -1,7 +1,12 @@
 import { z } from "zod";
 
 /** Các loại chứng từ (ngoài hóa đơn bán hàng) in được từ hệ thống. */
-export const DOCUMENT_TYPES = ["goodsReceipt", "return", "stockAdjustment"] as const;
+export const DOCUMENT_TYPES = [
+  "goodsReceipt",
+  "return",
+  "stockAdjustment",
+  "stockTransfer",
+] as const;
 export type DocumentType = (typeof DOCUMENT_TYPES)[number];
 
 /** Khổ giấy hợp lý cho từng loại: phiếu kho nhiều cột nên không in khổ nhiệt. */
@@ -9,6 +14,7 @@ export const DOCUMENT_PAPERS = {
   goodsReceipt: ["A4", "A5"],
   return: ["K80", "K58", "A5", "A4"],
   stockAdjustment: ["A4", "A5"],
+  stockTransfer: ["A4", "A5"],
 } as const satisfies Record<DocumentType, readonly string[]>;
 
 export const DOCUMENT_DEFAULTS: Record<
@@ -33,6 +39,14 @@ export const DOCUMENT_DEFAULTS: Record<
     footer: "",
     signatures: ["Người lập phiếu", "Thủ kho", "Người duyệt"],
   },
+  // Phiếu nội bộ của phần mềm, không phải "phiếu xuất kho kiêm vận chuyển nội
+  // bộ" theo NĐ 123/2020 — chứng từ đó phát hành qua hệ thống hóa đơn điện tử.
+  stockTransfer: {
+    paperSize: "A4",
+    title: "PHIẾU CHUYỂN KHO",
+    footer: "",
+    signatures: ["Người lập phiếu", "Thủ kho xuất", "Người vận chuyển", "Người nhận hàng"],
+  },
 };
 
 const text = (max: number) => z.string().trim().max(max, `Tối đa ${max} ký tự`);
@@ -51,6 +65,7 @@ export const documentPrintSettingsSchema = z.object({
   goodsReceipt: configSchema("goodsReceipt"),
   return: configSchema("return"),
   stockAdjustment: configSchema("stockAdjustment"),
+  stockTransfer: configSchema("stockTransfer"),
 });
 
 export type DocumentPrintSettings = z.infer<typeof documentPrintSettingsSchema>;

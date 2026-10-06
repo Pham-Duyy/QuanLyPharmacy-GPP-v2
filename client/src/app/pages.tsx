@@ -5,6 +5,7 @@ import {
   BarChartOutlined,
   BellOutlined,
   BulbOutlined,
+  CarOutlined,
   ContainerOutlined,
   ControlOutlined,
   CreditCardOutlined,
@@ -77,6 +78,7 @@ export const PAGES = [
   { path: "/ton-kho", label: "Tồn kho", icon: <DatabaseOutlined />, permission: "stock.read", keywords: "lo han dung the kho biet tru ton dau ky" },
   { path: "/kiem-ke", label: "Kiểm kê", icon: <ContainerOutlined />, permission: "stock.read", keywords: "kiem ke kho dem hang thuc te chenh lech" },
   { path: "/dieu-chinh-ton", label: "Điều chỉnh tồn", icon: <SwapOutlined />, permission: ["stock.adjust.create", "stock.adjust.approve"], keywords: "dieu chinh ton hao hut vo hong duyet" },
+  { path: "/chuyen-hang", label: "Chuyển hàng", icon: <CarOutlined />, permission: "stock.read", keywords: "chuyen hang chuyen kho dieu chuyen giua cua hang chi nhanh nhan hang" },
   { path: "/can-han", label: "Hàng cận hạn", icon: <FieldTimeOutlined />, permission: "stock.read", keywords: "can han het han xu ly ke hoach tra nha cung cap huy" },
   // Công cụ của Hàng hóa, không đặt trên sidebar.
   { path: "/canh-bao", label: "Cảnh báo", icon: <BellOutlined />, permission: "stock.read", keywords: "canh bao kho het han ton thap", navTarget: "/ton-kho" },
