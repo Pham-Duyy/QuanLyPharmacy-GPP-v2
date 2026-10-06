@@ -51,6 +51,8 @@ model Store {
   expiryPlans        BatchExpiryPlan[]
   supplierPayments   SupplierPayment[]
   supplierReturns    SupplierReturn[]
+  transfersOut       StockTransfer[]          @relation("StockTransferFrom")
+  transfersIn        StockTransfer[]          @relation("StockTransferTo")
   loyaltyLedger      LoyaltyTransaction[]
   documentCounters   DocumentCounter[]
   idempotencyKeys    IdempotencyKey[]
@@ -115,6 +117,10 @@ model User {
   supplierReturnsCreated   SupplierReturn[]          @relation("SupplierReturnCreatedBy")
   supplierReturnsConfirmed SupplierReturn[]          @relation("SupplierReturnConfirmedBy")
   supplierReturnsCancelled SupplierReturn[]          @relation("SupplierReturnCancelledBy")
+  transfersCreated         StockTransfer[]           @relation("StockTransferCreatedBy")
+  transfersShipped         StockTransfer[]           @relation("StockTransferShippedBy")
+  transfersReceived        StockTransfer[]           @relation("StockTransferReceivedBy")
+  transfersCancelled       StockTransfer[]           @relation("StockTransferCancelledBy")
   healthProfilesUpdated    CustomerHealthProfile[]
   stockMovements           StockMovement[]
   loyaltyEntriesCreated    LoyaltyTransaction[]
@@ -346,6 +352,7 @@ model Product {
   images              ProductImage[]
   stockCountLines     StockCountLine[]
   supplierReturnLines SupplierReturnLine[]
+  transferLines       StockTransferLine[]
   nationalDrugLink    NationalDrugLink?
 
   @@index([categoryId])
@@ -410,6 +417,7 @@ model ProductUnit {
   returnLines         ReturnLine[]
   stockCountLines     StockCountLine[]
   supplierReturnLines SupplierReturnLine[]
+  transferLines       StockTransferLine[]
 
   @@unique([productId, name])
   @@index([productId])
@@ -507,6 +515,8 @@ model Batch {
   stockCountLines     StockCountLine[]
   expiryPlans         BatchExpiryPlan[]
   supplierReturnLines SupplierReturnLine[]
+  transferLinesOut    StockTransferLine[]   @relation("StockTransferSourceBatch")
+  transferLinesIn     StockTransferLine[]   @relation("StockTransferDestinationBatch")
 
   @@unique([storeId, productId, batchNumber])
   @@unique([id, storeId])
@@ -1523,4 +1533,74 @@ model EInvoice {
 
   @@index([storeId, status, nextAttemptAt], map: "e_invoices_store_status_idx")
   @@map("e_invoices")
+}
+
+/// Phiếu chuyển hàng giữa hai cửa hàng (contract §10.9). Xuất ở cửa hàng gửi
+/// thì trừ tồn; hàng đang trên đường chỉ nằm trên phiếu; cửa hàng nhận kiểm
+/// nhập xong mới cộng tồn.
+model StockTransfer {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code         String    @unique
+  fromStoreId  String    @map("from_store_id") @db.Uuid
+  toStoreId    String    @map("to_store_id") @db.Uuid
+  /// DRAFT, IN_TRANSIT, RECEIVED, CANCELLED.
+  status       String    @default("DRAFT")
+  note         String?
+  totalValue   BigInt    @default(0) @map("total_value")
+  createdBy    String    @map("created_by") @db.Uuid
+  shippedBy    String?   @map("shipped_by") @db.Uuid
+  shippedAt    DateTime? @map("shipped_at") @db.Timestamptz(6)
+  receivedBy   String?   @map("received_by") @db.Uuid
+  receivedAt   DateTime? @map("received_at") @db.Timestamptz(6)
+  receiveNote  String?   @map("receive_note")
+  cancelledBy  String?   @map("cancelled_by") @db.Uuid
+  cancelledAt  DateTime? @map("cancelled_at") @db.Timestamptz(6)
+  cancelReason String?   @map("cancel_reason")
+  version      Int       @default(1)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  fromStore       Store               @relation("StockTransferFrom", fields: [fromStoreId], references: [id])
+  toStore         Store               @relation("StockTransferTo", fields: [toStoreId], references: [id])
+  createdByUser   User                @relation("StockTransferCreatedBy", fields: [createdBy], references: [id])
+  shippedByUser   User?               @relation("StockTransferShippedBy", fields: [shippedBy], references: [id])
+  receivedByUser  User?               @relation("StockTransferReceivedBy", fields: [receivedBy], references: [id])
+  cancelledByUser User?               @relation("StockTransferCancelledBy", fields: [cancelledBy], references: [id])
+  lines           StockTransferLine[]
+
+  @@index([fromStoreId, status], map: "stock_transfers_from_store_status_idx")
+  @@index([toStoreId, status], map: "stock_transfers_to_store_status_idx")
+  @@map("stock_transfers")
+}
+
+model StockTransferLine {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  stockTransferId      String    @map("stock_transfer_id") @db.Uuid
+  lineNo               Int       @map("line_no")
+  sourceBatchId        String    @map("source_batch_id") @db.Uuid
+  productId            String    @map("product_id") @db.Uuid
+  productUnitId        String    @map("product_unit_id") @db.Uuid
+  quantity             Int
+  baseQuantity         Int       @map("base_quantity")
+  batchNumber          String    @map("batch_number")
+  manufactureDate      DateTime? @map("manufacture_date") @db.Date
+  expiryDate           DateTime  @map("expiry_date") @db.Date
+  /// Giá vốn mỗi đơn vị cơ bản lúc xuất; NULL khi lô chưa có giá vốn.
+  unitCost             Decimal?  @map("unit_cost") @db.Decimal(18, 4)
+  receivedBaseQuantity Int?      @map("received_base_quantity")
+  passed               Boolean?
+  rejectReason         String?   @map("reject_reason")
+  destinationBatchId   String?   @map("destination_batch_id") @db.Uuid
+
+  stockTransfer    StockTransfer @relation(fields: [stockTransferId], references: [id], onDelete: Cascade)
+  sourceBatch      Batch         @relation("StockTransferSourceBatch", fields: [sourceBatchId], references: [id])
+  destinationBatch Batch?        @relation("StockTransferDestinationBatch", fields: [destinationBatchId], references: [id])
+  product          Product       @relation(fields: [productId], references: [id])
+  productUnit      ProductUnit   @relation(fields: [productUnitId], references: [id])
+
+  @@unique([stockTransferId, lineNo], map: "stock_transfer_lines_transfer_line_no_key")
+  @@unique([stockTransferId, sourceBatchId], map: "stock_transfer_lines_transfer_batch_key")
+  @@index([sourceBatchId])
+  @@index([destinationBatchId])
+  @@map("stock_transfer_lines")
 }

@@ -33,6 +33,7 @@ const SupplierReturnsPage = page(() => import("../features/inventory/SupplierRet
 const SupplierDebtsPage = page(() => import("../features/inventory/SupplierDebtsPage.js"), "SupplierDebtsPage");
 const ExpiryAlertsPage = page(() => import("../features/inventory/ExpiryAlertsPage.js"), "ExpiryAlertsPage");
 const PurchaseSuggestionsPage = page(() => import("../features/inventory/PurchaseSuggestionsPage.js"), "PurchaseSuggestionsPage");
+const StockTransfersPage = page(() => import("../features/inventory/StockTransfersPage.js"), "StockTransfersPage");
 const StockCountsPage = page(() => import("../features/inventory/stock-counts/StockCountsPage.js"), "StockCountsPage");
 const ExcelHubPage = page(() => import("../features/excel/ExcelHubPage.js"), "ExcelHubPage");
 const NationalSyncPage = page(() => import("../features/national-sync/NationalSyncPage.js"), "NationalSyncPage");
@@ -57,6 +58,7 @@ export const PAGE_ELEMENTS: Record<PagePath, ReactNode> = {
   "/ton-kho": <BatchesPage />,
   "/kiem-ke": <StockCountsPage />,
   "/dieu-chinh-ton": <StockAdjustmentsPage />,
+  "/chuyen-hang": <StockTransfersPage />,
   "/can-han": <ExpiryAlertsPage />,
   "/canh-bao": <AlertsPage />,
   "/anh-san-pham": <ProductImagesBulkPage />,

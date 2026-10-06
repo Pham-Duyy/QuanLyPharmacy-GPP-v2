@@ -259,6 +259,8 @@ Quy tắc:
 | `stock.adjust.create` | Lập phiếu điều chỉnh tồn |
 | `stock.adjust.approve` | Duyệt, từ chối phiếu điều chỉnh |
 | `stock.opening_balance` | Nhập tồn đầu kỳ |
+| `stock.transfer.create` | Lập, xuất và hủy phiếu chuyển hàng sang cửa hàng khác (§10.9) |
+| `stock.transfer.receive` | Nhận và kiểm nhập hàng chuyển đến từ cửa hàng khác (§10.9) |
 | `batch.quarantine` | Biệt trữ, mở khóa lô |
 | `recall.manage` | Tạo, đóng thông báo thu hồi; xem danh sách khách đã mua lô bị thu hồi |
 | `invoice.read` | Xem hóa đơn, phiếu trả |
@@ -309,6 +311,8 @@ Mô hình cập nhật ngày 30/09/2026. `admin`: quản lý; `pharmacist`: dư�
 | `stock.adjust.create` | ✓ | ✓ | ✓ |  |
 | `stock.adjust.approve` | ✓ |  |  |  |
 | `stock.opening_balance` | ✓ |  |  |  |
+| `stock.transfer.create` | ✓ |  | ✓ |  |
+| `stock.transfer.receive` | ✓ |  | ✓ |  |
 | `batch.quarantine` | ✓ | ✓ |  |  |
 | `recall.manage` | ✓ |  |  |  |
 | `invoice.read` | ✓ | ✓ |  | ✓ |
@@ -921,6 +925,35 @@ Kiểm kê qua Excel (§ Nhập / xuất Excel): xuất `stock-count` cho ra b�
 - `mismatches` so số cuối kỳ với tồn kho khi kỳ kết thúc hôm nay; lệch là dấu hiệu dữ liệu có vấn đề, phải báo người phụ trách chuyên môn.
 - Xuất Excel `controlled-ledger` (§ Nhập / xuất Excel): sheet "Tổng hợp" và "Chi tiết", có ghi nhật ký mỗi lần xuất.
 
+### 10.9 Chuyển hàng giữa các cửa hàng
+
+Mỗi cửa hàng là một cơ sở có kho riêng, nên chuyển hàng là **xuất ở kho gửi rồi nhập ở kho nhận**, do hai người ở hai nơi làm. Phần mềm giả định các cửa hàng cùng một chủ hoặc một doanh nghiệp (chuyển nội bộ); nếu mỗi cửa hàng là một hộ kinh doanh riêng thì về pháp lý đây là mua bán, không dùng chức năng này.
+
+`X-Store-Id` là cửa hàng đang thao tác: lập, xuất, hủy ở cửa hàng gửi; nhận ở cửa hàng nhận. Quyền xét đúng tại nơi đó.
+
+| Method | Endpoint | Mô tả | Quyền |
+|---|---|---|---|
+| GET | `/stock-transfers/destinations` | Cửa hàng nhận: mọi cửa hàng đang hoạt động khác cửa hàng hiện tại (kể cả nơi người dùng không có vai trò) | `stock.transfer.create` |
+| GET | `/stock-transfers/transferable?search` | Lô chuyển được, hạn dùng gần nhất trước | `stock.transfer.create` |
+| GET | `/stock-transfers?direction=OUT\|IN&status` | `OUT`: phiếu chuyển đi; `IN`: phiếu chuyển đến, không gồm nháp | `stock.read` |
+| GET | `/stock-transfers/incoming-count` | Số phiếu đang trên đường tới cửa hàng này | `stock.read` |
+| GET | `/stock-transfers/{id}` | Chi tiết; cửa hàng nhận chỉ thấy từ lúc đã xuất; cửa hàng khác trả 404. Giá vốn chỉ trả cho người có `stock.cost.read` | `stock.read` |
+| GET | `/stock-transfers/{id}/print` | Phiếu chuyển kho (không in giá vốn) | `stock.read` |
+| POST | `/stock-transfers` | Lập nháp: `toStoreId`, `note`, `lines[{ batchId, unitId, quantity }]`; mỗi lô một dòng. Chưa trừ tồn. Cần `Idempotency-Key` | `stock.transfer.create` |
+| POST | `/stock-transfers/{id}/ship` | Xác nhận xuất: trừ tồn, thẻ kho `TRANSFER_OUT`, chụp giá vốn; phiếu sang `IN_TRANSIT` | `stock.transfer.create` |
+| POST | `/stock-transfers/{id}/receive` | Kiểm nhập: `note`, `lines[{ lineId, receivedBaseQuantity, passed, rejectReason }]` đủ mọi dòng; thẻ kho `TRANSFER_IN`; phiếu sang `RECEIVED` | `stock.transfer.receive` |
+| POST | `/stock-transfers/{id}/cancel` | `reason` bắt buộc. Nháp: hủy. Đang chuyển: thu hồi phiếu, hàng về đúng lô cũ, thẻ kho `TRANSFER_CANCEL`. Đã nhận: 409 | `stock.transfer.create` |
+
+Trạng thái: `DRAFT` → `IN_TRANSIT` → `RECEIVED`; `DRAFT` hoặc `IN_TRANSIT` → `CANCELLED`. Mã phiếu `CK-<mã cửa hàng gửi>-YYYYMMDD-NNNN`.
+
+- **Không chuyển:** lô `RECALLED`, lô `QUARANTINED`, lô đã hết hạn (`422 BATCH_NOT_TRANSFERABLE`), và **thuốc kiểm soát đặc biệt** — quy định chuyển giao giữa các cơ sở bán lẻ chưa được đối chiếu, nên chặn hẳn trong bản này.
+- Lúc xuất, điều kiện tồn, trạng thái và hạn dùng nằm ngay trong lệnh `UPDATE` dưới khóa hàng: bán bớt sau khi lập nháp thì xuất báo `409 INSUFFICIENT_STOCK`, phiếu vẫn là nháp. Hai lệnh xuất cùng lúc cho một phiếu chỉ trừ tồn một lần.
+- Hàng đang trên đường không thuộc tồn của cửa hàng nào; phiếu là nơi duy nhất giữ số hàng đó.
+- **Nhận:** hàng đạt vào lô cùng số lô, hạn dùng ở cửa hàng nhận (chưa có thì tạo, có rồi thì cộng dồn, giá vốn bình quân gia quyền như §9). Lô sẵn có mà khác hạn dùng: `409 BATCH_EXPIRY_MISMATCH`, sửa lô trước khi nhận. Hàng không đạt vẫn vào kho nhưng biệt trữ cả lô, bắt buộc ghi lý do.
+- **Nhận thiếu:** `receivedBaseQuantity` không vượt số đã gửi. Phần thiếu là **hao hụt khi chuyển**, ghi trên phiếu và audit `STOCK_TRANSFER_RECEIVE`, bắt buộc `note`; không cộng trả lại cửa hàng gửi vì hàng không còn nữa.
+- **Thu hồi thuốc trong lúc hàng trên đường:** thông báo thu hồi (§16) chỉ khóa lô đang có trong kho. Vì vậy lúc nhận, nếu mặt hàng và số lô thuộc một thu hồi đang mở, lô ở cửa hàng nhận chuyển ngay sang `RECALLED`.
+- Liên thông CSDL Dược: cửa hàng gửi gửi phiếu xuất `transfer-out` từ lúc xuất kho, cửa hàng nhận gửi phiếu nhập `transfer-in` theo số thực nhận (§25.5).
+
 ---
 
 ## 11. Khách hàng
@@ -1440,7 +1473,7 @@ Giá trị trong ô luôn được ghi dạng dữ liệu, không bao giờ là 
 
 Thuốc kiểm soát đặc biệt (`drugClass = CONTROLLED`) đã bán được kể từ khi có sổ theo dõi ở §10.8: phải có đơn đã xác nhận, người bán là dược sĩ và ghi đủ thông tin người mua.
 
-Về mô hình chuỗi: dữ liệu và API có phạm vi cửa hàng từ đầu (§2.8). Đã mở được cửa hàng mới qua `/stores` và gán vai trò theo cửa hàng; báo cáo hợp nhất toàn chuỗi cần `report.chain` (§19); liên thông CSDL Dược (§25.2a) và hóa đơn điện tử (§26) cấu hình riêng từng cửa hàng. Còn để sau: chuyển hàng giữa các cửa hàng, giá riêng theo cửa hàng.
+Về mô hình chuỗi: dữ liệu và API có phạm vi cửa hàng từ đầu (§2.8). Đã mở được cửa hàng mới qua `/stores` và gán vai trò theo cửa hàng; báo cáo hợp nhất toàn chuỗi cần `report.chain` (§19); liên thông CSDL Dược (§25.2a) và hóa đơn điện tử (§26) cấu hình riêng từng cửa hàng. Chuyển hàng giữa các cửa hàng đã làm (§10.9). Còn để sau: giá riêng theo cửa hàng.
 
 **Sau MVP**
 
@@ -1449,7 +1482,7 @@ Về mô hình chuỗi: dữ liệu và API có phạm vi cửa hàng từ đầ
 - Ngăn biệt trữ theo số lượng.
 - Tích hợp cổng thanh toán.
 - MFA.
-- Đã làm sau MVP: liên thông CSDL Dược quốc gia (§25), hóa đơn điện tử khởi tạo từ máy tính tiền qua MISA meInvoice (§26), ẩn danh hóa khách (§11), trả hàng nhà cung cấp (§9.2), kiểm kê theo đợt (§10.7), hàng cận hạn (§10.6).
+- Đã làm sau MVP: liên thông CSDL Dược quốc gia (§25), hóa đơn điện tử khởi tạo từ máy tính tiền qua MISA meInvoice (§26), ẩn danh hóa khách (§11), trả hàng nhà cung cấp (§9.2), kiểm kê theo đợt (§10.7), hàng cận hạn (§10.6), chuyển hàng giữa các cửa hàng (§10.9).
 
 ---
 
@@ -1554,6 +1587,8 @@ Hai thuốc trùng tên trong danh mục quốc gia thì không ghép tự độ
 | `invoices` | `COMPLETED` | `STOCK_OUT` | `sale-retail` |
 | `returns` (khách trả) | `disposition = RESTOCK` | `STOCK_IN` | `return` |
 | `supplier_returns` | `CONFIRMED` | `STOCK_OUT` | `return` |
+| `stock_transfers` (cửa hàng gửi) | `IN_TRANSIT` hoặc `RECEIVED` | `STOCK_OUT` | `transfer-out` |
+| `stock_transfers` (cửa hàng nhận) | `RECEIVED`, có hàng thực nhận | `STOCK_IN` | `transfer-in` |
 | `stock_counts` | `CLOSED` | `STOCK_TAKING` | — |
 
 `reference_number` là mã chứng từ nội bộ. Hệ thống quốc gia không có API xóa: sửa là
@@ -1589,6 +1624,8 @@ của phiếu đầu kỳ. Gửi lần hai trả `409 INVALID_STATE`.
 | N4 | Hóa đơn bị hủy sau khi đã gửi | Đánh dấu `NEEDS_REVIEW`, xử lý trên cổng — không tự suy diễn |
 | N5 | Khách trả hàng rồi tiêu hủy (`DISPOSE`) | Không gửi: thẻ kho không tăng. Cần hỏi 19008255 |
 | N6 | Đường dẫn xem trạng thái phiếu nhập ghi số ít `/transaction/stock-in/...` khác hai loại kia | Giữ đúng từng đường dẫn như tài liệu |
+| N7 | Phiếu chuyển kho có `source_store_id` / `target_store_id` nhưng không nói đó là mã gì (mã cơ sở trên CSDL Dược hay số giấy phép) | Không điền; ghi cửa hàng đối ứng vào `note`. Cần hỏi 19008255 |
+| N8 | Phiếu chuyển đã gửi phiếu xuất rồi bị thu hồi (hàng về lại kho gửi) | Đánh dấu `NEEDS_REVIEW` như N4, không tự bịa phiếu nhập bù |
 
 ### 25.9 Quyền
 

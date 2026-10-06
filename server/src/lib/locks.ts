@@ -57,6 +57,17 @@ export async function lockSupplierReturn(tx: Tx, storeId: string, returnId: stri
   if (rows.length === 0) throw AppError.notFound("Không tìm thấy phiếu trả hàng");
 }
 
+/**
+ * Khóa phiếu chuyển hàng. Phiếu thuộc cả hai cửa hàng nên kiểm tra phạm vi
+ * ở service (gửi hay nhận), ở đây chỉ khóa theo id.
+ */
+export async function lockStockTransfer(tx: Tx, transferId: string): Promise<void> {
+  const rows = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+    SELECT id::text FROM stock_transfers WHERE id = ${transferId}::uuid FOR UPDATE
+  `);
+  if (rows.length === 0) throw AppError.notFound("Không tìm thấy phiếu chuyển hàng");
+}
+
 /** Khóa phiếu chi nhà cung cấp trước khi hủy. */
 export async function lockSupplierPayment(tx: Tx, storeId: string, paymentId: string): Promise<void> {
   const rows = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`

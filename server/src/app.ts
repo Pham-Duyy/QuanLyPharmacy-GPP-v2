@@ -42,6 +42,7 @@ import { purchaseSuggestionsRouter } from "./modules/inventory/purchase-suggesti
 import { expiryAlertsRouter } from "./modules/inventory/expiry-alerts.routes.js";
 import { supplierDebtsRouter } from "./modules/inventory/supplier-debts.routes.js";
 import { supplierReturnsRouter } from "./modules/inventory/supplier-returns.routes.js";
+import { stockTransfersRouter } from "./modules/inventory/stock-transfers.routes.js";
 import { labelsRouter } from "./modules/printing/labels.routes.js";
 import { loyaltyRouter } from "./modules/loyalty/loyalty.routes.js";
 import { einvoiceRouter } from "./modules/einvoice/einvoice.routes.js";
@@ -120,6 +121,7 @@ export function createApp() {
   app.use("/api/v1", expiryAlertsRouter);
   app.use("/api/v1", supplierDebtsRouter);
   app.use("/api/v1", supplierReturnsRouter);
+  app.use("/api/v1", stockTransfersRouter);
   app.use("/api/v1", labelsRouter);
   app.use("/api/v1", loyaltyRouter);
   app.use("/api/v1", nationalSyncRouter);

@@ -8,6 +8,8 @@ import {
   buildInvoicePayload,
   buildStockCountPayload,
   buildSupplierReturnPayload,
+  buildTransferInPayload,
+  buildTransferOutPayload,
   isoDate,
   type BuildResult,
 } from "./nds-payload.js";
@@ -58,6 +60,18 @@ const SOURCES: Record<string, SourceSpec> = {
     kind: "STOCK_OUT",
     reason: "return",
     build: buildSupplierReturnPayload,
+  },
+  stock_transfer_out: {
+    sourceType: "stock_transfer_out",
+    kind: "STOCK_OUT",
+    reason: "transfer-out",
+    build: buildTransferOutPayload,
+  },
+  stock_transfer_in: {
+    sourceType: "stock_transfer_in",
+    kind: "STOCK_IN",
+    reason: "transfer-in",
+    build: buildTransferInPayload,
   },
   stock_count: {
     sourceType: "stock_count",
@@ -124,6 +138,40 @@ async function flagVoidedInvoices(): Promise<number> {
 }
 
 /**
+ * Phiếu chuyển đã gửi phiếu xuất lên rồi mới bị cửa hàng gửi thu hồi (hàng về
+ * lại kho). Cùng lý do như hóa đơn bị hủy: không có API rút chứng từ, phần mềm
+ * không tự bịa phiếu nhập bù mà đánh dấu để dược sĩ xử lý trên cổng.
+ */
+async function flagCancelledTransfers(): Promise<number> {
+  const sent = await prisma.nationalSyncJob.findMany({
+    where: {
+      sourceType: "stock_transfer_out",
+      status: { in: ["ACCEPTED", "PROCESSING", "COMPLETED"] },
+    },
+    select: { id: true, sourceId: true },
+  });
+  if (sent.length === 0) return 0;
+
+  const cancelled = await prisma.stockTransfer.findMany({
+    where: { id: { in: sent.map((job) => job.sourceId) }, status: "CANCELLED" },
+    select: { id: true },
+  });
+  if (cancelled.length === 0) return 0;
+
+  const ids = new Set(cancelled.map((row) => row.id));
+  const affected = sent.filter((job) => ids.has(job.sourceId));
+  await prisma.nationalSyncJob.updateMany({
+    where: { id: { in: affected.map((job) => job.id) } },
+    data: {
+      status: "NEEDS_REVIEW",
+      lastError:
+        "Phiếu chuyển đã gửi phiếu xuất lên CSDL Dược rồi bị thu hồi, hàng đã về lại kho. Tài liệu API chưa quy định cách rút lại chứng từ đã gửi — hãy chỉnh trực tiếp trên cổng csdlduoc.com.vn hoặc gọi 19008255.",
+    },
+  });
+  return affected.length;
+}
+
+/**
  * Tìm chứng từ đủ điều kiện liên thông mà chưa có việc trong hàng đợi.
  *
  * Mỗi cửa hàng có mốc `start_date` riêng (ngày phiếu kiểm hàng đầu kỳ của
@@ -138,7 +186,7 @@ export async function scanDocuments(storeId?: string): Promise<ScanResult> {
   });
   if (configs.length === 0) return result;
 
-  result.needsReview = await flagVoidedInvoices();
+  result.needsReview = (await flagVoidedInvoices()) + (await flagCancelledTransfers());
 
   // Điều kiện "cửa hàng X, từ mốc của X" cho từng cửa hàng đã có mốc.
   const since = <K extends string>(field: K) =>
@@ -172,7 +220,15 @@ export async function scanDocuments(storeId?: string): Promise<ScanResult> {
     }
   };
 
-  const [receipts, invoices, customerReturns, supplierReturns, stockCounts] = await Promise.all([
+  const [
+    receipts,
+    invoices,
+    customerReturns,
+    supplierReturns,
+    stockCounts,
+    transfersOut,
+    transfersIn,
+  ] = await Promise.all([
     prisma.goodsReceipt.findMany({
       where: { status: "CONFIRMED", OR: since("receivedAt") },
       select: { id: true, storeId: true, code: true, receivedAt: true },
@@ -193,6 +249,30 @@ export async function scanDocuments(storeId?: string): Promise<ScanResult> {
       where: { status: "CLOSED", OR: since("closedAt") },
       select: { id: true, storeId: true, code: true, closedAt: true },
     }),
+    // Phiếu chuyển thuộc hai cửa hàng: phiếu xuất tính cho nơi gửi từ lúc xuất
+    // kho, phiếu nhập tính cho nơi nhận từ lúc nhận. Thu hồi trước khi quét thì
+    // không còn ở trạng thái đã xuất nên không gửi.
+    prisma.stockTransfer.findMany({
+      where: {
+        status: { in: ["IN_TRANSIT", "RECEIVED"] },
+        OR: configs.map((config) => ({
+          fromStoreId: config.storeId,
+          shippedAt: { gte: config.startDate! },
+        })),
+      },
+      select: { id: true, fromStoreId: true, code: true, shippedAt: true },
+    }),
+    prisma.stockTransfer.findMany({
+      where: {
+        status: "RECEIVED",
+        lines: { some: { receivedBaseQuantity: { gt: 0 } } },
+        OR: configs.map((config) => ({
+          toStoreId: config.storeId,
+          receivedAt: { gte: config.startDate! },
+        })),
+      },
+      select: { id: true, toStoreId: true, code: true, receivedAt: true },
+    }),
   ]);
 
   await add(
@@ -210,6 +290,14 @@ export async function scanDocuments(storeId?: string): Promise<ScanResult> {
   await add(
     "supplier_return",
     supplierReturns.map((r) => ({ ...r, at: r.returnedAt })),
+  );
+  await add(
+    "stock_transfer_out",
+    transfersOut.map((r) => ({ id: r.id, storeId: r.fromStoreId, code: r.code, at: r.shippedAt! })),
+  );
+  await add(
+    "stock_transfer_in",
+    transfersIn.map((r) => ({ id: r.id, storeId: r.toStoreId, code: r.code, at: r.receivedAt! })),
   );
   await add(
     "stock_count",

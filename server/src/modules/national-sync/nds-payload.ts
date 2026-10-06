@@ -306,6 +306,113 @@ export async function buildSupplierReturnPayload(supplierReturnId: string): Prom
   return { ok: true, payload };
 }
 
+// --- Chuyển hàng giữa các cửa hàng -----------------------------------------
+
+/**
+ * Đặc tả có `source_store_id` / `target_store_id` nhưng không nói đó là mã gì
+ * (mã cơ sở trên CSDL Dược? mã giấy phép?), nên KHÔNG điền — gửi nhầm mã cơ
+ * sở còn tệ hơn để trống. Cửa hàng đối ứng ghi vào `note` (§25.8).
+ */
+function counterpartNote(
+  prefix: string,
+  store: { code: string; name: string; gppCertificateNumber: string | null },
+) {
+  const gpp = store.gppCertificateNumber ? ` (GPP ${store.gppCertificateNumber})` : "";
+  return `${prefix} ${store.code} · ${store.name}${gpp}`.slice(0, 500);
+}
+
+function transferPrice(unitCost: { toNumber(): number } | null): number | undefined {
+  return unitCost === null ? undefined : Math.round(unitCost.toNumber() * 100) / 100;
+}
+
+async function loadTransfer(transferId: string) {
+  return prisma.stockTransfer.findUnique({
+    where: { id: transferId },
+    include: {
+      fromStore: { select: { code: true, name: true, gppCertificateNumber: true } },
+      toStore: { select: { code: true, name: true, gppCertificateNumber: true } },
+      lines: {
+        include: { product: { select: { manufacturer: true, countryOfOrigin: true } } },
+        orderBy: { lineNo: "asc" },
+      },
+    },
+  });
+}
+
+/** Cửa hàng gửi: phiếu xuất lý do `transfer-out`, ngày xuất kho. */
+export async function buildTransferOutPayload(transferId: string): Promise<BuildResult> {
+  const transfer = await loadTransfer(transferId);
+  if (!transfer || !transfer.shippedAt) {
+    return { ok: false, missing: [], message: "Không tìm thấy phiếu chuyển đã xuất kho" };
+  }
+
+  const { links, missing } = await resolveLinks(transfer.lines.map((line) => line.productId));
+  if (missing.length > 0) return blocked(missing);
+
+  const licence = await practiceLicenseCode(transfer.fromStoreId);
+  const payload = stockOutPayloadSchema.parse({
+    transaction_date: vnDateTime(transfer.shippedAt),
+    reason: "transfer-out",
+    reference_number: transfer.code,
+    ...(licence ? { practice_license_code: licence } : {}),
+    note: counterpartNote("Chuyển đến", transfer.toStore),
+    items: toItems(
+      transfer.lines.map((line) => {
+        const price = transferPrice(line.unitCost);
+        return {
+          productId: line.productId,
+          quantity: line.baseQuantity,
+          batchNo: line.batchNumber,
+          expiryDate: line.expiryDate,
+          ...(price === undefined ? {} : { price }),
+          manufacturer: { name: line.product.manufacturer, country: line.product.countryOfOrigin },
+        };
+      }),
+      links,
+    ),
+  });
+  return { ok: true, payload };
+}
+
+/** Cửa hàng nhận: phiếu nhập lý do `transfer-in`, chỉ phần thực nhận. */
+export async function buildTransferInPayload(transferId: string): Promise<BuildResult> {
+  const transfer = await loadTransfer(transferId);
+  if (!transfer || !transfer.receivedAt) {
+    return { ok: false, missing: [], message: "Không tìm thấy phiếu chuyển đã nhận" };
+  }
+  const received = transfer.lines.filter((line) => (line.receivedBaseQuantity ?? 0) > 0);
+  if (received.length === 0) {
+    return { ok: false, missing: [], message: "Phiếu chuyển không có hàng thực nhận" };
+  }
+
+  const { links, missing } = await resolveLinks(received.map((line) => line.productId));
+  if (missing.length > 0) return blocked(missing);
+
+  const licence = await practiceLicenseCode(transfer.toStoreId);
+  const payload = stockInPayloadSchema.parse({
+    transaction_date: vnDateTime(transfer.receivedAt),
+    reason: "transfer-in",
+    reference_number: transfer.code,
+    ...(licence ? { practice_license_code: licence } : {}),
+    note: counterpartNote("Nhận từ", transfer.fromStore),
+    items: toItems(
+      received.map((line) => {
+        const price = transferPrice(line.unitCost);
+        return {
+          productId: line.productId,
+          quantity: line.receivedBaseQuantity!,
+          batchNo: line.batchNumber,
+          expiryDate: line.expiryDate,
+          ...(price === undefined ? {} : { price }),
+          manufacturer: { name: line.product.manufacturer, country: line.product.countryOfOrigin },
+        };
+      }),
+      links,
+    ),
+  });
+  return { ok: true, payload };
+}
+
 // --- Khách trả hàng (nhập lại kho) -----------------------------------------
 
 export async function buildCustomerReturnPayload(returnId: string): Promise<BuildResult> {

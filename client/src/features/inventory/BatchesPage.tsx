@@ -46,6 +46,10 @@ const MOVEMENT_LABEL: Record<string, string> = {
   CUSTOMER_RETURN: "Khách trả hàng",
   ADJUSTMENT: "Điều chỉnh",
   DISPOSAL: "Xuất hủy",
+  SUPPLIER_RETURN: "Trả nhà cung cấp",
+  TRANSFER_OUT: "Chuyển đi cửa hàng khác",
+  TRANSFER_IN: "Nhận từ cửa hàng khác",
+  TRANSFER_CANCEL: "Hủy chuyển, nhập lại",
 };
 
 function ExpiryCell({ value }: { value: string }) {

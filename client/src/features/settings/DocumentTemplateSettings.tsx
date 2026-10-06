@@ -1,4 +1,4 @@
-import { InboxOutlined, PrinterOutlined, RollbackOutlined, SaveOutlined, ShopOutlined, SwapOutlined, UndoOutlined } from "@ant-design/icons";
+import { CarOutlined, InboxOutlined, PrinterOutlined, RollbackOutlined, SaveOutlined, ShopOutlined, SwapOutlined, UndoOutlined } from "@ant-design/icons";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, App, AutoComplete, Button, Card, Checkbox, Form, Grid, Input, Radio, Result, Segmented, Skeleton, Tag } from "antd";
 import { useState } from "react";
@@ -59,6 +59,16 @@ const TYPES: Record<DocumentPrintType, TypeMeta> = {
     titles: ["PHIẾU ĐIỀU CHỈNH TỒN KHO", "BIÊN BẢN KIỂM KÊ", "BIÊN BẢN XUẤT HỦY"],
     hasAmount: false,
     hasNote: false,
+  },
+  stockTransfer: {
+    label: "Phiếu chuyển kho",
+    short: "Chuyển kho",
+    icon: <CarOutlined />,
+    description: "In từ màn Chuyển hàng để đi cùng hàng: cửa hàng gửi, cửa hàng nhận, số lô, hạn dùng, số gửi và số thực nhận.",
+    papers: ["A4", "A5"],
+    titles: ["PHIẾU CHUYỂN KHO", "PHIẾU ĐIỀU CHUYỂN HÀNG HÓA", "BIÊN BẢN GIAO NHẬN HÀNG"],
+    hasAmount: false,
+    hasNote: true,
   },
 };
 

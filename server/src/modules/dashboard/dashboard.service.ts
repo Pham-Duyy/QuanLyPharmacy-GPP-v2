@@ -90,7 +90,22 @@ export async function getDashboard(storeId: string, auth: AuthContext, days: 7 |
     ? await prisma.storageLog.count({ where: { storeId, businessDate: today, outOfRange: true } })
     : 0;
 
+  // Hàng đang trên đường tới cửa hàng này: chưa nhận thì chưa bán được.
+  const incomingTransfers = canReadStock
+    ? await prisma.stockTransfer.count({ where: { toStoreId: storeId, status: "IN_TRANSIT" } })
+    : 0;
+
   const notifications = [
+    ...(incomingTransfers > 0
+      ? [
+          {
+            type: "TRANSFER_INCOMING",
+            severity: "info",
+            title: `${incomingTransfers} phiếu chuyển hàng đang chờ cửa hàng nhận`,
+            href: "/chuyen-hang",
+          },
+        ]
+      : []),
     ...(canReadStock && inventory.counts.expired > 0
       ? [
           {

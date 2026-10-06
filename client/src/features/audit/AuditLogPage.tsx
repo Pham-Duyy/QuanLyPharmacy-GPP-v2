@@ -28,6 +28,9 @@ const ACTION_LABEL: Record<string, string> = {
   STOCK_ADJUSTMENT_APPROVE: "Duyệt điều chỉnh tồn",
   STOCK_ADJUSTMENT_CANCEL: "Hủy phiếu điều chỉnh",
   STOCK_ADJUSTMENT_REJECT: "Từ chối điều chỉnh tồn",
+  STOCK_TRANSFER_CANCEL: "Hủy phiếu chuyển hàng",
+  STOCK_TRANSFER_RECEIVE: "Nhận hàng chuyển đến",
+  STOCK_TRANSFER_SHIP: "Xuất hàng chuyển đi",
   STORE_CREATE: "Mở cửa hàng",
   STORE_DEACTIVATE: "Ngừng cửa hàng",
   USER_ACTIVATE: "Kích hoạt tài khoản",
@@ -46,6 +49,7 @@ const RESOURCE_LABEL: Record<string, string> = {
   recall: "Thu hồi",
   return: "Phiếu trả",
   stock_adjustment: "Điều chỉnh tồn",
+  stock_transfer: "Phiếu chuyển hàng",
   store: "Cửa hàng",
   user: "Tài khoản",
 };
