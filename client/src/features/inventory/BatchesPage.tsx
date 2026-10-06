@@ -10,7 +10,7 @@ import {
   WarningOutlined,
 } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { App, Button, Card, Empty, Form, Input, Modal, Progress, Segmented, Skeleton, Table, Tabs, Tag, Typography } from "antd";
+import { App, Button, Card, Empty, Form, Input, Modal, Segmented, Skeleton, Table, Tabs, Tag, Typography } from "antd";
 import { useState } from "react";
 import { useNavigate } from "react-router";
 import { getErrorMessage, http } from "../../api/http.js";
@@ -98,7 +98,6 @@ export function BatchesPage() {
       <PageHeader
         icon={<DatabaseOutlined />}
         title="Tồn kho"
-        description="Theo dõi tồn theo lô và hạn dùng, biệt trữ lô nghi ngờ chất lượng, tra thẻ kho từng lô."
         extra={
           <>
             {canImportOpening ? (
@@ -132,7 +131,8 @@ export function BatchesPage() {
         <StatCard tone="slate" icon={<LockOutlined />} label="Lô đang biệt trữ" value={formatNumber(quarantined.data)} loading={quarantined.isLoading} hint="Đang bị chặn bán" />
       </StatGrid>
 
-      <div className="split-layout">
+      {/* Chưa chọn lô thì bảng chiếm hết chiều ngang; chọn lô mới mở cột chi tiết. */}
+      <div className={selected ? "split-layout" : undefined}>
         <Card>
           <Tabs
             items={[
@@ -141,72 +141,12 @@ export function BatchesPage() {
             ]}
           />
         </Card>
-        <aside className="split-aside">
-          {selected ? (
+        {selected ? (
+          <aside className="split-aside">
             <BatchPanel batch={selected} onChanged={setSelected} onClose={() => setSelected(null)} />
-          ) : (
-            <InventorySummary data={dashboard.data} loading={dashboard.isLoading} />
-          )}
-        </aside>
+          </aside>
+        ) : null}
       </div>
-    </div>
-  );
-}
-
-function InventorySummary({ data, loading }: { data: DashboardData | undefined; loading: boolean }) {
-  if (loading) {
-    return (
-      <Card>
-        <Skeleton active paragraph={{ rows: 8 }} />
-      </Card>
-    );
-  }
-  const categories = data?.inventory.categoryStock ?? [];
-  const maximum = Math.max(...categories.map((item) => item.quantity), 1);
-  const expiring = data?.inventory.expiringBatches ?? [];
-
-  return (
-    <div className="detail-stack">
-      <Card title="Cơ cấu tồn theo nhóm hàng" size="small">
-        {categories.length === 0 ? (
-          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có dữ liệu tồn kho" />
-        ) : (
-          <div className="category-stock-list">
-            {categories.map((item) => (
-              <div key={item.categoryName}>
-                <div className="category-stock-title">
-                  <span>{item.categoryName}</span>
-                  <strong>{formatNumber(item.quantity)}</strong>
-                </div>
-                <Progress percent={Math.round((item.quantity / maximum) * 100)} showInfo={false} size="small" strokeColor="var(--c-primary)" />
-              </div>
-            ))}
-          </div>
-        )}
-      </Card>
-      <Card title="Lô gần hết hạn nhất" size="small">
-        {expiring.length === 0 ? (
-          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Không có lô nào hết hạn trong 90 ngày" />
-        ) : (
-          <div className="mini-list">
-            {expiring.map((batch) => {
-              const days = daysUntil(batch.expiryDate);
-              return (
-                <div key={batch.id} className="mini-list-item">
-                  <div className="cell-main">
-                    <strong>{batch.productName}</strong>
-                    <span>
-                      Lô <span className="mono">{batch.batchNumber}</span> · tồn {formatNumber(batch.quantityOnHand)}
-                    </span>
-                  </div>
-                  <Tag color={days <= 30 ? "red" : "orange"}>{days} ngày</Tag>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </Card>
-      <p className="section-note">Chọn một lô ở bảng bên trái để xem thẻ kho và biệt trữ.</p>
     </div>
   );
 }

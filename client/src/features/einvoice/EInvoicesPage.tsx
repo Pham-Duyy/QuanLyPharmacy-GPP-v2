@@ -67,18 +67,13 @@ export function EInvoicesPage() {
 
   return (
     <div>
-      <PageHeader
-        icon={<FileDoneOutlined />}
-        title="Hóa đơn điện tử"
-        description="Hóa đơn khởi tạo từ máy tính tiền, có mã của cơ quan thuế, phát hành qua nhà cung cấp dịch vụ hóa đơn."
-      />
+      <PageHeader icon={<FileDoneOutlined />} title="Hóa đơn điện tử" />
       {store ? (
         <Alert
           type="info"
           showIcon
           style={{ marginBottom: 16 }}
           title={`Cơ sở ${store.code} · ${store.name}`}
-          description="Mỗi cơ sở có mã số thuế, ký hiệu hóa đơn và tài khoản nhà cung cấp riêng. Đổi cơ sở ở ô chọn cửa hàng trên đầu trang."
         />
       ) : null}
       {config.isLoading ? <Skeleton active /> : null}
@@ -250,7 +245,6 @@ function ConfigCard({ config, canManage }: { config: EInvoiceConfig; canManage: 
         showIcon
         style={{ marginTop: 16 }}
         title="Tài khoản do nhà thuốc ký hợp đồng với MISA"
-        description="Mã số thuế, ký hiệu hóa đơn và tài khoản là của chính cơ sở kinh doanh. Phần mềm chỉ gửi dữ liệu hóa đơn sang MISA; MISA chuyển cơ quan thuế cấp mã."
       />
     </Card>
   );

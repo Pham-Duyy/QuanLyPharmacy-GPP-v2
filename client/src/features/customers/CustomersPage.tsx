@@ -202,7 +202,6 @@ export function CustomersPage() {
       <PageHeader
         icon={<TeamOutlined />}
         title="Khách hàng"
-        description="Thông tin liên hệ, lịch sử mua hàng và chăm sóc khách hàng"
         extra={
           <>
             {can("customer.sensitive") ? (

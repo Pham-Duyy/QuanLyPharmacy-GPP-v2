@@ -87,7 +87,6 @@ export function NationalSyncPage() {
       <PageHeader
         icon={<ApiOutlined />}
         title="Liên thông CSDL Dược quốc gia"
-        description="Gửi dữ liệu nhập, xuất và kiểm kho lên Hệ thống Cơ sở dữ liệu về Dược của Bộ Y tế (csdlduoc.com.vn)."
       />
 
       {store ? (
@@ -96,7 +95,6 @@ export function NationalSyncPage() {
           showIcon
           style={{ marginBottom: 16 }}
           title={`Đang xem cơ sở ${store.code} · ${store.name}`}
-          description="Mỗi cơ sở dùng tài khoản liên thông riêng do chính cơ sở đó đăng ký. Tài khoản, tồn đầu kỳ và chứng từ ở đây chỉ thuộc cơ sở này; đổi cơ sở ở ô chọn cửa hàng trên đầu trang. Danh mục thuốc quốc gia và ghép mã dùng chung cho cả chuỗi."
         />
       ) : null}
 
@@ -139,7 +137,7 @@ export function NationalSyncPage() {
           type="warning"
           showIcon
           title="Liên thông đang tắt"
-          description="Phần mềm vẫn ghi nhận chứng từ bình thường nhưng chưa gửi gì lên Bộ Y tế. Bật ở thẻ Kết nối sau khi đã ghép mã thuốc và gửi tồn đầu kỳ."
+          description="Bật ở thẻ Kết nối sau khi đã ghép mã thuốc và gửi tồn đầu kỳ."
           style={{ marginTop: 16 }}
         />
       ) : null}
@@ -395,7 +393,7 @@ function MappingTab({ canManage, onChanged }: { canManage: boolean; onChanged: (
         type="info"
         showIcon
         title="Vì sao phải ghép mã"
-        description="Hệ thống quốc gia nhận dữ liệu theo mã thuốc do Bộ Y tế cấp, không theo mã nội bộ của nhà thuốc. Mặt hàng chưa ghép mã thì chứng từ liên quan sẽ được giữ lại, không gửi đi. Số lượng luôn gửi theo đơn vị cơ bản của mặt hàng."
+        description="Mặt hàng chưa ghép mã thì chứng từ có mặt hàng đó chưa được gửi."
       />
 
       {summary ? (

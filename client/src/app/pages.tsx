@@ -58,7 +58,14 @@ export type PageDef = {
    * đang mở trang này — In tem thì sáng mục Sản phẩm.
    */
   navTarget?: string;
+  /**
+   * Chỉ hiện trên sidebar khi cửa hàng đã bật chức năng này, hoặc với người
+   * có quyền cấu hình (để còn bật lên). Đường dẫn vẫn mở được như thường.
+   */
+  onlyWhenEnabled?: { feature: StoreFeature; managePermission: string };
 };
+
+export type StoreFeature = "einvoice" | "nationalSync";
 
 export const PAGES = [
   // --- Truy cập trực tiếp ---------------------------------------------------
@@ -70,7 +77,7 @@ export const PAGES = [
   // --- Giao dịch bán --------------------------------------------------------
   { path: "/hoa-don", label: "Hóa đơn", icon: <FileTextOutlined />, permission: "invoice.read", keywords: "hoa don da ban huy hoa don nhan tra hang" },
   { path: "/tra-hang", label: "Khách trả hàng", icon: <RollbackOutlined />, permission: "invoice.read", keywords: "tra hang hoan tien phieu tra" },
-  { path: "/hoa-don-dien-tu", label: "Hóa đơn điện tử", icon: <FileDoneOutlined />, permission: "invoice.read", keywords: "hoa don dien tu may tinh tien ma co quan thue misa meinvoice" },
+  { path: "/hoa-don-dien-tu", label: "Hóa đơn điện tử", icon: <FileDoneOutlined />, permission: "invoice.read", keywords: "hoa don dien tu may tinh tien ma co quan thue misa meinvoice", onlyWhenEnabled: { feature: "einvoice", managePermission: "einvoice.manage" } },
   { path: "/don-thuoc", label: "Đơn thuốc", icon: <FileProtectOutlined />, permission: "prescription.read", keywords: "ke don duyet don bac si" },
 
   // --- Hàng hóa -------------------------------------------------------------
@@ -97,7 +104,7 @@ export const PAGES = [
   { path: "/kiem-soat-dac-biet", label: "Thuốc kiểm soát đặc biệt", icon: <SafetyCertificateOutlined />, permission: "controlled.read", keywords: "gay nghien huong than tien chat so theo doi" },
   { path: "/so-nhiet-do", label: "Nhiệt độ – độ ẩm", icon: <ExperimentOutlined />, permission: "storage_log.read", keywords: "so nhiet do do am bao quan" },
   { path: "/thu-hoi", label: "Thu hồi thuốc", icon: <NotificationOutlined />, permission: "recall.manage", keywords: "thu hoi thuoc so lo cong van khach da mua" },
-  { path: "/lien-thong-duoc", label: "Liên thông CSDL Dược", icon: <ApiOutlined />, permission: "national_sync.read", keywords: "lien thong csdl duoc quoc gia bo y te csdlduoc api" },
+  { path: "/lien-thong-duoc", label: "Liên thông CSDL Dược", icon: <ApiOutlined />, permission: "national_sync.read", keywords: "lien thong csdl duoc quoc gia bo y te csdlduoc api", onlyWhenEnabled: { feature: "nationalSync", managePermission: "national_sync.manage" } },
 
   // --- Quản trị -------------------------------------------------------------
   { path: "/nhan-vien", label: "Nhân viên", icon: <UserSwitchOutlined />, permission: "user.manage", keywords: "tai khoan vai tro phan quyen" },

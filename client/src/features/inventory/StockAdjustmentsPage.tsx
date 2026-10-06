@@ -53,7 +53,6 @@ export function StockAdjustmentsPage() {
       <PageHeader
         icon={<SwapOutlined />}
         title="Điều chỉnh tồn"
-        description="Lập phiếu chưa đụng tới tồn. Chỉ khi được duyệt (người duyệt khác người lập) mới áp dụng chênh lệch và ghi thẻ kho."
         extra={
           can("stock.adjust.create") ? (
             <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreating(true)}>

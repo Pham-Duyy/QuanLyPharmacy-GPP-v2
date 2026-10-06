@@ -40,7 +40,7 @@ export function ReturnsPage() {
       <PageHeader
         icon={<RollbackOutlined />}
         title="Trả hàng"
-        description="Phiếu khách trả hàng. Muốn nhận trả, mở hóa đơn gốc ở trang Hóa đơn rồi chọn “Nhận trả hàng”."
+        description="Nhận trả: mở hóa đơn gốc ở trang Hóa đơn → “Nhận trả hàng”."
       />
       <div className="split-layout">
         <Card>

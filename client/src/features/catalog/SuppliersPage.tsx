@@ -45,7 +45,6 @@ export function SuppliersPage() {
       <PageHeader
         icon={<TruckOutlined />}
         title="Nhà cung cấp"
-        description="Thông tin nhà cung cấp dùng khi lập phiếu nhập và truy xuất nguồn gốc hàng hóa."
         extra={
           <>
             <ExcelMenuButton onImport={can("catalog.manage") ? () => setImporting(true) : undefined} exportType="suppliers" />

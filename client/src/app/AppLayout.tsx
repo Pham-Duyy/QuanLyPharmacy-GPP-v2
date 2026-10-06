@@ -87,7 +87,12 @@ export function AppLayout() {
 
   // --- Nội dung sidebar -----------------------------------------------------
   // Tính lại theo `can`, nên đổi cửa hàng là menu đổi theo quyền tại cửa hàng mới.
-  const visible = useMemo(() => visibleSidebar(can), [can]);
+  // Trang chức năng chưa bật ở cửa hàng này (hóa đơn điện tử, liên thông) thì ẩn.
+  const features = me?.stores.find((item) => item.id === storeId)?.features;
+  const visible = useMemo(
+    () => visibleSidebar(can, (feature) => features?.[feature] ?? false),
+    [can, features],
+  );
   const groupKeys = useMemo(() => visible.flatMap((entry) => (entry.kind === "group" ? [entry.key] : [])), [visible]);
   const nav = useMemo(() => activeNav(location.pathname), [location.pathname]);
   const activeGroup = nav.groupKey !== null && groupKeys.includes(nav.groupKey) ? nav.groupKey : null;

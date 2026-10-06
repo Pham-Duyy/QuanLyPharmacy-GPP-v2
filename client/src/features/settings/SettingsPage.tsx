@@ -80,7 +80,7 @@ export function SettingsPage() {
 
   return (
     <div>
-      <PageHeader icon={<SettingOutlined />} title="Cài đặt" description="Thiết lập áp dụng cho cửa hàng (chi nhánh) đang làm việc." />
+      <PageHeader icon={<SettingOutlined />} title="Cài đặt" />
       <div className="settings-layout">
         <nav className="settings-nav" aria-label="Danh mục cài đặt">
           <Card size="small">

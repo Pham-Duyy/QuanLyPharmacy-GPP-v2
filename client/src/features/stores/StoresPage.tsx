@@ -33,7 +33,6 @@ export function StoresPage() {
       <PageHeader
         icon={<ShopOutlined />}
         title="Cửa hàng"
-        description="Các nhà thuốc trong chuỗi, kèm số chứng nhận GPP và giấy phép kinh doanh."
         extra={
           can("store.manage") ? (
             <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreating(true)}>

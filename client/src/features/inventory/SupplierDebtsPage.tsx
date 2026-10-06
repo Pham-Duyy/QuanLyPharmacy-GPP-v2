@@ -209,7 +209,6 @@ export function SupplierDebtsPage() {
       <PageHeader
         icon={<CreditCardOutlined />}
         title="Công nợ nhà cung cấp"
-        description="Tiền còn nợ theo từng nhà cung cấp và từng phiếu nhập đã kiểm nhập, kèm hạn thanh toán."
         extra={
           <Button icon={<HistoryOutlined />} onClick={() => setShowPayments(true)}>
             Lịch sử thanh toán

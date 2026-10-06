@@ -221,7 +221,7 @@ Hệ thống thiết kế cho chuỗi nhiều nhà thuốc. MVP mở một cửa
 | POST | `/auth/login` | Đăng nhập; trả `accessToken` trong body và đặt refresh token | Public, có giới hạn |
 | POST | `/auth/refresh` | Cấp access token mới, xoay vòng refresh token | Public (cần refresh token) |
 | POST | `/auth/logout` | Thu hồi phiên hiện tại | Đã đăng nhập |
-| GET | `/auth/me` | Người dùng hiện tại; danh sách cửa hàng được phép kèm permission tại từng cửa hàng; cửa hàng mặc định | Đã đăng nhập |
+| GET | `/auth/me` | Người dùng hiện tại; danh sách cửa hàng được phép kèm permission tại từng cửa hàng và `features: { einvoice, nationalSync }` (chức năng đã bật ở cửa hàng đó, để giao diện ẩn trang chưa dùng); cửa hàng mặc định | Đã đăng nhập |
 | POST | `/auth/change-password` | Đổi mật khẩu; bắt buộc gửi mật khẩu hiện tại | Đã đăng nhập |
 
 Quy tắc:

@@ -299,7 +299,6 @@ export function RecallsPage() {
       <PageHeader
         icon={<SafetyCertificateOutlined />}
         title="Thông báo thu hồi thuốc"
-        description="Theo dõi công văn thu hồi, khóa lô trên toàn chuỗi và rà soát khách đã mua lô bị ảnh hưởng."
         extra={
           <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreating(true)}>
             Tạo thông báo
@@ -313,7 +312,6 @@ export function RecallsPage() {
         icon={<AlertOutlined />}
         style={{ marginBottom: 16 }}
         title="Tạo thông báo sẽ ngừng bán mọi lô khớp trên tất cả cửa hàng"
-        description="Đối chiếu chính xác sản phẩm và số lô trước khi xác nhận. Lô bị thu hồi chỉ đóng thông báo sau khi tồn đã được xử lý hết."
       />
 
       <Card>

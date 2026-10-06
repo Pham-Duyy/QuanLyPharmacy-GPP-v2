@@ -123,7 +123,6 @@ function StaffWorkspace() {
       <PageHeader
         icon={<UserSwitchOutlined />}
         title="Nhân viên"
-        description="Quản lý hồ sơ, tài khoản và hiệu quả làm việc."
         extra={
           <>
             <Segmented<Mode>

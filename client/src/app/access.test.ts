@@ -142,6 +142,24 @@ describe("sidebar theo quyền", () => {
   it("người đủ quyền thấy 9 mục cấp đầu", () => {
     expect(visibleSidebar(ALL)).toHaveLength(9);
   });
+
+  it("hóa đơn điện tử, liên thông chưa bật thì dược sĩ không thấy; quản lý vẫn thấy để bật", () => {
+    const paths = (entries: ReturnType<typeof visibleSidebar>) =>
+      entries.flatMap((entry) => (entry.kind === "page" ? [entry.page.path] : entry.pages.map((page) => page.path)));
+    const off = () => false;
+
+    const pharmacistOff = paths(visibleSidebar(canFor("pharmacist"), off));
+    expect(pharmacistOff).not.toContain("/hoa-don-dien-tu");
+    expect(pharmacistOff).not.toContain("/lien-thong-duoc");
+    // Đường dẫn vẫn mở được, chỉ không chiếm chỗ trên sidebar.
+    expect(pageAccess("/hoa-don-dien-tu", canFor("pharmacist"))).toBe("allowed");
+
+    const pharmacistOn = paths(visibleSidebar(canFor("pharmacist"), () => true));
+    expect(pharmacistOn).toEqual(expect.arrayContaining(["/hoa-don-dien-tu", "/lien-thong-duoc"]));
+
+    const adminOff = paths(visibleSidebar(canFor("admin"), off));
+    expect(adminOff).toEqual(expect.arrayContaining(["/hoa-don-dien-tu", "/lien-thong-duoc"]));
+  });
 });
 
 describe("đánh dấu mục đang mở", () => {

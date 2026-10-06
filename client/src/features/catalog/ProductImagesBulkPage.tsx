@@ -155,7 +155,6 @@ export function ProductImagesBulkPage() {
       <PageHeader
         icon={<PictureOutlined />}
         title="Tải ảnh sản phẩm hàng loạt"
-        description="Đặt tên tệp ảnh theo mã sản phẩm rồi thả cả thư mục vào đây. Phần mềm tự ghép ảnh với đúng mặt hàng và tải lần lượt."
         extra={
           <Space wrap>
             <Button icon={<ClearOutlined />} onClick={clearAll} disabled={running || rows.length === 0}>

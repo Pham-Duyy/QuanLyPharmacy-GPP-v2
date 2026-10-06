@@ -82,7 +82,7 @@ export function ExcelHubPage() {
       <PageHeader
         icon={<FileExcelOutlined />}
         title="Nhập / xuất Excel"
-        description={`Chuyển dữ liệu giữa phần mềm và Excel. Dữ liệu theo cửa hàng áp dụng cho ${storeName ?? "cửa hàng đang chọn"}.`}
+        description={`Áp dụng cho ${storeName ?? "cửa hàng đang chọn"}`}
       />
 
       {catalog.isLoading ? <Skeleton active /> : null}

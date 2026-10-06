@@ -91,8 +91,10 @@ export function PosCatalog({ term, onTermChange, searchRef, onScanEnter, onAdd }
   const stale = term.trim() !== searchTerm || products.isPlaceholderData;
   const total = products.data?.pagination.total ?? 0;
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  // Dòng đang chọn bằng phím mũi tên; đổi bộ lọc/trang thì tự bỏ chọn.
-  const active = !stale && nav && nav.key === listKey && nav.index < items.length ? nav.index : null;
+  // Dòng đang chọn bằng phím mũi tên; đổi bộ lọc/trang thì tự bỏ chọn. Đã gõ từ khóa
+  // thì dòng đầu được chọn sẵn để Enter thêm luôn, không bắt bấm mũi tên trước.
+  const picked = nav && nav.key === listKey && nav.index < items.length ? nav.index : null;
+  const active = stale || items.length === 0 ? null : (picked ?? (term.trim() ? 0 : null));
 
   function resetPage() {
     setPage(1);

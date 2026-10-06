@@ -24,7 +24,7 @@ export function StorageLogsPage() {
 
   return (
     <div>
-      <PageHeader icon={<ExperimentOutlined />} title="Nhiệt độ – độ ẩm" description="Sổ theo dõi điều kiện bảo quản theo GPP. Bản ghi không sửa hay xóa được — ghi sai thì ghi bản sửa mới." />
+      <PageHeader icon={<ExperimentOutlined />} title="Nhiệt độ – độ ẩm" />
       <Card>
         <Tabs
           items={[

@@ -70,6 +70,28 @@ describe("Đăng nhập", () => {
     ]);
   });
 
+  it("cho biết chức năng nào đã bật ở từng cửa hàng", async () => {
+    const { token } = await login("duocsi");
+    const before = await api().get("/api/v1/auth/me").set(authHeaders(token)).expect(200);
+    expect(before.body.data.stores[0].features).toEqual({ einvoice: false, nationalSync: false });
+
+    // Bật được thì phải đủ tài khoản (ràng buộc CHECK của bảng); giá trị ở đây chỉ để thử.
+    await prisma.eInvoiceStoreConfig.create({
+      data: {
+        storeId: fixture.storeId,
+        enabled: true,
+        appId: "app",
+        taxCode: "0100000000",
+        username: "u",
+        passwordCipher: "x",
+        invSeries: "1C26MAA",
+        enabledFrom: new Date(),
+      },
+    });
+    const after = await api().get("/api/v1/auth/me").set(authHeaders(token)).expect(200);
+    expect(after.body.data.stores[0].features).toEqual({ einvoice: true, nationalSync: false });
+  });
+
   it("vai trò toàn chuỗi có storeId rỗng", async () => {
     const { token } = await login("admin");
     const response = await api().get("/api/v1/auth/me").set(authHeaders(token)).expect(200);
