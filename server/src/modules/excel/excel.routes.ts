@@ -10,6 +10,8 @@ import type { AuthContext } from "../auth/auth.context.js";
 import {
   controlledLedgerExport,
   purchaseOrderExport,
+  revenueBookS1aExport,
+  revenueBookS2aExport,
   customersExport,
   stockCountExport,
   goodsReceiptsExport,
@@ -32,7 +34,7 @@ excelRouter.use("/excel", authenticate, storeContext);
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- mỗi loại có kiểu dòng riêng
 const IMPORTS: ImportDefinition<any>[] = [productsImport, suppliersImport, customersImport, openingBalanceImport, stockCountImport, receiptLinesImport];
-const EXPORTS: ExportDefinition[] = [productsExport, suppliersExport, customersExport, inventoryExport, stockCountExport, invoicesExport, goodsReceiptsExport, rxSalesExport, controlledLedgerExport, purchaseOrderExport];
+const EXPORTS: ExportDefinition[] = [productsExport, suppliersExport, customersExport, inventoryExport, stockCountExport, invoicesExport, goodsReceiptsExport, rxSalesExport, controlledLedgerExport, purchaseOrderExport, revenueBookS1aExport, revenueBookS2aExport];
 
 const MAX_RANGE_DAYS = 366;
 const DAY_MS = 86_400_000;
@@ -192,17 +194,26 @@ excelRouter.get("/excel/exports/:type", async (req, res) => {
     throw AppError.validation(`Chỉ xuất tối đa ${MAX_RANGE_DAYS} ngày mỗi lần`);
   }
 
-  const sheets = await definition.build({ auth, storeId: auth.storeId, from, to });
-  const store = auth.storeId ? await prisma.store.findUnique({ where: { id: auth.storeId }, select: { name: true } }) : null;
-  const period = definition.dated ? ` từ ${isoDay(from).split("-").reverse().join("/")} đến ${isoDay(to).split("-").reverse().join("/")}` : "";
-  const buffer = await buildWorkbook(sheets, {
-    title: `${definition.title}${period}`,
-    lines: [
-      store ? `Cửa hàng: ${store.name}` : "Phạm vi: toàn chuỗi",
-      `Xuất lúc ${new Date().toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" })}`,
-      `Số dòng: ${sheets.map((sheet) => `${sheet.name} ${sheet.rows.length}`).join(" · ")}`,
-    ],
-  });
+  const ctx = { auth, storeId: auth.storeId, from, to };
+  let buffer: Buffer;
+  let rowCount: number;
+  if (definition.file) {
+    // Mẫu quy định (sổ kế toán…): bố cục riêng, không thêm sheet hướng dẫn.
+    ({ buffer, rows: rowCount } = await definition.file(ctx));
+  } else {
+    const sheets = await definition.build(ctx);
+    const store = auth.storeId ? await prisma.store.findUnique({ where: { id: auth.storeId }, select: { name: true } }) : null;
+    const period = definition.dated ? ` từ ${isoDay(from).split("-").reverse().join("/")} đến ${isoDay(to).split("-").reverse().join("/")}` : "";
+    buffer = await buildWorkbook(sheets, {
+      title: `${definition.title}${period}`,
+      lines: [
+        store ? `Cửa hàng: ${store.name}` : "Phạm vi: toàn chuỗi",
+        `Xuất lúc ${new Date().toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" })}`,
+        `Số dòng: ${sheets.map((sheet) => `${sheet.name} ${sheet.rows.length}`).join(" · ")}`,
+      ],
+    });
+    rowCount = sheets.reduce((sum, sheet) => sum + sheet.rows.length, 0);
+  }
 
   if (definition.audited) {
     await prisma.auditLog.create({
@@ -212,7 +223,7 @@ excelRouter.get("/excel/exports/:type", async (req, res) => {
         action: "EXCEL_EXPORT",
         resourceType: definition.type,
         requestId: (res.locals.requestId as string | undefined) ?? null,
-        after: { rows: sheets.reduce((sum, sheet) => sum + sheet.rows.length, 0) },
+        after: { rows: rowCount },
       },
     });
   }

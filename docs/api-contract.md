@@ -1452,6 +1452,8 @@ Loại xuất:
 | `purchase-order` | `stock.read` | Có | Đơn đặt hàng gợi ý (§10.5), xếp theo nhà cung cấp |
 | `rx-sales` | `prescription.read` | Có | Sổ theo dõi bán thuốc kê đơn và thuốc kiểm soát đặc biệt: người bệnh, đơn thuốc, người kê, cơ sở khám chữa bệnh, chẩn đoán, số lô, hạn dùng, người bán |
 | `controlled-ledger` | `controlled.read` | Có | Sổ thuốc kiểm soát đặc biệt (§10.8): sheet Tổng hợp và Chi tiết; ghi audit `EXCEL_EXPORT` |
+| `revenue-book-s1a` | `report.sales` | Có | Sổ doanh thu bán hàng hóa, dịch vụ mẫu S1a-HKD (TT 152/2025/TT-BTC, từ 01/01/2026) cho hộ có doanh thu đến 500 triệu/năm. Bố cục theo mẫu (phần đầu, cột A–B–C–1, tổng cộng, chỗ ký), không có sheet hướng dẫn. Mỗi ngày một dòng bán (hóa đơn `COMPLETED` theo ngày làm việc) và một dòng trừ tiền hoàn của phiếu trả theo ngày lập phiếu — cùng cách tính doanh thu thuần ở §19. Tên hộ, địa chỉ, mã số thuế lấy từ mẫu in hóa đơn (dự phòng mã số thuế của cấu hình hóa đơn điện tử) |
+| `revenue-book-s2a` | `report.sales` | Có | Như trên, mẫu S2a-HKD: thêm nhóm ngành "Phân phối, cung cấp hàng hóa", dòng `Tổng cộng (1)` và hai dòng thuế GTGT, TNCN **để trống** — phần mềm không tự tính thuế vì TNCN từ 2026 tính trên doanh thu cả năm vượt 500 triệu và hộ được chọn cách tính theo lợi nhuận |
 
 Giá trị trong ô luôn được ghi dạng dữ liệu, không bao giờ là công thức. Thời điểm (giờ bán, giờ nhận hàng) ghi theo giờ Việt Nam.
 

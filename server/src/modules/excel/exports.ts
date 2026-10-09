@@ -1,3 +1,4 @@
+import { buildRevenueBook, type RevenueBookForm } from "./revenue-book.js";
 import { prisma } from "../../db/prisma.js";
 import { AppError } from "../../lib/app-error.js";
 import { businessDateNow } from "../../lib/settings.js";
@@ -21,6 +22,11 @@ export type ExportDefinition = {
   /** Ghi audit mỗi lần xuất (dữ liệu cá nhân của khách). */
   audited?: boolean;
   build(ctx: ExportContext): Promise<SheetSpec[]>;
+  /**
+   * Tệp có bố cục riêng theo mẫu quy định (sổ kế toán…) thay cho bảng dữ
+   * liệu thông thường; có thì route dùng thay cho `build`.
+   */
+  file?(ctx: ExportContext): Promise<{ buffer: Buffer; rows: number }>;
 };
 
 const num = (value: bigint | number | null | undefined) => (value === null || value === undefined ? null : Number(value));
@@ -353,6 +359,20 @@ export const invoicesExport: ExportDefinition = {
     ];
   },
 };
+
+const revenueBook = (form: RevenueBookForm, title: string): ExportDefinition => ({
+  type: `revenue-book-${form.toLowerCase()}`,
+  title,
+  permission: ["report.sales"],
+  needsStore: true,
+  dated: true,
+  build: async () => [],
+  file: (ctx) => buildRevenueBook(requireStore(ctx), form, ctx.from, ctx.to),
+});
+
+/** Sổ doanh thu hộ kinh doanh theo TT 152/2025 — xem revenue-book.ts. */
+export const revenueBookS1aExport = revenueBook("S1a", "Sổ doanh thu – mẫu S1a-HKD");
+export const revenueBookS2aExport = revenueBook("S2a", "Sổ doanh thu – mẫu S2a-HKD");
 
 export const rxSalesExport: ExportDefinition = {
   type: "rx-sales",

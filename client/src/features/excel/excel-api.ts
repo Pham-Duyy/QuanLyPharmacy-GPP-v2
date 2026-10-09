@@ -4,7 +4,7 @@ import type { Envelope } from "../../api/types.js";
 import type { Dayjs } from "dayjs";
 
 export type ImportType = "products" | "suppliers" | "customers" | "opening-balance" | "stock-count" | "receipt-lines";
-export type ExportType = "products" | "suppliers" | "customers" | "inventory" | "stock-count" | "invoices" | "goods-receipts" | "rx-sales" | "controlled-ledger" | "purchase-order";
+export type ExportType = "products" | "suppliers" | "customers" | "inventory" | "stock-count" | "invoices" | "goods-receipts" | "rx-sales" | "controlled-ledger" | "purchase-order" | "revenue-book-s1a" | "revenue-book-s2a";
 
 export type ImportIssue = { row: number; column?: string; message: string };
 
