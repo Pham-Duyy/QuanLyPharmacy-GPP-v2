@@ -1,6 +1,6 @@
-import { BarChartOutlined, DollarCircleOutlined, DownloadOutlined, FileTextOutlined, ReloadOutlined, RiseOutlined, ShoppingOutlined, TrophyFilled } from "@ant-design/icons";
+import { AccountBookOutlined, BarChartOutlined, DollarCircleOutlined, DownloadOutlined, FileTextOutlined, ReloadOutlined, RiseOutlined, ShoppingOutlined, TrophyFilled } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
-import { Alert, Button, Card, Col, DatePicker, Empty, Progress, Result, Row, Skeleton, Table, Tabs, Typography } from "antd";
+import { Alert, App, Button, Card, Col, DatePicker, Dropdown, Empty, Progress, Result, Row, Skeleton, Table, Tabs, Typography } from "antd";
 import dayjs, { type Dayjs } from "dayjs";
 import { useState } from "react";
 import { http } from "../../api/http.js";
@@ -10,6 +10,7 @@ import { BarTrend, Donut } from "../../ui/charts.js";
 import { formatNumber } from "../../ui/format.js";
 import { paymentMethodLabel } from "../../ui/labels.js";
 import { PageHeader } from "../../ui/PageHeader.js";
+import { downloadExport, type ExportType } from "../excel/excel-api.js";
 import { StatCard, StatGrid, Trend } from "../../ui/StatCard.js";
 
 const dateText = (value: string) => new Date(value).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit" });
@@ -30,7 +31,16 @@ function downloadCsv(filename: string, rows: Array<Record<string, string | numbe
 
 /** Báo cáo kinh doanh theo khoảng ngày tùy chọn: doanh thu, lợi nhuận, hàng hóa, nhân viên. */
 export function ReportsPage() {
+  const { message } = App.useApp();
   const [range, setRange] = useState<[Dayjs, Dayjs]>([dayjs().subtract(13, "day"), dayjs()]);
+
+  async function downloadBook(type: ExportType) {
+    try {
+      await downloadExport(type, { from: range[0].format("YYYY-MM-DD"), to: range[1].format("YYYY-MM-DD") });
+    } catch (error) {
+      void message.error(error instanceof Error ? error.message : "Không xuất được sổ doanh thu");
+    }
+  }
 
   const report = useQuery({
     queryKey: ["reports-summary", range[0].format("YYYY-MM-DD"), range[1].format("YYYY-MM-DD")],
@@ -65,6 +75,17 @@ export function ReportsPage() {
                 if (value?.[0] && value[1]) setRange([value[0], value[1]]);
               }}
             />
+            <Dropdown
+              menu={{
+                items: [
+                  { key: "revenue-book-s1a", label: "Mẫu S1a-HKD — doanh thu đến 500 triệu/năm" },
+                  { key: "revenue-book-s2a", label: "Mẫu S2a-HKD — từ 500 triệu/năm" },
+                ],
+                onClick: ({ key }) => void downloadBook(key as ExportType),
+              }}
+            >
+              <Button icon={<AccountBookOutlined />}>Sổ doanh thu (TT 152)</Button>
+            </Dropdown>
             <Button
               icon={<DownloadOutlined />}
               disabled={!data}

@@ -1,4 +1,5 @@
 import {
+  AccountBookOutlined,
   AuditOutlined,
   DatabaseOutlined,
   DownloadOutlined,
@@ -39,6 +40,14 @@ const IMPORT_INFO: Record<string, { icon: ReactNode; step: number; text: string 
 };
 
 const EXPORT_INFO: Record<string, { icon: ReactNode; text: string }> = {
+  "revenue-book-s1a": {
+    icon: <AccountBookOutlined />,
+    text: "Sổ kế toán bắt buộc từ 01/01/2026 (TT 152/2025) cho hộ có doanh thu đến 500 triệu/năm. Mỗi ngày một dòng, đã trừ hóa đơn hủy và tiền hoàn.",
+  },
+  "revenue-book-s2a": {
+    icon: <AccountBookOutlined />,
+    text: "Cho hộ có doanh thu từ 500 triệu/năm, nộp thuế theo tỷ lệ. Hai dòng thuế để trống cho người khai thuế điền.",
+  },
   "rx-sales": {
     icon: <SafetyCertificateOutlined />,
     text: "Sổ theo dõi bán thuốc kê đơn: người bệnh, mã đơn, người kê, cơ sở khám chữa bệnh, chẩn đoán, số lô, hạn dùng và người bán — phục vụ thanh tra GPP.",
@@ -178,6 +187,7 @@ export function ExcelHubPage() {
                               </Tag>
                             ) : null}
                             {item.type === "rx-sales" ? <Tag variant="filled" color="green">GPP</Tag> : null}
+                            {item.type.startsWith("revenue-book") ? <Tag variant="filled" color="blue">Thuế</Tag> : null}
                           </span>
                         </div>
                       </div>

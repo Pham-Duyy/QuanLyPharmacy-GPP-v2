@@ -436,3 +436,92 @@ describe("Kiểm kê qua Excel", () => {
     expect(response.body.error.message).toContain("chưa có đợt kiểm kê nào đang mở");
   });
 });
+
+describe("Sổ doanh thu hộ kinh doanh (TT 152/2025)", () => {
+  async function sellPills(quantity: number) {
+    const response = await api()
+      .post("/api/v1/invoices")
+      .set({ ...h(pharmacistToken), "Idempotency-Key": randomUUID() })
+      .send({ lines: [{ productId: sold.productId, unitId: sold.pillId, quantity }] })
+      .expect(201);
+    return response.body.data as { id: string; code: string; lines: Array<{ id: string }> };
+  }
+
+  let sold: { productId: string; pillId: string };
+
+  beforeEach(async () => {
+    const product = await makeProduct("TH0101");
+    const pill = product.units.find((unit) => unit.name === "Viên")!;
+    await prisma.productPrice.create({ data: { productUnitId: pill.id, salePrice: 2000n, vatRatePercent: 5, effectiveFrom: new Date(Date.now() - 86_400_000) } });
+    await prisma.batch.create({ data: { storeId: fixture.storeId, productId: product.id, batchNumber: "DT01", expiryDate: new Date("2029-12-31"), quantityOnHand: 500 } });
+    sold = { productId: product.id, pillId: pill.id };
+  });
+
+  it("S1a: một dòng mỗi ngày, bỏ hóa đơn đã hủy, trừ tiền hoàn của phiếu trả, có dòng tổng", async () => {
+    const first = await sellPills(10); // 20.000 đ
+    await sellPills(5); // 10.000 đ
+    const voided = await sellPills(3); // 6.000 đ, hủy ngay
+    await api()
+      .post(`/api/v1/invoices/${voided.id}/void`)
+      .set({ ...h(), "Idempotency-Key": randomUUID() })
+      .send({ reason: "Bấm nhầm" })
+      .expect(200);
+    await api()
+      .post(`/api/v1/invoices/${first.id}/returns`)
+      .set({ ...h(pharmacistToken), "Idempotency-Key": randomUUID() })
+      .send({ disposition: "RESTOCK", lines: [{ invoiceLineId: first.lines[0]!.id, unitId: sold.pillId, quantity: 2 }] })
+      .expect(201);
+
+    const rows = await sheetRows((await download("/api/v1/excel/exports/revenue-book-s1a")).body as Buffer);
+    const text = rows.map((row) => row.filter((cell) => cell !== null && cell !== undefined).join(" | "));
+    expect(text.join("\n")).toContain("SỔ DOANH THU BÁN HÀNG HÓA, DỊCH VỤ");
+    expect(text.join("\n")).toContain("Mẫu số S1a-HKD");
+
+    const sale = rows.find((row) => String(row[2] ?? "").startsWith("Bán lẻ thuốc"))!;
+    expect(sale[2]).toBe("Bán lẻ thuốc và hàng hóa – 2 hóa đơn");
+    expect(sale[3]).toBe(30000);
+    const refund = rows.find((row) => String(row[2] ?? "").startsWith("Khách trả hàng"))!;
+    expect(refund[3]).toBe(-4000);
+    const total = rows.find((row) => row[2] === "Tổng cộng")!;
+    expect(total[3]).toBe(26000);
+    // S1a không có dòng thuế.
+    expect(text.join("\n")).not.toContain("Thuế GTGT phải nộp");
+  });
+
+  it("S2a: có nhóm ngành, dòng Tổng cộng (1) và hai dòng thuế để trống cho người khai", async () => {
+    await sellPills(10);
+    const rows = await sheetRows((await download("/api/v1/excel/exports/revenue-book-s2a")).body as Buffer);
+    expect(rows.some((row) => row[2] === "Ngành nghề: Phân phối, cung cấp hàng hóa")).toBe(true);
+    expect(rows.find((row) => row[2] === "Tổng cộng (1)")![3]).toBe(20000);
+    const vat = rows.find((row) => row[2] === "Thuế GTGT phải nộp")!;
+    expect(vat[3] ?? null).toBeNull();
+  });
+
+  it("chỉ tính cửa hàng đang chọn; phần đầu lấy tên, mã số thuế từ mẫu in hóa đơn", async () => {
+    await sellPills(10);
+    await prisma.setting.create({
+      data: {
+        key: "invoicePrintTemplate",
+        storeId: fixture.storeId,
+        value: { companyName: "Hộ kinh doanh Nhà thuốc An Tâm", storeName: "Nhà thuốc An Tâm", taxCode: "0101234567" },
+      },
+    });
+    const own = await sheetRows((await download("/api/v1/excel/exports/revenue-book-s1a")).body as Buffer);
+    const joined = own.flat().join(" ");
+    expect(joined).toContain("Hộ kinh doanh Nhà thuốc An Tâm");
+    expect(joined).toContain("0101234567");
+
+    const other = await sheetRows(
+      (await api().get("/api/v1/excel/exports/revenue-book-s1a").set(authHeaders(adminToken, fixture.otherStoreId)).buffer(true).parse(binary).expect(200)).body as Buffer,
+    );
+    expect(other.find((row) => row[2] === "Tổng cộng")![3]).toBe(0);
+  });
+
+  it("cần quyền xem báo cáo doanh thu", async () => {
+    await download("/api/v1/excel/exports/revenue-book-s1a", pharmacistToken, 403);
+    const catalog = await api().get("/api/v1/excel/catalog").set(h()).expect(200);
+    expect(catalog.body.data.exports.map((item: { type: string }) => item.type)).toEqual(
+      expect.arrayContaining(["revenue-book-s1a", "revenue-book-s2a"]),
+    );
+  });
+});
