@@ -917,6 +917,8 @@ model InvoiceLine {
   lineTotal           BigInt  @map("line_total")
   prescriptionItemId  String? @map("prescription_item_id") @db.Uuid
   batchOverrideReason String? @map("batch_override_reason")
+  /// Cách dùng in trên nhãn khi bán lẻ ngoài bao bì gốc (GPP II.3d).
+  usageInstruction    String? @map("usage_instruction")
 
   invoice          Invoice             @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   product          Product             @relation(fields: [productId], references: [id])

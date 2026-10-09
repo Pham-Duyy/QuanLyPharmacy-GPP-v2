@@ -11,6 +11,7 @@ export const PRINT_TEMPLATE_QUERY = "print-template";
 /** Đường dẫn trang in của từng loại chứng từ (dựng ở server theo mẫu của cửa hàng). */
 export const printUrl = {
   invoice: (id: string) => `/invoices/${id}/print`,
+  usageLabels: (id: string) => `/invoices/${id}/usage-labels`,
   goodsReceipt: (id: string) => `/goods-receipts/${id}/print`,
   return: (id: string) => `/returns/${id}/print`,
   stockAdjustment: (id: string) => `/stock-adjustments/${id}/print`,

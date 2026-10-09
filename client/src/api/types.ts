@@ -320,6 +320,8 @@ export type InvoiceLine = {
   discountAmount: Money;
   lineTotal: Money;
   batchOverrideReason: string | null;
+  /** Cách dùng in trên nhãn khi bán lẻ ngoài bao bì gốc. */
+  usageInstruction: string | null;
   allocations: InvoiceAllocation[];
 };
 

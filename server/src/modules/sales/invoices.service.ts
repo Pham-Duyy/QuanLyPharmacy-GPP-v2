@@ -272,7 +272,19 @@ export async function createInvoice(
         });
       }
 
+      // Quầy để trống cách dùng mà dòng khớp đơn thuốc thì lấy liều dùng ghi trên đơn.
+      const prescribedUsage = new Map<string, string>();
+      const matchedItemIds = [...itemByLineIndex.values()];
+      if (matchedItemIds.length > 0) {
+        const items = await tx.prescriptionItem.findMany({
+          where: { id: { in: matchedItemIds }, dosageInstruction: { not: null } },
+          select: { id: true, dosageInstruction: true },
+        });
+        for (const item of items) prescribedUsage.set(item.id, item.dosageInstruction!);
+      }
+
       for (const line of priced) {
+        const matchedItemId = itemByLineIndex.get(line.index);
         const saved = await tx.invoiceLine.create({
           data: {
             invoiceId: invoice.id,
@@ -295,6 +307,10 @@ export async function createInvoice(
               input.lines[line.index]?.prescriptionItemId ??
               null,
             batchOverrideReason: input.lines[line.index]?.batchOverrideReason ?? null,
+            usageInstruction:
+              input.lines[line.index]?.usageInstruction ||
+              (matchedItemId ? prescribedUsage.get(matchedItemId) : undefined) ||
+              null,
           },
         });
 
@@ -784,6 +800,7 @@ export async function getDetail(storeId: string, invoiceId: string) {
       discountAmount: line.discountAmount,
       lineTotal: line.lineTotal,
       batchOverrideReason: line.batchOverrideReason,
+      usageInstruction: line.usageInstruction,
       allocations: line.allocations.map((allocation) => ({
         id: allocation.id,
         batchId: allocation.batchId,

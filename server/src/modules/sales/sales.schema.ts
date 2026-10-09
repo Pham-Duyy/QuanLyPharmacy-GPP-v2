@@ -19,6 +19,8 @@ const saleLineSchema = cartLineSchema
     batchId: z.uuid("batchId không hợp lệ").nullish(),
     batchOverrideReason: z.string().trim().max(500).nullish(),
     prescriptionItemId: z.uuid("prescriptionItemId không hợp lệ").nullish(),
+    /** Cách dùng in trên nhãn khi bán lẻ ngoài bao bì gốc (GPP II.3d). */
+    usageInstruction: z.string().trim().max(300, "Cách dùng tối đa 300 ký tự").nullish(),
   })
   .refine((line) => !line.batchId || Boolean(line.batchOverrideReason), {
     message: "Chỉ định lô khác thứ tự FEFO thì phải ghi lý do",

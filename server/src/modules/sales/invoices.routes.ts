@@ -15,6 +15,7 @@ import { renderInvoicePrintHtml } from "./invoice-print.js";
 import { getBalance } from "../loyalty/loyalty.service.js";
 import * as service from "./invoices.service.js";
 import { runSafetyCheck } from "./safety-check.service.js";
+import { loadUsageLabels, renderUsageLabelsHtml } from "./usage-labels.js";
 import { createInvoiceSchema, safetyCheckSchema, voidInvoiceSchema } from "./sales.schema.js";
 
 export const invoicesRouter = Router();
@@ -131,6 +132,22 @@ const FORMAT_TO_PAPER: Record<string, PaperSize> = { k80: "K80", k58: "K58", a5:
  * không bật hộp thoại in. Chỉ đọc dữ liệu — in bao nhiêu lần cũng không đụng
  * tới hóa đơn, tồn kho hay thanh toán.
  */
+/**
+ * Nhãn cách dùng của hóa đơn (GPP II.3d): mỗi dòng có ghi cách dùng một nhãn,
+ * in trên máy in hóa đơn nhiệt. Chỉ đọc dữ liệu.
+ */
+invoicesRouter.get("/invoices/:id/usage-labels", requirePermission("invoice.read"), async (req, res) => {
+  const storeId = req.auth!.storeId!;
+  const [data, effective] = await Promise.all([
+    loadUsageLabels(storeId, String(req.params.id)),
+    getEffectiveTemplate(storeId),
+  ]);
+  res
+    .set("X-Paper-Size", effective.template.paperSize === "K58" ? "K58" : "K80")
+    .type("html")
+    .send(renderUsageLabelsHtml(data, effective.template, { autoPrint: req.query["autoprint"] !== "0" }));
+});
+
 invoicesRouter.get("/invoices/:id/print", requirePermission("invoice.read"), async (req, res) => {
   const storeId = req.auth!.storeId!;
   const format = FORMAT_TO_PAPER[String(req.query["format"] ?? "").toLowerCase()];

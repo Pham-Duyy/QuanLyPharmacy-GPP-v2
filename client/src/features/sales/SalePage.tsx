@@ -45,7 +45,7 @@ import { useDebounced } from "../../ui/useDebounced.js";
 import { useAuth } from "../auth/AuthProvider.js";
 import { maxRedeemablePoints, useCustomerLoyalty, useLoyaltySettings } from "../loyalty/loyalty-api.js";
 import { ProductThumb } from "../catalog/products/ProductThumb.js";
-import { printInvoice } from "../printing/printing.js";
+import { printDocument, printInvoice, printUrl } from "../printing/printing.js";
 import { MAX_SALE_DRAFTS, readDrafts, writeDrafts, type SaleDraft } from "./pos/drafts.js";
 import { PosCatalog } from "./pos/PosCatalog.js";
 import { ControlledBuyerCard, type ControlledBuyer } from "./pos/ControlledBuyerCard.js";
@@ -58,6 +58,8 @@ type CartLine = {
   quantity: number;
   /** Chỉ có ý nghĩa với thuốc kê đơn: dòng nào của đơn thuốc đang chọn khớp với dòng này. */
   prescriptionItemId: string | null;
+  /** Cách dùng in nhãn; chưa sửa (undefined) thì lấy liều dùng ghi trên đơn thuốc. */
+  usage?: string;
 };
 
 type Customer = Pick<CustomerSearchItem, "id" | "fullName" | "phone">;
@@ -116,6 +118,8 @@ export function SalePage() {
   const [paymentMethod, setPaymentMethod] = useState("CASH");
   const [tendered, setTendered] = useState<number | null>(null);
   const [printAfterPayment, setPrintAfterPayment] = useState(true);
+  const [printLabels, setPrintLabels] = useState(true);
+  const [editingUsage, setEditingUsage] = useState<string | null>(null);
   const [newCustomerOpen, setNewCustomerOpen] = useState(false);
   const [newCustomerName, setNewCustomerName] = useState("");
   const [newCustomerPhone, setNewCustomerPhone] = useState("");
@@ -223,6 +227,7 @@ export function SalePage() {
       unitId: line.unitId,
       quantity: line.quantity,
       prescriptionItemId: line.prescriptionItemId,
+      usageInstruction: usageOf(line) || null,
     })),
     discount: discountValue > 0 ? { type: discountType, value: discountValue, reason: discountReason || "Giảm giá" } : null,
     loyaltyRedeemPoints: appliedRedeem,
@@ -263,7 +268,12 @@ export function SalePage() {
     },
     onSuccess: (invoice) => {
       void queryClient.invalidateQueries({ queryKey: ["customer-loyalty"] });
-      if (printAfterPayment) void printInvoice(invoice.id, message);
+      // In lần lượt: hộp thoại in thứ hai chỉ mở khi hộp thứ nhất đã đóng.
+      const labels = printLabels && invoice.lines.some((line) => line.usageInstruction);
+      void (async () => {
+        if (printAfterPayment) await printInvoice(invoice.id, message);
+        if (labels) await printDocument(printUrl.usageLabels(invoice.id), message);
+      })();
       setDone(invoice);
       resetSale();
     },
@@ -346,6 +356,13 @@ export function SalePage() {
     } catch (error) {
       void message.error(getErrorMessage(error, "Không tìm được sản phẩm"));
     }
+  }
+
+  /** Cách dùng sẽ in nhãn: chữ người bán ghi, không có thì liều dùng trên đơn thuốc. */
+  function usageOf(line: CartLine): string {
+    if (line.usage !== undefined) return line.usage.trim();
+    const item = prescription?.items.find((candidate) => candidate.id === line.prescriptionItemId);
+    return item?.dosageInstruction?.trim() ?? "";
   }
 
   function updateLine(key: string, patch: Partial<CartLine>) {
@@ -744,6 +761,29 @@ export function SalePage() {
                               />
                             )
                           ) : null}
+                          {editingUsage === line.key ? (
+                            <Input
+                              size="small"
+                              autoFocus
+                              className="pos-cart-usage"
+                              maxLength={300}
+                              placeholder="Ví dụ: Uống 1 viên x 2 lần/ngày sau ăn"
+                              defaultValue={usageOf(line)}
+                              aria-label={`Cách dùng ${line.product.name}`}
+                              onBlur={(event) => {
+                                updateLine(line.key, { usage: event.target.value });
+                                setEditingUsage(null);
+                              }}
+                              onPressEnter={(event) => {
+                                updateLine(line.key, { usage: event.currentTarget.value });
+                                setEditingUsage(null);
+                              }}
+                            />
+                          ) : (
+                            <Button type="link" size="small" className="pos-cart-usage" onClick={() => setEditingUsage(line.key)}>
+                              {usageOf(line) ? `Cách dùng: ${usageOf(line)}` : "+ Cách dùng"}
+                            </Button>
+                          )}
                         </div>
                       </div>
                       <div className="pos-qty">
@@ -944,6 +984,11 @@ export function SalePage() {
             <Checkbox checked={printAfterPayment} onChange={(event) => setPrintAfterPayment(event.target.checked)}>
               In hóa đơn
             </Checkbox>
+            {cart.some((line) => usageOf(line)) ? (
+              <Checkbox checked={printLabels} onChange={(event) => setPrintLabels(event.target.checked)}>
+                In nhãn cách dùng
+              </Checkbox>
+            ) : null}
             {safetyStatus}
           </div>
           {cart.length > 0 && !canSell && !safety.isFetching ? (
@@ -992,6 +1037,11 @@ export function SalePage() {
             <Button icon={<PrinterOutlined />} onClick={() => done && void printInvoice(done.id, message)}>
               In lại hóa đơn
             </Button>
+            {done?.lines.some((line) => line.usageInstruction) ? (
+              <Button icon={<PrinterOutlined />} onClick={() => void printDocument(printUrl.usageLabels(done.id), message)}>
+                In nhãn cách dùng
+              </Button>
+            ) : null}
             <Button type="primary" autoFocus onClick={() => setDone(null)}>
               Bán đơn mới
             </Button>
