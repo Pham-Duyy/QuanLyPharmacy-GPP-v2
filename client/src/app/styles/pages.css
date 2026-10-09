@@ -704,6 +704,19 @@
   font-size: 12.5px;
 }
 
+/* Cách dùng in nhãn: một dòng chữ nhỏ, bấm mới mở ô nhập. */
+.pos-cart-usage {
+  font-size: 12.5px;
+  max-width: 280px;
+}
+
+.pos-cart-usage.ant-btn {
+  padding: 0;
+  height: auto;
+  text-align: left;
+  white-space: normal;
+}
+
 .pos-qty {
   display: flex;
   align-items: center;

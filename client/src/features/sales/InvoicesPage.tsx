@@ -13,7 +13,7 @@ import { rangeParams } from "../excel/excel-api.js";
 import { PageHeader } from "../../ui/PageHeader.js";
 import { useDebounced } from "../../ui/useDebounced.js";
 import { useAuth } from "../auth/AuthProvider.js";
-import { printInvoice, printUrl } from "../printing/printing.js";
+import { printDocument, printInvoice, printUrl } from "../printing/printing.js";
 import { PrintPreviewModal } from "../printing/PrintPreviewModal.js";
 import { ReturnModal } from "./ReturnModal.js";
 
@@ -305,6 +305,11 @@ export function InvoicesPage() {
                       <Button size="small" icon={<PrinterOutlined />} onClick={() => void printInvoice(detail.data!.id, message)}>
                         In lại
                       </Button>
+                      {detail.data.lines.some((line) => line.usageInstruction) ? (
+                        <Button size="small" icon={<PrinterOutlined />} onClick={() => void printDocument(printUrl.usageLabels(detail.data!.id), message)}>
+                          In nhãn cách dùng
+                        </Button>
+                      ) : null}
                     </>
                   ) : null}
                   <Button type="text" size="small" onClick={() => setParams({})}>

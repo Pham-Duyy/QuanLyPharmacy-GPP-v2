@@ -1100,6 +1100,7 @@ Response:
 | GET | `/invoices/{id}` | Chi tiết, các dòng, **lô thực tế đã xuất**, phiếu trả liên quan | `invoice.read` |
 | POST | `/invoices/{id}/void` | Hủy hóa đơn; bắt buộc `reason`; cần `Idempotency-Key` | `invoice.void` |
 | GET | `/invoices/{id}/print` | HTML in theo mẫu in đã lưu của cửa hàng (§21 Cài đặt). Tùy chọn `?format=k80|k58|a5` ghi đè khổ giấy; `?autoprint=0` để xem trước không bật hộp thoại in. Chỉ đọc, không đổi hóa đơn/tồn kho | `invoice.read` |
+| GET | `/invoices/{id}/usage-labels` | Nhãn cách dùng (GPP, TT 02/2018 Phụ lục I mục II.3d): mỗi dòng có `usageInstruction` một nhãn gồm tên nhà thuốc, tên thuốc, dạng bào chế, hàm lượng, số lượng, cách dùng, hạn dùng sớm nhất của các lô đã xuất, giờ bán. In khổ K80 (K58 nếu mẫu hóa đơn đặt K58). `?autoprint=0` để xem trước. Chỉ đọc | `invoice.read` |
 
 ### 14.1 Request tạo hóa đơn
 
@@ -1130,6 +1131,8 @@ Dòng đơn thuốc lưu trên hóa đơn là **dòng do máy chủ khớp**, kh
 có nhiều dòng cùng một thuốc và máy khách không chỉ định, máy chủ chọn dòng
 **còn lại nhiều nhất**. Nhờ vậy hủy hóa đơn hoặc nhận trả hàng luôn trừ lại
 đúng số đã cấp phát của đơn thuốc.
+
+`lines[].usageInstruction` (không bắt buộc, tối đa 300 ký tự): cách dùng in nhãn khi bán lẻ ngoài bao bì gốc (GPP II.3d). Để trống mà dòng khớp một dòng đơn thuốc có liều dùng thì máy chủ lấy liều dùng đó. Lưu theo dòng hóa đơn để in lại vẫn đúng; in qua `GET /invoices/{id}/usage-labels`.
 
 `loyaltyRedeemPoints` (mặc định 0): số điểm khách đổi trên hóa đơn này (§11.1). Số tiền giảm do máy chủ tính, cộng vào `discountAmount` nhưng **không** tính vào hạn mức giảm giá của vai trò — đây là tiền của chính khách. Lỗi trả về: `LOYALTY_DISABLED` (409), `LOYALTY_MIN_POINTS`, `LOYALTY_INSUFFICIENT_POINTS`, `LOYALTY_REDEEM_LIMIT` (422). Hóa đơn lưu thêm `loyaltyPointsRedeemed`, `loyaltyDiscountAmount`; chi tiết hóa đơn trả kèm `loyaltyPointsEarned` (đã trừ phần thu lại do trả hàng hoặc hủy).
 
