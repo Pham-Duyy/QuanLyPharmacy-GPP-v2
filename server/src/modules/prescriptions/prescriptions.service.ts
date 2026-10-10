@@ -129,6 +129,15 @@ export async function updateDraft(
   input: PatchPrescriptionInput,
 ): Promise<void> {
   await prisma.$transaction(async (tx) => {
+    // Đơn điện tử: danh sách thuốc là của hệ thống quốc gia, chỉ được khớp sản
+    // phẩm qua /eprescriptions/.../match — sửa cả danh sách sẽ mất mã thuốc
+    // trên đơn, không báo bán lại được.
+    if (input.items || input.externalCode !== undefined) {
+      const source = await tx.prescription.findUnique({ where: { id: prescriptionId }, select: { source: true } });
+      if (source?.source === "NATIONAL") {
+        throw AppError.invalidState("Đơn thuốc điện tử không sửa danh sách thuốc hay mã đơn; chỉ chọn sản phẩm cho dòng chưa khớp");
+      }
+    }
     const items = input.items ? await resolveItems(tx, input.items) : null;
 
     // Gán vào biến có kiểu rõ ràng trước: object literal rải rác từ nhiều
@@ -284,6 +293,9 @@ export async function getDetail(prescriptionId: string, auth: AuthContext) {
     id: prescription.id,
     code: prescription.code,
     externalCode: prescription.externalCode,
+    source: prescription.source,
+    patientName: prescription.patientName,
+    patientBirthDate: prescription.patientBirthDate,
     status: prescription.status,
     customer: prescription.customer,
     prescriberName: prescription.prescriberName,
@@ -320,6 +332,8 @@ export async function getDetail(prescriptionId: string, auth: AuthContext) {
       baseQuantity: item.baseQuantity,
       dosageInstruction: item.dosageInstruction,
       dispensedBaseQuantity: item.dispensedBaseQuantity,
+      nationalDrugCode: item.nationalDrugCode,
+      nationalUnitName: item.nationalUnitName,
     })),
   };
 }
@@ -331,6 +345,8 @@ export async function list(query: { customerId?: string; status?: string }) {
       ...(query.status ? { status: query.status } : {}),
     },
     orderBy: { createdAt: "desc" },
+    // Bản gốc đơn điện tử có thể dài: danh sách không cần, chỉ chi tiết mới cần.
+    omit: { nationalPayload: true },
     include: {
       customer: { select: { fullName: true } },
       _count: { select: { items: true } },

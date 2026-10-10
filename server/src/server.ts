@@ -2,12 +2,14 @@ import { createApp } from "./app.js";
 import { env } from "./config/env.js";
 import { pool } from "./db/pool.js";
 import { startEInvoiceScheduler } from "./modules/einvoice/einvoice.scheduler.js";
+import { startEPrescriptionScheduler } from "./modules/eprescriptions/erx.scheduler.js";
 import { startNationalSyncScheduler } from "./modules/national-sync/nds.scheduler.js";
 
 const app = createApp();
 
 const stopNationalSync = startNationalSyncScheduler();
 const stopEInvoice = startEInvoiceScheduler();
+const stopEPrescription = startEPrescriptionScheduler();
 
 const server = app.listen(env.PORT, () => {
   console.log(`Máy chủ chạy tại http://localhost:${env.PORT}/api/v1 (môi trường ${env.NODE_ENV})`);
@@ -18,6 +20,7 @@ async function shutdown(signal: string): Promise<void> {
   console.log(`Nhận tín hiệu ${signal}, đang dừng máy chủ...`);
   stopNationalSync();
   stopEInvoice();
+  stopEPrescription();
   server.close(() => {
     void pool.end().then(() => process.exit(0));
   });

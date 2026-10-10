@@ -2,7 +2,7 @@
 
 Phần mềm quản lý nhà thuốc bán lẻ đạt chuẩn GPP, thiết kế cho chuỗi nhiều nhà thuốc.
 
-Đã có: bán hàng tại quầy theo FEFO, đơn thuốc, khách hàng và tích điểm, nhập hàng, tồn kho theo lô, kiểm kê, điều chỉnh tồn, trả hàng (khách và nhà cung cấp), công nợ nhà cung cấp, chuyển hàng giữa các cửa hàng, thuốc kiểm soát đặc biệt, sổ nhiệt độ – độ ẩm, thu hồi thuốc, liên thông CSDL Dược quốc gia, hóa đơn điện tử qua MISA meInvoice, báo cáo, nhập/xuất Excel.
+Đã có: bán hàng tại quầy theo FEFO, đơn thuốc, khách hàng và tích điểm, nhập hàng, tồn kho theo lô, kiểm kê, điều chỉnh tồn, trả hàng (khách và nhà cung cấp), công nợ nhà cung cấp, chuyển hàng giữa các cửa hàng, thuốc kiểm soát đặc biệt, sổ nhiệt độ – độ ẩm, thu hồi thuốc, liên thông CSDL Dược quốc gia, hóa đơn điện tử qua MISA meInvoice, bán theo mã đơn thuốc điện tử, sổ doanh thu theo TT 152, báo cáo, nhập/xuất Excel.
 
 Chưa có: tính năng AI (trợ lý tra cứu, OCR đơn thuốc — contract §20), sao lưu trong phần mềm, đơn đặt hàng gửi nhà cung cấp, MFA.
 

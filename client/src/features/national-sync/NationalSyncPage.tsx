@@ -34,6 +34,7 @@ import { formatDateTime } from "../../ui/format.js";
 import { PageHeader } from "../../ui/PageHeader.js";
 import { useAuth } from "../auth/AuthProvider.js";
 import { DrugPickerModal } from "./DrugPickerModal.js";
+import { EPrescriptionTab } from "./EPrescriptionTab.js";
 import {
   autoMatch,
   confirmMapping,
@@ -127,6 +128,11 @@ export function NationalSyncPage() {
               key: "jobs",
               label: "Chứng từ đã gửi",
               children: <JobsTab canManage={canManage} config={config.data} onChanged={refreshAll} />,
+            },
+            {
+              key: "eprescription",
+              label: "Đơn thuốc điện tử",
+              children: <EPrescriptionTab canManage={canManage} />,
             },
           ]}
         />
