@@ -433,12 +433,19 @@ export type PrescriptionItem = {
   baseQuantity: number | null;
   dosageInstruction: string | null;
   dispensedBaseQuantity: number;
+  /** Mã thuốc và đơn vị trên đơn điện tử (chỉ đơn lấy từ hệ thống quốc gia). */
+  nationalDrugCode?: string | null;
+  nationalUnitName?: string | null;
 };
 
 export type PrescriptionDetail = {
   id: string;
   code: string;
   externalCode: string | null;
+  /** NATIONAL: lấy từ Hệ thống đơn thuốc quốc gia bằng mã đơn. */
+  source?: "MANUAL" | "NATIONAL";
+  patientName?: string | null;
+  patientBirthDate?: string | null;
   status: PrescriptionStatus;
   customer: { id: string; fullName: string | null; phone: string | null } | null;
   prescriberName: string | null;
@@ -467,6 +474,9 @@ export type PrescriptionListItem = {
   code: string;
   status: PrescriptionStatus;
   customer: { fullName: string | null } | null;
+  source?: "MANUAL" | "NATIONAL";
+  patientName?: string | null;
+  externalCode?: string | null;
   createdAt: string;
   prescribedDate: string;
   validUntil: string;

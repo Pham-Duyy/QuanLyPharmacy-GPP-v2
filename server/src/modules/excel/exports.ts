@@ -398,7 +398,7 @@ export const rxSalesExport: ExportDefinition = {
             customer: { select: { fullName: true, birthYear: true } },
             seller: { select: { fullName: true } },
             pharmacist: { select: { fullName: true } },
-            prescription: { select: { code: true, externalCode: true, prescriberName: true, facilityName: true, prescribedDate: true, diagnosisText: true } },
+            prescription: { select: { code: true, externalCode: true, prescriberName: true, facilityName: true, prescribedDate: true, diagnosisText: true, patientName: true } },
           },
         },
       },
@@ -432,7 +432,8 @@ export const rxSalesExport: ExportDefinition = {
           return {
             soldAt: vnTime(line.invoice.soldAt),
             invoice: line.invoice.code,
-            patient: line.invoice.customer?.fullName ?? null,
+            // Đơn điện tử thường không gắn hồ sơ khách: lấy tên người bệnh ghi trên đơn.
+            patient: line.invoice.customer?.fullName ?? line.invoice.prescription?.patientName ?? null,
             birthYear: line.invoice.customer?.birthYear ?? null,
             prescription: rx?.code ?? "(không có đơn)",
             externalCode: rx?.externalCode ?? null,

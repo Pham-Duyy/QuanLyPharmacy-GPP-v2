@@ -44,6 +44,7 @@ import { PageHeader } from "../../ui/PageHeader.js";
 import { useDebounced } from "../../ui/useDebounced.js";
 import { useAuth } from "../auth/AuthProvider.js";
 import { maxRedeemablePoints, useCustomerLoyalty, useLoyaltySettings } from "../loyalty/loyalty-api.js";
+import { ERX_CODE, importEPrescription } from "../prescriptions/eprescription-api.js";
 import { ProductThumb } from "../catalog/products/ProductThumb.js";
 import { printDocument, printInvoice, printUrl } from "../printing/printing.js";
 import { MAX_SALE_DRAFTS, readDrafts, writeDrafts, type SaleDraft } from "./pos/drafts.js";
@@ -63,6 +64,9 @@ type CartLine = {
 };
 
 type Customer = Pick<CustomerSearchItem, "id" | "fullName" | "phone">;
+
+/** Giá trị đặc biệt trong ô chọn đơn: lấy đơn điện tử theo mã đang gõ. */
+const ERX_OPTION = "__erx__";
 
 /** Thuốc kê đơn hoặc thuốc kiểm soát đặc biệt đều cần đơn thuốc mới bán được (contract §14.2). */
 function needsPrescription(drugClass: string | null): boolean {
@@ -303,6 +307,60 @@ export function SalePage() {
   });
 
   /** Dòng đơn thuốc còn khớp được với một sản phẩm: đúng thuốc, chưa bán hết theo đơn. */
+  /** Gắn một đơn đã xác nhận vào đơn bán. */
+  async function attachPrescription(id: string) {
+    try {
+      const detail = (await http.get<Envelope<PrescriptionDetail>>(`/prescriptions/${id}`)).data.data;
+      setPrescription(detail);
+      setPrescriptionSearch("");
+      // Đơn thuốc thường đã gắn sẵn khách — tự điền nếu chưa chọn ai.
+      if (!customer && detail.customer) setCustomer(detail.customer);
+    } catch (error) {
+      void message.error(getErrorMessage(error, "Không mở được đơn thuốc"));
+    }
+  }
+
+  /**
+   * Lấy đơn điện tử bằng mã. Đơn đã khớp đủ thuốc: dược sĩ xác nhận ngay tại
+   * quầy rồi bán; còn thuốc chưa khớp thì phải chọn sản phẩm ở màn Đơn thuốc.
+   */
+  async function loadEPrescription(code: string) {
+    try {
+      const result = await importEPrescription(code);
+      setPrescriptionSearch("");
+      const detail = (await http.get<Envelope<PrescriptionDetail>>(`/prescriptions/${result.prescriptionId}`)).data.data;
+      if (detail.status === "VERIFIED" || detail.status === "PARTIALLY_DISPENSED") {
+        await attachPrescription(detail.id);
+        return;
+      }
+      if (detail.status !== "DRAFT" && detail.status !== "PENDING_REVIEW") {
+        void message.warning(`Đơn ${code} đang ở trạng thái không bán được`);
+        return;
+      }
+      if (result.unmatched > 0 || detail.items.some((item) => !item.productId)) {
+        void message.warning(`Đã lấy đơn về (${detail.code}). Còn thuốc chưa khớp sản phẩm — chọn ở màn Đơn thuốc rồi quay lại.`, 8);
+        return;
+      }
+      if (!can("prescription.verify")) {
+        void message.info(`Đã lấy đơn về (${detail.code}). Cần dược sĩ xác nhận đơn trước khi bán.`, 8);
+        return;
+      }
+      modal.confirm({
+        title: `Xác nhận đơn ${code}?`,
+        content: `${detail.patientName ?? "Người bệnh"} · ${detail.items.length} thuốc, đã khớp đủ sản phẩm. Xác nhận đơn và dùng để bán ngay.`,
+        okText: "Xác nhận và bán",
+        cancelText: "Để sau",
+        onOk: async () => {
+          await http.post(`/prescriptions/${detail.id}/verify`, {}, { headers: { "Idempotency-Key": crypto.randomUUID() } });
+          await attachPrescription(detail.id);
+          void queryClient.invalidateQueries({ queryKey: ["usable-prescriptions"] });
+        },
+      });
+    } catch (error) {
+      void message.error(getErrorMessage(error, "Không lấy được đơn thuốc điện tử"), 8);
+    }
+  }
+
   function matchingPrescriptionItems(productId: string, source = prescription) {
     return (source?.items ?? []).filter((item) => item.productId === productId && (item.baseQuantity ?? 0) > item.dispensedBaseQuantity);
   }
@@ -688,21 +746,21 @@ export function SalePage() {
                 value={prescriptionSearch}
                 onChange={setPrescriptionSearch}
                 filterOption={(input, option) => typeof option?.label === "string" && option.label.toLowerCase().includes(input.toLowerCase())}
-                options={(verifiedPrescriptions.data ?? []).map((item) => ({ value: item.id, label: `${item.code} — ${item.customer?.fullName ?? "Khách lẻ"}` }))}
+                options={[
+                  // Gõ hoặc quét đúng mã đơn điện tử: lấy đơn từ hệ thống quốc gia ngay tại quầy.
+                  ...(ERX_CODE.test(prescriptionSearch.trim()) ? [{ value: ERX_OPTION, label: `Lấy đơn điện tử ${prescriptionSearch.trim()}` }] : []),
+                  ...(verifiedPrescriptions.data ?? []).map((item) => ({ value: item.id, label: `${item.code} — ${item.customer?.fullName ?? item.patientName ?? "Khách lẻ"}` })),
+                ]}
                 notFoundContent={verifiedPrescriptions.data?.length === 0 ? "Chưa có đơn thuốc đã xác nhận" : null}
                 onSelect={async (id) => {
-                  try {
-                    const detail = (await http.get<Envelope<PrescriptionDetail>>(`/prescriptions/${id}`)).data.data;
-                    setPrescription(detail);
-                    setPrescriptionSearch("");
-                    // Đơn thuốc thường đã gắn sẵn khách — tự điền nếu chưa chọn ai.
-                    if (!customer && detail.customer) setCustomer(detail.customer);
-                  } catch (error) {
-                    void message.error(getErrorMessage(error, "Không mở được đơn thuốc"));
+                  if (id === ERX_OPTION) {
+                    await loadEPrescription(prescriptionSearch.trim());
+                    return;
                   }
+                  await attachPrescription(id);
                 }}
               >
-                <Input prefix={<FileProtectOutlined />} placeholder="Đơn thuốc: Chưa đính kèm — chọn đơn đã xác nhận" allowClear aria-label="Chọn đơn thuốc" />
+                <Input prefix={<FileProtectOutlined />} placeholder="Đơn thuốc: chọn đơn đã xác nhận, hoặc quét mã đơn điện tử" allowClear aria-label="Chọn đơn thuốc" />
               </AutoComplete>
             ) : null}
           </div>

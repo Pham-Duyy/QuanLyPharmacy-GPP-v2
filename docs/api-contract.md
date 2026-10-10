@@ -1039,6 +1039,39 @@ Quy tắc:
 
 ---
 
+### 12.1 Đơn thuốc điện tử – Hệ thống đơn thuốc quốc gia
+
+Từ 01/10/2025 bệnh viện, từ 01/01/2026 mọi cơ sở khám chữa bệnh kê đơn điện tử (TT 26/2025/TT-BYT). Nhà thuốc lấy đơn bằng mã đơn và báo số lượng đã bán theo tài liệu kết nối ban hành kèm **Quyết định 808/QĐ-BYT**: mục VIII `GET /api/v1/thong-tin-don-thuoc/{ma_don_thuoc}` và mục IX `POST /api/v1/cap-nhat-don-thuoc`, xác thực bằng header `app-name`/`app-key` cấp cho **đơn vị làm phần mềm** (không phải từng nhà thuốc).
+
+| Method | Endpoint | Mô tả | Quyền |
+|---|---|---|---|
+| GET | `/eprescriptions/config` | Đã bật chưa, `appName`, `hasAppKey` (không trả app-key), `facilityCode` của cửa hàng đang chọn, địa chỉ gốc | `national_sync.read` |
+| PUT | `/eprescriptions/config` | Cấu hình chung cả chuỗi: `enabled`, `appName`, `appKey` (mã hóa AES-256-GCM khi lưu; để trống thì giữ). Bật mà thiếu app-name/app-key: 422 | `national_sync.manage` |
+| PUT | `/eprescriptions/store-config` | `facilityCode`: mã định danh cơ sở cung ứng thuốc của cửa hàng | `national_sync.manage` |
+| POST | `/eprescriptions/import` | `code`: lấy đơn về thành đơn thuốc nháp `source = NATIONAL`. Đã lấy mã này rồi: 200 trả đúng đơn cũ, không tạo thêm. Kết quả `{ prescriptionId, created, unmatched }` | `prescription.create` |
+| POST | `/eprescriptions/prescriptions/{id}/items/{itemId}/match` | `productId`, `unitId`: chọn sản phẩm cho dòng chưa khớp; lưu cặp mã thuốc trên đơn ↔ sản phẩm để lần sau tự khớp | `prescription.create` |
+| GET | `/eprescriptions/jobs?status` | Việc báo đã bán của cửa hàng | `national_sync.read` |
+| POST | `/eprescriptions/jobs/{id}/retry` | Gửi lại việc `FAILED`/`REJECTED` | `national_sync.manage` |
+
+- **Mã đơn** (mục VII.1): 14 ký tự — 5 ký tự mã cơ sở khám chữa bệnh, 7 ký tự chữ hoặc số, rồi `-c` (thường), `-n` (gây nghiện), `-h` (hướng thần), `-y` (y học cổ truyền). Sai định dạng: 422. Không có trên hệ thống: 404. Chưa bật: 409 `EPRESCRIPTION_DISABLED`. Hệ thống quốc gia lỗi: 502 `EPRESCRIPTION_UNAVAILABLE`. Một mã chỉ lấy về một lần trong toàn chuỗi (chỉ mục duy nhất trên `external_code` khi `source = NATIONAL`).
+- **Lấy về:** người bệnh (`patientName`, `patientBirthDate`), bác sĩ, cơ sở khám chữa bệnh, chẩn đoán, ngày kê (hiệu lực = ngày kê + `prescriptionValidityDays`, §12); mỗi dòng thuốc giữ `nationalDrugCode`, `nationalUnitName`, `nationalQuantity`, cách dùng vào `dosageInstruction` (in nhãn ở §14). Bản gốc lưu `national_payload`.
+- **Tự khớp:** mã thuốc đã từng ghép (`eprescription_drug_links`), hoặc trùng mã thuốc quốc gia đã ghép ở §25. Đơn vị bán chọn theo tên đơn vị trên đơn, không trùng thì dùng đơn vị nhỏ nhất. Dòng chưa khớp phải được ghép trước khi xác nhận đơn (§12).
+- Đơn điện tử **không sửa** danh sách thuốc hay mã đơn qua `PATCH /prescriptions/{id}` (409): danh sách là của hệ thống quốc gia, sửa sẽ mất mã thuốc dùng để báo bán.
+- **Báo đã bán:** lượt quét định kỳ (60 giây, chỉ khi đã bật) tạo việc cho mỗi hóa đơn `COMPLETED` bán theo đơn điện tử, rồi gửi ngoài giao dịch bán, thử lại giãn dần 1 phút → 24 giờ. Mỗi dòng gửi `ma_thuoc_da_ke_don`, `ma_thuoc` (= mã trên đơn), `biet_duoc`, `ten_thuoc` (tên hàng đã bán), `don_vi_tinh`, `so_luong` (theo đơn), `so_luong_ban` (quy về đơn vị của dòng đơn), `cach_dung`; kèm mã định danh, tên, số điện thoại, địa chỉ cửa hàng và `ma_hoa_don` (tối đa 20 ký tự: mã dài hơn thì bỏ tiền tố `HD-`). Thiếu mã định danh: chờ 1 giờ rồi thử lại. 404/422: `REJECTED`, sửa rồi gửi lại tay. Hóa đơn hủy trước khi gửi: `CANCELLED`; hủy sau khi đã gửi: `NEEDS_REVIEW` (tài liệu không có API rút lại, xử lý trên donthuocquocgia.vn).
+- **Chưa có tài khoản:** chức năng tắt; vẫn nhập tay mã đơn vào đơn giấy (`externalCode`) để lưu vết như trước. Kiểm thử bằng máy chủ giả dựng theo QĐ 808 (`src/test/erx-stub-server.ts`).
+
+Điểm tài liệu chưa rõ, hỏi đơn vị vận hành khi xin app-name/app-key:
+
+| # | Vấn đề | Cách xử lý hiện tại |
+|---|---|---|
+| E1 | Gốc API mục VIII/IX ghi `www.donthuocquocgia.vn`, các mục khác ghi `api.donthuocquocgia.vn` | Mặc định theo mục VIII/IX; đổi bằng biến `EPRESCRIPTION_BASE_URL` |
+| E2 | `ma_thuoc` thuộc bộ mã nào, có trùng mã thuốc quốc gia của CSDL Dược (§25) không | Thử tự khớp theo cả hai; không khớp thì dược sĩ ghép tay một lần |
+| E3 | `so_luong_ban` có trong bảng mô tả nhưng thiếu trong JSON mẫu | Vẫn gửi |
+| E4 | Không nêu mã lỗi khi sai app-name/app-key | Coi 401/403 là bị từ chối, không tự thử lại |
+| E5 | Bán thuốc thay thế (khác thuốc trên đơn) | Chưa hỗ trợ: `ma_thuoc` gửi lại đúng mã trên đơn |
+
+---
+
 ## 13. Kiểm tra an toàn khi bán [Đã chốt – P7]
 
 Thay cho `POST /ai/drug-interaction-check`, `POST /ai/allergy-check` và `GET /customers/{id}/allergy-check` trong bản gốc. Đây là kiểm tra **tất định** dựa trên dữ liệu và luật; không dùng LLM.

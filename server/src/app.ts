@@ -44,6 +44,7 @@ import { supplierDebtsRouter } from "./modules/inventory/supplier-debts.routes.j
 import { supplierReturnsRouter } from "./modules/inventory/supplier-returns.routes.js";
 import { stockTransfersRouter } from "./modules/inventory/stock-transfers.routes.js";
 import { qualityReportsRouter } from "./modules/quality/quality-reports.routes.js";
+import { eprescriptionsRouter } from "./modules/eprescriptions/erx.routes.js";
 import { labelsRouter } from "./modules/printing/labels.routes.js";
 import { loyaltyRouter } from "./modules/loyalty/loyalty.routes.js";
 import { einvoiceRouter } from "./modules/einvoice/einvoice.routes.js";
@@ -124,6 +125,7 @@ export function createApp() {
   app.use("/api/v1", supplierReturnsRouter);
   app.use("/api/v1", stockTransfersRouter);
   app.use("/api/v1", qualityReportsRouter);
+  app.use("/api/v1", eprescriptionsRouter);
   app.use("/api/v1", labelsRouter);
   app.use("/api/v1", loyaltyRouter);
   app.use("/api/v1", nationalSyncRouter);

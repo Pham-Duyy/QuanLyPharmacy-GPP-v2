@@ -1,4 +1,4 @@
-import { CheckOutlined, CloseOutlined, EditOutlined, FilePdfOutlined, FileProtectOutlined, FileSearchOutlined, PlusOutlined, SendOutlined, UploadOutlined } from "@ant-design/icons";
+import { CheckOutlined, CloseOutlined, CloudDownloadOutlined, EditOutlined, FilePdfOutlined, FileProtectOutlined, FileSearchOutlined, PlusOutlined, SendOutlined, UploadOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { App, Button, Card, Empty, Image, Input, Modal, Segmented, Skeleton, Table, Tag, Typography } from "antd";
 import { useRef, useState } from "react";
@@ -9,6 +9,7 @@ import { PageHeader } from "../../ui/PageHeader.js";
 import { PanelEmpty } from "../../ui/PanelEmpty.js";
 import { useAuth } from "../auth/AuthProvider.js";
 import { PrescriptionFormModal } from "./PrescriptionFormModal.js";
+import { EPrescriptionImportModal, MatchItem } from "./eprescription.js";
 
 const STATUS_TAG: Record<PrescriptionStatus, { text: string; color: string }> = {
   DRAFT: { text: "Nháp", color: "default" },
@@ -33,6 +34,7 @@ export function PrescriptionsPage() {
   const [editing, setEditing] = useState<PrescriptionDetail | null>(null);
   const [rejecting, setRejecting] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
+  const [importing, setImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const list = useQuery({
@@ -96,6 +98,7 @@ export function PrescriptionsPage() {
 
   const data = detail.data;
   const canEdit = data && can("prescription.create") && ["DRAFT", "PENDING_REVIEW"].includes(data.status);
+  const national = data?.source === "NATIONAL";
   const canSubmit = data && can("prescription.create") && data.status === "DRAFT";
   const canVerify = data && can("prescription.verify") && ["DRAFT", "PENDING_REVIEW"].includes(data.status);
 
@@ -106,16 +109,17 @@ export function PrescriptionsPage() {
         title="Đơn thuốc"
         extra={
           can("prescription.create") ? (
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={() => {
+            <>
+              <Button icon={<PlusOutlined />} onClick={() => {
                 setEditing(null);
                 setFormOpen(true);
-              }}
-            >
-              Tạo đơn thuốc
-            </Button>
+              }}>
+                Nhập đơn giấy
+              </Button>
+              <Button type="primary" icon={<CloudDownloadOutlined />} onClick={() => setImporting(true)}>
+                Lấy đơn điện tử
+              </Button>
+            </>
           ) : null
         }
       />
@@ -144,9 +148,11 @@ export function PrescriptionsPage() {
                 key: "code",
                 render: (_: unknown, row: PrescriptionListItem) => (
                   <div className="cell-main">
-                    <strong className="mono">{row.code}</strong>
+                    <strong className="mono">
+                      {row.code} {row.source === "NATIONAL" ? <Tag color="blue">Điện tử</Tag> : null}
+                    </strong>
                     <span>
-                      {row.customer?.fullName ?? "Khách lẻ"} · {row._count.items} thuốc
+                      {row.customer?.fullName ?? row.patientName ?? "Khách lẻ"} · {row._count.items} thuốc
                     </span>
                   </div>
                 ),
@@ -191,9 +197,11 @@ export function PrescriptionsPage() {
                 <div className="detail-stack">
                   <div>
                     <StatusTag status={data.status} />
+                    {national ? <Tag color="blue">Đơn điện tử</Tag> : null}
                     <h3 className="detail-title" style={{ marginTop: 8 }}>
-                      {data.customer?.fullName ?? "Khách lẻ"}
+                      {data.customer?.fullName ?? data.patientName ?? "Khách lẻ"}
                     </h3>
+                    {data.patientBirthDate ? <span className="detail-sub" style={{ display: "block" }}>Ngày sinh: {data.patientBirthDate}</span> : null}
                     {data.externalCode ? <span className="detail-sub">Mã đơn quốc gia: <span className="mono">{data.externalCode}</span></span> : null}
                   </div>
                   <dl className="kv-list">
@@ -243,7 +251,7 @@ export function PrescriptionsPage() {
                       ) : null}
                       {canEdit || canSubmit ? (
                         <div className="panel-actions-row">
-                          {canEdit ? (
+                          {canEdit && !national ? (
                             <Button
                               icon={<EditOutlined />}
                               onClick={() => {
@@ -282,6 +290,7 @@ export function PrescriptionsPage() {
                               Chưa khớp sản phẩm trong danh mục
                             </Typography.Text>
                           )}
+                          {national && canEdit && !item.productId ? <MatchItem prescriptionId={data.id} item={item} onMatched={() => void afterAction()} /> : null}
                           {item.dosageInstruction ? <span>Liều dùng: {item.dosageInstruction}</span> : null}
                         </div>
                         <div className="line-item-side">
@@ -354,6 +363,16 @@ export function PrescriptionsPage() {
       >
         <Input.TextArea rows={3} placeholder="Lý do từ chối (bắt buộc)" value={rejectReason} onChange={(event) => setRejectReason(event.target.value)} />
       </Modal>
+      <EPrescriptionImportModal
+        open={importing}
+        onClose={() => setImporting(false)}
+        onImported={(result) => {
+          setImporting(false);
+          setOpenId(result.prescriptionId);
+          void queryClient.invalidateQueries({ queryKey: ["prescriptions"] });
+          void queryClient.invalidateQueries({ queryKey: ["prescription", result.prescriptionId] });
+        }}
+      />
     </div>
   );
 }

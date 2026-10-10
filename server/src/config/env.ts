@@ -24,6 +24,11 @@ const envSchema = z.object({
    * biến này để trỏ sang máy chủ giả khi chạy test.
    */
   EINVOICE_BASE_URL: z.string().url().optional(),
+  /**
+   * Gốc Hệ thống đơn thuốc quốc gia (QĐ 808/QĐ-BYT). Bỏ trống thì dùng địa chỉ
+   * công bố; đặt biến này để trỏ sang máy chủ giả khi chạy test.
+   */
+  EPRESCRIPTION_BASE_URL: z.string().url().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);
