@@ -1,7 +1,6 @@
 import {
   CalendarOutlined,
   DownOutlined,
-  ExclamationCircleFilled,
   KeyOutlined,
   LogoutOutlined,
   MenuFoldOutlined,
@@ -298,17 +297,6 @@ export function AppLayout() {
           </div>
         </Layout.Header>
         <Layout.Content className="app-content">
-          {me.user.mustChangePassword ? (
-            <div className="app-banner" role="status">
-              <ExclamationCircleFilled />
-              <span className="app-banner-text">
-                <strong>Tài khoản đang dùng mật khẩu tạm.</strong> Hãy đổi mật khẩu trước khi làm việc với dữ liệu thật.
-              </span>
-              <Button size="small" type="primary" onClick={() => setPasswordOpen(true)}>
-                Đổi mật khẩu
-              </Button>
-            </div>
-          ) : null}
           <Suspense fallback={<Skeleton active paragraph={{ rows: 8 }} className="page-skeleton" />}>
             <Outlet />
           </Suspense>

@@ -6,6 +6,7 @@ import { AppLayout } from "./app/AppLayout.js";
 import { PAGE_ELEMENTS } from "./app/page-elements.js";
 import { PAGES } from "./app/pages.js";
 import { useAuth } from "./features/auth/AuthProvider.js";
+import { PasswordChangeGate } from "./features/auth/ChangePasswordModal.js";
 import { LoginPage } from "./features/auth/LoginPage.js";
 
 /**
@@ -52,7 +53,7 @@ function HomeRedirect() {
 }
 
 export default function App() {
-  const { status } = useAuth();
+  const { status, me } = useAuth();
 
   if (status === "loading") {
     return (
@@ -70,6 +71,9 @@ export default function App() {
       </Routes>
     );
   }
+
+  // Mật khẩu tạm chỉ dùng để đổi sang mật khẩu riêng; máy chủ cũng chặn mọi API khác.
+  if (me?.user.mustChangePassword) return <PasswordChangeGate />;
 
   return (
     <Routes>

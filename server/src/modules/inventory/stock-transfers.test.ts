@@ -63,6 +63,7 @@ async function warehouseUser(username: string, storeId: string): Promise<string>
       passwordHash: await hashPassword(TEST_PASSWORD),
       fullName: `Kho ${username}`,
       defaultStoreId: storeId,
+      mustChangePassword: false,
     },
   });
   await prisma.userRole.create({ data: { userId: user.id, roleId: role.id, storeId } });

@@ -79,7 +79,8 @@ export function LabelsPage() {
 
   const render = useMutation({
     mutationFn: async (mode: "preview" | "print") => {
-      const response = await http.post<string>(`/labels/print${mode === "preview" ? "?autoprint=0" : ""}`, body, { responseType: "text" });
+      // Trang tem không tự bật hộp thoại in: việc in do printHtml điều khiển.
+      const response = await http.post<string>("/labels/print?autoprint=0", body, { responseType: "text" });
       const raw = response.headers["x-label-warnings"];
       return { html: response.data, mode, warnings: raw ? (JSON.parse(decodeURIComponent(String(raw))) as Warning[]) : [] };
     },
@@ -338,7 +339,7 @@ export function LabelsPage() {
 
       {preview ? (
         <Card title={`Xem trước · ${activeSize?.label ?? size}`} style={{ marginTop: 14 }}>
-          <iframe title="Xem trước tem" className="label-preview" srcDoc={preview} />
+          <iframe title="Xem trước tem" className="label-preview" sandbox="allow-same-origin" srcDoc={preview} />
         </Card>
       ) : null}
     </div>

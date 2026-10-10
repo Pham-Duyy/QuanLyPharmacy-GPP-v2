@@ -20,6 +20,23 @@ export function useManagedScopes() {
   }, [me]);
 }
 
+/**
+ * Khóa, đặt lại mật khẩu, sửa thông tin tác động lên cả tài khoản, nên chỉ
+ * làm được khi quản lý nhân sự ở mọi nơi người đó có vai trò. Máy chủ kiểm
+ * lại đúng luật này; ở đây chỉ để không hiện nút bấm vào sẽ bị từ chối.
+ */
+export function canManageAccount(
+  scopes: { canChain: boolean; stores: ReadonlyArray<{ id: string }> },
+  roles: ReadonlyArray<{ storeId: string | null }>,
+): boolean {
+  return (
+    scopes.canChain ||
+    roles.every(
+      (role) => role.storeId !== null && scopes.stores.some((store) => store.id === role.storeId),
+    )
+  );
+}
+
 export function scopeToStoreId(scope: string): string | null {
   return scope === CHAIN_SCOPE ? null : scope;
 }

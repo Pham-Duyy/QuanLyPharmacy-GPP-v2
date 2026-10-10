@@ -9,6 +9,7 @@ import { parseOrThrow } from "../../lib/validate.js";
 import { authenticate } from "../../middlewares/authenticate.js";
 import { requirePermission } from "../../middlewares/require-permission.js";
 import { storeContext } from "../../middlewares/store-context.js";
+import type { AuthContext } from "../auth/auth.context.js";
 import { createStoreSchema, patchStoreSchema } from "./stores.schema.js";
 
 export const storesRouter = Router();
@@ -69,6 +70,15 @@ storesRouter.get("/stores/:id", async (req, res) => {
     permissions: [...auth.permissionsForStore(store.id)].sort(),
   });
 });
+
+/**
+ * Sửa hay ngừng một cửa hàng cần `store.manage` tại chính cửa hàng đó (hoặc
+ * toàn chuỗi): quản lý cửa hàng này không đụng được tới cửa hàng khác.
+ */
+function assertManagesStore(auth: AuthContext, storeId: string): void {
+  if (!auth.permissionsForStore(storeId).has("store.manage"))
+    throw new AppError(403, "FORBIDDEN", "Bạn không quản lý cửa hàng này");
+}
 
 /** Vai trò mang quyền mở/quản lý cửa hàng — gán cho người tạo tại cửa hàng mới. */
 const STORE_MANAGER_ROLES = ROLES.filter((role) => role.permissions.includes("store.manage")).map(
@@ -141,6 +151,7 @@ storesRouter.post("/stores", requirePermission("store.manage"), async (req, res)
 storesRouter.patch("/stores/:id", requirePermission("store.manage"), async (req, res) => {
   const input = parseOrThrow(patchStoreSchema, req.body);
   const id = String(req.params.id);
+  assertManagesStore(req.auth!, id);
   const { version, ...fields } = input;
 
   await updateWithVersion({
@@ -170,6 +181,7 @@ storesRouter.patch("/stores/:id", requirePermission("store.manage"), async (req,
 /** POST /api/v1/stores/{id}/deactivate: ngừng hoạt động, chặn nghiệp vụ mới tại đó (contract §21). */
 storesRouter.post("/stores/:id/deactivate", requirePermission("store.manage"), async (req, res) => {
   const id = String(req.params.id);
+  assertManagesStore(req.auth!, id);
 
   const result = await prisma.store.updateMany({ where: { id }, data: { isActive: false } });
   if (result.count === 0) throw AppError.notFound("Không tìm thấy cửa hàng");

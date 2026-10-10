@@ -248,6 +248,96 @@ describe("Phạm vi người đổi vai trò", () => {
   });
 });
 
+describe("Phạm vi quản lý tài khoản", () => {
+  async function storeManager(): Promise<string> {
+    await useTestRole(fixture.salesId, "admin", fixture.storeId);
+    return (await login("banhang")).token;
+  }
+
+  it("quản lý một cửa hàng không đặt lại mật khẩu, khóa hay sửa được chủ chuỗi", async () => {
+    const manager = await storeManager();
+    const owner = await prisma.user.findUniqueOrThrow({ where: { id: fixture.adminId } });
+
+    const reset = await api()
+      .post(`/api/v1/users/${owner.id}/reset-password`)
+      .set(h(manager))
+      .expect(403);
+    expect(reset.body.error.message).toMatch(/không quản lý nhân sự/);
+    expect(reset.body.data).toBeUndefined();
+    await api().post(`/api/v1/users/${owner.id}/deactivate`).set(h(manager)).expect(403);
+    await api().post(`/api/v1/users/${owner.id}/activate`).set(h(manager)).expect(403);
+    await api()
+      .patch(`/api/v1/users/${owner.id}`)
+      .set(h(manager))
+      .send({ version: owner.version, fullName: "Đổi tên chủ chuỗi" })
+      .expect(403);
+
+    // Chủ chuỗi vẫn đăng nhập bằng mật khẩu cũ, hồ sơ không đổi.
+    await login("admin");
+    expect(await prisma.user.findUniqueOrThrow({ where: { id: owner.id } })).toMatchObject({
+      fullName: owner.fullName,
+      isActive: true,
+      mustChangePassword: false,
+    });
+  });
+
+  it("không đụng được người còn làm ở cửa hàng mình không quản lý", async () => {
+    const manager = await storeManager();
+    const pharmacist = await prisma.role.findUniqueOrThrow({ where: { code: "pharmacist" } });
+    await prisma.userRole.create({
+      data: {
+        userId: fixture.pharmacistId,
+        roleId: pharmacist.id,
+        storeId: fixture.otherStoreId,
+        qualificationReference: "Hồ sơ kiểm thử",
+      },
+    });
+
+    await api()
+      .post(`/api/v1/users/${fixture.pharmacistId}/reset-password`)
+      .set(h(manager))
+      .expect(403);
+    await api()
+      .post(`/api/v1/users/${fixture.pharmacistId}/deactivate`)
+      .set(h(manager))
+      .expect(403);
+  });
+
+  it("vẫn quản lý được nhân viên chỉ làm ở cửa hàng mình", async () => {
+    const manager = await storeManager();
+    const reset = await api()
+      .post(`/api/v1/users/${fixture.pharmacistId}/reset-password`)
+      .set(h(manager))
+      .expect(200);
+    expect(reset.body.data.tempPassword).toBeTruthy();
+    await api()
+      .post(`/api/v1/users/${fixture.pharmacistId}/deactivate`)
+      .set(h(manager))
+      .expect(200);
+    await api().post(`/api/v1/users/${fixture.pharmacistId}/activate`).set(h(manager)).expect(200);
+  });
+
+  it("chỉ thấy nhân viên của cửa hàng mình và tài khoản chưa gán vai trò", async () => {
+    const manager = await storeManager();
+    const unassigned = await api()
+      .post("/api/v1/users")
+      .set(h())
+      .send({ username: "chogan", fullName: "Chờ phân công" })
+      .expect(201);
+
+    const list = await api().get("/api/v1/users").set(h(manager)).expect(200);
+    const usernames = list.body.data.map((item: { username: string }) => item.username);
+    expect(usernames).toEqual(expect.arrayContaining(["banhang", "duocsi", "chogan"]));
+    expect(usernames).not.toContain("admin");
+
+    await api().get(`/api/v1/users/${fixture.adminId}`).set(h(manager)).expect(404);
+    await api().get(`/api/v1/users/${unassigned.body.data.id}`).set(h(manager)).expect(200);
+    // Quản lý toàn chuỗi vẫn thấy tất cả.
+    const all = await api().get("/api/v1/users").set(h()).expect(200);
+    expect(all.body.data.map((item: { username: string }) => item.username)).toContain("admin");
+  });
+});
+
 describe("Vô hiệu hóa / kích hoạt lại", () => {
   it("vô hiệu hóa thu hồi phiên, không đăng nhập lại được", async () => {
     const created = await api()

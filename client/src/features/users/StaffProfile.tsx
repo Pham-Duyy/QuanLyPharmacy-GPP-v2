@@ -15,6 +15,7 @@ import type { Envelope } from "../../api/types.js";
 import { PanelEmpty } from "../../ui/PanelEmpty.js";
 import { useAuth } from "../auth/AuthProvider.js";
 import { staffKeys, useStaffDetail } from "./staff-api.js";
+import { canManageAccount, useManagedScopes } from "./staff-scope.js";
 import { AccountStatus, Pairs, StaffAvatar, StaffNote } from "./staff-ui.js";
 import { ChangeRolesModal, EditUserModal, TempPasswordAlert } from "./StaffAccountModals.js";
 
@@ -24,6 +25,7 @@ export function StaffProfile({ id, onClose }: { id: string | null; onClose: () =
   const { message } = App.useApp();
   const queryClient = useQueryClient();
   const detail = useStaffDetail(id);
+  const scopes = useManagedScopes();
   const [editing, setEditing] = useState(false);
   const [changingRoles, setChangingRoles] = useState(false);
   // Mật khẩu tạm chỉ giữ tới khi đóng thông báo hoặc chuyển sang người khác.
@@ -78,7 +80,8 @@ export function StaffProfile({ id, onClose }: { id: string | null; onClose: () =
 
   const user = detail.data;
   const isSelf = user.id === me?.user.id;
-  const manage = can("user.manage");
+  const outOfScope = can("user.manage") && !canManageAccount(scopes, user.roles);
+  const manage = can("user.manage") && !outOfScope;
 
   return (
     <div className="staff-profile">
@@ -169,6 +172,11 @@ export function StaffProfile({ id, onClose }: { id: string | null; onClose: () =
         </StaffNote>
       </section>
 
+      {outOfScope ? (
+        <StaffNote>
+          Người này còn làm ở nơi bạn không quản lý nhân sự nên bạn chỉ xem được.
+        </StaffNote>
+      ) : null}
       {manage ? (
         <div className="staff-profile-actions">
           <Button

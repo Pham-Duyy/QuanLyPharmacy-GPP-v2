@@ -133,6 +133,34 @@ describe("Sửa thông tin cửa hàng", () => {
   });
 });
 
+describe("Phạm vi quản lý cửa hàng", () => {
+  it("quản lý một cửa hàng không sửa hay ngừng được cửa hàng khác", async () => {
+    await useTestRole(fixture.salesId, "admin", fixture.storeId);
+    const manager = (await login("banhang")).token;
+    const other = await prisma.store.findUniqueOrThrow({ where: { id: fixture.otherStoreId } });
+
+    const patch = await api()
+      .patch(`/api/v1/stores/${other.id}`)
+      .set(h(manager))
+      .send({ version: other.version, name: "Sửa hộ cửa hàng khác" })
+      .expect(403);
+    expect(patch.body.error.code).toBe("FORBIDDEN");
+    await api().post(`/api/v1/stores/${other.id}/deactivate`).set(h(manager)).expect(403);
+    expect(await prisma.store.findUniqueOrThrow({ where: { id: other.id } })).toMatchObject({
+      name: other.name,
+      isActive: true,
+    });
+
+    // Cửa hàng của chính mình thì vẫn sửa được.
+    const own = await prisma.store.findUniqueOrThrow({ where: { id: fixture.storeId } });
+    await api()
+      .patch(`/api/v1/stores/${own.id}`)
+      .set(h(manager))
+      .send({ version: own.version, phone: "0908888888" })
+      .expect(200);
+  });
+});
+
 describe("Ngừng hoạt động cửa hàng", () => {
   it("ngừng được, chặn luôn nghiệp vụ mới tại cửa hàng đó", async () => {
     await api().post(`/api/v1/stores/${fixture.storeId}/deactivate`).set(h()).expect(200);

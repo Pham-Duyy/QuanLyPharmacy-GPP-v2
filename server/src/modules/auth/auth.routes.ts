@@ -4,7 +4,7 @@ import { parseOrThrow } from "../../lib/validate.js";
 import { sendData } from "../../lib/respond.js";
 import { isProduction } from "../../config/env.js";
 import { REFRESH_COOKIE_NAME } from "../../lib/tokens.js";
-import { authenticate } from "../../middlewares/authenticate.js";
+import { authenticateAllowingTempPassword } from "../../middlewares/authenticate.js";
 import { changePasswordSchema, loginSchema } from "./auth.schema.js";
 import * as authService from "./auth.service.js";
 import type { TokenPair } from "./auth.service.js";
@@ -53,17 +53,17 @@ authRouter.post("/auth/refresh", async (req, res) => {
   sendData(res, tokenResponse(tokens));
 });
 
-authRouter.post("/auth/logout", authenticate, async (req, res) => {
+authRouter.post("/auth/logout", authenticateAllowingTempPassword, async (req, res) => {
   await authService.logout(req.auth!.sessionId);
   res.clearCookie(REFRESH_COOKIE_NAME, { path: "/api/v1/auth" });
   sendData(res, { loggedOut: true });
 });
 
-authRouter.get("/auth/me", authenticate, async (req, res) => {
+authRouter.get("/auth/me", authenticateAllowingTempPassword, async (req, res) => {
   sendData(res, await authService.describeMe(req.auth!));
 });
 
-authRouter.post("/auth/change-password", authenticate, async (req, res) => {
+authRouter.post("/auth/change-password", authenticateAllowingTempPassword, async (req, res) => {
   const input = parseOrThrow(changePasswordSchema, req.body);
   await authService.changePassword(req.auth!, input);
   sendData(res, { changed: true });

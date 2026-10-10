@@ -1,5 +1,6 @@
 import { execSync } from "node:child_process";
 import { config } from "dotenv";
+import { testDatabaseUrl } from "./test-database.js";
 
 /**
  * Chạy một lần trước toàn bộ test: áp migration lên CSDL kiểm thử.
@@ -8,8 +9,7 @@ import { config } from "dotenv";
  */
 export default function setup(): void {
   config();
-  const url = process.env["DATABASE_URL_TEST"];
-  if (!url) throw new Error("Thiếu DATABASE_URL_TEST trong server/.env");
+  const url = testDatabaseUrl();
 
   execSync("npx prisma migrate deploy", {
     env: { ...process.env, DATABASE_URL: url, CHECKPOINT_DISABLE: "1" },
