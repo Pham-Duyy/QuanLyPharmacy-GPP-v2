@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { z } from "zod";
 import { withMappedErrors } from "../../lib/prisma-errors.js";
 import { sendData } from "../../lib/respond.js";
 import { parseOrThrow } from "../../lib/validate.js";
@@ -38,6 +39,21 @@ recallsRouter.get("/recalls/:id", async (req, res) => {
 
 recallsRouter.get("/recalls/:id/affected-sales", async (req, res) => {
   sendData(res, await service.getAffectedSales(String(req.params.id), req.auth!));
+});
+
+/** POST /api/v1/recalls/{id}/contacts: đánh dấu đã liên hệ khách của một hóa đơn. */
+recallsRouter.post("/recalls/:id/contacts", async (req, res) => {
+  const input = parseOrThrow(
+    z.object({ invoiceId: z.uuid("invoiceId không hợp lệ"), note: z.string().trim().max(500).nullish() }),
+    req.body,
+  );
+  await service.markContacted(String(req.params.id), input.invoiceId, req.auth!, input.note || null);
+  sendData(res, { invoiceId: input.invoiceId, contacted: true });
+});
+
+recallsRouter.delete("/recalls/:id/contacts/:invoiceId", async (req, res) => {
+  await service.unmarkContacted(String(req.params.id), String(req.params.invoiceId), req.auth!);
+  sendData(res, { invoiceId: String(req.params.invoiceId), contacted: false });
 });
 
 recallsRouter.post("/recalls/:id/close", idempotency, async (req, res) => {

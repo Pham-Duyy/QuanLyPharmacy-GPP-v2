@@ -52,6 +52,7 @@ model Store {
   supplierPayments   SupplierPayment[]
   supplierReturns    SupplierReturn[]
   transfersOut       StockTransfer[]          @relation("StockTransferFrom")
+  qualityReports     QualityReport[]
   transfersIn        StockTransfer[]          @relation("StockTransferTo")
   loyaltyLedger      LoyaltyTransaction[]
   documentCounters   DocumentCounter[]
@@ -121,6 +122,9 @@ model User {
   transfersShipped         StockTransfer[]           @relation("StockTransferShippedBy")
   transfersReceived        StockTransfer[]           @relation("StockTransferReceivedBy")
   transfersCancelled       StockTransfer[]           @relation("StockTransferCancelledBy")
+  qualityReportsCreated    QualityReport[]           @relation("QualityReportCreatedBy")
+  qualityReportsClosed     QualityReport[]           @relation("QualityReportClosedBy")
+  recallContacts           RecallContact[]
   healthProfilesUpdated    CustomerHealthProfile[]
   stockMovements           StockMovement[]
   loyaltyEntriesCreated    LoyaltyTransaction[]
@@ -353,6 +357,7 @@ model Product {
   stockCountLines     StockCountLine[]
   supplierReturnLines SupplierReturnLine[]
   transferLines       StockTransferLine[]
+  qualityReports      QualityReport[]
   nationalDrugLink    NationalDrugLink?
 
   @@index([categoryId])
@@ -517,6 +522,7 @@ model Batch {
   supplierReturnLines SupplierReturnLine[]
   transferLinesOut    StockTransferLine[]   @relation("StockTransferSourceBatch")
   transferLinesIn     StockTransferLine[]   @relation("StockTransferDestinationBatch")
+  qualityReports      QualityReport[]
 
   @@unique([storeId, productId, batchNumber])
   @@unique([id, storeId])
@@ -685,9 +691,10 @@ model Recall {
   createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  createdByUser User         @relation("RecallCreatedBy", fields: [createdBy], references: [id])
-  closedByUser  User?        @relation("RecallClosedBy", fields: [closedBy], references: [id])
+  createdByUser User            @relation("RecallCreatedBy", fields: [createdBy], references: [id])
+  closedByUser  User?           @relation("RecallClosedBy", fields: [closedBy], references: [id])
   items         RecallItem[]
+  contacts      RecallContact[]
   batches       Batch[]
 
   @@map("recalls")
@@ -887,6 +894,7 @@ model Invoice {
   voidedByUser   User?                 @relation("InvoiceVoidedBy", fields: [voidedBy], references: [id])
   lines          InvoiceLine[]
   safetyAcks     InvoiceSafetyAck[]
+  recallContacts RecallContact[]
   controlledSale ControlledSaleDetail?
   returns        Return[]
   eInvoice       EInvoice?
@@ -1155,6 +1163,8 @@ model StockCountLine {
   product       Product      @relation(fields: [productId], references: [id])
   countedUnit   ProductUnit? @relation(fields: [countedUnitId], references: [id])
   countedByUser User?        @relation(fields: [countedBy], references: [id])
+  /// Kiểm tra cảm quan không đạt (GPP III.3); lý do ghi ở `note`.
+  sensoryFailed Boolean      @default(false) @map("sensory_failed")
 
   @@unique([stockCountId, lineNo])
   @@unique([stockCountId, batchId])
@@ -1605,4 +1615,56 @@ model StockTransferLine {
   @@index([sourceBatchId])
   @@index([destinationBatchId])
   @@map("stock_transfer_lines")
+}
+
+/// Sổ khiếu nại và theo dõi phản ứng có hại của thuốc (GPP, TT 02/2018 Phụ lục I mục III.4).
+model QualityReport {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  storeId       String    @map("store_id") @db.Uuid
+  code          String    @unique
+  /// COMPLAINT hoặc ADR.
+  kind          String
+  occurredOn    DateTime  @map("occurred_on") @db.Date
+  productId     String?   @map("product_id") @db.Uuid
+  batchId       String?   @map("batch_id") @db.Uuid
+  reporterName  String?   @map("reporter_name")
+  reporterPhone String?   @map("reporter_phone")
+  description   String
+  actionTaken   String?   @map("action_taken")
+  /// OPEN hoặc CLOSED.
+  status        String    @default("OPEN")
+  /// ADR: ngày đã gửi báo cáo về Trung tâm DI&ADR quốc gia.
+  adrReportedOn DateTime? @map("adr_reported_on") @db.Date
+  createdBy     String    @map("created_by") @db.Uuid
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  closedBy      String?   @map("closed_by") @db.Uuid
+  closedAt      DateTime? @map("closed_at") @db.Timestamptz(6)
+  version       Int       @default(1)
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  store         Store    @relation(fields: [storeId], references: [id])
+  product       Product? @relation(fields: [productId], references: [id])
+  batch         Batch?   @relation(fields: [batchId], references: [id])
+  createdByUser User     @relation("QualityReportCreatedBy", fields: [createdBy], references: [id])
+  closedByUser  User?    @relation("QualityReportClosedBy", fields: [closedBy], references: [id])
+
+  @@index([storeId, status, occurredOn], map: "quality_reports_store_status_idx")
+  @@map("quality_reports")
+}
+
+/// Đã liên hệ khách mua lô bị thu hồi (GPP III.4c: thông báo thu hồi cho khách).
+model RecallContact {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  recallId    String   @map("recall_id") @db.Uuid
+  invoiceId   String   @map("invoice_id") @db.Uuid
+  contactedBy String   @map("contacted_by") @db.Uuid
+  contactedAt DateTime @default(now()) @map("contacted_at") @db.Timestamptz(6)
+  note        String?
+
+  recall          Recall  @relation(fields: [recallId], references: [id], onDelete: Cascade)
+  invoice         Invoice @relation(fields: [invoiceId], references: [id])
+  contactedByUser User    @relation(fields: [contactedBy], references: [id])
+
+  @@unique([recallId, invoiceId], map: "recall_contacts_recall_invoice_key")
+  @@map("recall_contacts")
 }

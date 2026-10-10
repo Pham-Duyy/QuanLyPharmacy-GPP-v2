@@ -39,7 +39,7 @@ export const SIDEBAR: readonly SidebarEntry[] = [
     key: "gpp",
     label: "Hồ sơ GPP",
     icon: <SolutionOutlined />,
-    paths: ["/kiem-soat-dac-biet", "/so-nhiet-do", "/thu-hoi", "/lien-thong-duoc"],
+    paths: ["/kiem-soat-dac-biet", "/so-nhiet-do", "/thu-hoi", "/khieu-nai", "/lien-thong-duoc"],
   },
   { kind: "page", path: "/bao-cao" },
   {

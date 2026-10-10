@@ -550,6 +550,21 @@ function ReceiptDetailPanel({
             <span>{formatDateTime(receipt.receivedAt)}</span>
           </div>
 
+          {isDraft && receipt.complianceWarnings?.length ? (
+            <Alert
+              type="warning"
+              showIcon
+              title="Hồ sơ GPP còn thiếu — kiểm tra trước khi kiểm nhập"
+              description={
+                <ul style={{ margin: 0, paddingLeft: 18 }}>
+                  {receipt.complianceWarnings.map((warning) => (
+                    <li key={warning}>{warning}</li>
+                  ))}
+                </ul>
+              }
+            />
+          ) : null}
+
           <section className="panel-section">
             <h4>
               <ShopOutlined /> Thông tin nhà cung cấp

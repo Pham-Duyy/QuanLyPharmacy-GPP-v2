@@ -27,6 +27,8 @@ export const saveCountsSchema = z.object({
         note: z.string().trim().max(300).nullish(),
         /** true: xóa số đếm, đưa dòng về trạng thái chưa đếm. */
         clear: z.boolean().optional(),
+        /** Kiểm tra cảm quan không đạt (GPP III.3); bắt buộc ghi lý do ở `note`. */
+        sensoryFailed: z.boolean().optional(),
       }),
     )
     .min(1, "Chưa có dòng nào để lưu")

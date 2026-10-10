@@ -1,4 +1,5 @@
 import {
+  AlertOutlined,
   ApiOutlined,
   AuditOutlined,
   BarcodeOutlined,
@@ -103,6 +104,7 @@ export const PAGES = [
   // --- Hồ sơ GPP ------------------------------------------------------------
   { path: "/kiem-soat-dac-biet", label: "Thuốc kiểm soát đặc biệt", icon: <SafetyCertificateOutlined />, permission: "controlled.read", keywords: "gay nghien huong than tien chat so theo doi" },
   { path: "/so-nhiet-do", label: "Nhiệt độ – độ ẩm", icon: <ExperimentOutlined />, permission: "storage_log.read", keywords: "so nhiet do do am bao quan" },
+  { path: "/khieu-nai", label: "Khiếu nại – ADR", icon: <AlertOutlined />, permission: ["quality_report.manage", "audit.read"], keywords: "khieu nai phan ung co hai adr tac dung khong mong muon so theo doi chat luong" },
   { path: "/thu-hoi", label: "Thu hồi thuốc", icon: <NotificationOutlined />, permission: "recall.manage", keywords: "thu hoi thuoc so lo cong van khach da mua" },
   { path: "/lien-thong-duoc", label: "Liên thông CSDL Dược", icon: <ApiOutlined />, permission: "national_sync.read", keywords: "lien thong csdl duoc quoc gia bo y te csdlduoc api", onlyWhenEnabled: { feature: "nationalSync", managePermission: "national_sync.manage" } },
 

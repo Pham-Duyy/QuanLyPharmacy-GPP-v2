@@ -170,6 +170,7 @@ export async function saveCounts(storeId: string, countId: string, userId: strin
               countedAt: null,
               countedBy: null,
               systemBaseQuantityAtCount: null,
+              sensoryFailed: false,
               ...(entry.note === undefined ? {} : { note: entry.note ?? null }),
             },
           });
@@ -179,6 +180,11 @@ export async function saveCounts(storeId: string, countId: string, userId: strin
 
         if (entry.quantity === null || entry.quantity === undefined) {
           throw AppError.validation("Thiếu số lượng đếm được");
+        }
+        const sensoryFailed = entry.sensoryFailed ?? line.sensoryFailed;
+        const note = entry.note === undefined ? line.note : (entry.note ?? null);
+        if (sensoryFailed && !note) {
+          throw AppError.validation("Cảm quan không đạt thì ghi lý do vào ghi chú (ví dụ: vỉ bị ẩm, viên đổi màu)");
         }
         const unit = entry.unitId ? unitById.get(entry.unitId) : undefined;
         if (!unit) throw AppError.validation("Thiếu đơn vị đếm");
@@ -197,6 +203,7 @@ export async function saveCounts(storeId: string, countId: string, userId: strin
             countedAt: now,
             countedBy: userId,
             systemBaseQuantityAtCount: batch.quantityOnHand,
+            sensoryFailed,
             ...(entry.note === undefined ? {} : { note: entry.note ?? null }),
           },
         });
@@ -336,6 +343,10 @@ export type CountLineView = {
   /** Giá trị chênh lệch theo giá vốn lô; null khi không có quyền xem giá vốn. */
   differenceValue: number | null;
   note: string | null;
+  /** Kiểm tra cảm quan không đạt; lý do ở `note`. */
+  sensoryFailed?: boolean;
+  batchStatus?: string;
+  batchVersion?: number;
 };
 
 export async function getDetail(storeId: string, countId: string, auth: AuthContext) {
@@ -349,7 +360,7 @@ export async function getDetail(storeId: string, countId: string, auth: AuthCont
         orderBy: { lineNo: "asc" },
         include: {
           countedByUser: { select: { fullName: true } },
-          batch: { select: { batchNumber: true, expiryDate: true, quantityOnHand: true, unitCost: true, shelfLocation: true } },
+          batch: { select: { batchNumber: true, expiryDate: true, quantityOnHand: true, unitCost: true, shelfLocation: true, status: true, version: true } },
           product: {
             select: {
               code: true,
@@ -390,6 +401,9 @@ export async function getDetail(storeId: string, countId: string, auth: AuthCont
       differenceBaseQuantity: difference,
       differenceValue: showCost && difference !== null && unitCost !== null ? Math.round(difference * unitCost) : null,
       note: line.note,
+      sensoryFailed: line.sensoryFailed,
+      batchStatus: line.batch.status,
+      batchVersion: line.batch.version,
     };
   });
 
