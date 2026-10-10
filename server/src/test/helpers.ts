@@ -4,12 +4,24 @@ import { createApp } from "../app.js";
 import { prisma } from "../db/prisma.js";
 import { hashPassword } from "../lib/password.js";
 import { ADDITIONAL_PERMISSIONS, PERMISSIONS, ROLES } from "../config/permissions.js";
+import { assertTestDatabaseName } from "./test-database.js";
 
 export const app: Express = createApp();
 export const api = () => request(app);
 
+let databaseChecked = false;
+
 /** Xóa sạch dữ liệu giữa các test, giữ nguyên cấu trúc bảng và migration. */
 export async function truncateAll(): Promise<void> {
+  // Chốt chặn cuối: cấu hình sai đến đâu cũng chỉ xóa trên CSDL kiểm thử.
+  if (!databaseChecked) {
+    const [row] = await prisma.$queryRaw<
+      Array<{ name: string }>
+    >`SELECT current_database() AS name`;
+    assertTestDatabaseName(row?.name ?? "");
+    databaseChecked = true;
+  }
+
   const tables = await prisma.$queryRaw<Array<{ tablename: string }>>`
     SELECT tablename FROM pg_tables
     WHERE schemaname = 'public' AND tablename <> '_prisma_migrations'`;
@@ -50,10 +62,18 @@ export async function seedFixture(options: { sellingAdmin?: boolean } = {}): Pro
     });
   }
 
+  // Tài khoản kiểm thử dùng mật khẩu riêng (mustChangePassword: false), không
+  // phải mật khẩu tạm — mật khẩu tạm bị chặn mọi API trừ đổi mật khẩu.
   const passwordHash = await hashPassword(TEST_PASSWORD);
 
   const admin = await prisma.user.create({
-    data: { username: "admin", passwordHash, fullName: "Quản trị", defaultStoreId: store.id },
+    data: {
+      username: "admin",
+      passwordHash,
+      mustChangePassword: false,
+      fullName: "Quản trị",
+      defaultStoreId: store.id,
+    },
   });
   await prisma.userRole.create({
     data: { userId: admin.id, roleId: roleByCode.get("admin")!, storeId: null },
@@ -72,7 +92,13 @@ export async function seedFixture(options: { sellingAdmin?: boolean } = {}): Pro
     });
 
   const pharmacist = await prisma.user.create({
-    data: { username: "duocsi", passwordHash, fullName: "Dược sĩ", defaultStoreId: store.id },
+    data: {
+      username: "duocsi",
+      passwordHash,
+      mustChangePassword: false,
+      fullName: "Dược sĩ",
+      defaultStoreId: store.id,
+    },
   });
   await prisma.userRole.create({
     data: {
@@ -88,6 +114,7 @@ export async function seedFixture(options: { sellingAdmin?: boolean } = {}): Pro
     data: {
       username: "banhang",
       passwordHash,
+      mustChangePassword: false,
       fullName: "Dược sĩ tại quầy",
       defaultStoreId: store.id,
     },

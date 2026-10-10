@@ -65,7 +65,6 @@ npm install              # tự chạy prisma generate
 npm run db:migrate       # kiểm tra rồi áp các migration đã viết mà CSDL chưa có
 npm run check:migrations # chỉ kiểm tra, không áp
 npm run db:studio        # xem dữ liệu bằng giao diện
-npm run db:reset         # XÓA sạch CSDL dev rồi tạo lại từ đầu
 ```
 
 `npm run db:migrate` chạy `prisma migrate deploy --config prisma7.config.ts`: **chỉ áp migration đã viết sẵn, không tự sinh migration**. Trước đó nó tự kiểm tra và dừng nếu:
@@ -122,7 +121,7 @@ Vite chuyển tiếp mọi request `/api` sang backend ở cổng 3000, nên kh�
 
 Chạy đủ bộ cần ba việc: `docker compose up -d` cho CSDL, `npm run dev` trong `server/`, và `npm run dev` trong `client/`.
 
-Tài khoản mặc định sau khi seed: `admin` / `Admin@12345`, bắt buộc đổi mật khẩu khi dùng thật.
+Tài khoản mặc định sau khi seed: `admin` / `Admin@12345`. Lần đăng nhập đầu phải đổi mật khẩu mới dùng được phần mềm (máy chủ chặn mọi thao tác khác khi tài khoản còn mật khẩu tạm).
 
 ## Kiểm thử và chất lượng mã
 
@@ -138,5 +137,7 @@ npm run typecheck
 Kiểm thử chạy trên **PostgreSQL thật**, không dùng mock, vì phần lớn ràng buộc quan trọng của dự án nằm ở tầng CSDL: `CHECK` tồn không âm, khóa duy nhất `NULLS NOT DISTINCT`, khóa ngoại tổ hợp chặn bán lô của cửa hàng khác. Mock sẽ không bắt được những lỗi đó.
 
 Mỗi test tự xóa sạch dữ liệu rồi dựng lại bộ dữ liệu tối thiểu gồm hai cửa hàng, đủ permission và vai trò, một tài khoản bao toàn chuỗi và một dược sĩ chỉ thuộc cửa hàng thứ nhất. Có hai cửa hàng để kiểm tra được việc không lộ dữ liệu chéo.
+
+Vì test xóa sạch dữ liệu, `DATABASE_URL_TEST` phải trỏ tới CSDL có tên kết thúc bằng `_test`; sai tên thì test dừng ngay, không bảng nào bị xóa.
 
 Cấu hình GitHub Actions (lint, kiểm tra định dạng, typecheck, kiểm thử) có sẵn ở `.github/workflows/ci.yml.disabled` nhưng **đang tắt** từ 12/09/2026; trước khi gộp code, chạy tay các lệnh trên.

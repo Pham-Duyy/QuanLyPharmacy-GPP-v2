@@ -446,30 +446,6 @@
   padding: 8px 4px;
 }
 
-.app-banner {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-bottom: 18px;
-  padding: 10px 14px;
-  border: 1px solid #f6dca8;
-  border-radius: var(--r-md);
-  background: #fff8ea;
-  color: #7a5310;
-  font-size: 13.5px;
-}
-
-.app-banner > .anticon {
-  color: var(--tone-orange);
-  font-size: 16px;
-}
-
-.app-banner-text {
-  flex: 1;
-  min-width: 220px;
-}
-
 /* ---------- Thông báo ---------- */
 
 .notif-panel {
@@ -871,6 +847,19 @@
   color: var(--c-ink-400);
   font-size: 13px;
   text-align: center;
+}
+
+/* Trang bắt đổi mật khẩu tạm: thẻ của trang đăng nhập, không có cột giới thiệu. */
+.password-gate {
+  min-height: 100vh;
+}
+
+.password-gate .login-card-brand {
+  display: flex;
+}
+
+.password-gate-logout.ant-btn {
+  margin-top: 10px;
 }
 
 @media (max-width: 900px) {

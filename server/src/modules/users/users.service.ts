@@ -1,4 +1,5 @@
 import { prisma } from "../../db/prisma.js";
+import type { Prisma } from "../../generated/prisma/client.js";
 import { AppError } from "../../lib/app-error.js";
 import { updateWithVersion } from "../../lib/optimistic.js";
 import { generateTempPassword, hashPassword } from "../../lib/password.js";
@@ -32,26 +33,68 @@ function toListItem(user: {
   };
 }
 
-export async function list(query: { search?: string }) {
+/** Người thao tác có quản lý nhân sự ở phạm vi này không (`null` = toàn chuỗi). */
+function managesScope(actor: AuthContext, storeId: string | null | undefined): boolean {
+  return storeId
+    ? actor.permissionsForStore(storeId).has("user.manage")
+    : actor.chainPermissions.has("user.manage");
+}
+
+/**
+ * Quản lý toàn chuỗi thấy mọi tài khoản. Quản lý một cửa hàng chỉ thấy người
+ * có vai trò tại cửa hàng mình quản lý, cùng tài khoản chưa gán vai trò nào
+ * (vừa tạo, chờ phân công) — không thấy nhân viên và số điện thoại nơi khác.
+ */
+function visibleTo(actor: AuthContext): Prisma.UserWhereInput {
+  if (actor.chainPermissions.has("user.manage")) return {};
+  const stores = actor.assignedStoreIds.filter((storeId) => managesScope(actor, storeId));
+  return {
+    OR: [{ userRoles: { some: { storeId: { in: stores } } } }, { userRoles: { none: {} } }],
+  };
+}
+
+/**
+ * Khóa, mở khóa, sửa thông tin hay đặt lại mật khẩu đều tác động lên cả tài
+ * khoản, dùng chung ở mọi nơi người đó làm việc. Nên người thao tác phải quản
+ * lý nhân sự ở MỌI phạm vi người đó đang giữ vai trò — cùng luật với đổi vai
+ * trò: quản lý một cửa hàng không đụng được tới chủ chuỗi hay nhân viên nơi
+ * khác. Gọi trong giao dịch đã giữ khóa 724091 để vai trò không đổi giữa chừng.
+ */
+async function assertCanManage(tx: Tx, actor: AuthContext, targetUserId: string): Promise<void> {
+  const target = await tx.user.findUnique({
+    where: { id: targetUserId },
+    include: { userRoles: { select: { storeId: true } } },
+  });
+  if (!target) throw AppError.notFound("Không tìm thấy người dùng");
+  if (!target.userRoles.every((role) => managesScope(actor, role.storeId)))
+    throw new AppError(403, "FORBIDDEN", "Người này có vai trò ở nơi bạn không quản lý nhân sự");
+}
+
+export async function list(query: { search?: string }, actor: AuthContext) {
   const search = query.search?.trim();
   const users = await prisma.user.findMany({
-    where: search
-      ? {
-          OR: [
-            { username: { contains: search, mode: "insensitive" } },
-            { fullName: { contains: search, mode: "insensitive" } },
-          ],
-        }
-      : {},
+    where: {
+      AND: [
+        search
+          ? {
+              OR: [
+                { username: { contains: search, mode: "insensitive" } },
+                { fullName: { contains: search, mode: "insensitive" } },
+              ],
+            }
+          : {},
+        visibleTo(actor),
+      ],
+    },
     orderBy: { fullName: "asc" },
     include: { userRoles: { include: { role: { select: { code: true, name: true } } } } },
   });
   return users.map(toListItem);
 }
 
-export async function getDetail(id: string) {
-  const user = await prisma.user.findUnique({
-    where: { id },
+export async function getDetail(id: string, actor: AuthContext) {
+  const user = await prisma.user.findFirst({
+    where: { AND: [{ id }, visibleTo(actor)] },
     include: {
       userRoles: {
         include: {
@@ -97,16 +140,14 @@ function assertCanAssign(
   assignments: ReadonlyArray<{ storeId?: string | null }>,
 ): void {
   for (const a of assignments) {
-    if (!a.storeId) {
-      if (!actor.chainPermissions.has("user.manage"))
-        throw new AppError(
+    if (managesScope(actor, a.storeId)) continue;
+    throw a.storeId
+      ? new AppError(403, "FORBIDDEN", "Bạn không quản lý nhân sự tại cửa hàng này")
+      : new AppError(
           403,
           "FORBIDDEN",
           "Chỉ người quản lý nhân sự toàn chuỗi mới giao được vai trò toàn chuỗi",
         );
-    } else if (!actor.permissionsForStore(a.storeId).has("user.manage")) {
-      throw new AppError(403, "FORBIDDEN", "Bạn không quản lý nhân sự tại cửa hàng này");
-    }
   }
 }
 
@@ -258,10 +299,11 @@ export async function create(
   return { id: user.id, tempPassword: managerSetPassword ? null : plain };
 }
 
-export async function update(id: string, input: PatchUserInput): Promise<void> {
+export async function update(id: string, input: PatchUserInput, actor: AuthContext): Promise<void> {
   const { version, ...fields } = input;
   await prisma.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(724091)`;
+    await assertCanManage(tx, actor, id);
     if (
       fields.practiceCertificateNumber !== undefined &&
       !fields.practiceCertificateNumber?.trim() &&
@@ -361,11 +403,10 @@ export async function replaceRoles(
 }
 
 /** Không khóa admin cuối hoặc người đang được phân công phụ trách chuyên môn. */
-export async function deactivate(targetUserId: string, actorId: string): Promise<void> {
+export async function deactivate(targetUserId: string, actor: AuthContext): Promise<void> {
   await prisma.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(724091)`;
-    const target = await tx.user.findUnique({ where: { id: targetUserId } });
-    if (!target) throw AppError.notFound("Không tìm thấy người dùng");
+    await assertCanManage(tx, actor, targetUserId);
     if (await tx.userRole.count({ where: { userId: targetUserId, responsibleProfessional: true } }))
       throw AppError.validation("Kết thúc phân công phụ trách chuyên môn trước khi khóa tài khoản");
     const isAdmin = await tx.userRole.findFirst({
@@ -388,53 +429,62 @@ export async function deactivate(targetUserId: string, actorId: string): Promise
       data: { revokedAt: new Date(), revokedReason: "USER_DEACTIVATED" },
     });
     await tx.auditLog.create({
-      data: { actorId, action: "USER_DEACTIVATE", resourceType: "user", resourceId: targetUserId },
+      data: {
+        actorId: actor.userId,
+        action: "USER_DEACTIVATE",
+        resourceType: "user",
+        resourceId: targetUserId,
+      },
     });
   });
 }
 
-export async function activate(targetUserId: string, actorId: string): Promise<void> {
-  const result = await prisma.user.updateMany({
-    where: { id: targetUserId },
-    data: { isActive: true },
-  });
-  if (result.count === 0) throw AppError.notFound("Không tìm thấy người dùng");
-
-  await prisma.auditLog.create({
-    data: { actorId, action: "USER_ACTIVATE", resourceType: "user", resourceId: targetUserId },
+export async function activate(targetUserId: string, actor: AuthContext): Promise<void> {
+  await prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(724091)`;
+    await assertCanManage(tx, actor, targetUserId);
+    await tx.user.update({ where: { id: targetUserId }, data: { isActive: true } });
+    await tx.auditLog.create({
+      data: {
+        actorId: actor.userId,
+        action: "USER_ACTIVATE",
+        resourceType: "user",
+        resourceId: targetUserId,
+      },
+    });
   });
 }
 
 /** Đặt mật khẩu tạm mới, bắt đổi ở lần đăng nhập tới, thu hồi mọi phiên (contract §3, §21). */
-export async function resetPassword(targetUserId: string, actorId: string): Promise<string> {
+export async function resetPassword(targetUserId: string, actor: AuthContext): Promise<string> {
   const tempPassword = generateTempPassword();
   const passwordHash = await hashPassword(tempPassword);
 
-  const result = await prisma.user.updateMany({
-    where: { id: targetUserId },
-    data: {
-      passwordHash,
-      mustChangePassword: true,
-      failedLoginCount: 0,
-      lastFailedLoginAt: null,
-    },
-  });
-  if (result.count === 0) throw AppError.notFound("Không tìm thấy người dùng");
-
-  await prisma.$transaction([
-    prisma.refreshSession.updateMany({
+  await prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(724091)`;
+    await assertCanManage(tx, actor, targetUserId);
+    await tx.user.update({
+      where: { id: targetUserId },
+      data: {
+        passwordHash,
+        mustChangePassword: true,
+        failedLoginCount: 0,
+        lastFailedLoginAt: null,
+      },
+    });
+    await tx.refreshSession.updateMany({
       where: { userId: targetUserId, revokedAt: null },
       data: { revokedAt: new Date(), revokedReason: "PASSWORD_RESET" },
-    }),
-    prisma.auditLog.create({
+    });
+    await tx.auditLog.create({
       data: {
-        actorId,
+        actorId: actor.userId,
         action: "USER_PASSWORD_RESET",
         resourceType: "user",
         resourceId: targetUserId,
       },
-    }),
-  ]);
+    });
+  });
 
   return tempPassword;
 }

@@ -2,9 +2,8 @@ import "./lib/bigint-json.js";
 import express from "express";
 import helmet from "helmet";
 import cors from "cors";
-import { pinoHttp } from "pino-http";
-import type { IncomingMessage, ServerResponse } from "node:http";
 import { env } from "./config/env.js";
+import { httpLogger } from "./lib/http-logger.js";
 import { requestId } from "./middlewares/request-id.js";
 import { errorHandler, notFoundHandler } from "./middlewares/error-handler.js";
 import cookieParser from "cookie-parser";
@@ -60,22 +59,7 @@ export function createApp() {
 
   app.use(requestId);
 
-  app.use(
-    pinoHttp({
-      level: env.LOG_LEVEL,
-      // Dùng lại requestId đã gắn ở middleware trên để log và response khớp nhau.
-      genReqId: (_req: IncomingMessage, res: ServerResponse) =>
-        String((res as { locals?: { requestId?: string } }).locals?.requestId ?? ""),
-      ...(env.NODE_ENV === "development"
-        ? {
-            transport: {
-              target: "pino-pretty",
-              options: { translateTime: "HH:MM:ss", ignore: "pid,hostname" },
-            },
-          }
-        : {}),
-    }),
-  );
+  app.use(httpLogger({ level: env.LOG_LEVEL, pretty: env.NODE_ENV === "development" }));
 
   app.use(helmet());
   app.use(

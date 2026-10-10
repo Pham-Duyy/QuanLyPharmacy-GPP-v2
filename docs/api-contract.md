@@ -191,7 +191,7 @@ Lỗi:
 |---|---|---|
 | 400 | Request sai cú pháp, thiếu header bắt buộc | `BAD_REQUEST`, `IDEMPOTENCY_KEY_REQUIRED`, `STORE_REQUIRED` |
 | 401 | Chưa đăng nhập, token hết hạn hoặc bị thu hồi | `UNAUTHENTICATED`, `TOKEN_EXPIRED` |
-| 403 | Thiếu permission, hoặc không có quyền tại cửa hàng được chỉ định | `FORBIDDEN`, `STORE_FORBIDDEN` |
+| 403 | Thiếu permission, không có quyền tại cửa hàng được chỉ định, hoặc tài khoản còn mật khẩu tạm | `FORBIDDEN`, `STORE_FORBIDDEN`, `PASSWORD_CHANGE_REQUIRED` |
 | 404 | Không tìm thấy tài nguyên | `NOT_FOUND` |
 | 409 | Xung đột trạng thái, phiên bản hoặc tồn kho | `INVALID_STATE`, `VERSION_CONFLICT`, `INSUFFICIENT_STOCK`, `REQUEST_IN_PROGRESS`, `REQUEST_ALREADY_COMMITTED`, `IDEMPOTENCY_OWNERSHIP_LOST`, `BATCH_EXPIRY_MISMATCH`, `LOYALTY_DISABLED` |
 | 422 | Dữ liệu đúng cú pháp nhưng vi phạm validation hoặc quy tắc nghiệp vụ | `VALIDATION_ERROR`, `UNIT_NOT_IN_PRODUCT`, `PRICE_NOT_SET`, `BATCH_NOT_SELLABLE`, `CONTROLLED_DRUG_NOT_SUPPORTED`, `PRESCRIPTION_REQUIRED`, `PRESCRIPTION_NOT_VERIFIED`, `PRESCRIPTION_EXPIRED`, `PRESCRIBED_QUANTITY_EXCEEDED`, `SAFETY_ACK_REQUIRED`, `DISCOUNT_LIMIT_EXCEEDED`, `RETURN_QUANTITY_EXCEEDED`, `RETURN_WINDOW_EXPIRED`, `RETURN_NOT_ALLOWED_FOR_RX`, `SELF_APPROVAL_NOT_ALLOWED`, `IDEMPOTENCY_KEY_REUSED`, `DEBT_CREDIT_EXCEEDED` |
@@ -220,13 +220,14 @@ Hệ thống thiết kế cho chuỗi nhiều nhà thuốc. MVP mở một cửa
 |---|---|---|---|
 | POST | `/auth/login` | Đăng nhập; trả `accessToken` trong body và đặt refresh token | Public, có giới hạn |
 | POST | `/auth/refresh` | Cấp access token mới, xoay vòng refresh token | Public (cần refresh token) |
-| POST | `/auth/logout` | Thu hồi phiên hiện tại | Đã đăng nhập |
-| GET | `/auth/me` | Người dùng hiện tại; danh sách cửa hàng được phép kèm permission tại từng cửa hàng và `features: { einvoice, nationalSync }` (chức năng đã bật ở cửa hàng đó, để giao diện ẩn trang chưa dùng); cửa hàng mặc định | Đã đăng nhập |
-| POST | `/auth/change-password` | Đổi mật khẩu; bắt buộc gửi mật khẩu hiện tại | Đã đăng nhập |
+| POST | `/auth/logout` | Thu hồi phiên hiện tại | Đã đăng nhập (kể cả còn mật khẩu tạm) |
+| GET | `/auth/me` | Người dùng hiện tại; danh sách cửa hàng được phép kèm permission tại từng cửa hàng và `features: { einvoice, nationalSync }` (chức năng đã bật ở cửa hàng đó, để giao diện ẩn trang chưa dùng); cửa hàng mặc định | Đã đăng nhập (kể cả còn mật khẩu tạm) |
+| POST | `/auth/change-password` | Đổi mật khẩu; bắt buộc gửi mật khẩu hiện tại | Đã đăng nhập (kể cả còn mật khẩu tạm) |
 
 Quy tắc:
 
-- Mật khẩu băm bằng argon2id hoặc bcrypt; không bao giờ trả về hay ghi log.
+- Mật khẩu băm bằng argon2id hoặc bcrypt; không bao giờ trả về hay ghi log. Token và cookie phiên cũng không vào log: log HTTP che `Authorization`, `Cookie` và `Set-Cookie`.
+- Tài khoản còn mật khẩu tạm (`mustChangePassword = true`: mật khẩu do máy chủ sinh, vừa được đặt lại, hoặc người tạo chọn bắt đổi) chỉ gọi được `GET /auth/me`, `POST /auth/change-password` và `POST /auth/logout`; mọi API khác trả `403 PASSWORD_CHANGE_REQUIRED`. Đổi xong dùng tiếp ngay trong phiên đó, không phải đăng nhập lại.
 - Access token sống 15 phút, Frontend chỉ giữ trong bộ nhớ. **[Đã chốt – P1]**
 - Refresh token đặt trong cookie `HttpOnly`, `Secure`, `SameSite=Strict`, path `/api/v1/auth`; hết hạn sau 7 ngày không hoạt động; CSDL chỉ lưu bản băm theo từng phiên. **[Đã chốt – P1]**
 - Mỗi lần refresh cấp refresh token mới. Nếu một refresh token đã dùng rồi bị gửi lại, thu hồi toàn bộ chuỗi phiên đó.
@@ -1383,14 +1384,14 @@ Nguyên tắc (giữ từ bản gốc, bổ sung):
 
 | Method | Endpoint | Mô tả | Quyền |
 |---|---|---|---|
-| GET | `/users` | Danh sách, tìm kiếm | `user.manage` |
-| GET | `/users/{id}` | Chi tiết | `user.manage` |
+| GET | `/users` | Danh sách, tìm kiếm. Quản lý một cửa hàng chỉ thấy người có vai trò tại cửa hàng mình quản lý nhân sự và tài khoản chưa gán vai trò | `user.manage` |
+| GET | `/users/{id}` | Chi tiết; người ngoài phạm vi thấy được trả `404` | `user.manage` |
 | POST | `/users` | Tạo tài khoản. Có thể gửi kèm `password`, `mustChangePassword`, `roles` để tạo tài khoản, mật khẩu và phân quyền trong một giao dịch (xem dưới) | `user.manage` |
-| PATCH | `/users/{id}` | Sửa `fullName`, `phone`, `practiceCertificateNumber` (số chứng chỉ hành nghề) | `user.manage` |
+| PATCH | `/users/{id}` | Sửa `fullName`, `phone`, `practiceCertificateNumber` (số chứng chỉ hành nghề). Cần quản lý mọi phạm vi của người đó (`403`, xem dưới) | `user.manage` |
 | PUT | `/users/{id}/roles` | Thay toàn bộ vai trò; body là mảng `{ roleCode, storeId }`, `storeId = null` là toàn chuỗi; ghi audit. Người sửa phải quản lý nhân sự ở mọi phạm vi cũ và mới (`403`) | `user.manage` |
-| POST | `/users/{id}/deactivate` | Vô hiệu hóa, thu hồi mọi phiên | `user.manage` |
-| POST | `/users/{id}/activate` | Kích hoạt lại | `user.manage` |
-| POST | `/users/{id}/reset-password` | Đặt mật khẩu tạm, thu hồi mọi phiên | `user.manage` |
+| POST | `/users/{id}/deactivate` | Vô hiệu hóa, thu hồi mọi phiên. Cần quản lý mọi phạm vi của người đó (`403`) | `user.manage` |
+| POST | `/users/{id}/activate` | Kích hoạt lại. Cần quản lý mọi phạm vi của người đó (`403`) | `user.manage` |
+| POST | `/users/{id}/reset-password` | Đặt mật khẩu tạm, thu hồi mọi phiên. Cần quản lý mọi phạm vi của người đó (`403`) | `user.manage` |
 | GET | `/roles` | Danh sách vai trò, `permissions` (mã) và `permissionDetails` (`{ code, description }`) của từng vai trò | `user.manage` |
 
 - Không ai tự đổi vai trò của chính mình. Không vô hiệu hóa hoặc gỡ vai trò của admin cuối cùng (`422`).
@@ -1399,6 +1400,7 @@ Nguyên tắc (giữ từ bản gốc, bổ sung):
   - Chỉ thông tin cơ bản: máy chủ sinh mật khẩu tạm, trả `tempPassword` đúng một lần, bắt đổi ở lần đăng nhập đầu; vai trò gán sau bằng `PUT /users/{id}/roles`.
   - Kèm `password` (luật như đổi mật khẩu: 10–200 ký tự, có chữ và số), `mustChangePassword` (mặc định `true`) và `roles` (cùng cấu trúc như `PUT /users/{id}/roles`): tài khoản, mật khẩu và phân quyền được tạo **trong một giao dịch**; phân quyền không hợp lệ (`422`) hoặc ngoài phạm vi (`403`) thì không có tài khoản nào được tạo. Response không bao giờ chứa mật khẩu người tạo đặt; audit `USER_CREATE` ghi `password: SET_BY_MANAGER | TEMPORARY`, không ghi mật khẩu.
 - Phạm vi người giao vai trò: vai trò toàn chuỗi (`storeId = null`) cần `user.manage` toàn chuỗi; vai trò tại cửa hàng cần `user.manage` tại đúng cửa hàng đó. Áp dụng cho cả `POST /users` và `PUT /users/{id}/roles`; với `PUT`, xét cả vai trò đang có của người bị sửa, nên quản lý một cửa hàng không gỡ được vai trò ở cửa hàng khác hay vai trò toàn chuỗi.
+- Phạm vi người thao tác trên tài khoản: sửa thông tin, vô hiệu hóa, kích hoạt lại và đặt lại mật khẩu tác động lên cả tài khoản (dùng chung ở mọi nơi người đó làm việc), nên cần `user.manage` ở **mọi** phạm vi người đó đang có vai trò — vai trò toàn chuỗi cần `user.manage` toàn chuỗi; thiếu thì `403`. Tài khoản chưa có vai trò nào thì người có `user.manage` ở đâu cũng thao tác được. Nhờ vậy quản lý một cửa hàng không đặt lại mật khẩu hay khóa được chủ chuỗi hoặc nhân viên còn làm ở cửa hàng khác.
 
 ### Cửa hàng [Đã chốt – P18]
 
@@ -1407,8 +1409,8 @@ Nguyên tắc (giữ từ bản gốc, bổ sung):
 | GET | `/stores` | Danh sách cửa hàng người dùng được phép làm việc | Đã đăng nhập |
 | GET | `/stores/{id}` | Chi tiết cửa hàng | Có vai trò tại cửa hàng, hoặc `store.manage` |
 | POST | `/stores` | Mở cửa hàng mới trong chuỗi. Người tạo không có `store.manage` toàn chuỗi được gán vai trò quản lý tại cửa hàng mới trong cùng giao dịch, để thấy và vào được ngay; audit `STORE_CREATE` ghi `creatorAssignedRoles` | `store.manage` |
-| PATCH | `/stores/{id}` | Sửa thông tin cửa hàng | `store.manage` |
-| POST | `/stores/{id}/deactivate` | Ngừng hoạt động; chặn mọi nghiệp vụ mới tại cửa hàng đó | `store.manage` |
+| PATCH | `/stores/{id}` | Sửa thông tin cửa hàng | `store.manage` tại chính cửa hàng đó hoặc toàn chuỗi (`403`) |
+| POST | `/stores/{id}/deactivate` | Ngừng hoạt động; chặn mọi nghiệp vụ mới tại cửa hàng đó | `store.manage` tại chính cửa hàng đó hoặc toàn chuỗi (`403`) |
 
 Trường chính: `code` (ví dụ `NT01`, dùng làm tiền tố số chứng từ), `name`, `address`, `phone`, `gppCertificateNumber`, `licenseNumber`, `isActive`.
 

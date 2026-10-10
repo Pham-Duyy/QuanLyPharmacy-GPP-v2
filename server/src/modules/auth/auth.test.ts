@@ -142,6 +142,41 @@ describe("Phiên đăng nhập", () => {
   });
 });
 
+describe("Mật khẩu tạm", () => {
+  it("chỉ xem hồ sơ, đổi mật khẩu được; đổi xong dùng tiếp ngay trong phiên đó", async () => {
+    await prisma.user.update({
+      where: { id: fixture.pharmacistId },
+      data: { mustChangePassword: true },
+    });
+    const { token } = await login("duocsi");
+
+    const me = await api().get("/api/v1/auth/me").set(authHeaders(token)).expect(200);
+    expect(me.body.data.user.mustChangePassword).toBe(true);
+    const blocked = await api()
+      .get("/api/v1/products")
+      .set(authHeaders(token, fixture.storeId))
+      .expect(403);
+    expect(blocked.body.error.code).toBe("PASSWORD_CHANGE_REQUIRED");
+
+    await api()
+      .post("/api/v1/auth/change-password")
+      .set(authHeaders(token))
+      .send({ currentPassword: TEST_PASSWORD, newPassword: "MatKhauMoi2026" })
+      .expect(200);
+    await api().get("/api/v1/products").set(authHeaders(token, fixture.storeId)).expect(200);
+  });
+
+  it("vẫn đăng xuất được khi chưa đổi mật khẩu tạm", async () => {
+    await prisma.user.update({
+      where: { id: fixture.pharmacistId },
+      data: { mustChangePassword: true },
+    });
+    const { token } = await login("duocsi");
+    await api().post("/api/v1/auth/logout").set(authHeaders(token)).expect(200);
+    await api().get("/api/v1/auth/me").set(authHeaders(token)).expect(401);
+  });
+});
+
 describe("Phạm vi cửa hàng", () => {
   it("người chỉ thuộc NT01 không làm việc được ở NT02", async () => {
     const { token } = await login("duocsi");

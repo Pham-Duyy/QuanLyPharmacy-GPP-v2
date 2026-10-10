@@ -11,7 +11,6 @@
     "db:migrate": "tsx src/scripts/check-migrations.ts && prisma migrate deploy --config prisma7.config.ts",
     "db:generate": "prisma generate",
     "db:studio": "prisma studio",
-    "db:reset": "prisma migrate reset",
     "postinstall": "prisma generate",
     "db:seed": "tsx prisma/seed.ts",
     "check:invariants": "tsx src/scripts/check-invariants.ts",

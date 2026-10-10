@@ -56,6 +56,9 @@ export async function fetchPrintPage(url: string, body?: unknown): Promise<Print
 export function printHtml(html: string): Promise<void> {
   return new Promise((resolve) => {
     const frame = document.createElement("iframe");
+    // Không cho script trong trang in chạy (lỡ sót dữ liệu chưa thoát ký tự cũng
+    // không thành XSS); allow-modals để vẫn gọi được print() từ trang chính.
+    frame.setAttribute("sandbox", "allow-same-origin allow-modals");
     frame.setAttribute("aria-hidden", "true");
     frame.tabIndex = -1;
     Object.assign(frame.style, {

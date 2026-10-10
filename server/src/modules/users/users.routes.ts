@@ -17,17 +17,17 @@ const listQuerySchema = z.object({ search: z.string().trim().max(200).optional()
 
 usersRouter.get("/users", async (req, res) => {
   const query = parseOrThrow(listQuerySchema, req.query);
-  sendData(res, await service.list({ search: query.search }));
+  sendData(res, await service.list({ search: query.search }, req.auth!));
 });
 
 usersRouter.get("/users/:id", async (req, res) => {
-  sendData(res, await service.getDetail(String(req.params.id)));
+  sendData(res, await service.getDetail(String(req.params.id), req.auth!));
 });
 
 usersRouter.post("/users", async (req, res) => {
   const input = parseOrThrow(createUserSchema, req.body);
   const result = await service.create(input, req.auth!);
-  const detail = await service.getDetail(result.id);
+  const detail = await service.getDetail(result.id, req.auth!);
   // Mật khẩu tạm (khi máy chủ tự sinh) chỉ xuất hiện đúng một lần trong
   // response này, không lưu lại ở đâu khác. Mật khẩu do người tạo đặt thì
   // không bao giờ được trả lại.
@@ -41,32 +41,32 @@ usersRouter.post("/users", async (req, res) => {
 usersRouter.patch("/users/:id", async (req, res) => {
   const input = parseOrThrow(patchUserSchema, req.body);
   const id = String(req.params.id);
-  await service.update(id, input);
-  sendData(res, await service.getDetail(id));
+  await service.update(id, input, req.auth!);
+  sendData(res, await service.getDetail(id, req.auth!));
 });
 
 usersRouter.put("/users/:id/roles", async (req, res) => {
   const input = parseOrThrow(replaceRolesSchema, req.body);
   const id = String(req.params.id);
   await service.replaceRoles(id, req.auth!, input);
-  sendData(res, await service.getDetail(id));
+  sendData(res, await service.getDetail(id, req.auth!));
 });
 
 usersRouter.post("/users/:id/deactivate", async (req, res) => {
   const id = String(req.params.id);
-  await service.deactivate(id, req.auth!.userId);
-  sendData(res, await service.getDetail(id));
+  await service.deactivate(id, req.auth!);
+  sendData(res, await service.getDetail(id, req.auth!));
 });
 
 usersRouter.post("/users/:id/activate", async (req, res) => {
   const id = String(req.params.id);
-  await service.activate(id, req.auth!.userId);
-  sendData(res, await service.getDetail(id));
+  await service.activate(id, req.auth!);
+  sendData(res, await service.getDetail(id, req.auth!));
 });
 
 usersRouter.post("/users/:id/reset-password", async (req, res) => {
   const id = String(req.params.id);
-  const tempPassword = await service.resetPassword(id, req.auth!.userId);
+  const tempPassword = await service.resetPassword(id, req.auth!);
   sendData(res, { id, tempPassword });
 });
 

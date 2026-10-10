@@ -86,7 +86,6 @@ export function StoresPage() {
 }
 
 function StorePanel({ id, onClose, onChanged }: { id: string | null; onClose: () => void; onChanged: () => Promise<void> }) {
-  const { can } = useAuth();
   const { message } = App.useApp();
   const [editing, setEditing] = useState(false);
   const queryClient = useQueryClient();
@@ -161,7 +160,8 @@ function StorePanel({ id, onClose, onChanged }: { id: string | null; onClose: ()
               <dd>{store.licenseNumber ?? "—"}</dd>
             </div>
           </dl>
-          {can("store.manage") ? (
+          {/* Quyền tại chính cửa hàng này: quản lý nơi khác không sửa hay ngừng được. */}
+          {store.permissions.includes("store.manage") ? (
             <div className="panel-actions-row">
               <Button icon={<EditOutlined />} onClick={() => setEditing(true)}>
                 Sửa thông tin
