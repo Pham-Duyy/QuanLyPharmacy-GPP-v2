@@ -472,14 +472,14 @@ export async function getDetail(storeId: string, receiptId: string) {
   const receipt = await prisma.goodsReceipt.findFirst({
     where: { id: receiptId, storeId },
     include: {
-      supplier: { select: { id: true, name: true, phone: true, address: true, taxCode: true } },
+      supplier: { select: { id: true, name: true, phone: true, address: true, taxCode: true, licenseNumber: true } },
       createdByUser: { select: { id: true, fullName: true } },
       confirmedByUser: { select: { id: true, fullName: true } },
       cancelledByUser: { select: { id: true, fullName: true } },
       lines: {
         orderBy: { lineNo: "asc" },
         include: {
-          product: { select: { code: true, name: true } },
+          product: { select: { code: true, name: true, productType: true, registrationNumber: true } },
           productUnit: { select: { name: true, conversionToBase: true } },
           batch: { select: { status: true } },
         },
@@ -488,6 +488,26 @@ export async function getDetail(storeId: string, receiptId: string) {
   });
 
   if (!receipt) throw AppError.notFound("Không tìm thấy phiếu nhập");
+
+  // GPP (TT 02/2018 Phụ lục I mục III.1): mua từ cơ sở kinh doanh thuốc hợp pháp,
+  // chỉ mua thuốc được phép lưu hành. Chỉ cảnh báo, không chặn — hồ sơ có thể
+  // đang bổ sung, nhưng người kiểm nhập phải thấy trước khi xác nhận.
+  const complianceWarnings: string[] = [];
+  if (receipt.supplier && !receipt.supplier.licenseNumber?.trim()) {
+    complianceWarnings.push(
+      `Nhà cung cấp ${receipt.supplier.name} chưa có số giấy chứng nhận đủ điều kiện kinh doanh dược`,
+    );
+  }
+  const unregistered = [
+    ...new Set(
+      receipt.lines
+        .filter((line) => line.product.productType === "DRUG" && !line.product.registrationNumber?.trim())
+        .map((line) => line.product.name),
+    ),
+  ];
+  if (unregistered.length > 0) {
+    complianceWarnings.push(`Thuốc chưa có số đăng ký: ${unregistered.join(", ")}`);
+  }
 
   return {
     id: receipt.id,
@@ -511,6 +531,7 @@ export async function getDetail(storeId: string, receiptId: string) {
     cancelledAt: receipt.cancelledAt,
     cancelledBy: receipt.cancelledByUser,
     cancelReason: receipt.cancelReason,
+    complianceWarnings,
     lines: receipt.lines.map((line) => ({
       id: line.id,
       lineNo: line.lineNo,

@@ -89,6 +89,8 @@ type AffectedSale = {
   productName: string;
   batchNumber: string;
   baseQuantity: number;
+  /** Đã liên hệ khách báo thu hồi (GPP III.4c). */
+  contact: { contactedAt: string; contactedByName: string; note: string | null } | null;
 };
 
 type RecallFormValues = {
@@ -154,6 +156,8 @@ export function RecallsPage() {
   const { message, modal } = App.useApp();
   const screens = Grid.useBreakpoint();
   const queryClient = useQueryClient();
+  // Hóa đơn đang ghi "đã liên hệ" và ghi chú đang gõ.
+  const [contacting, setContacting] = useState<{ invoiceId: string; invoiceCode: string; note: string } | null>(null);
   const [status, setStatus] = useState<RecallStatus | "ALL">("OPEN");
   const [creating, setCreating] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -183,6 +187,18 @@ export function RecallsPage() {
     enabled: selectedId !== null && showAffectedSales,
     queryFn: async () =>
       (await http.get<Envelope<AffectedSale[]>>(`/recalls/${selectedId}/affected-sales`)).data.data,
+  });
+
+  const contact = useMutation({
+    mutationFn: async (input: { invoiceId: string; note?: string; remove?: boolean }) =>
+      input.remove
+        ? http.delete(`/recalls/${selectedId}/contacts/${input.invoiceId}`)
+        : http.post(`/recalls/${selectedId}/contacts`, { invoiceId: input.invoiceId, note: input.note || null }),
+    onSuccess: async () => {
+      setContacting(null);
+      await queryClient.invalidateQueries({ queryKey: ["recall-affected-sales", selectedId] });
+    },
+    onError: (error) => void message.error(getErrorMessage(error, "Không ghi được việc liên hệ khách")),
   });
 
   const create = useMutation({
@@ -637,7 +653,7 @@ export function RecallsPage() {
                     size="small"
                     pagination={{ pageSize: 8, showSizeChanger: false }}
                     dataSource={affectedSales.data ?? []}
-                    scroll={{ x: 640 }}
+                    scroll={{ x: 760 }}
                     locale={{
                       emptyText: (
                         <Empty
@@ -687,6 +703,28 @@ export function RecallsPage() {
                         align: "right" as const,
                         render: (value: number) => formatNumber(value),
                       },
+                      {
+                        title: "Liên hệ",
+                        key: "contact",
+                        width: 150,
+                        render: (_: unknown, item: AffectedSale) =>
+                          item.contact ? (
+                            <div className="cell-main">
+                              <Tag color="green">Đã liên hệ</Tag>
+                              <span className="cell-sub">
+                                {item.contact.contactedByName} · {formatDateTime(item.contact.contactedAt)}
+                                {item.contact.note ? ` · ${item.contact.note}` : ""}
+                              </span>
+                              <Button type="link" size="small" style={{ padding: 0, height: "auto" }} onClick={() => contact.mutate({ invoiceId: item.invoiceId, remove: true })}>
+                                Bỏ đánh dấu
+                              </Button>
+                            </div>
+                          ) : (
+                            <Button size="small" onClick={() => setContacting({ invoiceId: item.invoiceId, invoiceCode: item.invoiceCode, note: "" })}>
+                              Đã liên hệ
+                            </Button>
+                          ),
+                      },
                     ]}
                   />
                 )
@@ -695,6 +733,26 @@ export function RecallsPage() {
           </div>
         ) : null}
       </Drawer>
+
+      <Modal
+        title={contacting ? `Đã liên hệ khách — ${contacting.invoiceCode}` : ""}
+        open={Boolean(contacting)}
+        okText="Ghi nhận"
+        cancelText="Quay lại"
+        confirmLoading={contact.isPending}
+        onCancel={() => setContacting(null)}
+        onOk={() => contacting && contact.mutate({ invoiceId: contacting.invoiceId, note: contacting.note.trim() })}
+        destroyOnHidden
+      >
+        <Input.TextArea
+          autoFocus
+          rows={2}
+          maxLength={500}
+          placeholder="Ví dụ: đã gọi điện, khách sẽ mang thuốc trả chiều nay (không bắt buộc)"
+          value={contacting?.note ?? ""}
+          onChange={(event) => setContacting((current) => (current ? { ...current, note: event.target.value } : current))}
+        />
+      </Modal>
     </div>
   );
 }

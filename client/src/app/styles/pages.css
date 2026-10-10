@@ -3822,3 +3822,11 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* Kiểm kê: link nhỏ ghi cảm quan không đạt. */
+.count-sensory-link.ant-btn {
+  padding: 0;
+  height: auto;
+  font-size: 12px;
+  align-self: flex-start;
+}

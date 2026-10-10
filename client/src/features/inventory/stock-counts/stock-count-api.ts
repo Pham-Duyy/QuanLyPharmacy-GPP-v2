@@ -46,6 +46,10 @@ export type CountLine = {
   differenceBaseQuantity: number | null;
   differenceValue: number | null;
   note: string | null;
+  /** Kiểm tra cảm quan không đạt (GPP); lý do ở `note`. */
+  sensoryFailed?: boolean;
+  batchStatus?: string;
+  batchVersion?: number;
 };
 
 export type CountSummary = {
@@ -62,7 +66,7 @@ export type CountSummary = {
 
 export type CountDetail = { count: CountHeader; lines: CountLine[]; summary: CountSummary };
 
-export type CountEntry = { lineId: string; unitId?: string; quantity?: number; clear?: boolean };
+export type CountEntry = { lineId: string; unitId?: string; quantity?: number; clear?: boolean; sensoryFailed?: boolean; note?: string | null };
 
 export const listCounts = async (status?: string): Promise<{ items: CountListItem[]; open: { id: string; code: string } | null }> =>
   (await http.get<Envelope<{ items: CountListItem[]; open: { id: string; code: string } | null }>>("/stock-counts", { params: { status } })).data.data;

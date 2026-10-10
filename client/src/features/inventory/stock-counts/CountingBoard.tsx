@@ -1,9 +1,9 @@
 import { ArrowLeftOutlined, CheckCircleOutlined, CloseCircleOutlined, DeleteOutlined, SaveOutlined, SearchOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, App, Button, Empty, Input, InputNumber, Progress, Segmented, Select, Skeleton, Table, Tag, Tooltip, Typography } from "antd";
+import { Alert, App, Button, Empty, Input, InputNumber, Modal, Progress, Segmented, Select, Skeleton, Table, Tag, Tooltip, Typography } from "antd";
 import { useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
-import { getErrorMessage } from "../../../api/http.js";
+import { getErrorMessage, http } from "../../../api/http.js";
 import { formatDate, formatDateTime, formatNumber } from "../../../ui/format.js";
 import { formatVnd } from "../../../api/types.js";
 import { useAuth } from "../../auth/AuthProvider.js";
@@ -22,6 +22,8 @@ export function CountingBoard({ countId, onBack }: { countId: string; onBack: ()
   const [filter, setFilter] = useState<Filter>("ALL");
   const [search, setSearch] = useState("");
   const [shelf, setShelf] = useState<string | undefined>();
+  // Dòng đang ghi "cảm quan không đạt" và lý do đang gõ.
+  const [sensory, setSensory] = useState<{ line: CountLine; reason: string } | null>(null);
   const inputs = useRef(new Map<string, HTMLInputElement>());
 
   const detail = useQuery({ queryKey: ["stock-count", countId], queryFn: () => getCount(countId) });
@@ -43,6 +45,29 @@ export function CountingBoard({ countId, onBack }: { countId: string; onBack: ()
     },
     onError: (error) => void message.error(getErrorMessage(error, "Không lưu được số đếm")),
   });
+
+  /** Biệt trữ lô cảm quan không đạt, dùng chức năng biệt trữ sẵn có (cần quyền batch.quarantine). */
+  const quarantine = useMutation({
+    mutationFn: (line: CountLine) =>
+      http.post(
+        `/inventory/batches/${line.batchId}/quarantine`,
+        { reason: `Kiểm kê ${count?.code ?? ""}: cảm quan không đạt — ${line.note ?? ""}`.slice(0, 500), version: line.batchVersion },
+        { headers: { "Idempotency-Key": crypto.randomUUID() } },
+      ),
+    onSuccess: async () => {
+      void message.success("Đã biệt trữ lô, lô bị chặn bán");
+      await queryClient.invalidateQueries({ queryKey: ["stock-count", countId] });
+    },
+    onError: (error) => void message.error(getErrorMessage(error, "Không biệt trữ được lô")),
+  });
+
+  /** Ghi hoặc bỏ cờ cảm quan, giữ nguyên số đã đếm. */
+  function saveSensory(line: CountLine, failed: boolean, reason: string | null) {
+    if (line.countedQuantity === null || !line.countedUnitId) return;
+    save.mutate([
+      { lineId: line.id, unitId: line.countedUnitId, quantity: line.countedQuantity, sensoryFailed: failed, ...(failed ? { note: reason } : {}) },
+    ]);
+  }
 
   const finish = useMutation({
     mutationFn: () => closeCount(countId),
@@ -180,6 +205,27 @@ export function CountingBoard({ countId, onBack }: { countId: string; onBack: ()
             {line.productCode} · Lô {line.batchNumber} · HSD {formatDate(line.expiryDate)}
             {line.shelfLocation ? ` · ${line.shelfLocation}` : ""}
           </span>
+          {line.sensoryFailed ? (
+            <span className="cell-sub">
+              <Tag color="red">Cảm quan không đạt</Tag> {line.note}
+              {line.batchStatus === "AVAILABLE" && can("batch.quarantine") ? (
+                <Button type="link" size="small" loading={quarantine.isPending} onClick={() => quarantine.mutate(line)}>
+                  Biệt trữ lô
+                </Button>
+              ) : line.batchStatus === "QUARANTINED" ? (
+                <Tag>Đã biệt trữ</Tag>
+              ) : null}
+              {canCount ? (
+                <Button type="link" size="small" onClick={() => saveSensory(line, false, null)}>
+                  Bỏ đánh dấu
+                </Button>
+              ) : null}
+            </span>
+          ) : canCount && line.countedBaseQuantity !== null ? (
+            <Button type="link" size="small" className="count-sensory-link" onClick={() => setSensory({ line, reason: "" })}>
+              Cảm quan không đạt?
+            </Button>
+          ) : null}
         </div>
       ),
     },
@@ -265,6 +311,29 @@ export function CountingBoard({ countId, onBack }: { countId: string; onBack: ()
 
   return (
     <div className="count-board">
+      <Modal
+        title={sensory ? `Cảm quan không đạt — ${sensory.line.productName}, lô ${sensory.line.batchNumber}` : ""}
+        open={Boolean(sensory)}
+        okText="Ghi nhận"
+        cancelText="Quay lại"
+        okButtonProps={{ disabled: !sensory?.reason.trim() }}
+        onCancel={() => setSensory(null)}
+        onOk={() => {
+          if (!sensory) return;
+          saveSensory(sensory.line, true, sensory.reason.trim());
+          setSensory(null);
+        }}
+        destroyOnHidden
+      >
+        <Input.TextArea
+          autoFocus
+          rows={2}
+          maxLength={300}
+          placeholder="Ví dụ: vỉ bị ẩm, viên đổi màu, bao bì rách"
+          value={sensory?.reason ?? ""}
+          onChange={(event) => setSensory((current) => (current ? { ...current, reason: event.target.value } : current))}
+        />
+      </Modal>
       <div className="count-head">
         <div>
           <Button type="text" icon={<ArrowLeftOutlined />} onClick={onBack}>

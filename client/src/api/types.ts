@@ -235,6 +235,8 @@ export type GoodsReceiptDetail = {
   code: string;
   status: "DRAFT" | "CONFIRMED" | "CANCELLED";
   supplier: { id: string; name: string; phone?: string | null; address?: string | null; taxCode?: string | null } | null;
+  /** Hồ sơ GPP còn thiếu (giấy phép nhà cung cấp, số đăng ký thuốc) — chỉ cảnh báo. */
+  complianceWarnings?: string[];
   supplierInvoiceNumber: string | null;
   supplierInvoiceDate: string | null;
   receivedAt: string;

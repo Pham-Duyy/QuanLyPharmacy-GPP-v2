@@ -210,6 +210,12 @@ export async function getAffectedSales(recallId: string, auth: AuthContext) {
     orderBy: { id: "asc" },
   });
 
+  const contacts = await prisma.recallContact.findMany({
+    where: { recallId },
+    include: { contactedByUser: { select: { fullName: true } } },
+  });
+  const contactByInvoice = new Map(contacts.map((contact) => [contact.invoiceId, contact]));
+
   await prisma.auditLog.create({
     data: {
       actorId: auth.userId,
@@ -228,7 +234,45 @@ export async function getAffectedSales(recallId: string, auth: AuthContext) {
     productName: allocation.invoiceLine.productName,
     batchNumber: allocation.batch.batchNumber,
     baseQuantity: allocation.baseQuantity,
+    contact: (() => {
+      const contact = contactByInvoice.get(allocation.invoiceLine.invoice.id);
+      return contact
+        ? { contactedAt: contact.contactedAt, contactedByName: contact.contactedByUser.fullName, note: contact.note }
+        : null;
+    })(),
   }));
+}
+
+/**
+ * Ghi đã liên hệ khách mua lô bị thu hồi (GPP III.4c: thông báo thu hồi cho
+ * khách mua thuốc kê đơn). Ghi lại lần nữa thì cập nhật ghi chú và người, giờ.
+ */
+export async function markContacted(recallId: string, invoiceId: string, auth: AuthContext, note: string | null): Promise<void> {
+  const sold = await prisma.invoiceAllocation.findFirst({
+    where: { batch: { recallId }, invoiceLine: { invoiceId } },
+    select: { id: true },
+  });
+  if (!sold) throw AppError.notFound("Hóa đơn này không bán lô nào của thông báo thu hồi");
+
+  await prisma.$transaction(async (tx) => {
+    await tx.recallContact.upsert({
+      where: { recallId_invoiceId: { recallId, invoiceId } },
+      create: { recallId, invoiceId, contactedBy: auth.userId, note },
+      update: { contactedBy: auth.userId, contactedAt: new Date(), note },
+    });
+    await tx.auditLog.create({
+      data: { actorId: auth.userId, action: "RECALL_CUSTOMER_CONTACTED", resourceType: "recall", resourceId: recallId, after: { invoiceId, note } },
+    });
+  });
+}
+
+/** Bỏ đánh dấu khi bấm nhầm. */
+export async function unmarkContacted(recallId: string, invoiceId: string, auth: AuthContext): Promise<void> {
+  const removed = await prisma.recallContact.deleteMany({ where: { recallId, invoiceId } });
+  if (removed.count === 0) throw AppError.notFound("Hóa đơn này chưa được đánh dấu đã liên hệ");
+  await prisma.auditLog.create({
+    data: { actorId: auth.userId, action: "RECALL_CUSTOMER_CONTACT_REMOVED", resourceType: "recall", resourceId: recallId, before: { invoiceId } },
+  });
 }
 
 export async function list(query: { status?: string }) {

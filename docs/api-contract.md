@@ -263,6 +263,7 @@ Quy tắc:
 | `stock.transfer.receive` | Nhận và kiểm nhập hàng chuyển đến từ cửa hàng khác (§10.9) |
 | `batch.quarantine` | Biệt trữ, mở khóa lô |
 | `recall.manage` | Tạo, đóng thông báo thu hồi; xem danh sách khách đã mua lô bị thu hồi |
+| `quality_report.manage` | Ghi sổ khiếu nại và phản ứng có hại của thuốc (§17.1) |
 | `invoice.read` | Xem hóa đơn, phiếu trả |
 | `invoice.create` | Bán hàng, chạy kiểm tra an toàn |
 | `invoice.void` | Hủy hóa đơn |
@@ -315,6 +316,7 @@ Mô hình cập nhật ngày 30/09/2026. `admin`: quản lý; `pharmacist`: dư�
 | `stock.transfer.receive` | ✓ |  | ✓ |  |
 | `batch.quarantine` | ✓ | ✓ |  |  |
 | `recall.manage` | ✓ |  |  |  |
+| `quality_report.manage` | ✓ | ✓ |  |  |
 | `invoice.read` | ✓ | ✓ |  | ✓ |
 | `invoice.create` |  | ✓ |  |  |
 | `invoice.void` | ✓ |  |  |  |
@@ -610,7 +612,7 @@ Phiếu nhập ghi nhận hàng **thực nhận** từ nhà cung cấp. Đơn đ
 |---|---|---|---|
 | GET | `/goods-receipts` | Lọc `supplierId`, `status`, `from`, `to`, `search` (mã phiếu, tên nhà cung cấp, số hóa đơn NCC); sắp xếp `receivedAt`, `createdAt`, `code`, `totalCost` | `goods_receipt.read` |
 | GET | `/goods-receipts/summary` | Số phiếu nháp đang chờ; số phiếu và giá trị đã kiểm nhập trong tháng hiện tại (giờ Việt Nam, theo ngày nhận hàng) kèm % so với tháng trước (`null` khi tháng trước bằng 0) | `goods_receipt.read` |
-| GET | `/goods-receipts/{id}` | Chi tiết, các dòng, lô đã tạo hoặc liên kết kèm trạng thái hiện tại của lô; liên hệ nhà cung cấp; người lập, người xác nhận, người hủy | `goods_receipt.read` |
+| GET | `/goods-receipts/{id}` | Chi tiết, các dòng, lô đã tạo hoặc liên kết kèm trạng thái hiện tại của lô; liên hệ nhà cung cấp; người lập, người xác nhận, người hủy. `complianceWarnings[]`: hồ sơ GPP còn thiếu (nhà cung cấp chưa có số giấy chứng nhận đủ điều kiện kinh doanh dược, thuốc `DRUG` chưa có số đăng ký) — chỉ cảnh báo, không chặn kiểm nhập (GPP Phụ lục I mục III.1) | `goods_receipt.read` |
 | POST | `/goods-receipts` | Tạo phiếu `DRAFT`; cần `Idempotency-Key` | `goods_receipt.create` |
 | PATCH | `/goods-receipts/{id}` | Sửa khi còn `DRAFT`; cần `version` | `goods_receipt.create` |
 | POST | `/goods-receipts/{id}/confirm` | Kiểm nhập và xác nhận; cần `Idempotency-Key` | `goods_receipt.confirm` |
@@ -880,7 +882,7 @@ Hàng cận hạn là tiền đang treo: không xử lý kịp thì tới hạn 
 | GET | `/stock-counts` | `{ items, open }` — các đợt của cửa hàng và đợt đang đếm (nếu có); lọc `status` | `stock.read` |
 | POST | `/stock-counts` | Mở đợt: `scopeType` (`ALL`/`CATEGORY`/`SHELF`), `scopeValue`, `note`. Chụp mọi lô còn tồn trong phạm vi | `stock.adjust.create` |
 | GET | `/stock-counts/{id}` | `{ count, lines, summary }` | `stock.read` |
-| PATCH | `/stock-counts/{id}/counts` | Ghi số đếm nhiều dòng: `entries[{ lineId, unitId, quantity }]`, hoặc `{ lineId, clear: true }` để xóa số đã đếm | `stock.adjust.create` |
+| PATCH | `/stock-counts/{id}/counts` | Ghi số đếm nhiều dòng: `entries[{ lineId, unitId, quantity, sensoryFailed?, note? }]`, hoặc `{ lineId, clear: true }` để xóa số đã đếm (đồng thời bỏ cờ cảm quan). `sensoryFailed: true` ghi kiểm tra cảm quan không đạt (GPP mục III.3), bắt buộc có `note` làm lý do; chi tiết đợt trả `sensoryFailed`, `batchStatus`, `batchVersion` để biệt trữ lô bằng `POST /inventory/batches/{id}/quarantine` | `stock.adjust.create` |
 | POST | `/stock-counts/{id}/lines` | Thêm lô tìm thấy trên kệ nhưng chưa có trong đợt (`batchId`) | `stock.adjust.create` |
 | POST | `/stock-counts/{id}/close` | Chốt đợt, sinh phiếu điều chỉnh cho các dòng lệch; ghi audit `STOCK_COUNT_CLOSE` | `stock.adjust.create` |
 | POST | `/stock-counts/{id}/cancel` | Bỏ đợt, không đụng tới tồn; ghi audit `STOCK_COUNT_CANCEL` | `stock.adjust.create` |
@@ -1225,7 +1227,9 @@ hiệu giữa tiền hoàn ứng với tổng số đã trả *sau* lần này v
 | POST | `/recalls` | Tạo thông báo thu hồi; cần `Idempotency-Key` | `recall.manage` |
 | GET | `/recalls` | Danh sách | `recall.manage` |
 | GET | `/recalls/{id}` | Chi tiết, các lô bị ảnh hưởng ở mọi cửa hàng (`productCode`, `productName`, `batchNumber`, cửa hàng, trạng thái, tồn), tồn còn lại | `recall.manage` |
-| GET | `/recalls/{id}/affected-sales` | Hóa đơn và khách hàng đã mua các lô bị thu hồi; ghi audit | `recall.manage` |
+| GET | `/recalls/{id}/affected-sales` | Hóa đơn và khách hàng đã mua các lô bị thu hồi, kèm `contact` (người, giờ, ghi chú đã liên hệ) hoặc `null`; ghi audit | `recall.manage` |
+| POST | `/recalls/{id}/contacts` | Đánh dấu đã liên hệ khách của một hóa đơn: `invoiceId`, `note`. Ghi lại thì cập nhật. Hóa đơn không bán lô nào của thu hồi: 404. Audit `RECALL_CUSTOMER_CONTACTED` (GPP mục III.4c: thông báo thu hồi cho khách) | `recall.manage` |
+| DELETE | `/recalls/{id}/contacts/{invoiceId}` | Bỏ đánh dấu khi ghi nhầm; audit `RECALL_CUSTOMER_CONTACT_REMOVED` | `recall.manage` |
 | POST | `/recalls/{id}/close` | Đóng khi tồn các lô bị thu hồi bằng 0 | `recall.manage` |
 
 - Request tạo: `documentNumber` (số công văn), `issuedBy`, `issuedAt` (ngày, dạng `YYYY-MM-DD`), `reason`, `items: [{ productId, batchNumber }]`.
@@ -1247,6 +1251,22 @@ hiệu giữa tiền hoàn ứng với tổng số đã trả *sau* lần này v
 - Backend tự đặt `outOfRange` theo ngưỡng cấu hình của từng khu vực. Mặc định: khu bán lẻ ≤ 30 °C và độ ẩm ≤ 75 %; tủ lạnh 2–8 °C. Sửa được trong cài đặt, và phải đối chiếu lại với văn bản GPP đang có hiệu lực trước khi vận hành thật. **[Đã chốt – P16]**
 - Nhắc ghi sổ 2 lần mỗi ngày (`storageLogPerDay = 2`, sửa được); `GET /storage-logs/summary` đánh dấu ngày còn thiếu lần đo.
 - Bản ghi không sửa, không xóa. Ghi nhầm thì tạo bản ghi mới có `correctsLogId` trỏ tới bản cũ.
+
+---
+
+### 17.1 Sổ khiếu nại và phản ứng có hại của thuốc
+
+GPP (TT 02/2018 Phụ lục I mục III.4): lưu thông tin thuốc bị khiếu nại; theo dõi và thông báo cho cơ quan y tế về tác dụng không mong muốn (ADR). Phần mềm chỉ ghi sổ: báo cáo ADR gửi Trung tâm DI&ADR quốc gia theo mẫu của Trung tâm, ở đây chỉ ghi ngày đã gửi. Theo cửa hàng (`X-Store-Id`).
+
+| Method | Endpoint | Mô tả | Quyền |
+|---|---|---|---|
+| GET | `/quality-reports?status&kind` | Danh sách; `status` `OPEN`/`CLOSED`, `kind` `COMPLAINT`/`ADR` | `quality_report.manage` hoặc `audit.read` |
+| GET | `/quality-reports/{id}` | Chi tiết, kèm lô (trạng thái, `version`) để biệt trữ | `quality_report.manage` hoặc `audit.read` |
+| POST | `/quality-reports` | `kind`, `occurredOn`, `productId?`, `batchId?` (lô của cửa hàng, đúng sản phẩm), `reporterName?`, `reporterPhone?`, `description`, `actionTaken?`. Mã `KN-<cửa hàng>-YYYYMMDD-NNNN` | `quality_report.manage` |
+| PATCH | `/quality-reports/{id}` | `version`, `actionTaken`, `adrReportedOn` (chỉ phiếu ADR). Sai `version`: 409 | `quality_report.manage` |
+| POST | `/quality-reports/{id}/close` | Đóng khi đã có cách xử lý (gửi kèm hoặc đã ghi trước); đã đóng thì không sửa | `quality_report.manage` |
+
+Nghi lỗi chất lượng thì biệt trữ lô bằng `POST /inventory/batches/{id}/quarantine` (cần `batch.quarantine`). Mọi thao tác ghi audit `QUALITY_REPORT_*`.
 
 ---
 
