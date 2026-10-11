@@ -12,7 +12,7 @@ import { ExcelExportButton } from "../excel/ExcelButtons.js";
 import { rangeParams } from "../excel/excel-api.js";
 import { PageHeader } from "../../ui/PageHeader.js";
 import { useDebounced } from "../../ui/useDebounced.js";
-import { useAuth } from "../auth/AuthProvider.js";
+import { useAuth } from "../auth/auth-context.js";
 import { printDocument, printInvoice, printUrl } from "../printing/printing.js";
 import { PrintPreviewModal } from "../printing/PrintPreviewModal.js";
 import { ReturnModal } from "./ReturnModal.js";

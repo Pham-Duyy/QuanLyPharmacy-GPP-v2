@@ -167,7 +167,7 @@ export function CreateStaffModal({ open, mode, onClose, onCreated }: Props) {
       width={1000}
       footer={null}
       destroyOnHidden
-      maskClosable={!busy}
+      mask={{ closable: !busy }}
       closable={!busy}
       afterClose={() => form.resetFields()}
       className="staff-create-modal"

@@ -34,7 +34,7 @@ import { formatVnd, type Envelope } from "../../api/types.js";
 import { formatDate, formatDateTime, formatNumber } from "../../ui/format.js";
 import { PageHeader } from "../../ui/PageHeader.js";
 import { useDebounced } from "../../ui/useDebounced.js";
-import { useAuth } from "../auth/AuthProvider.js";
+import { useAuth } from "../auth/auth-context.js";
 import { printDocument, printUrl } from "../printing/printing.js";
 
 type Status = "DRAFT" | "IN_TRANSIT" | "RECEIVED" | "CANCELLED";

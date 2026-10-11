@@ -6,7 +6,7 @@ import { getErrorMessage, http } from "../../api/http.js";
 import { type Envelope, type StoreDetail } from "../../api/types.js";
 import { PageHeader } from "../../ui/PageHeader.js";
 import { PanelEmpty } from "../../ui/PanelEmpty.js";
-import { useAuth } from "../auth/AuthProvider.js";
+import { useAuth } from "../auth/auth-context.js";
 
 type StoreListItem = { id: string; code: string; name: string; address: string | null; phone: string | null };
 

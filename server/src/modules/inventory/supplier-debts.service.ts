@@ -1,6 +1,7 @@
 import { Prisma } from "../../generated/prisma/client.js";
 import { prisma } from "../../db/prisma.js";
 import { AppError } from "../../lib/app-error.js";
+import { markIdempotentResource } from "../../lib/idempotency-context.js";
 import { codeDay, nextDocumentCode } from "../../lib/document-code.js";
 import { lockGoodsReceipts, lockSupplierPayment } from "../../lib/locks.js";
 import { businessDateNow } from "../../lib/settings.js";
@@ -200,6 +201,7 @@ export async function createPayment(storeId: string, auth: AuthContext, input: P
         allocations: { create: input.allocations.map((item) => ({ goodsReceiptId: item.goodsReceiptId, amount: BigInt(item.amount) })) },
       },
     });
+    await markIdempotentResource(tx, "supplier_payment", payment.id);
 
     await tx.auditLog.create({
       data: {

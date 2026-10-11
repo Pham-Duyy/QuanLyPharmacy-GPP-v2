@@ -4,6 +4,7 @@ import { withMappedErrors } from "../../lib/prisma-errors.js";
 import { sendData } from "../../lib/respond.js";
 import { parseOrThrow } from "../../lib/validate.js";
 import { authenticate } from "../../middlewares/authenticate.js";
+import { idempotency } from "../../middlewares/idempotency.js";
 import { requirePermission } from "../../middlewares/require-permission.js";
 import { requireStore, storeContext } from "../../middlewares/store-context.js";
 import {
@@ -142,12 +143,14 @@ customersRouter.get(
 
 /**
  * POST /api/v1/customers/{id}/loyalty/adjust: cộng hoặc trừ điểm bằng tay.
- * Luôn phải ghi lý do, ghi audit và không được làm số dư âm.
+ * Luôn phải ghi lý do, ghi audit và không được làm số dư âm. Bắt buộc
+ * Idempotency-Key để gửi lại không cộng/trừ điểm hai lần.
  */
 customersRouter.post(
   "/customers/:id/loyalty/adjust",
   requireStore,
   requirePermission("loyalty.manage"),
+  idempotency,
   async (req, res) => {
     const input = parseOrThrow(adjustPointsSchema, req.body);
     sendData(

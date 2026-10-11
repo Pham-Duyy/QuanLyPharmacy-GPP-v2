@@ -5,7 +5,7 @@ import { pageAccess, startPageFor } from "./app/access.js";
 import { AppLayout } from "./app/AppLayout.js";
 import { PAGE_ELEMENTS } from "./app/page-elements.js";
 import { PAGES } from "./app/pages.js";
-import { useAuth } from "./features/auth/AuthProvider.js";
+import { useAuth } from "./features/auth/auth-context.js";
 import { PasswordChangeGate } from "./features/auth/ChangePasswordModal.js";
 import { LoginPage } from "./features/auth/LoginPage.js";
 

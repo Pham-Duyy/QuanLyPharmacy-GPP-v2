@@ -44,7 +44,7 @@ async function receive(options: { quantity: number; unitCost: number; receivedAt
 }
 
 const debts = async (query = "", token = adminToken) => (await api().get(`/api/v1/supplier-debts${query}`).set(h(token)).expect(200)).body.data;
-const pay = (body: Record<string, unknown>, token = adminToken) => api().post("/api/v1/supplier-payments").set(h(token)).send(body);
+const pay = (body: Record<string, unknown>, token = adminToken) => api().post("/api/v1/supplier-payments").set({ ...h(token), ...idem() }).send(body);
 
 beforeEach(async () => {
   await truncateAll();
@@ -154,6 +154,20 @@ describe("Trả tiền nhà cung cấp", () => {
     await pay({ supplierId, allocations: [{ goodsReceiptId: receipt.id, amount: 40000 }] }).expect(201);
     expect((await debts()).items).toEqual([]);
     expect((await debts("?onlyOutstanding=false")).items[0]).toMatchObject({ outstanding: 0, paidAmount: 100000 });
+  });
+
+  it("gửi lại cùng khóa (mạng chập chờn, bấm lại) không ghi thêm phiếu chi", async () => {
+    const receipt = await receive({ quantity: 10, unitCost: 10000 });
+    const body = { supplierId, allocations: [{ goodsReceiptId: receipt.id, amount: 30000 }] };
+    const key = { "Idempotency-Key": randomUUID() };
+    const first = await api().post("/api/v1/supplier-payments").set({ ...h(), ...key }).send(body).expect(201);
+    const again = await api().post("/api/v1/supplier-payments").set({ ...h(), ...key }).send(body).expect(201);
+
+    expect(again.body.data.id).toBe(first.body.data.id);
+    expect(await prisma.supplierPayment.count()).toBe(1);
+    expect((await debts()).items[0].outstanding).toBe(70000);
+    const missing = await api().post("/api/v1/supplier-payments").set(h()).send(body).expect(400);
+    expect(missing.body.error.code).toBe("IDEMPOTENCY_KEY_REQUIRED");
   });
 
   it("không trả cho phiếu của nhà cung cấp khác hoặc phiếu chưa kiểm nhập", async () => {

@@ -19,7 +19,7 @@ import type { DashboardData, Envelope } from "../../api/types.js";
 import { chartColors, chartOtherColor } from "../../app/theme.js";
 import { BarTrend, Donut } from "../../ui/charts.js";
 import { StatCard, StatGrid, Trend } from "../../ui/StatCard.js";
-import { useAuth } from "../auth/AuthProvider.js";
+import { useAuth } from "../auth/auth-context.js";
 
 const money = new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND", maximumFractionDigits: 0 });
 const number = new Intl.NumberFormat("vi-VN");

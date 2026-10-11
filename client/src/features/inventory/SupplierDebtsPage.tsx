@@ -4,10 +4,11 @@ import { Alert, App, Button, Card, Checkbox, DatePicker, Empty, Form, Input, Inp
 import dayjs from "dayjs";
 import { useMemo, useState } from "react";
 import { getErrorMessage, http } from "../../api/http.js";
+import { useSubmitKey } from "../../api/submit-key.js";
 import { formatVnd, type Envelope } from "../../api/types.js";
 import { formatDate, formatNumber } from "../../ui/format.js";
 import { PageHeader } from "../../ui/PageHeader.js";
-import { useAuth } from "../auth/AuthProvider.js";
+import { useAuth } from "../auth/auth-context.js";
 
 type ReceiptDebt = {
   goodsReceiptId: string;
@@ -81,9 +82,11 @@ export function SupplierDebtsPage() {
     queryFn: async () => (await http.get<Envelope<Payment[]>>("/supplier-payments")).data.data,
   });
 
+  // Bấm lại sau khi mạng chập chờn không ghi thêm phiếu chi thứ hai.
+  const paymentKey = useSubmitKey();
   const createPayment = useMutation({
-    mutationFn: async (values: { paidAt: dayjs.Dayjs; method: "CASH" | "BANK_TRANSFER"; reference?: string; note?: string }) =>
-      http.post("/supplier-payments", {
+    mutationFn: async (values: { paidAt: dayjs.Dayjs; method: "CASH" | "BANK_TRANSFER"; reference?: string; note?: string }) => {
+      const body = {
         supplierId: paying!.supplierId,
         paidAt: values.paidAt.format("YYYY-MM-DD"),
         method: values.method,
@@ -92,8 +95,11 @@ export function SupplierDebtsPage() {
         allocations: Object.entries(selected)
           .filter(([, amount]) => amount > 0)
           .map(([goodsReceiptId, amount]) => ({ goodsReceiptId, amount })),
-      }),
+      };
+      return http.post("/supplier-payments", body, { headers: paymentKey.headers(body) });
+    },
     onSuccess: async () => {
+      paymentKey.done();
       void message.success("Đã ghi nhận thanh toán");
       setPaying(null);
       setSelected({});

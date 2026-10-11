@@ -519,7 +519,7 @@ describe("Kiểm kê và công nợ khi hai người cùng thao tác", () => {
     const pay = () =>
       api()
         .post("/api/v1/supplier-payments")
-        .set(h())
+        .set({ ...h(), ...idem() })
         .send({
           supplierId: stage.supplierId,
           method: "CASH",
@@ -558,7 +558,7 @@ describe("Kiểm kê và công nợ khi hai người cùng thao tác", () => {
 
     const supplierReturn = await api()
       .post("/api/v1/supplier-returns")
-      .set(h(stage.pharmacist))
+      .set({ ...h(stage.pharmacist), ...idem() })
       .send({
         supplierId: stage.supplierId,
         reason: "Hàng cận hạn, nhà cung cấp nhận lại",
@@ -574,7 +574,7 @@ describe("Kiểm kê và công nợ khi hai người cùng thao tác", () => {
         () =>
           api()
             .post("/api/v1/supplier-payments")
-            .set(h())
+            .set({ ...h(), ...idem() })
             .send({
               supplierId: stage.supplierId,
               method: "CASH",

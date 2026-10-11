@@ -31,7 +31,7 @@ import type { Envelope, Paged, ProductListItem } from "../../api/types.js";
 import { formatDate, formatDateTime } from "../../ui/format.js";
 import { PageHeader } from "../../ui/PageHeader.js";
 import { useDebounced } from "../../ui/useDebounced.js";
-import { useAuth } from "../auth/AuthProvider.js";
+import { useAuth } from "../auth/auth-context.js";
 
 type Kind = "COMPLAINT" | "ADR";
 type Status = "OPEN" | "CLOSED";

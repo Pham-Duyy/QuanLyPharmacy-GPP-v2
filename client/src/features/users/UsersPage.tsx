@@ -13,7 +13,7 @@ import {
 import { Alert, Button, Card, Empty, Segmented, Tabs } from "antd";
 import { useState, type ReactNode } from "react";
 import { PageHeader } from "../../ui/PageHeader.js";
-import { useAuth } from "../auth/AuthProvider.js";
+import { useAuth } from "../auth/auth-context.js";
 import { CreateStaffModal } from "./CreateStaffModal.js";
 import { PayrollTab } from "./preview/PayrollTab.js";
 import { PersonalView } from "./preview/PersonalView.js";

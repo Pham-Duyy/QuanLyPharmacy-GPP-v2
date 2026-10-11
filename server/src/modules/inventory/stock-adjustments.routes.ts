@@ -40,11 +40,12 @@ stockAdjustmentsRouter.get(
   },
 );
 
-// Không cần Idempotency-Key: tạo DRAFT chưa đụng tới tồn, gửi trùng chỉ
-// tạo thêm bản nháp vô hại, không như các action đổi trạng thái (contract §2.3).
+// Nháp chưa đụng tới tồn, nhưng hai bản nháp giống hệt nhau dễ bị duyệt cả
+// hai và trừ tồn hai lần, nên vẫn bắt Idempotency-Key (contract §2.3).
 stockAdjustmentsRouter.post(
   "/stock-adjustments",
   requirePermission("stock.adjust.create"),
+  idempotency,
   async (req, res) => {
     const input = parseOrThrow(createAdjustmentSchema, req.body);
     const id = await withMappedErrors(() =>

@@ -21,7 +21,7 @@ import { useNavigate } from "react-router";
 import { getErrorMessage, http } from "../../api/http.js";
 import type { CustomerDetail, Envelope } from "../../api/types.js";
 import { formatDate, formatDateTime } from "../../ui/format.js";
-import { useAuth } from "../auth/AuthProvider.js";
+import { useAuth } from "../auth/auth-context.js";
 import { LoyaltyPanel } from "../loyalty/LoyaltyPanel.js";
 import { AnonymizeModal, CustomerFormModal, HealthProfilePanel, InvoiceHistoryPanel } from "./customer-forms.js";
 import { GENDER, SEGMENT, avatarTone, initials, money } from "./customer-labels.js";

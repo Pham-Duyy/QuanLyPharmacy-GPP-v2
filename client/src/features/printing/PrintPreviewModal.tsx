@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Alert, App, Button, Modal } from "antd";
 import { useState } from "react";
 import { getErrorMessage } from "../../api/http.js";
-import { useAuth } from "../auth/AuthProvider.js";
+import { useAuth } from "../auth/auth-context.js";
 import { fetchPrintPage, printHtml } from "./printing.js";
 import { PrintPaper } from "./PrintPaper.js";
 

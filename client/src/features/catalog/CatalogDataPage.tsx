@@ -6,7 +6,7 @@ import { getErrorMessage, http } from "../../api/http.js";
 import { type ActiveIngredientItem, type CategoryItem, type Envelope, type Paged } from "../../api/types.js";
 import { PageHeader } from "../../ui/PageHeader.js";
 import { useDebounced } from "../../ui/useDebounced.js";
-import { useAuth } from "../auth/AuthProvider.js";
+import { useAuth } from "../auth/auth-context.js";
 
 type CategoryForm = { name: string };
 type IngredientForm = { name: string; atcCode?: string };

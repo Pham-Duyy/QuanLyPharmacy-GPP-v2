@@ -7,7 +7,7 @@ import type { ReactNode } from "react";
 import { useNavigate } from "react-router";
 import { http } from "../api/http.js";
 import { formatVnd, type CustomerSearchItem, type Envelope, type InvoiceListItem, type Paged, type ProductListItem } from "../api/types.js";
-import { useAuth } from "../features/auth/AuthProvider.js";
+import { useAuth } from "../features/auth/auth-context.js";
 import { useDebounced } from "../ui/useDebounced.js";
 import { confirmLeave } from "./leave-guard.js";
 import { allowedPages } from "./access.js";

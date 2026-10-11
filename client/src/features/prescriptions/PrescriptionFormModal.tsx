@@ -2,7 +2,7 @@ import { DeleteOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { App, AutoComplete, Button, DatePicker, Input, Modal, Space, Table } from "antd";
 import dayjs, { type Dayjs } from "dayjs";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { getErrorMessage, http } from "../../api/http.js";
 import type {
   Envelope,
@@ -70,22 +70,26 @@ export function PrescriptionFormModal({
   const [rows, setRows] = useState<Row[]>([emptyRow()]);
   const [search, setSearch] = useState("");
 
-  useEffect(() => {
-    if (!open) return;
-    if (editing) {
-      setPrescriberName(editing.prescriberName ?? "");
-      setFacilityName(editing.facilityName ?? "");
-      setDiagnosisText(editing.diagnosisText ?? "");
-      setPrescribedDate(dayjs(editing.prescribedDate));
-      setRows(toRows(editing));
-    } else {
-      setPrescriberName("");
-      setFacilityName("");
-      setDiagnosisText("");
-      setPrescribedDate(dayjs());
-      setRows([emptyRow()]);
+  // Nạp lại form mỗi lần mở, ngay trong lượt render (không qua effect nên không vẽ thêm một lượt).
+  const [wasOpen, setWasOpen] = useState(false);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) {
+      if (editing) {
+        setPrescriberName(editing.prescriberName ?? "");
+        setFacilityName(editing.facilityName ?? "");
+        setDiagnosisText(editing.diagnosisText ?? "");
+        setPrescribedDate(dayjs(editing.prescribedDate));
+        setRows(toRows(editing));
+      } else {
+        setPrescriberName("");
+        setFacilityName("");
+        setDiagnosisText("");
+        setPrescribedDate(dayjs());
+        setRows([emptyRow()]);
+      }
     }
-  }, [open, editing]);
+  }
 
   const search_ = useQuery({
     queryKey: ["prescription-product-search", search],

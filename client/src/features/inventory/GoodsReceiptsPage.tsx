@@ -22,7 +22,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, App, Button, Card, DatePicker, Dropdown, Empty, Input, Modal, Progress, Segmented, Select, Skeleton, Table, Tag, Typography } from "antd";
 import type { Dayjs } from "dayjs";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { getErrorMessage, http } from "../../api/http.js";
 import {
@@ -40,7 +40,7 @@ import { ExcelExportButton } from "../excel/ExcelButtons.js";
 import { rangeParams } from "../excel/excel-api.js";
 import { PageHeader } from "../../ui/PageHeader.js";
 import { useDebounced } from "../../ui/useDebounced.js";
-import { useAuth } from "../auth/AuthProvider.js";
+import { useAuth } from "../auth/auth-context.js";
 import { printDocument, printUrl } from "../printing/printing.js";
 import { PrintPreviewModal } from "../printing/PrintPreviewModal.js";
 import { ReceiptFormModal } from "./ReceiptFormModal.js";
@@ -839,10 +839,14 @@ function InspectionModal({
   const { message } = App.useApp();
   const [results, setResults] = useState<Record<string, InspectionResult>>({});
 
-  useEffect(() => {
-    if (!open) return;
-    setResults(Object.fromEntries(receipt.lines.map((line) => [line.id, { passed: true, rejectReason: "" }])));
-  }, [open, receipt.lines]);
+  // Nạp lại form mỗi lần mở, ngay trong lượt render (không qua effect nên không vẽ thêm một lượt).
+  const [wasOpen, setWasOpen] = useState(false);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) {
+      setResults(Object.fromEntries(receipt.lines.map((line) => [line.id, { passed: true, rejectReason: "" }])));
+    }
+  }
 
   const confirm = useMutation({
     mutationFn: () =>

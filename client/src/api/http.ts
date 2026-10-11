@@ -33,18 +33,30 @@ http.interceptors.request.use((config) => {
 let refreshing: Promise<string> | null = null;
 
 /**
+ * Các tab cùng dùng một cookie refresh. Khóa của trình duyệt (Web Locks) cho
+ * các tab làm mới lần lượt: tab sau gửi cookie mới mà tab trước vừa nhận,
+ * thay vì gửi lại token đã bị xoay vòng. Trình duyệt quá cũ không có khóa
+ * thì vẫn làm mới bình thường.
+ */
+function oneTabAtATime<T>(run: () => Promise<T>): Promise<T> {
+  const locks = typeof navigator === "undefined" ? undefined : navigator.locks;
+  return locks ? locks.request("gpp-auth-refresh", run) : run();
+}
+
+/**
  * Mọi lời gọi đồng thời dùng chung một request. Máy chủ xoay vòng refresh
  * token và coi token cũ gửi lại là bị đánh cắp (thu hồi cả chuỗi phiên), nên
- * hai request refresh song song cùng cookie — ví dụ effect khởi động chạy hai
- * lần dưới StrictMode — sẽ đăng xuất người dùng.
+ * hai request refresh song song cùng cookie — effect khởi động chạy hai lần
+ * dưới StrictMode, hay hai tab cùng tải lại — sẽ đăng xuất người dùng.
  */
 export function refreshAccessToken(): Promise<string> {
-  refreshing ??= axios
-    .post<{ data: { accessToken: string } }>("/api/v1/auth/refresh", null, { withCredentials: true })
-    .then((response) => response.data.data.accessToken)
-    .finally(() => {
-      refreshing = null;
-    });
+  refreshing ??= oneTabAtATime(() =>
+    axios
+      .post<{ data: { accessToken: string } }>("/api/v1/auth/refresh", null, { withCredentials: true })
+      .then((response) => response.data.data.accessToken),
+  ).finally(() => {
+    refreshing = null;
+  });
   return refreshing;
 }
 

@@ -28,7 +28,7 @@ import { getErrorMessage } from "../../api/http.js";
 import { formatVnd } from "../../api/types.js";
 import { formatDateTime } from "../../ui/format.js";
 import { PageHeader } from "../../ui/PageHeader.js";
-import { useAuth } from "../auth/AuthProvider.js";
+import { useAuth } from "../auth/auth-context.js";
 import {
   fetchConfig,
   fetchEInvoices,

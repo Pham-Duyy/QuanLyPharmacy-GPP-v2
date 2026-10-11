@@ -212,7 +212,7 @@ describe("Đối chiếu báo cáo với số liệu tính tay", () => {
 
     await api()
       .post("/api/v1/supplier-payments")
-      .set(h())
+      .set({ ...h(), ...idem() })
       .send({
         supplierId: stage.supplierId,
         method: "BANK_TRANSFER",
@@ -225,7 +225,7 @@ describe("Đối chiếu báo cáo với số liệu tính tay", () => {
     const batch = await batchOf("NCC-1");
     const supplierReturn = await api()
       .post("/api/v1/supplier-returns")
-      .set(h(stage.pharmacist))
+      .set({ ...h(stage.pharmacist), ...idem() })
       .send({
         supplierId: stage.supplierId,
         reason: "Hàng cận hạn, nhà cung cấp nhận lại",

@@ -6,7 +6,7 @@ import { useNavigate } from "react-router";
 import { getErrorMessage, http } from "../../../api/http.js";
 import { formatDate, formatDateTime, formatNumber } from "../../../ui/format.js";
 import { formatVnd } from "../../../api/types.js";
-import { useAuth } from "../../auth/AuthProvider.js";
+import { useAuth } from "../../auth/auth-context.js";
 import { cancelCount, closeCount, getCount, saveCounts, type CountEntry, type CountLine } from "./stock-count-api.js";
 
 type Filter = "ALL" | "PENDING" | "COUNTED" | "DIFF";

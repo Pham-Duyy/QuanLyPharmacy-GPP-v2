@@ -18,7 +18,7 @@ import { Alert, App, Button, DatePicker, Empty, Skeleton, Tag, Tooltip } from "a
 import dayjs, { type Dayjs } from "dayjs";
 import { useState, type ReactNode } from "react";
 import { PageHeader } from "../../ui/PageHeader.js";
-import { useAuth } from "../auth/AuthProvider.js";
+import { useAuth } from "../auth/auth-context.js";
 import { ExcelExportButton } from "./ExcelButtons.js";
 import { rangeParams } from "./excel-api.js";
 import { ExcelImportModal } from "./ExcelImportModal.js";

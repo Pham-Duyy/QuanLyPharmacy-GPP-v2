@@ -6,7 +6,7 @@ import { useMemo, useState } from "react";
 import { getErrorMessage, http } from "../../api/http.js";
 import { type Envelope, type StorageLogItem, type StorageLogSummaryLocation } from "../../api/types.js";
 import { PageHeader } from "../../ui/PageHeader.js";
-import { useAuth } from "../auth/AuthProvider.js";
+import { useAuth } from "../auth/auth-context.js";
 
 type LocationOption = { id: string; code: string; name: string };
 

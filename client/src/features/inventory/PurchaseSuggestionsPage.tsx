@@ -7,7 +7,7 @@ import { getErrorMessage, http } from "../../api/http.js";
 import { formatVnd, type Envelope } from "../../api/types.js";
 import { formatNumber } from "../../ui/format.js";
 import { PageHeader } from "../../ui/PageHeader.js";
-import { useAuth } from "../auth/AuthProvider.js";
+import { useAuth } from "../auth/auth-context.js";
 import { ExcelExportButton } from "../excel/ExcelButtons.js";
 import { ReceiptFormModal } from "./ReceiptFormModal.js";
 

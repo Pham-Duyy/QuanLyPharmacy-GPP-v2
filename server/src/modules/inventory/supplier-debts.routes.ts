@@ -3,6 +3,7 @@ import { z } from "zod";
 import { sendData } from "../../lib/respond.js";
 import { parseOrThrow } from "../../lib/validate.js";
 import { authenticate } from "../../middlewares/authenticate.js";
+import { idempotency } from "../../middlewares/idempotency.js";
 import { requirePermission } from "../../middlewares/require-permission.js";
 import { requireStore, storeContext } from "../../middlewares/store-context.js";
 import * as service from "./supplier-debts.service.js";
@@ -60,8 +61,11 @@ supplierDebtsRouter.get("/supplier-payments", requirePermission("supplier_debt.r
   sendData(res, await service.listPayments(req.auth!.storeId!, query));
 });
 
-/** POST /api/v1/supplier-payments: ghi nhận một lần trả tiền, phân bổ về từng phiếu nhập. */
-supplierDebtsRouter.post("/supplier-payments", requirePermission("supplier_payment.manage"), async (req, res) => {
+/**
+ * POST /api/v1/supplier-payments: ghi nhận một lần trả tiền, phân bổ về từng phiếu nhập.
+ * Bắt buộc Idempotency-Key: phiếu chi trừ công nợ ngay, gửi trùng là trả hai lần.
+ */
+supplierDebtsRouter.post("/supplier-payments", requirePermission("supplier_payment.manage"), idempotency, async (req, res) => {
   const input = parseOrThrow(paymentSchema, req.body);
   const id = await service.createPayment(req.auth!.storeId!, req.auth!, {
     supplierId: input.supplierId,

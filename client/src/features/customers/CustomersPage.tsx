@@ -11,7 +11,7 @@ import { ExcelMenuButton } from "../excel/ExcelButtons.js";
 import { ExcelImportModal } from "../excel/ExcelImportModal.js";
 import { PageHeader } from "../../ui/PageHeader.js";
 import { useDebounced } from "../../ui/useDebounced.js";
-import { useAuth } from "../auth/AuthProvider.js";
+import { useAuth } from "../auth/auth-context.js";
 import { CustomerFormModal } from "./customer-forms.js";
 import { SEGMENT, avatarTone, initials, money } from "./customer-labels.js";
 import { CustomerDetailPanel } from "./CustomerDetailPanel.js";

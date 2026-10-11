@@ -1,7 +1,7 @@
 import { DownOutlined, ToolOutlined } from "@ant-design/icons";
 import { Button, Dropdown } from "antd";
 import { useNavigate } from "react-router";
-import { useAuth } from "../features/auth/AuthProvider.js";
+import { useAuth } from "../features/auth/auth-context.js";
 import { findPage, pageAccess } from "./access.js";
 import { confirmLeave } from "./leave-guard.js";
 import type { PagePath } from "./pages.js";

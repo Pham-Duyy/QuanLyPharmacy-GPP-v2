@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useAuth } from "../auth/AuthProvider.js";
+import { useAuth } from "../auth/auth-context.js";
 
 /** Giá trị đại diện cho phạm vi toàn chuỗi trong các ô chọn (máy chủ nhận null). */
 export const CHAIN_SCOPE = "__chain__";

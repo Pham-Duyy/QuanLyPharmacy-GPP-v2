@@ -6,7 +6,7 @@ import { Link } from "react-router";
 import { getErrorMessage, http } from "../../api/http.js";
 import type { Envelope, Paged, ProductListItem } from "../../api/types.js";
 import { PageHeader } from "../../ui/PageHeader.js";
-import { useAuth } from "../auth/AuthProvider.js";
+import { useAuth } from "../auth/auth-context.js";
 import { matchImageFiles, type FileMatch, type MatchTarget } from "./products/match-image-files.js";
 import { IMAGE_ACCEPT, MAX_IMAGES_PER_PRODUCT, uploadProductImage } from "./products/product-image-upload.js";
 import { ProductThumb } from "./products/ProductThumb.js";

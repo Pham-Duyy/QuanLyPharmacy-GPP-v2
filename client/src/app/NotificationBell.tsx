@@ -5,7 +5,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router";
 import { http } from "../api/http.js";
 import type { DashboardData, Envelope } from "../api/types.js";
-import { useAuth } from "../features/auth/AuthProvider.js";
+import { useAuth } from "../features/auth/auth-context.js";
 import { confirmLeave } from "./leave-guard.js";
 
 /**

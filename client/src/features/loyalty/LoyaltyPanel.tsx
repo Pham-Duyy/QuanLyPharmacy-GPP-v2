@@ -3,8 +3,9 @@ import { useMutation } from "@tanstack/react-query";
 import { Alert, App, Button, Empty, Form, Input, InputNumber, Modal, Skeleton, Table, Tag } from "antd";
 import { useState } from "react";
 import { getErrorMessage, http } from "../../api/http.js";
+import { useSubmitKey } from "../../api/submit-key.js";
 import { formatDate, formatDateTime, formatNumber } from "../../ui/format.js";
-import { useAuth } from "../auth/AuthProvider.js";
+import { useAuth } from "../auth/auth-context.js";
 import { money } from "../customers/customer-labels.js";
 import { useCustomerLoyalty, useLoyaltySettings, type LoyaltyTransaction } from "./loyalty-api.js";
 
@@ -27,13 +28,14 @@ export function LoyaltyPanel({ customerId }: { customerId: string }) {
   const settings = settingsQuery.data?.settings;
   const data = loyaltyQuery.data;
 
+  const submitKey = useSubmitKey();
   const adjust = useMutation({
-    mutationFn: async (values: { points: number; reason: string }) =>
-      http.post(`/customers/${customerId}/loyalty/adjust`, {
-        points: adjusting === "SUBTRACT" ? -values.points : values.points,
-        reason: values.reason,
-      }),
+    mutationFn: async (values: { points: number; reason: string }) => {
+      const body = { points: adjusting === "SUBTRACT" ? -values.points : values.points, reason: values.reason };
+      return http.post(`/customers/${customerId}/loyalty/adjust`, body, { headers: submitKey.headers(customerId, body) });
+    },
     onSuccess: async () => {
+      submitKey.done();
       void message.success(adjusting === "SUBTRACT" ? "Đã trừ điểm" : "Đã cộng điểm");
       setAdjusting(null);
       await loyaltyQuery.refetch();
