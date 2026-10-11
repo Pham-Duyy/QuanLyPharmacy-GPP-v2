@@ -92,7 +92,6 @@
   background: linear-gradient(180deg, #34c79c, var(--tone-green));
 }
 
-.rank-list,
 .category-stock-list,
 .low-stock-list {
   display: grid;
@@ -1237,14 +1236,6 @@
 @media (max-width: 1199px) {
   .pos-layout {
     grid-template-columns: minmax(0, 1fr);
-  }
-
-  .pos-checkout {
-    position: static;
-  }
-
-  .pos-checkout .ant-card-body {
-    max-height: none;
   }
 }
 
@@ -3744,7 +3735,6 @@
   border-radius: var(--r-md);
   background: #fff;
 }
-
 
 /* ----- Tích điểm khách thân thiết ----- */
 .loyalty-panel {

@@ -2,8 +2,8 @@
  * Luật mật khẩu khớp máy chủ (`newPasswordSchema`): 10–200 ký tự, có chữ và số.
  * Giữ ở một chỗ để form và bộ sinh dùng chung.
  */
-export const PASSWORD_MIN = 10;
-export const PASSWORD_MAX = 200;
+const PASSWORD_MIN = 10;
+const PASSWORD_MAX = 200;
 
 export function passwordProblem(value: string): string | null {
   if (value.length < PASSWORD_MIN) return `Tối thiểu ${PASSWORD_MIN} ký tự`;

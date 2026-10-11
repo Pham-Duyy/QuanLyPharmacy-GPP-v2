@@ -2,7 +2,7 @@ import { ArrowDownOutlined, ArrowUpOutlined } from "@ant-design/icons";
 import { Skeleton } from "antd";
 import type { ReactNode } from "react";
 
-export type Tone = "blue" | "green" | "orange" | "purple" | "red" | "cyan" | "slate";
+type Tone = "blue" | "green" | "orange" | "purple" | "red" | "cyan" | "slate";
 
 type StatCardProps = {
   icon: ReactNode;

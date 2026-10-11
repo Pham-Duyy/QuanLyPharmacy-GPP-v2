@@ -31,10 +31,10 @@ export function PersonCell({ name, id, sub }: { name: string; id: string; sub?: 
   );
 }
 
-export type DotTone = "green" | "orange" | "red" | "blue" | "purple" | "slate";
+type DotTone = "green" | "orange" | "red" | "blue" | "purple" | "slate";
 
 /** Nhãn trạng thái có chấm màu và chữ giải thích — không dựa vào màu đơn thuần. */
-export function StatusDot({ tone, children }: { tone: DotTone; children: ReactNode }) {
+function StatusDot({ tone, children }: { tone: DotTone; children: ReactNode }) {
   return <span className={`staff-status tone-${tone}`}>{children}</span>;
 }
 

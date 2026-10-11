@@ -41,13 +41,13 @@ export type ProductUnit = {
   currentPrice?: CurrentPrice | null;
 };
 
-export type CurrentPrice = {
+type CurrentPrice = {
   salePrice: Money;
   vatRatePercent: string;
   isStoreOverride: boolean;
 };
 
-export type StockSummary = {
+type StockSummary = {
   sellable: number;
   quarantined: number;
   recalled: number;
@@ -81,7 +81,7 @@ export type InventoryOverviewItem = {
   stock: StockSummary;
 };
 
-export type StockMovementType =
+type StockMovementType =
   | "RECEIPT"
   | "OPENING_BALANCE"
   | "SALE"
@@ -270,7 +270,7 @@ export type GoodsReceiptListItem = {
 
 // --- Kiểm tra an toàn (contract §13) ---------------------------------------
 
-export type Blocking = {
+type Blocking = {
   code: string;
   productId: string;
   message: string;
@@ -278,7 +278,7 @@ export type Blocking = {
   sellableBaseQuantity?: number;
 };
 
-export type Warning = {
+type Warning = {
   code: string;
   severity: "INFO" | "MEDIUM" | "HIGH";
   requiresAck: boolean;
@@ -288,7 +288,7 @@ export type Warning = {
   sourceVersion: string;
 };
 
-export type NotChecked = { productId: string; reason: string };
+type NotChecked = { productId: string; reason: string };
 
 export type SafetyResult = {
   blocking: Blocking[];
@@ -298,7 +298,7 @@ export type SafetyResult = {
 
 // --- Hóa đơn (contract §14) -------------------------------------------------
 
-export type InvoiceAllocation = {
+type InvoiceAllocation = {
   id: string;
   batchId: string;
   batchNumber: string;
@@ -307,7 +307,7 @@ export type InvoiceAllocation = {
   returnedBaseQuantity: number;
 };
 
-export type InvoiceLine = {
+type InvoiceLine = {
   id: string;
   lineNo: number;
   productId: string;
@@ -372,7 +372,7 @@ export function formatVnd(value: Money | null | undefined): string {
 
 // --- Trả hàng (contract §15) -----------------------------------------------
 
-export type ReturnLine = {
+type ReturnLine = {
   id: string;
   lineNo: number;
   productName: string;
@@ -539,7 +539,7 @@ export type CustomerDetail = {
   stats: { totalSpent: number; orderCount: number; lastPurchaseAt: string | null; segment: CustomerSegment };
 };
 
-export type CustomerAllergyItem = { ingredientId: string; ingredientName: string; note: string | null };
+type CustomerAllergyItem = { ingredientId: string; ingredientName: string; note: string | null };
 
 export type CustomerHealthProfile = {
   hasHealthConsent: boolean;
@@ -562,14 +562,14 @@ export type CustomerInvoiceHistoryItem = {
 
 // --- Điều chỉnh tồn kho (contract §10.3) ------------------------------------
 
-export type AdjustmentReasonCode =
+type AdjustmentReasonCode =
   | "COUNT_DIFFERENCE"
   | "DAMAGED"
   | "EXPIRED_DISPOSAL"
   | "RECALL_DISPOSAL"
   | "OTHER";
 
-export type StockAdjustmentStatus = "DRAFT" | "APPROVED" | "REJECTED" | "CANCELLED";
+type StockAdjustmentStatus = "DRAFT" | "APPROVED" | "REJECTED" | "CANCELLED";
 
 export type StockAdjustmentListItem = {
   id: string;
@@ -584,7 +584,7 @@ export type StockAdjustmentListItem = {
   lineCount: number;
 };
 
-export type StockAdjustmentLine = {
+type StockAdjustmentLine = {
   id: string;
   lineNo: number;
   batchId: string;
@@ -612,15 +612,6 @@ export type StockAdjustmentDetail = {
 
 // --- Sổ nhiệt độ – độ ẩm (contract §17) -------------------------------------
 
-export type StorageLocationItem = {
-  id: string;
-  code: string;
-  name: string;
-  minTempC: number | null;
-  maxTempC: number | null;
-  maxHumidityPercent: number | null;
-};
-
 export type StorageLogItem = {
   id: string;
   storageLocation: { id: string; code: string; name: string };
@@ -634,7 +625,7 @@ export type StorageLogItem = {
   correctsLogId: string | null;
 };
 
-export type StorageLogSummaryDay = {
+type StorageLogSummaryDay = {
   businessDate: string;
   count: number;
   expectedCount: number;
@@ -650,7 +641,7 @@ export type StorageLogSummaryLocation = {
 
 // --- Người dùng và vai trò (contract §21) -----------------------------------
 
-export type UserRoleAssignment = {
+type UserRoleAssignment = {
   additionalPermissions?: string[];
   qualificationReference?: string | null;
   responsibleProfessional?: boolean;

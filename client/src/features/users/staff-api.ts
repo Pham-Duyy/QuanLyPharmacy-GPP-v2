@@ -8,7 +8,7 @@ import type { Envelope, RoleItem, StoreDetail, UserDetail, UserListItem } from "
  * phần đó nằm trong bản xem trước ở ./preview, không đi qua file này.
  */
 
-export type NewRoleAssignment = {
+type NewRoleAssignment = {
   roleCode: string;
   /** null = toàn chuỗi, phải được chọn rõ trong form. */
   storeId: string | null;

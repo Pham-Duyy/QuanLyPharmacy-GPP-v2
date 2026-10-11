@@ -21,7 +21,7 @@ export function findPage(path: string): PageDef | undefined {
  * để "/san-pham/123" vẫn thuộc Sản phẩm. Khớp theo từng đoạn chứ không theo
  * tiền tố chuỗi, nên "/tra-hang-ncc" không bị nhận nhầm là "/tra-hang".
  */
-export function pageForPathname(pathname: string): PageDef | undefined {
+function pageForPathname(pathname: string): PageDef | undefined {
   let best: PageDef | undefined;
   for (const page of PAGES) {
     const matches = pathname === page.path || pathname.startsWith(`${page.path}/`);
@@ -30,7 +30,7 @@ export function pageForPathname(pathname: string): PageDef | undefined {
   return best;
 }
 
-export function isAllowed(page: Pick<PageDef, "permission">, can: Can): boolean {
+function isAllowed(page: Pick<PageDef, "permission">, can: Can): boolean {
   return typeof page.permission === "string" ? can(page.permission) : page.permission.some(can);
 }
 

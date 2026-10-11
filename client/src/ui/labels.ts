@@ -1,4 +1,4 @@
-export const PAYMENT_METHOD_LABEL: Record<string, string> = {
+const PAYMENT_METHOD_LABEL: Record<string, string> = {
   CASH: "Tiền mặt",
   BANK_TRANSFER: "Chuyển khoản",
   CARD: "Thẻ",
