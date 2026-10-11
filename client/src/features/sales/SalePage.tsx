@@ -1,5 +1,6 @@
 import {
   BankOutlined,
+  BarcodeOutlined,
   CheckCircleFilled,
   ClockCircleOutlined,
   CloseOutlined,
@@ -71,6 +72,7 @@ import { CashShiftBar } from "./CashShiftBar.js";
 import { MAX_SALE_DRAFTS, readDrafts, writeDrafts, type SaleDraft } from "./pos/drafts.js";
 import { PosCatalog } from "./pos/PosCatalog.js";
 import { prescriptionCartLines, productsToFetch, remainingText } from "./pos/prescription-cart.js";
+import { applyScan, pendingPicks, scanConfirmsLine } from "./pos/scan-confirm.js";
 import { ControlledBuyerCard, type ControlledBuyer } from "./pos/ControlledBuyerCard.js";
 import { SafetyPanel } from "./pos/SafetyPanel.js";
 
@@ -83,6 +85,10 @@ type CartLine = {
   prescriptionItemId: string | null;
   /** Cách dùng in nhãn; chưa sửa (undefined) thì lấy liều dùng ghi trên đơn thuốc. */
   usage?: string;
+  /** Số lần quét mã khớp vào dòng này (quét xác nhận lấy đúng thuốc). */
+  scanned: number;
+  /** Dòng tự điền từ đơn thuốc, người bán còn phải đi lấy. */
+  fromPrescription?: boolean;
 };
 
 type Customer = Pick<CustomerSearchItem, "id" | "fullName" | "phone">;
@@ -231,6 +237,11 @@ export function SalePage() {
   const prescriptionPending = prescription
     ? productsToFetch(prescription.items, new Set(cart.map((line) => line.product.id))).length
     : 0;
+
+  // Quét xác nhận: chỉ hiện trạng thái khi đơn này đã có lần quét, quầy không
+  // dùng máy quét thì giao diện giữ nguyên như cũ.
+  const scanning = cart.some((line) => line.scanned > 0);
+  const unscanned = scanning ? cart.filter((line) => line.scanned === 0).length : 0;
 
   const safety = useQuery({
     queryKey: ["safety-check", cartLines, prescription?.id, customer?.id, hasControlledBuyer],
@@ -418,6 +429,8 @@ export function SalePage() {
           .map((line, index) => ({
             ...line,
             key: `${line.product.id}:${line.unitId}:${stamp}:${index}`,
+            scanned: 0,
+            fromPrescription: true,
           })),
       ]);
       if (skipped.length > 0)
@@ -499,11 +512,16 @@ export function SalePage() {
   ) {
     try {
       const product = (await http.get<Envelope<ProductDetail>>(`/products/${productId}`)).data.data;
+      const code = options.scannedCode;
+      const scannedUnit = code
+        ? product.units.find((item) => item.barcodes?.includes(code))
+        : undefined;
+      // Đúng mã vạch của một đơn vị, hoặc mã sản phẩm in trên tem: người bán
+      // đang cầm hộp thuốc này. Gõ tên rồi Enter thì không tính là đã quét.
+      const scanned = Boolean(scannedUnit) || code?.toLowerCase() === product.code.toLowerCase();
       const unit =
         (options.unitId ? product.units.find((item) => item.id === options.unitId) : undefined) ??
-        (options.scannedCode
-          ? product.units.find((item) => item.barcodes?.includes(options.scannedCode!))
-          : undefined) ??
+        scannedUnit ??
         product.units.find((item) => item.isDefaultSaleUnit) ??
         product.units.find((item) => item.conversionToBase === 1) ??
         product.units[0];
@@ -517,27 +535,51 @@ export function SalePage() {
         ? matchingPrescriptionItems(product.id)
         : [];
       const prescriptionItemId = candidates.length === 1 ? candidates[0]!.id : null;
-
-      setCart((current) => {
-        const found = current.find(
-          (line) => line.product.id === product.id && line.unitId === unit.id,
-        );
-        if (found)
-          return current.map((line) =>
-            line.key === found.key ? { ...line, quantity: line.quantity + 1 } : line,
-          );
-        return [
-          ...current,
-          {
-            key: `${product.id}:${unit.id}:${Date.now()}`,
-            product,
-            unitId: unit.id,
-            quantity: 1,
-            prescriptionItemId,
-          },
-        ];
+      const newLine = (): CartLine => ({
+        key: `${product.id}:${unit.id}:${Date.now()}`,
+        product,
+        unitId: unit.id,
+        quantity: 1,
+        prescriptionItemId,
+        scanned: scanned ? 1 : 0,
       });
       setTerm("");
+
+      if (!scanned) {
+        setCart((current) => {
+          const found = current.find(
+            (line) => line.product.id === product.id && line.unitId === unit.id,
+          );
+          if (found)
+            return current.map((line) =>
+              line.key === found.key ? { ...line, quantity: line.quantity + 1 } : line,
+            );
+          return [...current, newLine()];
+        });
+        searchRef.current?.focus();
+        return;
+      }
+
+      const pending = pendingPicks(
+        cart,
+        product.id,
+        prescription?.items.some((item) => item.productId === product.id) ?? false,
+      );
+      if (pending.length > 0) {
+        modal.confirm({
+          title: "Có thể lấy nhầm thuốc",
+          content: `${product.name} không có trong đơn thuốc. Thuốc theo đơn chưa quét: ${pending.map((line) => line.product.name).join(", ")}.`,
+          okText: "Vẫn thêm vào đơn",
+          cancelText: "Lấy nhầm, bỏ qua",
+          focusable: { autoFocusButton: "cancel" },
+          onOk: () => setCart((current) => applyScan(current, product.id, unit.id, newLine)),
+          afterClose: () => searchRef.current?.focus(),
+        });
+        return;
+      }
+      if (scanConfirmsLine(cart, product.id, unit.id))
+        void message.success(`Đúng thuốc: ${product.name}`, 1.5);
+      setCart((current) => applyScan(current, product.id, unit.id, newLine));
       searchRef.current?.focus();
     } catch (error) {
       void message.error(getErrorMessage(error, "Không thêm được sản phẩm"));
@@ -548,8 +590,8 @@ export function SalePage() {
    * Enter trong ô tìm khi chưa chọn dòng: máy quét mã vạch gõ rất nhanh rồi
    * Enter, nên tra thẳng API với chuỗi hiện tại thay vì dựa vào danh sách.
    */
-  async function handleScanEnter() {
-    const value = term.trim();
+  async function handleScanEnter(code = term) {
+    const value = code.trim();
     if (!value) return;
     try {
       const items = (
@@ -758,6 +800,7 @@ export function SalePage() {
           unitId: unit.id,
           quantity: line.quantity,
           prescriptionItemId: candidates.length === 1 ? candidates[0]!.id : null,
+          scanned: 0,
         });
       });
       resetSale();
@@ -1061,9 +1104,24 @@ export function SalePage() {
                         />
                         <div className="pos-cart-text">
                           <strong>{line.product.name}</strong>
-                          {line.product.shelfLocation ? (
-                            <span className="pos-shelf">
-                              <EnvironmentOutlined /> {line.product.shelfLocation}
+                          {line.product.shelfLocation || scanning ? (
+                            <span className="pos-cart-tags">
+                              {line.product.shelfLocation ? (
+                                <span className="pos-shelf">
+                                  <EnvironmentOutlined /> {line.product.shelfLocation}
+                                </span>
+                              ) : null}
+                              {scanning ? (
+                                line.scanned > 0 ? (
+                                  <span className="pos-scan is-ok">
+                                    <CheckCircleFilled /> Đã quét
+                                  </span>
+                                ) : (
+                                  <span className="pos-scan">
+                                    <BarcodeOutlined /> Chưa quét
+                                  </span>
+                                )
+                              ) : null}
                             </span>
                           ) : null}
                           <span className="pos-cart-unit">
@@ -1398,6 +1456,11 @@ export function SalePage() {
               {blocking.length > 0
                 ? "Còn vấn đề chặn bán, xem mục Kiểm tra an toàn."
                 : `Còn ${missingAck.length} cảnh báo cần ghi nhận trước khi bán.`}
+            </p>
+          ) : null}
+          {unscanned > 0 ? (
+            <p className="pos-scan-note">
+              <BarcodeOutlined /> Còn {unscanned} thuốc chưa quét xác nhận
             </p>
           ) : null}
           <p className="pos-note">
