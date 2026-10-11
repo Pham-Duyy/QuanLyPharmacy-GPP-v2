@@ -32,6 +32,7 @@ import {
   TruckOutlined,
   UndoOutlined,
   UserSwitchOutlined,
+  WalletOutlined,
 } from "@ant-design/icons";
 import type { ReactNode } from "react";
 
@@ -113,6 +114,13 @@ export const PAGES = [
     icon: <RollbackOutlined />,
     permission: "invoice.read",
     keywords: "tra hang hoan tien phieu tra",
+  },
+  {
+    path: "/ca-thu-ngan",
+    label: "Ca thu ngân",
+    icon: <WalletOutlined />,
+    permission: ["cash_shift.manage", "report.sales"],
+    keywords: "ca thu ngan chot ket chot ca tien mat dau ca giao ca",
   },
   {
     path: "/hoa-don-dien-tu",

@@ -271,6 +271,7 @@ Quy tắc:
 | `invoice.read` | Xem hóa đơn, phiếu trả |
 | `invoice.create` | Bán hàng, chạy kiểm tra an toàn |
 | `invoice.void` | Hủy hóa đơn |
+| `cash_shift.manage` | Mở, chốt ca thu ngân và ghi thu chi tiền mặt trong ca |
 | `sale.prescription_drug` | Bán thuốc kê đơn và thuốc kiểm soát đặc biệt |
 | `sale.batch_override` | Chỉ định lô khác thứ tự FEFO |
 | `sale.discount` | Giảm giá trong hạn mức của vai trò |
@@ -324,6 +325,7 @@ Mô hình cập nhật ngày 30/09/2026. `admin`: quản lý; `pharmacist`: dư�
 | `invoice.read` | ✓ | ✓ |  | ✓ |
 | `invoice.create` |  | ✓ |  |  |
 | `invoice.void` | ✓ |  |  |  |
+| `cash_shift.manage` | ✓ | ✓ |  |  |
 | `sale.prescription_drug` |  | ✓ |  |  |
 | `sale.batch_override` |  |  |  |  |
 | `sale.discount` | ✓ | ✓ |  |  |
@@ -1205,6 +1207,29 @@ CSDL có ràng buộc tồn của lô không âm, làm lớp chặn cuối cùng
 
 - Chỉ hủy được hóa đơn `COMPLETED`, chưa có phiếu trả, trong thời hạn cho phép. **[Đã chốt – P12]**
 - Trong một transaction: chuyển `COMPLETED` → `VOIDED` có điều kiện; ghi thẻ kho loại `SALE_VOID` cộng lại đúng các lô đã xuất; giảm lại số lượng đã bán theo đơn thuốc; ghi audit log.
+
+### 14.5 Ca thu ngân, chốt két [Đã chốt – 11/10/2026]
+
+Bản gọn: mỗi cửa hàng một két, chỉ nhập tổng tiền; **không chặn bán khi chưa mở ca**. Bắt buộc `X-Store-Id`.
+
+| Method | Endpoint | Mô tả | Quyền |
+|---|---|---|---|
+| GET | `/cash-shifts/current` | `{ shift, outsideShift, lastCountedCash }`: ca đang mở (kèm số liệu tính tới hiện tại); chưa mở ca thì báo số tiền đếm lúc chốt ca trước và tiền mặt đã bán ngoài ca từ lúc đó | `cash_shift.manage` |
+| POST | `/cash-shifts` | Mở ca: `openingCash` (tiền đang có trong két); mỗi cửa hàng chỉ một ca mở (`409`); cần `Idempotency-Key` | `cash_shift.manage` |
+| POST | `/cash-shifts/{id}/movements` | Phiếu thu/chi tiền mặt khác: `direction` (`IN`/`OUT`), `amount` > 0, `reason` bắt buộc; chỉ khi ca còn mở (`409`); không sửa, không xóa; cần `Idempotency-Key` | `cash_shift.manage` |
+| POST | `/cash-shifts/{id}/close` | Chốt ca: `countedCash` (tiền đếm thực tế), `note` bắt buộc khi lệch (`422`); cần `Idempotency-Key` | `cash_shift.manage` |
+| GET | `/cash-shifts` | Lịch sử ca, mới nhất trước; lọc `from`, `to` theo giờ mở ca | `cash_shift.manage` hoặc `report.sales` |
+| GET | `/cash-shifts/{id}` | Chi tiết ca, số liệu và phiếu thu chi | `cash_shift.manage` hoặc `report.sales` |
+| GET | `/cash-shifts/{id}/print` | Phiếu chốt ca (HTML, khổ của mẫu hóa đơn; A4/A5 thì in K80) | `cash_shift.manage` hoặc `report.sales` |
+
+Tiền mặt dự kiến của ca, tính theo thời gian từ lúc mở tới lúc chốt:
+
+> tiền đầu ca + hóa đơn tiền mặt bán trong ca − hóa đơn tiền mặt bị hủy trong ca − tiền mặt hoàn khi trả hàng trong ca + phiếu thu − phiếu chi
+
+- Hóa đơn bán trong ca rồi bị hủy ở ca sau thì ca sau trừ tiền (lúc đó mới trả lại khách).
+- **Chi trả nhà cung cấp không tính vào két** (thường trả bằng tiền riêng của chủ hoặc chuyển khoản); lấy tiền két để trả thì ghi một phiếu chi trong ca.
+- Lúc chốt, số liệu được chụp lại vào ca (`expected_cash`, `summary`): hủy hóa đơn cũ về sau không làm đổi phiếu chốt đã in.
+- Ghi audit `CASH_SHIFT_OPEN`, `CASH_IN`, `CASH_OUT`, `CASH_SHIFT_CLOSE`.
 
 ---
 

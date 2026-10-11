@@ -65,6 +65,8 @@ import {
 import { ERX_CODE, importEPrescription } from "../prescriptions/eprescription-api.js";
 import { ProductThumb } from "../catalog/products/ProductThumb.js";
 import { printDocument, printInvoice, printUrl } from "../printing/printing.js";
+import { cashShiftKeys } from "./cash-shift-api.js";
+import { CashShiftBar } from "./CashShiftBar.js";
 import { MAX_SALE_DRAFTS, readDrafts, writeDrafts, type SaleDraft } from "./pos/drafts.js";
 import { PosCatalog } from "./pos/PosCatalog.js";
 import { ControlledBuyerCard, type ControlledBuyer } from "./pos/ControlledBuyerCard.js";
@@ -327,6 +329,7 @@ export function SalePage() {
     onSuccess: (invoice) => {
       submitKey.done();
       void queryClient.invalidateQueries({ queryKey: ["customer-loyalty"] });
+      void queryClient.invalidateQueries({ queryKey: cashShiftKeys.current });
       // In lần lượt: hộp thoại in thứ hai chỉ mở khi hộp thứ nhất đã đóng.
       const labels = printLabels && invoice.lines.some((line) => line.usageInstruction);
       void (async () => {
@@ -778,14 +781,17 @@ export function SalePage() {
         icon={<ShoppingCartOutlined />}
         title="Bán thuốc"
         extra={
-          <div className="shortcut-hints">
-            <span>
-              <kbd>F2</kbd> Tìm thuốc
-            </span>
-            <span>
-              <kbd>F9</kbd> Thanh toán
-            </span>
-          </div>
+          <>
+            <CashShiftBar />
+            <div className="shortcut-hints">
+              <span>
+                <kbd>F2</kbd> Tìm thuốc
+              </span>
+              <span>
+                <kbd>F9</kbd> Thanh toán
+              </span>
+            </div>
+          </>
         }
       />
 

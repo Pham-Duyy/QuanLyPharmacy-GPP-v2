@@ -3820,3 +3820,85 @@
   font-size: 12px;
   align-self: flex-start;
 }
+
+/* ---------- Ca thu ngân ---------- */
+
+.cash-shift-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.cash-shift-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--c-ink-700);
+  font-size: 13px;
+}
+
+.cash-shift-sum {
+  margin: 0 0 10px;
+}
+
+.cash-shift-sum > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 0;
+}
+
+.cash-shift-sum dt {
+  color: var(--c-ink-500);
+}
+
+.cash-shift-sum dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.cash-shift-sum > .is-total {
+  border-top: 1px solid var(--c-border);
+  font-weight: 700;
+}
+
+.cash-shift-sum > .is-total dt {
+  color: var(--c-ink-700);
+}
+
+.cash-shift-diff {
+  margin: -8px 0 12px;
+  font-weight: 600;
+}
+
+.cash-shift-diff.is-ok {
+  color: var(--tone-green);
+}
+
+.cash-shift-diff.is-short {
+  color: var(--tone-red);
+}
+
+.cash-shift-diff.is-over {
+  color: var(--tone-orange);
+}
+
+.cash-shift-moves {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cash-shift-moves li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--c-border);
+}
+
+.cash-shift-moves small {
+  display: block;
+  color: var(--c-ink-500);
+}

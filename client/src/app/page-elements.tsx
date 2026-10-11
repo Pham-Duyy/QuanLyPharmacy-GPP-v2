@@ -10,6 +10,7 @@ function page<K extends string>(loader: () => Promise<Record<K, ComponentType>>,
 const DashboardPage = page(() => import("../features/dashboard/DashboardPage.js"), "DashboardPage");
 const SalePage = page(() => import("../features/sales/SalePage.js"), "SalePage");
 const InvoicesPage = page(() => import("../features/sales/InvoicesPage.js"), "InvoicesPage");
+const CashShiftsPage = page(() => import("../features/sales/CashShiftsPage.js"), "CashShiftsPage");
 const ReturnsPage = page(() => import("../features/sales/ReturnsPage.js"), "ReturnsPage");
 const PrescriptionsPage = page(
   () => import("../features/prescriptions/PrescriptionsPage.js"),
@@ -98,6 +99,7 @@ export const PAGE_ELEMENTS: Record<PagePath, ReactNode> = {
   "/bao-cao": <ReportsPage />,
   "/hoa-don": <InvoicesPage />,
   "/tra-hang": <ReturnsPage />,
+  "/ca-thu-ngan": <CashShiftsPage />,
   "/hoa-don-dien-tu": <EInvoicesPage />,
   "/don-thuoc": <PrescriptionsPage />,
   "/san-pham": <ProductsPage />,
