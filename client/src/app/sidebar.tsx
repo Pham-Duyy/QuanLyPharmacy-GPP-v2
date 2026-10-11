@@ -36,7 +36,7 @@ export const SIDEBAR: readonly SidebarEntry[] = [
     key: "sales",
     label: "Giao dịch bán",
     icon: <ProfileOutlined />,
-    paths: ["/hoa-don", "/hoa-don-dien-tu", "/tra-hang", "/don-thuoc"],
+    paths: ["/hoa-don", "/hoa-don-dien-tu", "/tra-hang", "/ca-thu-ngan", "/don-thuoc"],
   },
   {
     kind: "group",

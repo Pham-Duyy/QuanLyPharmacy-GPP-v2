@@ -21,6 +21,7 @@ import { pricesRouter } from "./modules/catalog/prices.routes.js";
 import { goodsReceiptsRouter } from "./modules/inventory/goods-receipts.routes.js";
 import { invoicesRouter } from "./modules/sales/invoices.routes.js";
 import { returnsRouter } from "./modules/sales/returns.routes.js";
+import { cashShiftsRouter } from "./modules/sales/cash-shifts.routes.js";
 import { recallsRouter } from "./modules/recalls/recalls.routes.js";
 import { stockAdjustmentsRouter } from "./modules/inventory/stock-adjustments.routes.js";
 import { openingBalanceRouter } from "./modules/inventory/opening-balance.routes.js";
@@ -88,6 +89,7 @@ export function createApp() {
   app.use("/api/v1", goodsReceiptsRouter);
   app.use("/api/v1", invoicesRouter);
   app.use("/api/v1", returnsRouter);
+  app.use("/api/v1", cashShiftsRouter);
   app.use("/api/v1", recallsRouter);
   app.use("/api/v1", stockAdjustmentsRouter);
   app.use("/api/v1", openingBalanceRouter);

@@ -47,6 +47,16 @@ export async function lockStockCount(tx: Tx, storeId: string, countId: string): 
   if (rows.length === 0) throw AppError.notFound("Không tìm thấy đợt kiểm kê");
 }
 
+/** Khóa ca thu ngân trước khi ghi thu chi hoặc chốt ca. */
+export async function lockCashShift(tx: Tx, storeId: string, shiftId: string): Promise<void> {
+  const rows = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+    SELECT id::text FROM cash_shifts
+    WHERE id = ${shiftId}::uuid AND store_id = ${storeId}::uuid
+    FOR UPDATE
+  `);
+  if (rows.length === 0) throw AppError.notFound("Không tìm thấy ca thu ngân");
+}
+
 /** Khóa phiếu trả hàng nhà cung cấp trước khi xác nhận hoặc hủy. */
 export async function lockSupplierReturn(tx: Tx, storeId: string, returnId: string): Promise<void> {
   const rows = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`

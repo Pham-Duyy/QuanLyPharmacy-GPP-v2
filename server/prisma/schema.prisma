@@ -53,6 +53,7 @@ model Store {
   supplierReturns     SupplierReturn[]
   transfersOut        StockTransfer[]            @relation("StockTransferFrom")
   qualityReports      QualityReport[]
+  cashShifts          CashShift[]
   eprescriptionConfig EPrescriptionStoreConfig?
   eprescriptionJobs   EPrescriptionDispenseJob[]
   transfersIn         StockTransfer[]            @relation("StockTransferTo")
@@ -126,6 +127,9 @@ model User {
   transfersCancelled        StockTransfer[]            @relation("StockTransferCancelledBy")
   qualityReportsCreated     QualityReport[]            @relation("QualityReportCreatedBy")
   qualityReportsClosed      QualityReport[]            @relation("QualityReportClosedBy")
+  cashShiftsOpened          CashShift[]                @relation("CashShiftOpenedBy")
+  cashShiftsClosed          CashShift[]                @relation("CashShiftClosedBy")
+  cashMovements             CashMovement[]
   recallContacts            RecallContact[]
   eprescriptionConfigs      EPrescriptionConfig[]
   eprescriptionStoreConfigs EPrescriptionStoreConfig[]
@@ -1749,4 +1753,54 @@ model EPrescriptionDispenseJob {
 
   @@index([status, nextAttemptAt], map: "eprescription_dispense_jobs_status_idx")
   @@map("eprescription_dispense_jobs")
+}
+
+/// Ca thu ngân: mỗi cửa hàng một két, chỉ một ca mở tại một thời điểm
+/// (chỉ mục từng phần cash_shifts_one_open_per_store viết tay trong migration).
+model CashShift {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  storeId      String    @map("store_id") @db.Uuid
+  code         String    @unique
+  /// OPEN hoặc CLOSED.
+  status       String    @default("OPEN")
+  openedAt     DateTime  @default(now()) @map("opened_at") @db.Timestamptz(6)
+  openedBy     String    @map("opened_by") @db.Uuid
+  openingCash  BigInt    @map("opening_cash")
+  closedAt     DateTime? @map("closed_at") @db.Timestamptz(6)
+  closedBy     String?   @map("closed_by") @db.Uuid
+  /// Chụp lại lúc chốt ca.
+  expectedCash BigInt?   @map("expected_cash")
+  countedCash  BigInt?   @map("counted_cash")
+  difference   BigInt?
+  closeNote    String?   @map("close_note")
+  summary      Json?
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  store        Store          @relation(fields: [storeId], references: [id])
+  openedByUser User           @relation("CashShiftOpenedBy", fields: [openedBy], references: [id])
+  closedByUser User?          @relation("CashShiftClosedBy", fields: [closedBy], references: [id])
+  movements    CashMovement[]
+
+  @@unique([id, storeId], map: "cash_shifts_id_store_key")
+  @@index([storeId, openedAt(sort: Desc)], map: "cash_shifts_store_opened_idx")
+  @@map("cash_shifts")
+}
+
+/// Phiếu thu/chi tiền mặt khác trong ca. Không sửa, không xóa.
+model CashMovement {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  shiftId   String   @map("shift_id") @db.Uuid
+  storeId   String   @map("store_id") @db.Uuid
+  /// IN (thu) hoặc OUT (chi).
+  direction String
+  amount    BigInt
+  reason    String
+  createdBy String   @map("created_by") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  shift         CashShift @relation(fields: [shiftId, storeId], references: [id, storeId], map: "cash_movements_shift_store_fkey")
+  createdByUser User      @relation(fields: [createdBy], references: [id])
+
+  @@index([shiftId, createdAt], map: "cash_movements_shift_idx")
+  @@map("cash_movements")
 }
