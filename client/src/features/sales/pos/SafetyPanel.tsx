@@ -71,7 +71,7 @@ export function SafetyPanel({
         return (
           <div
             className="pos-safety-item warning"
-            key={`${warning.code}-${warning.productIds.join(",")}`}
+            key={`${warning.code}-${warning.productIds.join(",")}-${warning.message}`}
           >
             <div className="pos-safety-title">
               <span>{warning.message}</span>
