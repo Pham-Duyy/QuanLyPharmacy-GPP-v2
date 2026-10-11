@@ -13,6 +13,12 @@ const envSchema = z.object({
   CORS_ORIGIN: z.string().default("http://localhost:5173"),
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info"),
   /**
+   * Chạy sau reverse proxy (nginx…) thì đặt số proxy tin cậy, ví dụ `1`, để
+   * máy chủ đọc đúng IP người dùng (ghi phiên đăng nhập, chặn dò mật khẩu theo
+   * IP). Bỏ trống khi trình duyệt gọi thẳng máy chủ: không tin X-Forwarded-For.
+   */
+  TRUST_PROXY: z.coerce.number().int().min(1).max(5).optional(),
+  /**
    * Địa chỉ API Hệ thống CSDL về Dược. Bỏ trống thì lấy theo môi trường đã
    * chọn ở màn cấu hình (sandbox hoặc thật). Đặt biến này để trỏ sang máy
    * chủ giả khi chạy test, hoặc khi Bộ Y tế đổi tên miền.

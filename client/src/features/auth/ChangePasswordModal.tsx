@@ -3,6 +3,7 @@ import { useMutation } from "@tanstack/react-query";
 import { App, Button, Form, Input, Modal, type FormInstance } from "antd";
 import type { ReactNode } from "react";
 import { getErrorMessage, http } from "../../api/http.js";
+import { passwordTooLong } from "../users/staff-password.js";
 import { useAuth } from "./auth-context.js";
 
 type FormValues = { currentPassword: string; newPassword: string; confirmPassword: string };
@@ -13,6 +14,12 @@ const NEW_PASSWORD_RULES = [
   { min: 10, message: "Mật khẩu mới phải dài ít nhất 10 ký tự" },
   { pattern: /[a-zA-Z]/, message: "Mật khẩu mới phải có chữ" },
   { pattern: /[0-9]/, message: "Mật khẩu mới phải có số" },
+  {
+    validator: (_: unknown, value?: string) =>
+      value && passwordTooLong(value)
+        ? Promise.reject(new Error("Mật khẩu quá dài: tối đa 72 ký tự không dấu"))
+        : Promise.resolve(),
+  },
 ];
 
 /** Gửi đổi mật khẩu rồi nạp lại hồ sơ; dùng chung cho hộp thoại và trang bắt đổi mật khẩu tạm. */

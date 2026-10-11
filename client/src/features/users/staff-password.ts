@@ -1,13 +1,17 @@
 /**
- * Luật mật khẩu khớp máy chủ (`newPasswordSchema`): 10–200 ký tự, có chữ và số.
+ * Luật mật khẩu khớp máy chủ (`newPasswordSchema`): ít nhất 10 ký tự, có chữ
+ * và số, tối đa 72 byte — bcrypt bỏ qua phần dư (chữ có dấu tính 2–3 byte).
  * Giữ ở một chỗ để form và bộ sinh dùng chung.
  */
 const PASSWORD_MIN = 10;
-const PASSWORD_MAX = 200;
+
+export function passwordTooLong(value: string): boolean {
+  return new TextEncoder().encode(value).length > 72;
+}
 
 export function passwordProblem(value: string): string | null {
   if (value.length < PASSWORD_MIN) return `Tối thiểu ${PASSWORD_MIN} ký tự`;
-  if (value.length > PASSWORD_MAX) return `Tối đa ${PASSWORD_MAX} ký tự`;
+  if (passwordTooLong(value)) return "Quá dài: tối đa 72 ký tự không dấu";
   if (!/[a-zA-Z]/.test(value)) return "Cần có ít nhất một chữ cái";
   if (!/[0-9]/.test(value)) return "Cần có ít nhất một chữ số";
   return null;

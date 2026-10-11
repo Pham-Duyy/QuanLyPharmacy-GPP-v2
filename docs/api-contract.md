@@ -234,7 +234,8 @@ Quy tắc:
 - Refresh token đặt trong cookie `HttpOnly`, `Secure`, `SameSite=Strict`, path `/api/v1/auth`; hết hạn sau 7 ngày không hoạt động; CSDL chỉ lưu bản băm theo từng phiên. **[Đã chốt – P1]**
 - Mỗi lần refresh cấp refresh token mới. Nếu một refresh token đã dùng rồi bị gửi lại, thu hồi toàn bộ chuỗi phiên đó.
 - Vô hiệu hóa tài khoản, đổi mật khẩu, đặt lại mật khẩu, đổi vai trò: thu hồi mọi refresh token của người đó.
-- Đăng nhập sai nhiều lần: tăng dần thời gian chờ theo IP và tài khoản, không khóa cứng tài khoản.
+- Đăng nhập sai nhiều lần, không khóa cứng tài khoản: theo tài khoản, từ lần sai thứ 5 phải chờ tăng dần (tối đa 5 phút); theo IP, quá 20 lần sai trong 15 phút thì tạm không nhận đăng nhập từ IP đó, kể cả đúng mật khẩu (`429 RATE_LIMITED`). Tên đăng nhập không tồn tại vẫn so mật khẩu với một bản băm giả để thời gian trả lời như khi sai mật khẩu. Chạy sau reverse proxy thì đặt `TRUST_PROXY` để máy chủ đọc đúng IP người dùng.
+- Mật khẩu mới tối đa 72 byte (giới hạn của bcrypt; chữ có dấu tính 2–3 byte), ít nhất 10 ký tự, có chữ và số.
 - MFA: sau MVP.
 
 ---
@@ -1400,7 +1401,7 @@ Nguyên tắc (giữ từ bản gốc, bổ sung):
 - `PATCH /users/{id}` không nhận `roles`, `password`, `isActive`; các trường này có endpoint riêng.
 - `POST /users` có hai cách dùng:
   - Chỉ thông tin cơ bản: máy chủ sinh mật khẩu tạm, trả `tempPassword` đúng một lần, bắt đổi ở lần đăng nhập đầu; vai trò gán sau bằng `PUT /users/{id}/roles`.
-  - Kèm `password` (luật như đổi mật khẩu: 10–200 ký tự, có chữ và số), `mustChangePassword` (mặc định `true`) và `roles` (cùng cấu trúc như `PUT /users/{id}/roles`): tài khoản, mật khẩu và phân quyền được tạo **trong một giao dịch**; phân quyền không hợp lệ (`422`) hoặc ngoài phạm vi (`403`) thì không có tài khoản nào được tạo. Response không bao giờ chứa mật khẩu người tạo đặt; audit `USER_CREATE` ghi `password: SET_BY_MANAGER | TEMPORARY`, không ghi mật khẩu.
+  - Kèm `password` (luật như đổi mật khẩu: ít nhất 10 ký tự, tối đa 72 byte, có chữ và số), `mustChangePassword` (mặc định `true`) và `roles` (cùng cấu trúc như `PUT /users/{id}/roles`): tài khoản, mật khẩu và phân quyền được tạo **trong một giao dịch**; phân quyền không hợp lệ (`422`) hoặc ngoài phạm vi (`403`) thì không có tài khoản nào được tạo. Response không bao giờ chứa mật khẩu người tạo đặt; audit `USER_CREATE` ghi `password: SET_BY_MANAGER | TEMPORARY`, không ghi mật khẩu.
 - Phạm vi người giao vai trò: vai trò toàn chuỗi (`storeId = null`) cần `user.manage` toàn chuỗi; vai trò tại cửa hàng cần `user.manage` tại đúng cửa hàng đó. Áp dụng cho cả `POST /users` và `PUT /users/{id}/roles`; với `PUT`, xét cả vai trò đang có của người bị sửa, nên quản lý một cửa hàng không gỡ được vai trò ở cửa hàng khác hay vai trò toàn chuỗi.
 - Phạm vi người thao tác trên tài khoản: sửa thông tin, vô hiệu hóa, kích hoạt lại và đặt lại mật khẩu tác động lên cả tài khoản (dùng chung ở mọi nơi người đó làm việc), nên cần `user.manage` ở **mọi** phạm vi người đó đang có vai trò — vai trò toàn chuỗi cần `user.manage` toàn chuỗi; thiếu thì `403`. Tài khoản chưa có vai trò nào thì người có `user.manage` ở đâu cũng thao tác được. Nhờ vậy quản lý một cửa hàng không đặt lại mật khẩu hay khóa được chủ chuỗi hoặc nhân viên còn làm ở cửa hàng khác.
 
