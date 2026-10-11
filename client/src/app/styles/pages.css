@@ -73,7 +73,13 @@
   display: flex;
   align-items: flex-end;
   padding: 0 16%;
-  background: repeating-linear-gradient(to bottom, transparent 0, transparent 49px, #eef2f7 49px, #eef2f7 50px);
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent 49px,
+    #eef2f7 49px,
+    #eef2f7 50px
+  );
 }
 
 .revenue-bar {
@@ -989,11 +995,24 @@
     row-gap: 8px;
   }
 
-  .pos-row-product { grid-area: product; }
-  .pos-row-stock { grid-area: stock; align-items: flex-start; }
-  .pos-row-price { grid-area: price; }
-  .pos-row-unit { display: block; grid-area: unit; }
-  .pos-row-action { grid-area: action; justify-self: end; }
+  .pos-row-product {
+    grid-area: product;
+  }
+  .pos-row-stock {
+    grid-area: stock;
+    align-items: flex-start;
+  }
+  .pos-row-price {
+    grid-area: price;
+  }
+  .pos-row-unit {
+    display: block;
+    grid-area: unit;
+  }
+  .pos-row-action {
+    grid-area: action;
+    justify-self: end;
+  }
 }
 
 @media (max-width: 1199px) {
@@ -1041,10 +1060,20 @@
     padding-left: 0;
   }
 
-  .pos-cart-product { grid-area: product; }
-  .pos-qty { grid-area: qty; padding-left: 54px; }
-  .pos-cart-total { grid-area: total; align-self: center; }
-  .pos-cart-line > .ant-btn { grid-area: remove; }
+  .pos-cart-product {
+    grid-area: product;
+  }
+  .pos-qty {
+    grid-area: qty;
+    padding-left: 54px;
+  }
+  .pos-cart-total {
+    grid-area: total;
+    align-self: center;
+  }
+  .pos-cart-line > .ant-btn {
+    grid-area: remove;
+  }
 
   .pos-pay-method {
     min-height: 40px;
@@ -1054,7 +1083,9 @@
 }
 
 @container (max-width: 400px) {
-  .pos-qty { padding-left: 0; }
+  .pos-qty {
+    padding-left: 0;
+  }
 
   .pos-discount .ant-space-compact,
   .pos-tender-input.ant-input-number,
@@ -1598,12 +1629,15 @@
 .print-paper {
   transform-origin: top left;
   background: #fff;
-  box-shadow: 0 1px 2px rgba(15, 35, 70, 0.08), 0 8px 24px rgba(15, 35, 70, 0.1);
+  box-shadow:
+    0 1px 2px rgba(15, 35, 70, 0.08),
+    0 8px 24px rgba(15, 35, 70, 0.1);
 }
 
 .paper-k80 .print-paper,
 .paper-k58 .print-paper {
-  --zigzag: linear-gradient(-45deg, transparent 5px, #fff 0) 0 0 / 10px 10px repeat-x,
+  --zigzag:
+    linear-gradient(-45deg, transparent 5px, #fff 0) 0 0 / 10px 10px repeat-x,
     linear-gradient(45deg, transparent 5px, #fff 0) 0 0 / 10px 10px repeat-x;
   position: relative;
   margin: 6px 0;
@@ -1817,13 +1851,34 @@
   white-space: nowrap;
 }
 
-.class-badge.tone-green { background: var(--tone-green-bg); color: var(--tone-green); }
-.class-badge.tone-orange { background: var(--tone-orange-bg); color: var(--tone-orange); }
-.class-badge.tone-red { background: var(--tone-red-bg); color: var(--tone-red); }
-.class-badge.tone-blue { background: var(--tone-blue-bg); color: var(--tone-blue); }
-.class-badge.tone-cyan { background: var(--tone-cyan-bg); color: var(--tone-cyan); }
-.class-badge.tone-purple { background: var(--tone-purple-bg); color: var(--tone-purple); }
-.class-badge.tone-slate { background: var(--tone-slate-bg); color: var(--tone-slate); }
+.class-badge.tone-green {
+  background: var(--tone-green-bg);
+  color: var(--tone-green);
+}
+.class-badge.tone-orange {
+  background: var(--tone-orange-bg);
+  color: var(--tone-orange);
+}
+.class-badge.tone-red {
+  background: var(--tone-red-bg);
+  color: var(--tone-red);
+}
+.class-badge.tone-blue {
+  background: var(--tone-blue-bg);
+  color: var(--tone-blue);
+}
+.class-badge.tone-cyan {
+  background: var(--tone-cyan-bg);
+  color: var(--tone-cyan);
+}
+.class-badge.tone-purple {
+  background: var(--tone-purple-bg);
+  color: var(--tone-purple);
+}
+.class-badge.tone-slate {
+  background: var(--tone-slate-bg);
+  color: var(--tone-slate);
+}
 
 .product-thumb {
   display: inline-flex;
@@ -2113,7 +2168,9 @@
   font: inherit;
   text-align: left;
   cursor: pointer;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
 }
 
 .product-card:hover {
@@ -2773,13 +2830,28 @@
 }
 
 .cust-stat-icon.tone-blue,
-.cust-metric.tone-blue > .anticon { background: var(--tone-blue-bg); color: var(--tone-blue); }
-.cust-stat-icon.tone-teal { background: var(--tone-cyan-bg); color: var(--tone-cyan); }
+.cust-metric.tone-blue > .anticon {
+  background: var(--tone-blue-bg);
+  color: var(--tone-blue);
+}
+.cust-stat-icon.tone-teal {
+  background: var(--tone-cyan-bg);
+  color: var(--tone-cyan);
+}
 .cust-stat-icon.tone-green,
-.cust-metric.tone-green > .anticon { background: var(--tone-green-bg); color: var(--tone-green); }
+.cust-metric.tone-green > .anticon {
+  background: var(--tone-green-bg);
+  color: var(--tone-green);
+}
 .cust-stat-icon.tone-orange,
-.cust-metric.tone-orange > .anticon { background: var(--tone-orange-bg); color: var(--tone-orange); }
-.cust-metric.tone-purple > .anticon { background: var(--tone-purple-bg); color: var(--tone-purple); }
+.cust-metric.tone-orange > .anticon {
+  background: var(--tone-orange-bg);
+  color: var(--tone-orange);
+}
+.cust-metric.tone-purple > .anticon {
+  background: var(--tone-purple-bg);
+  color: var(--tone-purple);
+}
 
 .cust-stat-text {
   display: flex;
@@ -2954,12 +3026,24 @@
   font-size: 20px;
 }
 
-.cust-avatar.tone-blue { background: #3b82f6; }
-.cust-avatar.tone-teal { background: #14a3a0; }
-.cust-avatar.tone-purple { background: #8b5cf6; }
-.cust-avatar.tone-orange { background: #e8870e; }
-.cust-avatar.tone-cyan { background: #0891b2; }
-.cust-avatar.tone-green { background: #0e9f6e; }
+.cust-avatar.tone-blue {
+  background: #3b82f6;
+}
+.cust-avatar.tone-teal {
+  background: #14a3a0;
+}
+.cust-avatar.tone-purple {
+  background: #8b5cf6;
+}
+.cust-avatar.tone-orange {
+  background: #e8870e;
+}
+.cust-avatar.tone-cyan {
+  background: #0891b2;
+}
+.cust-avatar.tone-green {
+  background: #0e9f6e;
+}
 
 .cust-row-text {
   display: flex;
@@ -3236,8 +3320,14 @@
   content: "";
 }
 
-.status-dot.is-green { background: var(--tone-green-bg); color: var(--tone-green); }
-.status-dot.is-red { background: var(--tone-red-bg); color: var(--tone-red); }
+.status-dot.is-green {
+  background: var(--tone-green-bg);
+  color: var(--tone-green);
+}
+.status-dot.is-red {
+  background: var(--tone-red-bg);
+  color: var(--tone-red);
+}
 
 .cust-note {
   display: flex;

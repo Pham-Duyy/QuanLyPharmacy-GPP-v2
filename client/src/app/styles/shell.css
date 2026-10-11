@@ -251,7 +251,10 @@
   font-size: 13.5px;
   text-align: left;
   cursor: pointer;
-  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+  transition:
+    border-color 0.15s,
+    background 0.15s,
+    box-shadow 0.15s;
 }
 
 .search-trigger:hover {
@@ -798,8 +801,7 @@
   place-items: center;
   padding: 32px 20px;
   background:
-    radial-gradient(circle at 70% 0%, rgba(8, 118, 235, 0.06), transparent 50%),
-    var(--c-surface);
+    radial-gradient(circle at 70% 0%, rgba(8, 118, 235, 0.06), transparent 50%), var(--c-surface);
 }
 
 .login-card {
