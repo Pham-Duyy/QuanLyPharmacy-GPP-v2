@@ -21,7 +21,7 @@ export type EffectiveLoyaltySettings = {
   updatedAt: string | null;
 };
 
-export type LoyaltyBalance = {
+type LoyaltyBalance = {
   available: number;
   expiringSoon: number;
   nextExpiryAt: string | null;

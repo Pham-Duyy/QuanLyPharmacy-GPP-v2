@@ -15,8 +15,6 @@ import { Alert, App, Button, Checkbox, Form, Input, Modal, Select, Space } from 
 import { useState } from "react";
 import { getErrorMessage } from "../../api/http.js";
 import type { RoleItem, UserDetail } from "../../api/types.js";
-import { PREVIEW_TODAY } from "./preview/preview-fixtures.js";
-import { usePreview } from "./preview/preview-context.js";
 import { useCreateStaff, useRoles } from "./staff-api.js";
 import { generatePassword, passwordProblem, USERNAME_PATTERN } from "./staff-password.js";
 import { CHAIN_SCOPE, scopeToStoreId, useManagedScopes } from "./staff-scope.js";
@@ -38,19 +36,16 @@ const INITIAL: Partial<Values> = { mustChangePassword: true, assignments: [{}] }
 
 type Props = {
   open: boolean;
-  /** live: tạo tài khoản thật qua API. preview: chỉ thêm dòng mẫu vào bản xem trước. */
-  mode: "live" | "preview";
   onClose: () => void;
-  onCreated: (result: { mode: "live"; user: UserDetail } | { mode: "preview"; id: string }) => void;
+  onCreated: (user: UserDetail) => void;
 };
 
-export function CreateStaffModal({ open, mode, onClose, onCreated }: Props) {
+export function CreateStaffModal({ open, onClose, onCreated }: Props) {
   const { message } = App.useApp();
   const [form] = Form.useForm<Values>();
   const [serverError, setServerError] = useState<string | null>(null);
   const roles = useRoles(open);
   const scopes = useManagedScopes();
-  const preview = usePreview();
   const create = useCreateStaff();
   const assignments = Form.useWatch("assignments", form) ?? [];
   const password = Form.useWatch("password", form) ?? "";
@@ -58,13 +53,10 @@ export function CreateStaffModal({ open, mode, onClose, onCreated }: Props) {
   const busy = create.isPending;
   const roleByCode = new Map((roles.data ?? []).map((role) => [role.code, role]));
 
-  const scopeOptions =
-    mode === "live"
-      ? [
-          ...(scopes.canChain ? [{ value: CHAIN_SCOPE, label: "Toàn chuỗi (mọi cửa hàng)" }] : []),
-          ...scopes.stores.map((store) => ({ value: store.id, label: store.name })),
-        ]
-      : preview.state.stores.map((store) => ({ value: store.id, label: store.name }));
+  const scopeOptions = [
+    ...(scopes.canChain ? [{ value: CHAIN_SCOPE, label: "Toàn chuỗi (mọi cửa hàng)" }] : []),
+    ...scopes.stores.map((store) => ({ value: store.id, label: store.name })),
+  ];
   const scopeLabel = (scope?: string) =>
     scopeOptions.find((option) => option.value === scope)?.label ?? "";
 
@@ -80,47 +72,6 @@ export function CreateStaffModal({ open, mode, onClose, onCreated }: Props) {
     if (busy) return;
     setServerError(null);
     const rows = values.assignments.filter((row) => row.scope && row.roleCode);
-
-    if (mode === "preview") {
-      if (
-        preview.state.employees.some(
-          (employee) => employee.username === values.username.toLowerCase(),
-        )
-      ) {
-        form.setFields([{ name: "username", errors: ["Tên đăng nhập đã có trong bản xem trước"] }]);
-        return;
-      }
-      const id = crypto.randomUUID();
-      const first = rows[0]!;
-      preview.dispatch({
-        type: "addEmployee",
-        employee: {
-          id,
-          code: `NV${String(preview.state.employees.length + 1).padStart(3, "0")}`,
-          fullName: values.fullName.trim(),
-          username: values.username.toLowerCase(),
-          title: "Chưa cập nhật",
-          storeId: first.scope === CHAIN_SCOPE ? preview.state.stores[0]!.id : first.scope!,
-          accessRole: rows
-            .map((row) => roleByCode.get(row.roleCode!)?.name ?? row.roleCode)
-            .join(", "),
-          workStatus: "probation",
-          accountActive: true,
-          joinedAt: PREVIEW_TODAY,
-          phone: values.phone?.trim() || null,
-          certificate: values.practiceCertificateNumber?.trim() || null,
-          monthlyBase: 0,
-          allowance: 0,
-          deduction: 0,
-        },
-      });
-      form.resetFields();
-      void message.success(
-        "Đã thêm nhân viên mẫu vào bản xem trước. Không có tài khoản thật nào được tạo.",
-      );
-      onCreated({ mode: "preview", id });
-      return;
-    }
 
     try {
       const user = await create.mutateAsync({
@@ -141,7 +92,7 @@ export function CreateStaffModal({ open, mode, onClose, onCreated }: Props) {
       });
       form.resetFields();
       void message.success(`Đã tạo nhân viên ${user.fullName} và phân quyền.`);
-      onCreated({ mode: "live", user });
+      onCreated(user);
     } catch (error) {
       if (isAxiosError(error) && error.response?.status === 409) {
         form.setFields([{ name: "username", errors: ["Tên đăng nhập đã tồn tại"] }]);
@@ -178,11 +129,7 @@ export function CreateStaffModal({ open, mode, onClose, onCreated }: Props) {
           </span>
           <div>
             <h2>Thêm nhân viên</h2>
-            <p>
-              {mode === "live"
-                ? "Tạo tài khoản đăng nhập và phân quyền làm việc"
-                : "Bản xem trước — chỉ thêm dòng mẫu, không tạo tài khoản thật"}
-            </p>
+            <p>Tạo tài khoản đăng nhập và phân quyền làm việc</p>
           </div>
         </div>
       }
@@ -465,7 +412,7 @@ export function CreateStaffModal({ open, mode, onClose, onCreated }: Props) {
               Hủy
             </Button>
             <Button type="primary" htmlType="submit" loading={busy} disabled={false}>
-              {mode === "live" ? "Tạo nhân viên" : "Tạo nhân viên mẫu"}
+              Tạo nhân viên
             </Button>
           </Space>
         </div>

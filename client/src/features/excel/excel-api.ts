@@ -6,7 +6,7 @@ import type { Dayjs } from "dayjs";
 export type ImportType = "products" | "suppliers" | "customers" | "opening-balance" | "stock-count" | "receipt-lines";
 export type ExportType = "products" | "suppliers" | "customers" | "inventory" | "stock-count" | "invoices" | "goods-receipts" | "rx-sales" | "controlled-ledger" | "purchase-order" | "revenue-book-s1a" | "revenue-book-s2a";
 
-export type ImportIssue = { row: number; column?: string; message: string };
+type ImportIssue = { row: number; column?: string; message: string };
 
 export type ImportPreview = {
   type: ImportType;
@@ -66,7 +66,7 @@ function fileNameFrom(header: unknown, fallback: string): string {
 }
 
 /** Tải tệp từ API về máy; lỗi được ném lại với thông điệp đã đọc. */
-export async function downloadFile(path: string, params: Record<string, string | undefined> = {}, fallbackName = "du-lieu.xlsx"): Promise<void> {
+async function downloadFile(path: string, params: Record<string, string | undefined> = {}, fallbackName = "du-lieu.xlsx"): Promise<void> {
   try {
     const response = await http.get<Blob>(path, { params, responseType: "blob" });
     const url = URL.createObjectURL(response.data);

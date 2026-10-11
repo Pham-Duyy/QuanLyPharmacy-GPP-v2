@@ -1,9 +1,9 @@
 import { http } from "../../../api/http.js";
 import type { Envelope } from "../../../api/types.js";
 
-export type CountStatus = "COUNTING" | "CLOSED" | "CANCELLED";
+type CountStatus = "COUNTING" | "CLOSED" | "CANCELLED";
 
-export type CountHeader = {
+type CountHeader = {
   id: string;
   code: string;
   status: CountStatus;
@@ -52,7 +52,7 @@ export type CountLine = {
   batchVersion?: number;
 };
 
-export type CountSummary = {
+type CountSummary = {
   totalLines: number;
   countedLines: number;
   pendingLines: number;
@@ -78,9 +78,6 @@ export const openCount = async (body: { scopeType: string; scopeValue?: string |
 
 export const saveCounts = async (id: string, entries: CountEntry[]): Promise<CountDetail & { saved: number; cleared: number }> =>
   (await http.patch<Envelope<CountDetail & { saved: number; cleared: number }>>(`/stock-counts/${id}/counts`, { entries })).data.data;
-
-export const addCountLine = async (id: string, batchId: string): Promise<CountDetail & { lineId: string }> =>
-  (await http.post<Envelope<CountDetail & { lineId: string }>>(`/stock-counts/${id}/lines`, { batchId })).data.data;
 
 export const closeCount = async (id: string, note?: string | null): Promise<CountDetail & { adjustmentId: string | null; differenceLines: number }> =>
   (await http.post<Envelope<CountDetail & { adjustmentId: string | null; differenceLines: number }>>(`/stock-counts/${id}/close`, { note })).data.data;

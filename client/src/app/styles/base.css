@@ -24,8 +24,7 @@ body {
 /* Số trong bảng, thẻ số liệu, tiền: cùng độ rộng để cột thẳng hàng. */
 .ant-table,
 .ant-statistic,
-.ant-descriptions,
-.num {
+.ant-descriptions {
   font-variant-numeric: tabular-nums;
 }
 

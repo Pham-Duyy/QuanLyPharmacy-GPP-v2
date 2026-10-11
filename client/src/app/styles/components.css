@@ -419,26 +419,6 @@
   font-weight: 500;
 }
 
-.form-summary {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding: 10px 12px;
-  border-radius: var(--r-md);
-  background: var(--c-surface-2);
-  color: var(--c-ink-500);
-  font-size: 13.5px;
-}
-
-.form-summary strong {
-  margin-left: 6px;
-  color: var(--c-ink-900);
-  font-size: 16px;
-  font-variant-numeric: tabular-nums;
-}
-
 .inspect-list {
   display: flex;
   flex-direction: column;
@@ -474,23 +454,6 @@
 
 .cell-right {
   align-items: flex-end;
-}
-
-.mini-list {
-  display: flex;
-  flex-direction: column;
-}
-
-.mini-list-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 9px 0;
-}
-
-.mini-list-item + .mini-list-item {
-  border-top: 1px solid var(--c-border);
 }
 
 /* ---------- Thẻ kho dạng dòng thời gian ---------- */
@@ -587,36 +550,6 @@
   font-size: 12px;
 }
 
-.person-cell,
-.person-head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-}
-
-.person-cell strong {
-  color: var(--c-ink-900);
-  font-weight: 600;
-}
-
-.person-avatar {
-  flex: 0 0 auto;
-  width: 30px;
-  height: 30px;
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
-  background: var(--tone-purple-bg);
-  color: var(--tone-purple);
-}
-
-.person-avatar.lg {
-  width: 46px;
-  height: 46px;
-  font-size: 20px;
-}
-
 .consent-box {
   padding: 10px 12px;
   border: 1px solid #f6dca8;
@@ -627,12 +560,6 @@
 .allergy-row {
   display: flex;
   align-items: center;
-  gap: 8px;
-}
-
-.role-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
   gap: 8px;
 }
 
@@ -886,9 +813,6 @@
   gap: 4px;
 }
 
-@media (max-width: 900px) {
-}
-
 .card-search.ant-input-affix-wrapper {
   width: min(320px, 46vw);
 }
@@ -1124,10 +1048,6 @@
   width: 100%;
 }
 
-.receipt-note-field {
-  grid-column: 2 / -1;
-}
-
 .field-hint {
   margin: 6px 0 0;
   color: var(--c-ink-400);
@@ -1338,10 +1258,6 @@
   .receipt-bottom {
     grid-template-columns: 1fr;
   }
-
-  .receipt-note-field {
-    grid-column: auto;
-  }
 }
 
 .panel-section .section-note {
@@ -1370,25 +1286,6 @@
   color: var(--c-primary);
 }
 
-.receipt-form-header {
-  display: grid;
-  grid-template-columns: minmax(280px, 2fr) repeat(3, minmax(150px, 1fr));
-  gap: 14px 16px;
-  align-items: start;
-}
-
-.receipt-form-header .note-field {
-  grid-column: 2 / -1;
-}
-
-.supplier-field {
-  grid-row: span 2;
-}
-
-.receipt-form-header .ant-picker {
-  width: 100%;
-}
-
 .supplier-picker {
   display: flex;
   gap: 8px;
@@ -1397,34 +1294,6 @@
 .supplier-picker .ant-select {
   flex: 1;
   min-width: 0;
-}
-
-.supplier-card {
-  display: flex;
-  gap: 10px;
-  padding: 10px 12px;
-  border: 1px solid var(--c-border);
-  border-radius: var(--r-md);
-  background: var(--c-surface-2);
-}
-
-.supplier-card > .anticon {
-  margin-top: 3px;
-  color: var(--c-primary);
-}
-
-.supplier-card > div {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-  font-size: 12.5px;
-  color: var(--c-ink-500);
-}
-
-.supplier-card strong {
-  color: var(--c-ink-900);
-  font-size: 13.5px;
 }
 
 .select-footer-btn.ant-btn {
@@ -1471,47 +1340,6 @@
   box-shadow: inset 3px 0 0 var(--tone-red);
 }
 
-.receipt-form-summary {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 10px 16px;
-  margin-top: 12px;
-  padding: 12px 16px;
-  border-radius: var(--r-md);
-  background: var(--c-surface-2);
-}
-
-.summary-stats {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  color: var(--c-ink-500);
-  font-size: 13.5px;
-}
-
-.summary-stats strong {
-  color: var(--c-ink-900);
-}
-
-.summary-total {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  color: var(--c-ink-500);
-  font-size: 13.5px;
-}
-
-.summary-total strong {
-  color: var(--c-ink-900);
-  font-size: 22px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  font-variant-numeric: tabular-nums;
-}
-
 .receipt-form-footer {
   display: flex;
   align-items: center;
@@ -1522,16 +1350,4 @@
 .receipt-form-footer > span:first-child {
   margin-right: auto;
   font-size: 13px;
-}
-
-@media (max-width: 900px) {
-  .receipt-form-header {
-    grid-template-columns: 1fr;
-  }
-
-  .receipt-form-header .note-field,
-  .supplier-field {
-    grid-column: auto;
-    grid-row: auto;
-  }
 }

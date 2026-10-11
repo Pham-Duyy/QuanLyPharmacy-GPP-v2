@@ -20,7 +20,7 @@ export type NdsConfig = {
   updatedAt: string;
 };
 
-export type NdsPackaging = { unit_id?: string; unit_name?: string; gtin?: string };
+type NdsPackaging = { unit_id?: string; unit_name?: string; gtin?: string };
 
 export type NationalDrug = {
   id: string;

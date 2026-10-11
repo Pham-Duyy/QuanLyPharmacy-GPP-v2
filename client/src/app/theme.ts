@@ -4,7 +4,7 @@ import type { ThemeConfig } from "antd";
  * Bảng màu gốc của hệ thiết kế. Giữ đồng bộ với biến CSS trong styles/tokens.css:
  * antd đọc giá trị ở đây, còn CSS tự viết đọc biến --c-*.
  */
-export const palette = {
+const palette = {
   primary: "#0876eb",
   accent: "#10b58a",
   ink900: "#0b2447",
