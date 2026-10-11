@@ -23,6 +23,13 @@ export type TokenPair = {
 
 const MAX_FAILED_BEFORE_DELAY = 5;
 
+/**
+ * Bản băm của một chuỗi ngẫu nhiên không ai biết. Tên đăng nhập không tồn tại
+ * vẫn so mật khẩu với bản băm này, để thời gian trả lời như khi sai mật khẩu
+ * — đo thời gian không đoán ra được tài khoản nào có thật.
+ */
+const DUMMY_PASSWORD_HASH = "$2b$10$z2BiGfoboQXcvVsu0cCGweA0Qynwa8112Ka19tTq9AF/in1DiWWrq";
+
 /** Tăng dần thời gian chờ theo số lần sai, không khóa cứng tài khoản (contract §3). */
 function requiredDelaySeconds(failedCount: number): number {
   if (failedCount < MAX_FAILED_BEFORE_DELAY) return 0;
@@ -63,7 +70,10 @@ export async function login(input: LoginInput, info: SessionInfo): Promise<Token
   // Cùng một thông báo cho sai tên và sai mật khẩu, để không lộ tài khoản nào có thật.
   const invalid = new AppError(401, "UNAUTHENTICATED", "Tên đăng nhập hoặc mật khẩu không đúng");
 
-  if (!user || !user.isActive) throw invalid;
+  if (!user || !user.isActive) {
+    await verifyPassword(input.password, DUMMY_PASSWORD_HASH);
+    throw invalid;
+  }
 
   const delay = requiredDelaySeconds(user.failedLoginCount);
   if (delay > 0 && user.lastFailedLoginAt) {

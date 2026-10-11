@@ -15,6 +15,7 @@ describe("mật khẩu khi tạo nhân viên", () => {
 
   it("báo đúng lỗi theo chính sách hiện hành", () => {
     expect(passwordProblem("Ab1")).toMatch(/Tối thiểu 10/);
+    expect(passwordProblem(`Matkhau1${"đ".repeat(35)}`)).toMatch(/tối đa 72/);
     expect(passwordProblem("chuachusoxx")).toMatch(/chữ số/);
     expect(passwordProblem("1234567890")).toMatch(/chữ cái/);
     expect(passwordProblem("Khoi2026dau")).toBeNull();

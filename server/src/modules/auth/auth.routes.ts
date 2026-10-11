@@ -7,10 +7,12 @@ import { REFRESH_COOKIE_NAME } from "../../lib/tokens.js";
 import { authenticateAllowingTempPassword } from "../../middlewares/authenticate.js";
 import { changePasswordSchema, loginSchema } from "./auth.schema.js";
 import * as authService from "./auth.service.js";
+import { createLoginGuard } from "./login-guard.js";
 import type { TokenPair } from "./auth.service.js";
 import type { Response } from "express";
 
 export const authRouter = Router();
+const loginGuard = createLoginGuard();
 
 /** Refresh token nằm trong cookie HttpOnly, không bao giờ lộ ra JavaScript (contract §3). */
 function setRefreshCookie(res: Response, tokens: TokenPair): void {
@@ -29,10 +31,15 @@ function tokenResponse(tokens: TokenPair) {
 
 authRouter.post("/auth/login", async (req, res) => {
   const input = parseOrThrow(loginSchema, req.body);
-  const tokens = await authService.login(input, {
-    ip: req.ip,
-    userAgent: req.header("User-Agent"),
-  });
+  const ip = req.ip ?? "unknown";
+  loginGuard.assertAllowed(ip);
+  let tokens: TokenPair;
+  try {
+    tokens = await authService.login(input, { ip, userAgent: req.header("User-Agent") });
+  } catch (error) {
+    if (error instanceof AppError && error.status === 401) loginGuard.recordFailure(ip);
+    throw error;
+  }
 
   setRefreshCookie(res, tokens);
   sendData(res, tokenResponse(tokens));

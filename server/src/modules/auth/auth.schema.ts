@@ -5,11 +5,18 @@ export const loginSchema = z.object({
   password: z.string().min(1, "Thiếu mật khẩu").max(200),
 });
 
-/** Luật mật khẩu dùng chung: đổi mật khẩu và đặt mật khẩu khi tạo tài khoản. */
+/**
+ * Luật mật khẩu dùng chung: đổi mật khẩu và đặt mật khẩu khi tạo tài khoản.
+ * bcrypt chỉ dùng 72 byte đầu, phần dư bị bỏ qua mà người dùng không biết,
+ * nên chặn ngay từ đầu (chữ có dấu tính 2–3 byte).
+ */
 export const newPasswordSchema = z
   .string()
   .min(10, "Mật khẩu mới phải dài ít nhất 10 ký tự")
-  .max(200)
+  .refine(
+    (value) => Buffer.byteLength(value, "utf8") <= 72,
+    "Mật khẩu quá dài: tối đa 72 ký tự không dấu",
+  )
   .regex(/[a-zA-Z]/, "Mật khẩu mới phải có chữ")
   .regex(/[0-9]/, "Mật khẩu mới phải có số");
 

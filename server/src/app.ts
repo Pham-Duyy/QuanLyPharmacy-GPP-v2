@@ -56,6 +56,7 @@ import { nationalSyncRouter } from "./modules/national-sync/nds.routes.js";
 export function createApp() {
   const app = express();
   app.disable("x-powered-by");
+  if (env.TRUST_PROXY) app.set("trust proxy", env.TRUST_PROXY);
 
   app.use(requestId);
 
