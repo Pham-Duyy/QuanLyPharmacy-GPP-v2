@@ -31,7 +31,10 @@ export function menuPrefsKey(userId: string): string {
   return `${PREFIX}${userId}`;
 }
 
-export function readMenuPrefs(userId: string, store: KeyValueStore | null = defaultStore()): MenuPrefs {
+export function readMenuPrefs(
+  userId: string,
+  store: KeyValueStore | null = defaultStore(),
+): MenuPrefs {
   if (!store) return DEFAULT_MENU_PREFS;
   try {
     const raw = store.getItem(menuPrefsKey(userId));
@@ -46,7 +49,11 @@ export function readMenuPrefs(userId: string, store: KeyValueStore | null = defa
   }
 }
 
-export function writeMenuPrefs(userId: string, prefs: MenuPrefs, store: KeyValueStore | null = defaultStore()): void {
+export function writeMenuPrefs(
+  userId: string,
+  prefs: MenuPrefs,
+  store: KeyValueStore | null = defaultStore(),
+): void {
   if (!store) return;
   try {
     store.setItem(menuPrefsKey(userId), JSON.stringify(prefs));
@@ -68,6 +75,9 @@ export function dropLegacyMenuPrefs(store: KeyValueStore | null = defaultStore()
 }
 
 /** Nhóm đã lưu nhưng tài khoản không còn quyền thấy (đổi cửa hàng, bị bớt quyền) thì coi như chưa mở. */
-export function sanitizeOpenGroup(openGroup: string | null, visibleGroupKeys: readonly string[]): string | null {
+export function sanitizeOpenGroup(
+  openGroup: string | null,
+  visibleGroupKeys: readonly string[],
+): string | null {
   return openGroup !== null && visibleGroupKeys.includes(openGroup) ? openGroup : null;
 }

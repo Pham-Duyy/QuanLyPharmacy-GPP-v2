@@ -47,7 +47,13 @@ function HomeRedirect() {
   const { me, storeId, can } = useAuth();
   const target = startPageFor(me?.roles ?? [], storeId, can);
   if (!target) {
-    return <Result status="403" title="Tài khoản chưa được gán vai trò" subTitle="Liên hệ quản lý để được cấp quyền sử dụng hệ thống." />;
+    return (
+      <Result
+        status="403"
+        title="Tài khoản chưa được gán vai trò"
+        subTitle="Liên hệ quản lý để được cấp quyền sử dụng hệ thống."
+      />
+    );
   }
   return <Navigate to={target} replace />;
 }
@@ -81,7 +87,11 @@ export default function App() {
       <Route element={<AppLayout />}>
         {/* Route sinh từ danh sách đăng ký: không có trang nghiệp vụ nào nằm ngoài lớp kiểm quyền. */}
         {PAGES.map((page) => (
-          <Route key={page.path} path={page.path} element={<Guard path={page.path}>{PAGE_ELEMENTS[page.path]}</Guard>} />
+          <Route
+            key={page.path}
+            path={page.path}
+            element={<Guard path={page.path}>{PAGE_ELEMENTS[page.path]}</Guard>}
+          />
         ))}
         <Route path="*" element={<HomeRedirect />} />
       </Route>

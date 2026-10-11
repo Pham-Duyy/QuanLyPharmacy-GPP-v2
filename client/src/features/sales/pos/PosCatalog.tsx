@@ -1,4 +1,11 @@
-import { ArrowDownOutlined, ArrowUpOutlined, BarcodeOutlined, LeftOutlined, PlusOutlined, RightOutlined } from "@ant-design/icons";
+import {
+  ArrowDownOutlined,
+  ArrowUpOutlined,
+  BarcodeOutlined,
+  LeftOutlined,
+  PlusOutlined,
+  RightOutlined,
+} from "@ant-design/icons";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Button, Empty, Input, Result, Select, Skeleton, Switch, Tooltip } from "antd";
 import type { InputRef } from "antd";
@@ -57,7 +64,9 @@ export function PosCatalog({ term, onTermChange, searchRef, onScanEnter, onAdd }
 
   const categories = useQuery({
     queryKey: ["product-categories"],
-    queryFn: async () => (await http.get<Envelope<Paged<CategoryItem>>>("/categories", { params: { limit: 100 } })).data.data.items,
+    queryFn: async () =>
+      (await http.get<Envelope<Paged<CategoryItem>>>("/categories", { params: { limit: 100 } }))
+        .data.data.items,
     staleTime: 5 * 60_000,
   });
 
@@ -82,7 +91,8 @@ export function PosCatalog({ term, onTermChange, searchRef, onScanEnter, onAdd }
         })
       ).data.data,
     // Không giữ dữ liệu cũ khi đổi cửa hàng: tồn thuộc về cửa hàng đang chọn.
-    placeholderData: (previous, previousQuery) => (previousQuery?.queryKey[1] === storeId ? keepPreviousData(previous) : undefined),
+    placeholderData: (previous, previousQuery) =>
+      previousQuery?.queryKey[1] === storeId ? keepPreviousData(previous) : undefined,
   });
 
   const items = products.data?.items ?? [];
@@ -106,7 +116,8 @@ export function PosCatalog({ term, onTermChange, searchRef, onScanEnter, onAdd }
   }
 
   function blockReason(item: ProductListItem): string | null {
-    if (item.stock !== null && item.stock.sellable <= 0) return "Hết hàng bán được tại cửa hàng này";
+    if (item.stock !== null && item.stock.sellable <= 0)
+      return "Hết hàng bán được tại cửa hàng này";
     const unit = chosenUnit(item);
     if (!unit) return "Sản phẩm chưa có đơn vị bán";
     if (unit.salePrice === null) return "Đơn vị này chưa đặt giá bán";
@@ -123,7 +134,12 @@ export function PosCatalog({ term, onTermChange, searchRef, onScanEnter, onAdd }
       event.preventDefault();
       if (items.length === 0 || stale) return;
       const step = event.key === "ArrowDown" ? 1 : -1;
-      const next = active === null ? (step === 1 ? 0 : items.length - 1) : (active + step + items.length) % items.length;
+      const next =
+        active === null
+          ? step === 1
+            ? 0
+            : items.length - 1
+          : (active + step + items.length) % items.length;
       setNav({ key: listKey, index: next });
       document.getElementById(`pos-row-${items[next]!.id}`)?.scrollIntoView({ block: "nearest" });
     } else if (event.key === "Enter") {
@@ -137,7 +153,14 @@ export function PosCatalog({ term, onTermChange, searchRef, onScanEnter, onAdd }
 
   let body;
   if (products.isError && !products.data) {
-    body = <Result status="warning" title="Không tải được danh mục" subTitle={getErrorMessage(products.error, "Kiểm tra kết nối rồi thử lại.")} extra={<Button onClick={() => void products.refetch()}>Thử lại</Button>} />;
+    body = (
+      <Result
+        status="warning"
+        title="Không tải được danh mục"
+        subTitle={getErrorMessage(products.error, "Kiểm tra kết nối rồi thử lại.")}
+        extra={<Button onClick={() => void products.refetch()}>Thử lại</Button>}
+      />
+    );
   } else if (products.isPending) {
     body = (
       <div className="pos-skeleton" aria-busy="true">
@@ -151,7 +174,13 @@ export function PosCatalog({ term, onTermChange, searchRef, onScanEnter, onAdd }
     );
   } else if (items.length === 0) {
     body = (
-      <Empty className="product-empty" image={Empty.PRESENTED_IMAGE_SIMPLE} description={inStock ? "Không có sản phẩm còn hàng phù hợp" : "Không tìm thấy sản phẩm phù hợp"}>
+      <Empty
+        className="product-empty"
+        image={Empty.PRESENTED_IMAGE_SIMPLE}
+        description={
+          inStock ? "Không có sản phẩm còn hàng phù hợp" : "Không tìm thấy sản phẩm phù hợp"
+        }
+      >
         {inStock ? <Button onClick={() => setInStock(false)}>Xem cả hàng đã hết</Button> : null}
       </Empty>
     );
@@ -169,8 +198,16 @@ export function PosCatalog({ term, onTermChange, searchRef, onScanEnter, onAdd }
           const unit = chosenUnit(item);
           const reason = blockReason(item);
           const sellable = item.stock?.sellable ?? null;
-          const inUnit = unit && unit.conversionToBase > 1 && sellable !== null ? Math.floor(sellable / unit.conversionToBase) : null;
-          const rx = item.drugClass === "RX" ? "Kê đơn" : item.drugClass === "CONTROLLED" ? "Kiểm soát đặc biệt" : null;
+          const inUnit =
+            unit && unit.conversionToBase > 1 && sellable !== null
+              ? Math.floor(sellable / unit.conversionToBase)
+              : null;
+          const rx =
+            item.drugClass === "RX"
+              ? "Kê đơn"
+              : item.drugClass === "CONTROLLED"
+                ? "Kiểm soát đặc biệt"
+                : null;
           const ingredients = item.ingredients.map((ingredient) => ingredient.name).join(", ");
           return (
             <div
@@ -185,9 +222,22 @@ export function PosCatalog({ term, onTermChange, searchRef, onScanEnter, onAdd }
                 <ProductThumb src={item.primaryImage?.thumbUrl} alt={item.name} size={56} />
                 <div className="pos-row-text">
                   <strong>
-                    {item.name} {rx ? <span className={item.drugClass === "CONTROLLED" ? "class-badge tone-red" : "class-badge tone-orange"}>{rx}</span> : null}
+                    {item.name}{" "}
+                    {rx ? (
+                      <span
+                        className={
+                          item.drugClass === "CONTROLLED"
+                            ? "class-badge tone-red"
+                            : "class-badge tone-orange"
+                        }
+                      >
+                        {rx}
+                      </span>
+                    ) : null}
                   </strong>
-                  <span className="muted">{[item.code, ingredients].filter(Boolean).join(" · ")}</span>
+                  <span className="muted">
+                    {[item.code, ingredients].filter(Boolean).join(" · ")}
+                  </span>
                 </div>
               </div>
               <div className="pos-row-unit">
@@ -195,8 +245,13 @@ export function PosCatalog({ term, onTermChange, searchRef, onScanEnter, onAdd }
                   <Select
                     value={unit?.id}
                     aria-label={`Đơn vị bán ${item.name}`}
-                    onChange={(value) => setUnitChoice((current) => ({ ...current, [item.id]: value }))}
-                    options={item.saleUnits.map((option) => ({ value: option.id, label: option.name }))}
+                    onChange={(value) =>
+                      setUnitChoice((current) => ({ ...current, [item.id]: value }))
+                    }
+                    options={item.saleUnits.map((option) => ({
+                      value: option.id,
+                      label: option.name,
+                    }))}
                     popupMatchSelectWidth={false}
                   />
                 ) : (
@@ -208,15 +263,38 @@ export function PosCatalog({ term, onTermChange, searchRef, onScanEnter, onAdd }
                   <span className="muted">—</span>
                 ) : (
                   <>
-                    <strong className={sellable <= 0 ? "is-out" : item.isBelowMinStock ? "is-low" : "is-ok"}>{stockText(sellable, item.baseUnit?.name)}</strong>
-                    {sellable <= 0 ? <small className="is-out">Hết hàng</small> : inUnit !== null ? <small>≈ {stockText(inUnit, unit?.name)}</small> : item.isBelowMinStock ? <small className="is-low">Tồn thấp</small> : null}
+                    <strong
+                      className={
+                        sellable <= 0 ? "is-out" : item.isBelowMinStock ? "is-low" : "is-ok"
+                      }
+                    >
+                      {stockText(sellable, item.baseUnit?.name)}
+                    </strong>
+                    {sellable <= 0 ? (
+                      <small className="is-out">Hết hàng</small>
+                    ) : inUnit !== null ? (
+                      <small>≈ {stockText(inUnit, unit?.name)}</small>
+                    ) : item.isBelowMinStock ? (
+                      <small className="is-low">Tồn thấp</small>
+                    ) : null}
                   </>
                 )}
               </div>
-              <div className="col-num pos-row-price">{unit?.salePrice !== null && unit?.salePrice !== undefined ? <strong>{priceText(unit.salePrice, unit.name)}</strong> : <span className="muted">Chưa đặt giá</span>}</div>
+              <div className="col-num pos-row-price">
+                {unit?.salePrice !== null && unit?.salePrice !== undefined ? (
+                  <strong>{priceText(unit.salePrice, unit.name)}</strong>
+                ) : (
+                  <span className="muted">Chưa đặt giá</span>
+                )}
+              </div>
               <div className="pos-row-action">
                 <Tooltip title={reason}>
-                  <Button icon={<PlusOutlined />} disabled={Boolean(reason)} onClick={() => add(item)} aria-label={`Thêm ${item.name} vào đơn`}>
+                  <Button
+                    icon={<PlusOutlined />}
+                    disabled={Boolean(reason)}
+                    onClick={() => add(item)}
+                    aria-label={`Thêm ${item.name} vào đơn`}
+                  >
                     Thêm
                   </Button>
                 </Tooltip>
@@ -278,7 +356,10 @@ export function PosCatalog({ term, onTermChange, searchRef, onScanEnter, onAdd }
               setCategoryId(value || undefined);
               resetPage();
             }}
-            options={[{ value: "", label: "Tất cả" }, ...(categories.data ?? []).map((item) => ({ value: item.id, label: item.name }))]}
+            options={[
+              { value: "", label: "Tất cả" },
+              ...(categories.data ?? []).map((item) => ({ value: item.id, label: item.name })),
+            ]}
           />
           <label className="active-switch">
             <Switch
@@ -293,7 +374,15 @@ export function PosCatalog({ term, onTermChange, searchRef, onScanEnter, onAdd }
         </div>
       </div>
 
-      <div className={(products.isFetching || stale) && products.data ? "products-body is-refreshing" : "products-body"}>{body}</div>
+      <div
+        className={
+          (products.isFetching || stale) && products.data
+            ? "products-body is-refreshing"
+            : "products-body"
+        }
+      >
+        {body}
+      </div>
 
       <div className="pos-catalog-footer">
         <span className="pos-key-hints">
@@ -310,8 +399,18 @@ export function PosCatalog({ term, onTermChange, searchRef, onScanEnter, onAdd }
             <span className="muted">
               {(page - 1) * PAGE_SIZE + 1} – {Math.min(total, page * PAGE_SIZE)} / {total} sản phẩm
             </span>
-            <Button icon={<LeftOutlined />} aria-label="Trang trước" disabled={page <= 1} onClick={() => setPage((value) => value - 1)} />
-            <Button icon={<RightOutlined />} aria-label="Trang sau" disabled={page >= pages} onClick={() => setPage((value) => value + 1)} />
+            <Button
+              icon={<LeftOutlined />}
+              aria-label="Trang trước"
+              disabled={page <= 1}
+              onClick={() => setPage((value) => value - 1)}
+            />
+            <Button
+              icon={<RightOutlined />}
+              aria-label="Trang sau"
+              disabled={page >= pages}
+              onClick={() => setPage((value) => value + 1)}
+            />
           </span>
         ) : null}
       </div>

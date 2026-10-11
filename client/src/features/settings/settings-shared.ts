@@ -40,12 +40,23 @@ export type ApiFieldError = { field: string; message: string };
 export function readApiError(error: unknown): { message: string; details: ApiFieldError[] } {
   if (error instanceof AxiosError && typeof error.response?.data === "string") {
     try {
-      const payload = JSON.parse(error.response.data) as { error?: { message?: string; details?: ApiFieldError[] } };
-      return { message: payload.error?.message ?? error.message, details: payload.error?.details ?? [] };
+      const payload = JSON.parse(error.response.data) as {
+        error?: { message?: string; details?: ApiFieldError[] };
+      };
+      return {
+        message: payload.error?.message ?? error.message,
+        details: payload.error?.details ?? [],
+      };
     } catch {
       return { message: error.message, details: [] };
     }
   }
-  const payload = error instanceof AxiosError ? (error.response?.data as { error?: { details?: ApiFieldError[] } } | undefined) : undefined;
-  return { message: getErrorMessage(error, "Có lỗi xảy ra"), details: payload?.error?.details ?? [] };
+  const payload =
+    error instanceof AxiosError
+      ? (error.response?.data as { error?: { details?: ApiFieldError[] } } | undefined)
+      : undefined;
+  return {
+    message: getErrorMessage(error, "Có lỗi xảy ra"),
+    details: payload?.error?.details ?? [],
+  };
 }

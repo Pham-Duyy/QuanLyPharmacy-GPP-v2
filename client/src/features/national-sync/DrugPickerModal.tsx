@@ -89,7 +89,12 @@ export function DrugPickerModal({ row, onClose, onSaved }: Props) {
 
       {drugs.isLoading ? <Skeleton active /> : null}
       {drugs.isError ? (
-        <Alert type="error" showIcon title="Không tìm được thuốc" description={getErrorMessage(drugs.error, "")} />
+        <Alert
+          type="error"
+          showIcon
+          title="Không tìm được thuốc"
+          description={getErrorMessage(drugs.error, "")}
+        />
       ) : null}
 
       {drugs.data && drugs.data.length === 0 ? (
@@ -105,7 +110,10 @@ export function DrugPickerModal({ row, onClose, onSaved }: Props) {
           renderItem={(drug) => (
             <List.Item
               onClick={() => choose(drug)}
-              style={{ cursor: "pointer", background: picked?.id === drug.id ? "var(--c-primary-bg, #e6f4ff)" : undefined }}
+              style={{
+                cursor: "pointer",
+                background: picked?.id === drug.id ? "var(--c-primary-bg, #e6f4ff)" : undefined,
+              }}
             >
               <List.Item.Meta
                 title={

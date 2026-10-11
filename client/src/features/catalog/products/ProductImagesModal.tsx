@@ -5,7 +5,11 @@ import { useState } from "react";
 import { getErrorMessage, http } from "../../../api/http.js";
 import type { ProductImage } from "../../../api/types.js";
 import { IMAGE_FALLBACK } from "./product-labels.js";
-import { IMAGE_ACCEPT, MAX_IMAGES_PER_PRODUCT, uploadProductImage } from "./product-image-upload.js";
+import {
+  IMAGE_ACCEPT,
+  MAX_IMAGES_PER_PRODUCT,
+  uploadProductImage,
+} from "./product-image-upload.js";
 import { ProductThumb } from "./ProductThumb.js";
 
 type Props = {
@@ -18,10 +22,19 @@ type Props = {
 };
 
 /** Tải, đặt ảnh chính, gỡ ảnh sản phẩm (quyền `catalog.manage`, server kiểm tra lại). */
-export function ProductImagesModal({ productId, productName, images, open, onClose, onChanged }: Props) {
+export function ProductImagesModal({
+  productId,
+  productName,
+  images,
+  open,
+  onClose,
+  onChanged,
+}: Props) {
   const { message } = App.useApp();
   const [uploadError, setUploadError] = useState<string | null>(null);
-  const [progress, setProgress] = useState<{ name: string; done: number; total: number } | null>(null);
+  const [progress, setProgress] = useState<{ name: string; done: number; total: number } | null>(
+    null,
+  );
   const room = MAX_IMAGES_PER_PRODUCT - images.length;
   const full = room <= 0;
 
@@ -45,14 +58,21 @@ export function ProductImagesModal({ productId, productName, images, open, onClo
           failed.push(`${file.name}: ${reason}`);
         }
       }
-      return { uploaded: picked.length - failed.length, skipped: files.length - picked.length, failed };
+      return {
+        uploaded: picked.length - failed.length,
+        skipped: files.length - picked.length,
+        failed,
+      };
     },
     onMutate: () => setUploadError(null),
     onSuccess: async ({ uploaded, skipped, failed }) => {
-      if (uploaded > 0) void message.success(uploaded === 1 ? "Đã tải ảnh lên" : `Đã tải lên ${uploaded} ảnh`);
+      if (uploaded > 0)
+        void message.success(uploaded === 1 ? "Đã tải ảnh lên" : `Đã tải lên ${uploaded} ảnh`);
       const notes = [
         ...failed,
-        ...(skipped > 0 ? [`Bỏ qua ${skipped} ảnh vì mỗi sản phẩm tối đa ${MAX_IMAGES_PER_PRODUCT} ảnh.`] : []),
+        ...(skipped > 0
+          ? [`Bỏ qua ${skipped} ảnh vì mỗi sản phẩm tối đa ${MAX_IMAGES_PER_PRODUCT} ảnh.`]
+          : []),
       ];
       if (notes.length > 0) setUploadError(notes.join("\n"));
       await onChanged();
@@ -88,11 +108,29 @@ export function ProductImagesModal({ productId, productName, images, open, onClo
   }
 
   return (
-    <Modal open={open} onCancel={onClose} title={`Quản lý ảnh — ${productName}`} width={640} footer={<Button onClick={onClose}>Xong</Button>} destroyOnHidden>
+    <Modal
+      open={open}
+      onCancel={onClose}
+      title={`Quản lý ảnh — ${productName}`}
+      width={640}
+      footer={<Button onClick={onClose}>Xong</Button>}
+      destroyOnHidden
+    >
       <p className="image-rules">
-        JPG, PNG hoặc WEBP, tối đa 15 MB mỗi ảnh; hệ thống tự thu nhỏ trước khi lưu. Tối đa {MAX_IMAGES_PER_PRODUCT} ảnh. Chỉ dùng ảnh chụp đúng sản phẩm thật.
+        JPG, PNG hoặc WEBP, tối đa 15 MB mỗi ảnh; hệ thống tự thu nhỏ trước khi lưu. Tối đa{" "}
+        {MAX_IMAGES_PER_PRODUCT} ảnh. Chỉ dùng ảnh chụp đúng sản phẩm thật.
       </p>
-      {uploadError ? <Alert type="error" showIcon closable title="Có ảnh chưa tải được" description={<span style={{ whiteSpace: "pre-line" }}>{uploadError}</span>} onClose={() => setUploadError(null)} className="image-alert" /> : null}
+      {uploadError ? (
+        <Alert
+          type="error"
+          showIcon
+          closable
+          title="Có ảnh chưa tải được"
+          description={<span style={{ whiteSpace: "pre-line" }}>{uploadError}</span>}
+          onClose={() => setUploadError(null)}
+          className="image-alert"
+        />
+      ) : null}
 
       <Upload.Dragger
         accept={IMAGE_ACCEPT.join(",")}
@@ -119,7 +157,15 @@ export function ProductImagesModal({ productId, productName, images, open, onClo
           <ul className="image-manage-grid">
             {images.map((image, index) => (
               <li key={image.id} className={image.isPrimary ? "is-primary" : undefined}>
-                <Image src={image.thumbUrl} preview={{ src: image.url }} alt={`Ảnh ${index + 1} của ${productName}`} width="100%" height={120} fallback={IMAGE_FALLBACK} placeholder={<ProductThumb src={null} alt={productName} size={120} />} />
+                <Image
+                  src={image.thumbUrl}
+                  preview={{ src: image.url }}
+                  alt={`Ảnh ${index + 1} của ${productName}`}
+                  width="100%"
+                  height={120}
+                  fallback={IMAGE_FALLBACK}
+                  placeholder={<ProductThumb src={null} alt={productName} size={120} />}
+                />
                 <div className="image-manage-actions">
                   {image.isPrimary ? (
                     <Tag color="blue" icon={<StarFilled />}>
@@ -127,18 +173,36 @@ export function ProductImagesModal({ productId, productName, images, open, onClo
                     </Tag>
                   ) : (
                     <Tooltip title="Đặt làm ảnh chính">
-                      <Button size="small" icon={<StarOutlined />} aria-label={`Đặt ảnh ${index + 1} làm ảnh chính`} loading={setPrimary.isPending && setPrimary.variables === image.id} disabled={busy} onClick={() => setPrimary.mutate(image.id)} />
+                      <Button
+                        size="small"
+                        icon={<StarOutlined />}
+                        aria-label={`Đặt ảnh ${index + 1} làm ảnh chính`}
+                        loading={setPrimary.isPending && setPrimary.variables === image.id}
+                        disabled={busy}
+                        onClick={() => setPrimary.mutate(image.id)}
+                      />
                     </Tooltip>
                   )}
                   <Popconfirm
                     title="Gỡ ảnh này?"
-                    description={image.isPrimary && images.length > 1 ? "Ảnh kế tiếp sẽ thành ảnh chính." : undefined}
+                    description={
+                      image.isPrimary && images.length > 1
+                        ? "Ảnh kế tiếp sẽ thành ảnh chính."
+                        : undefined
+                    }
                     okText="Gỡ ảnh"
                     okButtonProps={{ danger: true }}
                     cancelText="Không"
                     onConfirm={() => remove.mutate(image.id)}
                   >
-                    <Button size="small" danger icon={<DeleteOutlined />} aria-label={`Gỡ ảnh ${index + 1}`} loading={remove.isPending && remove.variables === image.id} disabled={busy} />
+                    <Button
+                      size="small"
+                      danger
+                      icon={<DeleteOutlined />}
+                      aria-label={`Gỡ ảnh ${index + 1}`}
+                      loading={remove.isPending && remove.variables === image.id}
+                      disabled={busy}
+                    />
                   </Popconfirm>
                 </div>
               </li>

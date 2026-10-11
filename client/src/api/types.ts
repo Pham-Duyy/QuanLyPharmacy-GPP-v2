@@ -19,15 +19,37 @@ export type DashboardData = {
       newCustomerChangePercent: number | null;
     };
     trend: Array<{ date: string; revenue: Money; invoiceCount: number }>;
-    topProducts: Array<{ productId: string; productName: string; quantity: number; revenue: Money }>;
+    topProducts: Array<{
+      productId: string;
+      productName: string;
+      quantity: number;
+      revenue: Money;
+    }>;
   };
   inventory: {
-    expiringBatches: Array<{ id: string; productId: string; productName: string; batchNumber: string; expiryDate: string; quantityOnHand: number }>;
-    lowStockProducts: Array<{ productId: string; productName: string; stock: number; minimumStock: number }>;
+    expiringBatches: Array<{
+      id: string;
+      productId: string;
+      productName: string;
+      batchNumber: string;
+      expiryDate: string;
+      quantityOnHand: number;
+    }>;
+    lowStockProducts: Array<{
+      productId: string;
+      productName: string;
+      stock: number;
+      minimumStock: number;
+    }>;
     categoryStock: Array<{ categoryName: string; quantity: number; productCount: number }>;
     counts: { expired: number; expiring: number; lowStock: number };
   };
-  notifications: Array<{ type: string; severity: "danger" | "warning" | "info"; title: string; href: string }>;
+  notifications: Array<{
+    type: string;
+    severity: "danger" | "warning" | "info";
+    title: string;
+    href: string;
+  }>;
 };
 
 export type ProductUnit = {
@@ -139,7 +161,13 @@ export type ProductListItem = {
   minStockBaseQuantity: number;
   isActive: boolean;
   /** Đơn vị bán được (tăng dần theo quy đổi) kèm giá hiện hành; `null` là chưa đặt giá. */
-  saleUnits: Array<{ id: string; name: string; conversionToBase: number; isDefaultSaleUnit: boolean; salePrice: Money | null }>;
+  saleUnits: Array<{
+    id: string;
+    name: string;
+    conversionToBase: number;
+    isDefaultSaleUnit: boolean;
+    salePrice: Money | null;
+  }>;
   defaultUnit: ProductUnit | null;
   baseUnit: { id: string; name: string } | null;
   currentPrice: CurrentPrice | null;
@@ -234,7 +262,13 @@ export type GoodsReceiptDetail = {
   type: "PURCHASE" | "OPENING_BALANCE";
   code: string;
   status: "DRAFT" | "CONFIRMED" | "CANCELLED";
-  supplier: { id: string; name: string; phone?: string | null; address?: string | null; taxCode?: string | null } | null;
+  supplier: {
+    id: string;
+    name: string;
+    phone?: string | null;
+    address?: string | null;
+    taxCode?: string | null;
+  } | null;
   /** Hồ sơ GPP còn thiếu (giấy phép nhà cung cấp, số đăng ký thuốc) — chỉ cảnh báo. */
   complianceWarnings?: string[];
   supplierInvoiceNumber: string | null;
@@ -412,12 +446,7 @@ export type ReturnListItem = {
 // --- Đơn thuốc (contract §12) -----------------------------------------------
 
 export type PrescriptionStatus =
-  | "DRAFT"
-  | "PENDING_REVIEW"
-  | "VERIFIED"
-  | "PARTIALLY_DISPENSED"
-  | "DISPENSED"
-  | "REJECTED";
+  "DRAFT" | "PENDING_REVIEW" | "VERIFIED" | "PARTIALLY_DISPENSED" | "DISPENSED" | "REJECTED";
 
 export type PrescriptionItem = {
   id: string;
@@ -518,7 +547,12 @@ export type CustomerSummary = {
   newThisMonth: number;
   purchasedLast30Days: number;
   segments: Record<"LOYAL" | "NEW" | "DORMANT", number>;
-  rules: { loyalMinOrders: number; loyalWindowDays: number; newWithinDays: number; dormantAfterDays: number };
+  rules: {
+    loyalMinOrders: number;
+    loyalWindowDays: number;
+    newWithinDays: number;
+    dormantAfterDays: number;
+  };
 };
 
 export type CustomerDetail = {
@@ -536,7 +570,12 @@ export type CustomerDetail = {
   version: number;
   createdAt: string;
   updatedAt: string;
-  stats: { totalSpent: number; orderCount: number; lastPurchaseAt: string | null; segment: CustomerSegment };
+  stats: {
+    totalSpent: number;
+    orderCount: number;
+    lastPurchaseAt: string | null;
+    segment: CustomerSegment;
+  };
 };
 
 type CustomerAllergyItem = { ingredientId: string; ingredientName: string; note: string | null };
@@ -563,11 +602,7 @@ export type CustomerInvoiceHistoryItem = {
 // --- Điều chỉnh tồn kho (contract §10.3) ------------------------------------
 
 type AdjustmentReasonCode =
-  | "COUNT_DIFFERENCE"
-  | "DAMAGED"
-  | "EXPIRED_DISPOSAL"
-  | "RECALL_DISPOSAL"
-  | "OTHER";
+  "COUNT_DIFFERENCE" | "DAMAGED" | "EXPIRED_DISPOSAL" | "RECALL_DISPOSAL" | "OTHER";
 
 type StockAdjustmentStatus = "DRAFT" | "APPROVED" | "REJECTED" | "CANCELLED";
 
@@ -758,7 +793,15 @@ export type ReportsSummary = {
   categoryBreakdown: Array<{ categoryName: string; revenue: Money; percent: number }>;
   paymentMethods: Array<{ method: string; amount: Money; count: number; percent: number }>;
   /** Mọi người bán trong kỳ. revenue chưa trừ hàng trả; refund là tiền hoàn của phiếu trả trong kỳ trên hóa đơn của người đó. */
-  staffPerformance: Array<{ userId: string; fullName: string; revenue: Money; invoiceCount: number; refund: Money; returnCount: number; netRevenue: Money }>;
+  staffPerformance: Array<{
+    userId: string;
+    fullName: string;
+    revenue: Money;
+    invoiceCount: number;
+    refund: Money;
+    returnCount: number;
+    netRevenue: Money;
+  }>;
 };
 
 export type InvoicePaperSize = "K80" | "K58" | "A5";
@@ -786,7 +829,11 @@ export type PrintTemplate = {
   };
 };
 
-export type PrintTemplateState = { template: PrintTemplate; isDefault: boolean; updatedAt: string | null };
+export type PrintTemplateState = {
+  template: PrintTemplate;
+  isDefault: boolean;
+  updatedAt: string | null;
+};
 
 export type DocumentPrintType = "goodsReceipt" | "return" | "stockAdjustment" | "stockTransfer";
 
@@ -802,4 +849,8 @@ export type DocumentPrintConfig = {
 /** Cài đặt in phiếu nhập, phiếu trả, phiếu điều chỉnh (Cài đặt → Kho & chứng từ). */
 export type DocumentPrintSettings = Record<DocumentPrintType, DocumentPrintConfig>;
 
-export type DocumentPrintState = { settings: DocumentPrintSettings; isDefault: boolean; updatedAt: string | null };
+export type DocumentPrintState = {
+  settings: DocumentPrintSettings;
+  isDefault: boolean;
+  updatedAt: string | null;
+};

@@ -50,7 +50,11 @@ export async function buildWorkbook(
     sheet.columns.forEach((column, index) => {
       const cell = header.getCell(index + 1);
       cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
-      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: column.required ? REQUIRED_FILL : HEADER_FILL } };
+      cell.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: column.required ? REQUIRED_FILL : HEADER_FILL },
+      };
       cell.alignment = { vertical: "middle" };
     });
     for (const row of sheet.rows) ws.addRow(row);
@@ -116,12 +120,17 @@ export type RawRow = { rowNumber: number; values: Record<string, unknown> };
  * Đọc sheet đầu tiên của file .xlsx: hàng 1 là tiêu đề, khớp theo tên cột
  * (không phân biệt dấu, hoa thường, thứ tự cột). Bỏ qua hàng trống.
  */
-export async function readSheet(buffer: Buffer, columns: ColumnDef[]): Promise<{ rows: RawRow[]; missingColumns: string[] }> {
+export async function readSheet(
+  buffer: Buffer,
+  columns: ColumnDef[],
+): Promise<{ rows: RawRow[]; missingColumns: string[] }> {
   if (buffer.length === 0) throw invalidFile("Tệp rỗng");
   if (buffer.length > MAX_IMPORT_BYTES) throw invalidFile("Tệp quá lớn, tối đa 5 MB");
   // .xlsx là tệp zip: bắt đầu bằng "PK". Chặn sớm .xls cũ, .csv hay tệp giả.
   if (buffer[0] !== 0x50 || buffer[1] !== 0x4b) {
-    throw invalidFile("Chỉ nhận tệp Excel .xlsx (Excel 2007 trở lên). Tệp .xls cũ hãy mở bằng Excel rồi Lưu thành .xlsx");
+    throw invalidFile(
+      "Chỉ nhận tệp Excel .xlsx (Excel 2007 trở lên). Tệp .xls cũ hãy mở bằng Excel rồi Lưu thành .xlsx",
+    );
   }
 
   const workbook = new ExcelJS.Workbook();
@@ -130,7 +139,8 @@ export async function readSheet(buffer: Buffer, columns: ColumnDef[]): Promise<{
   } catch {
     throw invalidFile("Không đọc được tệp Excel, tệp có thể bị hỏng");
   }
-  const ws = workbook.worksheets.find((sheet) => sheet.name !== "Hướng dẫn") ?? workbook.worksheets[0];
+  const ws =
+    workbook.worksheets.find((sheet) => sheet.name !== "Hướng dẫn") ?? workbook.worksheets[0];
   if (!ws) throw invalidFile("Tệp không có sheet dữ liệu");
 
   const byHeader = new Map(columns.map((column) => [normalizeHeader(column.header), column]));
@@ -140,7 +150,9 @@ export async function readSheet(buffer: Buffer, columns: ColumnDef[]): Promise<{
     if (column) positions.set(col, column);
   });
   const found = new Set([...positions.values()].map((column) => column.key));
-  const missingColumns = columns.filter((column) => column.required && !found.has(column.key)).map((column) => column.header);
+  const missingColumns = columns
+    .filter((column) => column.required && !found.has(column.key))
+    .map((column) => column.header);
 
   const rows: RawRow[] = [];
   ws.eachRow({ includeEmpty: false }, (row, rowNumber) => {
@@ -170,7 +182,11 @@ function unwrap(value: ExcelJS.CellValue): unknown {
   if (value instanceof Date) return value;
   if (typeof value === "object") {
     if ("result" in value) return unwrap(value.result as ExcelJS.CellValue);
-    if ("richText" in value) return value.richText.map((part) => part.text).join("").trim();
+    if ("richText" in value)
+      return value.richText
+        .map((part) => part.text)
+        .join("")
+        .trim();
     if ("text" in value) return String(value.text).trim();
     if ("error" in value) return null;
   }
@@ -195,20 +211,39 @@ export function asText(value: unknown, max: number, label: string): string | nul
   return text || null;
 }
 
-export function asInt(value: unknown, label: string, options: { min?: number } = {}): number | null {
+export function asInt(
+  value: unknown,
+  label: string,
+  options: { min?: number } = {},
+): number | null {
   if (value === null || value === undefined || value === "") return null;
-  const number = typeof value === "number" ? value : Number(String(value).replace(/[.,\s](?=\d{3}\b)/g, "").replace(",", "."));
-  if (!Number.isFinite(number) || !Number.isInteger(number)) throw new CellError(`${label} phải là số nguyên`);
-  if (options.min !== undefined && number < options.min) throw new CellError(`${label} phải từ ${options.min} trở lên`);
+  const number =
+    typeof value === "number"
+      ? value
+      : Number(
+          String(value)
+            .replace(/[.,\s](?=\d{3}\b)/g, "")
+            .replace(",", "."),
+        );
+  if (!Number.isFinite(number) || !Number.isInteger(number))
+    throw new CellError(`${label} phải là số nguyên`);
+  if (options.min !== undefined && number < options.min)
+    throw new CellError(`${label} phải từ ${options.min} trở lên`);
   return number;
 }
 
-export function asNumber(value: unknown, label: string, options: { min?: number; max?: number } = {}): number | null {
+export function asNumber(
+  value: unknown,
+  label: string,
+  options: { min?: number; max?: number } = {},
+): number | null {
   if (value === null || value === undefined || value === "") return null;
   const number = typeof value === "number" ? value : Number(String(value).replace(",", "."));
   if (!Number.isFinite(number)) throw new CellError(`${label} phải là số`);
-  if (options.min !== undefined && number < options.min) throw new CellError(`${label} phải từ ${options.min} trở lên`);
-  if (options.max !== undefined && number > options.max) throw new CellError(`${label} tối đa ${options.max}`);
+  if (options.min !== undefined && number < options.min)
+    throw new CellError(`${label} phải từ ${options.min} trở lên`);
+  if (options.max !== undefined && number > options.max)
+    throw new CellError(`${label} tối đa ${options.max}`);
   return number;
 }
 
@@ -244,10 +279,17 @@ export function asDate(value: unknown, label: string): Date | null {
 }
 
 /** Khớp giá trị chữ với danh sách lựa chọn (không phân biệt dấu/hoa thường). */
-export function asChoice<T extends string | boolean>(value: unknown, label: string, choices: Record<string, T>): T | null {
+export function asChoice<T extends string | boolean>(
+  value: unknown,
+  label: string,
+  choices: Record<string, T>,
+): T | null {
   if (value === null || value === undefined || value === "") return null;
   const key = normalizeHeader(String(value));
   const found = Object.entries(choices).find(([name]) => normalizeHeader(name) === key);
-  if (!found) throw new CellError(`${label} không hợp lệ, chọn một trong: ${Object.keys(choices).join(", ")}`);
+  if (!found)
+    throw new CellError(
+      `${label} không hợp lệ, chọn một trong: ${Object.keys(choices).join(", ")}`,
+    );
   return found[1];
 }

@@ -49,7 +49,11 @@ export type SupplierDebt = {
   oldestDueDate: Date | null;
 };
 
-export type DebtQuery = { supplierId?: string | undefined; onlyOutstanding: boolean; dueSoonDays: number };
+export type DebtQuery = {
+  supplierId?: string | undefined;
+  onlyOutstanding: boolean;
+  dueSoonDays: number;
+};
 
 export async function listDebts(storeId: string, query: DebtQuery) {
   const today = businessDateNow();
@@ -67,7 +71,10 @@ export async function listDebts(storeId: string, query: DebtQuery) {
       supplier: { select: { id: true, name: true, phone: true, paymentTermDays: true } },
       paymentAllocations: { where: { payment: { status: "ACTIVE" } }, select: { amount: true } },
       // Hàng đã trả lại và chọn tất toán bằng cách trừ công nợ.
-      supplierReturnLines: { where: { supplierReturn: { status: "CONFIRMED", settlement: "DEDUCT_DEBT" } }, select: { lineValue: true } },
+      supplierReturnLines: {
+        where: { supplierReturn: { status: "CONFIRMED", settlement: "DEDUCT_DEBT" } },
+        select: { lineValue: true },
+      },
     },
   });
 
@@ -75,11 +82,17 @@ export async function listDebts(storeId: string, query: DebtQuery) {
   for (const receipt of receipts) {
     if (!receipt.supplier) continue;
     const paidAmount = receipt.paymentAllocations.reduce((sum, item) => sum + num(item.amount), 0);
-    const returnCredit = receipt.supplierReturnLines.reduce((sum, item) => sum + num(item.lineValue), 0);
+    const returnCredit = receipt.supplierReturnLines.reduce(
+      (sum, item) => sum + num(item.lineValue),
+      0,
+    );
     const outstanding = Math.max(0, num(receipt.totalCost) - paidAmount - returnCredit);
     if (query.onlyOutstanding && outstanding <= 0) continue;
 
-    const overdueDays = receipt.paymentDueDate && outstanding > 0 ? Math.floor((today.getTime() - receipt.paymentDueDate.getTime()) / 86_400_000) : 0;
+    const overdueDays =
+      receipt.paymentDueDate && outstanding > 0
+        ? Math.floor((today.getTime() - receipt.paymentDueDate.getTime()) / 86_400_000)
+        : 0;
 
     const entry = bySupplier.get(receipt.supplier.id) ?? {
       supplierId: receipt.supplier.id,
@@ -100,8 +113,10 @@ export async function listDebts(storeId: string, query: DebtQuery) {
     entry.outstanding += outstanding;
     if (outstanding > 0 && receipt.paymentDueDate) {
       if (receipt.paymentDueDate.getTime() < today.getTime()) entry.overdueAmount += outstanding;
-      else if (receipt.paymentDueDate.getTime() <= dueSoonLimit.getTime()) entry.dueSoonAmount += outstanding;
-      if (!entry.oldestDueDate || receipt.paymentDueDate.getTime() < entry.oldestDueDate.getTime()) entry.oldestDueDate = receipt.paymentDueDate;
+      else if (receipt.paymentDueDate.getTime() <= dueSoonLimit.getTime())
+        entry.dueSoonAmount += outstanding;
+      if (!entry.oldestDueDate || receipt.paymentDueDate.getTime() < entry.oldestDueDate.getTime())
+        entry.oldestDueDate = receipt.paymentDueDate;
     }
     entry.receipts.push({
       goodsReceiptId: receipt.id,
@@ -118,7 +133,12 @@ export async function listDebts(storeId: string, query: DebtQuery) {
     bySupplier.set(receipt.supplier.id, entry);
   }
 
-  const items = [...bySupplier.values()].sort((a, b) => b.overdueAmount - a.overdueAmount || b.outstanding - a.outstanding || a.name.localeCompare(b.name, "vi"));
+  const items = [...bySupplier.values()].sort(
+    (a, b) =>
+      b.overdueAmount - a.overdueAmount ||
+      b.outstanding - a.outstanding ||
+      a.name.localeCompare(b.name, "vi"),
+  );
   return {
     items,
     summary: {
@@ -149,7 +169,11 @@ export type PaymentInput = {
  * phần phân bổ không vượt quá số còn nợ của phiếu nhập đó — tính lại ngay
  * trong giao dịch để hai người cùng ghi không làm trả dư.
  */
-export async function createPayment(storeId: string, auth: AuthContext, input: PaymentInput): Promise<string> {
+export async function createPayment(
+  storeId: string,
+  auth: AuthContext,
+  input: PaymentInput,
+): Promise<string> {
   const store = await prisma.store.findUniqueOrThrow({ where: { id: storeId } });
   const supplier = await prisma.supplier.findUnique({ where: { id: input.supplierId } });
   if (!supplier) throw AppError.notFound("Không tìm thấy nhà cung cấp");
@@ -165,10 +189,19 @@ export async function createPayment(storeId: string, auth: AuthContext, input: P
     await lockGoodsReceipts(tx, storeId, receiptIds);
 
     const receipts = await tx.goodsReceipt.findMany({
-      where: { id: { in: input.allocations.map((item) => item.goodsReceiptId) }, storeId, supplierId: input.supplierId, status: "CONFIRMED", type: "PURCHASE" },
+      where: {
+        id: { in: input.allocations.map((item) => item.goodsReceiptId) },
+        storeId,
+        supplierId: input.supplierId,
+        status: "CONFIRMED",
+        type: "PURCHASE",
+      },
       include: {
         paymentAllocations: { where: { payment: { status: "ACTIVE" } }, select: { amount: true } },
-        supplierReturnLines: { where: { supplierReturn: { status: "CONFIRMED", settlement: "DEDUCT_DEBT" } }, select: { lineValue: true } },
+        supplierReturnLines: {
+          where: { supplierReturn: { status: "CONFIRMED", settlement: "DEDUCT_DEBT" } },
+          select: { lineValue: true },
+        },
       },
     });
     const byId = new Map(receipts.map((receipt) => [receipt.id, receipt]));
@@ -176,12 +209,18 @@ export async function createPayment(storeId: string, auth: AuthContext, input: P
     let total = 0;
     for (const allocation of input.allocations) {
       const receipt = byId.get(allocation.goodsReceiptId);
-      if (!receipt) throw AppError.validation("Có phiếu nhập không thuộc nhà cung cấp này hoặc chưa kiểm nhập");
+      if (!receipt)
+        throw AppError.validation("Có phiếu nhập không thuộc nhà cung cấp này hoặc chưa kiểm nhập");
       const paid = receipt.paymentAllocations.reduce((sum, item) => sum + num(item.amount), 0);
-      const credited = receipt.supplierReturnLines.reduce((sum, item) => sum + num(item.lineValue), 0);
+      const credited = receipt.supplierReturnLines.reduce(
+        (sum, item) => sum + num(item.lineValue),
+        0,
+      );
       const outstanding = Math.max(0, num(receipt.totalCost) - paid - credited);
       if (allocation.amount > outstanding) {
-        throw AppError.validation(`Phiếu ${receipt.code} chỉ còn nợ ${outstanding.toLocaleString("vi-VN")} đ, không trả ${allocation.amount.toLocaleString("vi-VN")} đ được`);
+        throw AppError.validation(
+          `Phiếu ${receipt.code} chỉ còn nợ ${outstanding.toLocaleString("vi-VN")} đ, không trả ${allocation.amount.toLocaleString("vi-VN")} đ được`,
+        );
       }
       total += allocation.amount;
     }
@@ -197,7 +236,12 @@ export async function createPayment(storeId: string, auth: AuthContext, input: P
         reference: input.reference ?? null,
         note: input.note ?? null,
         createdBy: auth.userId,
-        allocations: { create: input.allocations.map((item) => ({ goodsReceiptId: item.goodsReceiptId, amount: BigInt(item.amount) })) },
+        allocations: {
+          create: input.allocations.map((item) => ({
+            goodsReceiptId: item.goodsReceiptId,
+            amount: BigInt(item.amount),
+          })),
+        },
       },
     });
     await markIdempotentResource(tx, "supplier_payment", payment.id);
@@ -209,14 +253,25 @@ export async function createPayment(storeId: string, auth: AuthContext, input: P
         action: "SUPPLIER_PAYMENT_CREATE",
         resourceType: "supplier_payment",
         resourceId: payment.id,
-        after: { code: payment.code, supplier: supplier.name, amount: total, method: input.method, receipts: input.allocations.length },
+        after: {
+          code: payment.code,
+          supplier: supplier.name,
+          amount: total,
+          method: input.method,
+          receipts: input.allocations.length,
+        },
       },
     });
     return payment.id;
   });
 }
 
-export async function voidPayment(storeId: string, paymentId: string, auth: AuthContext, reason: string): Promise<void> {
+export async function voidPayment(
+  storeId: string,
+  paymentId: string,
+  auth: AuthContext,
+  reason: string,
+): Promise<void> {
   await prisma.$transaction(async (tx) => {
     await lockSupplierPayment(tx, storeId, paymentId);
     const payment = await tx.supplierPayment.findFirst({ where: { id: paymentId, storeId } });
@@ -225,7 +280,13 @@ export async function voidPayment(storeId: string, paymentId: string, auth: Auth
 
     const moved = await tx.supplierPayment.updateMany({
       where: { id: paymentId, storeId, status: "ACTIVE" },
-      data: { status: "VOIDED", voidReason: reason, voidedBy: auth.userId, voidedAt: new Date(), version: { increment: 1 } },
+      data: {
+        status: "VOIDED",
+        voidReason: reason,
+        voidedBy: auth.userId,
+        voidedAt: new Date(),
+        version: { increment: 1 },
+      },
     });
     if (moved.count === 0) throw AppError.invalidState("Phiếu chi này đã hủy rồi");
     await tx.auditLog.create({
@@ -242,12 +303,22 @@ export async function voidPayment(storeId: string, paymentId: string, auth: Auth
   });
 }
 
-export async function listPayments(storeId: string, query: { supplierId?: string | undefined; from?: Date | undefined; to?: Date | undefined }) {
+export async function listPayments(
+  storeId: string,
+  query: { supplierId?: string | undefined; from?: Date | undefined; to?: Date | undefined },
+) {
   const payments = await prisma.supplierPayment.findMany({
     where: {
       storeId,
       ...(query.supplierId ? { supplierId: query.supplierId } : {}),
-      ...(query.from || query.to ? { paidAt: { ...(query.from ? { gte: query.from } : {}), ...(query.to ? { lte: query.to } : {}) } } : {}),
+      ...(query.from || query.to
+        ? {
+            paidAt: {
+              ...(query.from ? { gte: query.from } : {}),
+              ...(query.to ? { lte: query.to } : {}),
+            },
+          }
+        : {}),
     },
     orderBy: [{ paidAt: "desc" }, { createdAt: "desc" }],
     take: 200,
@@ -272,17 +343,29 @@ export async function listPayments(storeId: string, query: { supplierId?: string
     voidReason: payment.voidReason,
     voidedByName: payment.voidedByUser?.fullName ?? null,
     createdByName: payment.createdByUser.fullName,
-    allocations: payment.allocations.map((item) => ({ goodsReceiptId: item.goodsReceiptId, code: item.goodsReceipt.code, amount: num(item.amount) })),
+    allocations: payment.allocations.map((item) => ({
+      goodsReceiptId: item.goodsReceiptId,
+      code: item.goodsReceipt.code,
+      amount: num(item.amount),
+    })),
   }));
 }
 
 /** Kỳ hạn thanh toán của nhà cung cấp; đổi ở đây chỉ áp dụng cho phiếu nhập kiểm nhập sau này. */
-export async function setPaymentTerm(supplierId: string, days: number, auth: AuthContext, storeId: string): Promise<void> {
+export async function setPaymentTerm(
+  supplierId: string,
+  days: number,
+  auth: AuthContext,
+  storeId: string,
+): Promise<void> {
   const supplier = await prisma.supplier.findUnique({ where: { id: supplierId } });
   if (!supplier) throw AppError.notFound("Không tìm thấy nhà cung cấp");
 
   await prisma.$transaction(async (tx) => {
-    await tx.supplier.update({ where: { id: supplierId }, data: { paymentTermDays: days, version: { increment: 1 } } });
+    await tx.supplier.update({
+      where: { id: supplierId },
+      data: { paymentTermDays: days, version: { increment: 1 } },
+    });
     await tx.auditLog.create({
       data: {
         storeId,

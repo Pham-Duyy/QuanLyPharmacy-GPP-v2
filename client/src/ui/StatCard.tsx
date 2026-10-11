@@ -14,7 +14,14 @@ type StatCardProps = {
   loading?: boolean;
 };
 
-export function StatCard({ icon, label, value, hint, tone = "blue", loading = false }: StatCardProps) {
+export function StatCard({
+  icon,
+  label,
+  value,
+  hint,
+  tone = "blue",
+  loading = false,
+}: StatCardProps) {
   return (
     <div className={`stat-card tone-${tone}`}>
       <span className="stat-card-icon" aria-hidden>
@@ -35,11 +42,13 @@ export function StatCard({ icon, label, value, hint, tone = "blue", loading = fa
 
 /** Mũi tên tăng/giảm có màu; null nghĩa là chưa có kỳ trước để so. */
 export function Trend({ value, suffix }: { value: number | null | undefined; suffix: string }) {
-  if (value === null || value === undefined) return <span className="trend trend-none">Chưa có số liệu so sánh</span>;
+  if (value === null || value === undefined)
+    return <span className="trend trend-none">Chưa có số liệu so sánh</span>;
   const down = value < 0;
   return (
     <span className={down ? "trend trend-down" : "trend trend-up"}>
-      {down ? <ArrowDownOutlined /> : <ArrowUpOutlined />} {Math.abs(value).toLocaleString("vi-VN")}% {suffix}
+      {down ? <ArrowDownOutlined /> : <ArrowUpOutlined />} {Math.abs(value).toLocaleString("vi-VN")}
+      % {suffix}
     </span>
   );
 }

@@ -1,7 +1,14 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { prisma } from "../../db/prisma.js";
-import { api, authHeaders, login, seedFixture, truncateAll, type Fixture } from "../../test/helpers.js";
+import {
+  api,
+  authHeaders,
+  login,
+  seedFixture,
+  truncateAll,
+  type Fixture,
+} from "../../test/helpers.js";
 
 /**
  * Chất lượng giá vốn của báo cáo phải tính trên **mọi phần tham gia công
@@ -21,7 +28,9 @@ const h = (token = adminToken) => authHeaders(token, fixture.storeId);
 const idem = () => ({ "Idempotency-Key": randomUUID() });
 
 function dayKey(days = 0): string {
-  const vnToday = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Ho_Chi_Minh" }).format(new Date());
+  const vnToday = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Ho_Chi_Minh" }).format(
+    new Date(),
+  );
   const date = new Date(`${vnToday}T00:00:00.000Z`);
   date.setUTCDate(date.getUTCDate() + days);
   return date.toISOString().slice(0, 10);
@@ -39,7 +48,12 @@ async function receive(quantity: number, unitCost: number, batchNumber: string):
   await api()
     .post(`/api/v1/goods-receipts/${created.body.data.id}/confirm`)
     .set({ ...h(pharmacistToken), ...idem() })
-    .send({ lines: created.body.data.lines.map((line: { id: string }) => ({ lineId: line.id, passed: true })) })
+    .send({
+      lines: created.body.data.lines.map((line: { id: string }) => ({
+        lineId: line.id,
+        passed: true,
+      })),
+    })
     .expect(200);
 }
 
@@ -121,7 +135,9 @@ describe("Chất lượng giá vốn tính cả phần hoàn của hàng trả",
     await receive(100, 1000, "L1");
     const sale = (await sell(10).expect(201)).body.data;
     await moveToPreviousPeriod(sale.id);
-    await prisma.invoiceAllocation.updateMany({ data: { unitCost: null, unitCostSource: "UNKNOWN" } });
+    await prisma.invoiceAllocation.updateMany({
+      data: { unitCost: null, unitCostSource: "UNKNOWN" },
+    });
 
     await giveBack(sale, 2).expect(201);
 
@@ -179,7 +195,12 @@ describe("Chất lượng giá vốn tính cả phần hoàn của hàng trả",
     await giveBack(sale, 3).expect(201);
 
     const data = await todayReport();
-    expect(data.costQuality).toMatchObject({ saleLines: 0, returnLines: 1, actualLines: 1, exact: true });
+    expect(data.costQuality).toMatchObject({
+      saleLines: 0,
+      returnLines: 1,
+      actualLines: 1,
+      exact: true,
+    });
     // Kỳ so sánh (hôm qua) có hóa đơn bán, giá vốn thật nên vẫn so sánh được.
     expect(data.costQuality.comparisonExact).toBe(true);
   });
@@ -191,13 +212,20 @@ describe("Chất lượng giá vốn tính cả phần hoàn của hàng trả",
     await giveBack(sale, 3).expect(201);
 
     const data = await todayReport();
-    expect(data.costQuality).toMatchObject({ saleLines: 1, returnLines: 2, totalLines: 3, actualLines: 3 });
+    expect(data.costQuality).toMatchObject({
+      saleLines: 1,
+      returnLines: 2,
+      totalLines: 3,
+      actualLines: 3,
+    });
   });
 
   it("hàng trả để tiêu hủy không vào phần hoàn giá vốn", async () => {
     await receive(100, 1000, "L1");
     const sale = (await sell(10).expect(201)).body.data;
-    await prisma.invoiceAllocation.updateMany({ data: { unitCost: null, unitCostSource: "UNKNOWN" } });
+    await prisma.invoiceAllocation.updateMany({
+      data: { unitCost: null, unitCostSource: "UNKNOWN" },
+    });
     await giveBack(sale, 2, "DISPOSE").expect(201);
 
     const data = await todayReport();
@@ -215,7 +243,9 @@ describe("Chất lượng giá vốn tính cả phần hoàn của hàng trả",
       where: { id: old.id },
       data: { businessDate: new Date(`${dayKey(-1)}T00:00:00.000Z`) },
     });
-    await prisma.invoiceAllocation.updateMany({ data: { unitCost: null, unitCostSource: "UNKNOWN" } });
+    await prisma.invoiceAllocation.updateMany({
+      data: { unitCost: null, unitCostSource: "UNKNOWN" },
+    });
 
     // Hóa đơn của kỳ này có giá vốn đầy đủ.
     await sell(4).expect(201);

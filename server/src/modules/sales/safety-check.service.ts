@@ -63,7 +63,9 @@ export async function runSafetyCheck(tx: Tx, params: SafetyParams): Promise<Safe
   // 1. Thuốc kiểm soát đặc biệt: bán được nhưng phải ghi đủ thông tin người
   // mua vào sổ theo dõi (contract §10.8). Đơn thuốc và quyền bán được kiểm ở
   // bước 2 và ở invoices.service.
-  const controlledIds = productIds.filter((productId) => lines.find((item) => item.productId === productId)!.drugClass === "CONTROLLED");
+  const controlledIds = productIds.filter(
+    (productId) => lines.find((item) => item.productId === productId)!.drugClass === "CONTROLLED",
+  );
   if (controlledIds.length > 0 && !params.hasControlledBuyer) {
     for (const productId of controlledIds) {
       const line = lines.find((item) => item.productId === productId)!;
@@ -76,14 +78,17 @@ export async function runSafetyCheck(tx: Tx, params: SafetyParams): Promise<Safe
   }
 
   if (controlledIds.length > 0 && params.prescriptionId) {
-    const images = await tx.prescriptionImage.count({ where: { prescriptionId: params.prescriptionId } });
+    const images = await tx.prescriptionImage.count({
+      where: { prescriptionId: params.prescriptionId },
+    });
     if (images === 0) {
       warnings.push({
         code: "CONTROLLED_PRESCRIPTION_IMAGE_MISSING",
         severity: "HIGH",
         requiresAck: true,
         productIds: controlledIds,
-        message: "Đơn thuốc kiểm soát đặc biệt chưa có ảnh lưu. Phải giữ bản chính đơn thuốc tại nhà thuốc.",
+        message:
+          "Đơn thuốc kiểm soát đặc biệt chưa có ảnh lưu. Phải giữ bản chính đơn thuốc tại nhà thuốc.",
         source: "Quy định lưu đơn thuốc kiểm soát đặc biệt",
         sourceVersion: RULE_VERSION,
       });

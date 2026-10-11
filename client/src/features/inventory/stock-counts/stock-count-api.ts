@@ -66,21 +66,55 @@ type CountSummary = {
 
 export type CountDetail = { count: CountHeader; lines: CountLine[]; summary: CountSummary };
 
-export type CountEntry = { lineId: string; unitId?: string; quantity?: number; clear?: boolean; sensoryFailed?: boolean; note?: string | null };
+export type CountEntry = {
+  lineId: string;
+  unitId?: string;
+  quantity?: number;
+  clear?: boolean;
+  sensoryFailed?: boolean;
+  note?: string | null;
+};
 
-export const listCounts = async (status?: string): Promise<{ items: CountListItem[]; open: { id: string; code: string } | null }> =>
-  (await http.get<Envelope<{ items: CountListItem[]; open: { id: string; code: string } | null }>>("/stock-counts", { params: { status } })).data.data;
+export const listCounts = async (
+  status?: string,
+): Promise<{ items: CountListItem[]; open: { id: string; code: string } | null }> =>
+  (
+    await http.get<Envelope<{ items: CountListItem[]; open: { id: string; code: string } | null }>>(
+      "/stock-counts",
+      { params: { status } },
+    )
+  ).data.data;
 
-export const getCount = async (id: string): Promise<CountDetail> => (await http.get<Envelope<CountDetail>>(`/stock-counts/${id}`)).data.data;
+export const getCount = async (id: string): Promise<CountDetail> =>
+  (await http.get<Envelope<CountDetail>>(`/stock-counts/${id}`)).data.data;
 
-export const openCount = async (body: { scopeType: string; scopeValue?: string | null; note?: string | null }): Promise<CountDetail> =>
+export const openCount = async (body: {
+  scopeType: string;
+  scopeValue?: string | null;
+  note?: string | null;
+}): Promise<CountDetail> =>
   (await http.post<Envelope<CountDetail>>("/stock-counts", body)).data.data;
 
-export const saveCounts = async (id: string, entries: CountEntry[]): Promise<CountDetail & { saved: number; cleared: number }> =>
-  (await http.patch<Envelope<CountDetail & { saved: number; cleared: number }>>(`/stock-counts/${id}/counts`, { entries })).data.data;
+export const saveCounts = async (
+  id: string,
+  entries: CountEntry[],
+): Promise<CountDetail & { saved: number; cleared: number }> =>
+  (
+    await http.patch<Envelope<CountDetail & { saved: number; cleared: number }>>(
+      `/stock-counts/${id}/counts`,
+      { entries },
+    )
+  ).data.data;
 
-export const closeCount = async (id: string, note?: string | null): Promise<CountDetail & { adjustmentId: string | null; differenceLines: number }> =>
-  (await http.post<Envelope<CountDetail & { adjustmentId: string | null; differenceLines: number }>>(`/stock-counts/${id}/close`, { note })).data.data;
+export const closeCount = async (
+  id: string,
+  note?: string | null,
+): Promise<CountDetail & { adjustmentId: string | null; differenceLines: number }> =>
+  (
+    await http.post<
+      Envelope<CountDetail & { adjustmentId: string | null; differenceLines: number }>
+    >(`/stock-counts/${id}/close`, { note })
+  ).data.data;
 
 export const cancelCount = async (id: string, reason?: string | null): Promise<CountDetail> =>
   (await http.post<Envelope<CountDetail>>(`/stock-counts/${id}/cancel`, { reason })).data.data;

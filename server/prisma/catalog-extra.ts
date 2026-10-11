@@ -121,7 +121,9 @@ export const EXTRA_PRODUCTS: ExtraProduct[] = [
       { name: "Vỉ", conversionToBase: 4, salePrice: 15000 },
       { name: "Hộp", conversionToBase: 16, salePrice: 58000 },
     ],
-    batches: [{ batchNumber: "EF2601", expiryInDays: 540, unitName: "Hộp", quantity: 12, unitCost: 44000 }],
+    batches: [
+      { batchNumber: "EF2601", expiryInDays: 540, unitName: "Hộp", quantity: 12, unitCost: 44000 },
+    ],
   },
   {
     ...base,
@@ -144,7 +146,9 @@ export const EXTRA_PRODUCTS: ExtraProduct[] = [
       { name: "Viên", conversionToBase: 1, salePrice: 2500, isDefaultSaleUnit: true },
       { name: "Vỉ", conversionToBase: 12, salePrice: 28000 },
     ],
-    batches: [{ batchNumber: "PE2603", expiryInDays: 720, unitName: "Vỉ", quantity: 40, unitCost: 21000 }],
+    batches: [
+      { batchNumber: "PE2603", expiryInDays: 720, unitName: "Vỉ", quantity: 40, unitCost: 21000 },
+    ],
   },
   {
     ...base,
@@ -163,7 +167,9 @@ export const EXTRA_PRODUCTS: ExtraProduct[] = [
       { name: "Gói", conversionToBase: 1, salePrice: 3000, isDefaultSaleUnit: true },
       { name: "Hộp", conversionToBase: 24, salePrice: 68000 },
     ],
-    batches: [{ batchNumber: "HP2602", expiryInDays: 600, unitName: "Hộp", quantity: 10, unitCost: 52000 }],
+    batches: [
+      { batchNumber: "HP2602", expiryInDays: 600, unitName: "Hộp", quantity: 10, unitCost: 52000 },
+    ],
   },
   {
     ...base,
@@ -185,7 +191,9 @@ export const EXTRA_PRODUCTS: ExtraProduct[] = [
       { name: "Viên", conversionToBase: 1, salePrice: 3500, isDefaultSaleUnit: true },
       { name: "Vỉ", conversionToBase: 10, salePrice: 33000 },
     ],
-    batches: [{ batchNumber: "AL2605", expiryInDays: 660, unitName: "Vỉ", quantity: 30, unitCost: 25000 }],
+    batches: [
+      { batchNumber: "AL2605", expiryInDays: 660, unitName: "Vỉ", quantity: 30, unitCost: 25000 },
+    ],
   },
 
   // --- Kháng sinh (kê đơn) -------------------------------------------------
@@ -211,7 +219,9 @@ export const EXTRA_PRODUCTS: ExtraProduct[] = [
       { name: "Vỉ", conversionToBase: 7, salePrice: 130000 },
       { name: "Hộp", conversionToBase: 14, salePrice: 255000 },
     ],
-    batches: [{ batchNumber: "AU2604", expiryInDays: 500, unitName: "Hộp", quantity: 8, unitCost: 196000 }],
+    batches: [
+      { batchNumber: "AU2604", expiryInDays: 500, unitName: "Hộp", quantity: 8, unitCost: 196000 },
+    ],
   },
   {
     ...base,
@@ -230,7 +240,9 @@ export const EXTRA_PRODUCTS: ExtraProduct[] = [
       { name: "Viên", conversionToBase: 1, salePrice: 9000, isDefaultSaleUnit: true },
       { name: "Vỉ", conversionToBase: 10, salePrice: 85000 },
     ],
-    batches: [{ batchNumber: "CX2601", expiryInDays: 450, unitName: "Vỉ", quantity: 20, unitCost: 64000 }],
+    batches: [
+      { batchNumber: "CX2601", expiryInDays: 450, unitName: "Vỉ", quantity: 20, unitCost: 64000 },
+    ],
   },
   {
     ...base,
@@ -249,7 +261,9 @@ export const EXTRA_PRODUCTS: ExtraProduct[] = [
       { name: "Viên", conversionToBase: 1, salePrice: 15000, isDefaultSaleUnit: true },
       { name: "Vỉ", conversionToBase: 3, salePrice: 42000 },
     ],
-    batches: [{ batchNumber: "AZ2602", expiryInDays: 480, unitName: "Vỉ", quantity: 25, unitCost: 31000 }],
+    batches: [
+      { batchNumber: "AZ2602", expiryInDays: 480, unitName: "Vỉ", quantity: 25, unitCost: 31000 },
+    ],
   },
   {
     ...base,
@@ -268,7 +282,9 @@ export const EXTRA_PRODUCTS: ExtraProduct[] = [
       { name: "Viên", conversionToBase: 1, salePrice: 12000, isDefaultSaleUnit: true },
       { name: "Vỉ", conversionToBase: 10, salePrice: 112000 },
     ],
-    batches: [{ batchNumber: "CU2603", expiryInDays: 420, unitName: "Vỉ", quantity: 18, unitCost: 84000 }],
+    batches: [
+      { batchNumber: "CU2603", expiryInDays: 420, unitName: "Vỉ", quantity: 18, unitCost: 84000 },
+    ],
   },
   {
     ...base,
@@ -287,7 +303,9 @@ export const EXTRA_PRODUCTS: ExtraProduct[] = [
       { name: "Viên", conversionToBase: 1, salePrice: 1000, isDefaultSaleUnit: true },
       { name: "Vỉ", conversionToBase: 10, salePrice: 9000 },
     ],
-    batches: [{ batchNumber: "MT2601", expiryInDays: 600, unitName: "Vỉ", quantity: 40, unitCost: 6500 }],
+    batches: [
+      { batchNumber: "MT2601", expiryInDays: 600, unitName: "Vỉ", quantity: 40, unitCost: 6500 },
+    ],
   },
 
   // --- Tim mạch, huyết áp (kê đơn) ----------------------------------------
@@ -309,7 +327,9 @@ export const EXTRA_PRODUCTS: ExtraProduct[] = [
       { name: "Vỉ", conversionToBase: 10, salePrice: 14000 },
       { name: "Hộp", conversionToBase: 30, salePrice: 40000 },
     ],
-    batches: [{ batchNumber: "AM2602", expiryInDays: 700, unitName: "Hộp", quantity: 20, unitCost: 30000 }],
+    batches: [
+      { batchNumber: "AM2602", expiryInDays: 700, unitName: "Hộp", quantity: 20, unitCost: 30000 },
+    ],
   },
   {
     ...base,
@@ -329,7 +349,9 @@ export const EXTRA_PRODUCTS: ExtraProduct[] = [
       { name: "Vỉ", conversionToBase: 10, salePrice: 23000 },
       { name: "Hộp", conversionToBase: 30, salePrice: 66000 },
     ],
-    batches: [{ batchNumber: "LO2601", expiryInDays: 680, unitName: "Hộp", quantity: 15, unitCost: 50000 }],
+    batches: [
+      { batchNumber: "LO2601", expiryInDays: 680, unitName: "Hộp", quantity: 15, unitCost: 50000 },
+    ],
   },
   {
     ...base,
@@ -348,7 +370,9 @@ export const EXTRA_PRODUCTS: ExtraProduct[] = [
       { name: "Viên", conversionToBase: 1, salePrice: 4000, isDefaultSaleUnit: true },
       { name: "Vỉ", conversionToBase: 10, salePrice: 38000 },
     ],
-    batches: [{ batchNumber: "AT2604", expiryInDays: 640, unitName: "Vỉ", quantity: 30, unitCost: 28000 }],
+    batches: [
+      { batchNumber: "AT2604", expiryInDays: 640, unitName: "Vỉ", quantity: 30, unitCost: 28000 },
+    ],
   },
   {
     ...base,
@@ -367,7 +391,9 @@ export const EXTRA_PRODUCTS: ExtraProduct[] = [
       { name: "Viên", conversionToBase: 1, salePrice: 2000, isDefaultSaleUnit: true },
       { name: "Vỉ", conversionToBase: 10, salePrice: 18000 },
     ],
-    batches: [{ batchNumber: "BI2603", expiryInDays: 620, unitName: "Vỉ", quantity: 25, unitCost: 13000 }],
+    batches: [
+      { batchNumber: "BI2603", expiryInDays: 620, unitName: "Vỉ", quantity: 25, unitCost: 13000 },
+    ],
   },
 
   // --- Tiểu đường (kê đơn) -------------------------------------------------
@@ -389,7 +415,9 @@ export const EXTRA_PRODUCTS: ExtraProduct[] = [
       { name: "Vỉ", conversionToBase: 10, salePrice: 11000 },
       { name: "Hộp", conversionToBase: 50, salePrice: 52000 },
     ],
-    batches: [{ batchNumber: "ME2602", expiryInDays: 700, unitName: "Hộp", quantity: 12, unitCost: 39000 }],
+    batches: [
+      { batchNumber: "ME2602", expiryInDays: 700, unitName: "Hộp", quantity: 12, unitCost: 39000 },
+    ],
   },
   {
     ...base,
@@ -408,7 +436,9 @@ export const EXTRA_PRODUCTS: ExtraProduct[] = [
       { name: "Viên", conversionToBase: 1, salePrice: 2200, isDefaultSaleUnit: true },
       { name: "Vỉ", conversionToBase: 30, salePrice: 62000 },
     ],
-    batches: [{ batchNumber: "GL2601", expiryInDays: 560, unitName: "Vỉ", quantity: 14, unitCost: 46000 }],
+    batches: [
+      { batchNumber: "GL2601", expiryInDays: 560, unitName: "Vỉ", quantity: 14, unitCost: 46000 },
+    ],
   },
 
   // --- Tiêu hóa ------------------------------------------------------------
@@ -429,7 +459,9 @@ export const EXTRA_PRODUCTS: ExtraProduct[] = [
       { name: "Viên", conversionToBase: 1, salePrice: 4500, isDefaultSaleUnit: true },
       { name: "Vỉ", conversionToBase: 14, salePrice: 60000 },
     ],
-    batches: [{ batchNumber: "ES2603", expiryInDays: 520, unitName: "Vỉ", quantity: 16, unitCost: 45000 }],
+    batches: [
+      { batchNumber: "ES2603", expiryInDays: 520, unitName: "Vỉ", quantity: 16, unitCost: 45000 },
+    ],
   },
   {
     ...base,
@@ -448,7 +480,9 @@ export const EXTRA_PRODUCTS: ExtraProduct[] = [
       { name: "Viên", conversionToBase: 1, salePrice: 1000, isDefaultSaleUnit: true },
       { name: "Vỉ", conversionToBase: 10, salePrice: 9000 },
     ],
-    batches: [{ batchNumber: "DO2601", expiryInDays: 580, unitName: "Vỉ", quantity: 35, unitCost: 6500 }],
+    batches: [
+      { batchNumber: "DO2601", expiryInDays: 580, unitName: "Vỉ", quantity: 35, unitCost: 6500 },
+    ],
   },
   {
     ...base,
@@ -468,7 +502,9 @@ export const EXTRA_PRODUCTS: ExtraProduct[] = [
       { name: "Gói", conversionToBase: 1, salePrice: 5000, isDefaultSaleUnit: true },
       { name: "Hộp", conversionToBase: 30, salePrice: 140000 },
     ],
-    batches: [{ batchNumber: "SM2602", expiryInDays: 600, unitName: "Hộp", quantity: 10, unitCost: 106000 }],
+    batches: [
+      { batchNumber: "SM2602", expiryInDays: 600, unitName: "Hộp", quantity: 10, unitCost: 106000 },
+    ],
   },
   {
     ...base,
@@ -487,7 +523,9 @@ export const EXTRA_PRODUCTS: ExtraProduct[] = [
       { name: "Viên", conversionToBase: 1, salePrice: 400, isDefaultSaleUnit: true },
       { name: "Lọ", conversionToBase: 100, salePrice: 35000 },
     ],
-    batches: [{ batchNumber: "BE2601", expiryInDays: 660, unitName: "Lọ", quantity: 15, unitCost: 26000 }],
+    batches: [
+      { batchNumber: "BE2601", expiryInDays: 660, unitName: "Lọ", quantity: 15, unitCost: 26000 },
+    ],
   },
   {
     ...base,
@@ -508,7 +546,9 @@ export const EXTRA_PRODUCTS: ExtraProduct[] = [
       { name: "Gói", conversionToBase: 1, salePrice: 3000, isDefaultSaleUnit: true },
       { name: "Hộp", conversionToBase: 20, salePrice: 55000 },
     ],
-    batches: [{ batchNumber: "OR2604", expiryInDays: 500, unitName: "Hộp", quantity: 12, unitCost: 41000 }],
+    batches: [
+      { batchNumber: "OR2604", expiryInDays: 500, unitName: "Hộp", quantity: 12, unitCost: 41000 },
+    ],
   },
 
   // --- Hô hấp --------------------------------------------------------------
@@ -527,7 +567,9 @@ export const EXTRA_PRODUCTS: ExtraProduct[] = [
     minStockBaseQuantity: 10,
     ingredients: [{ name: "Salbutamol", strengthText: "100 mcg" }],
     units: [{ name: "Bình", conversionToBase: 1, salePrice: 95000, isDefaultSaleUnit: true }],
-    batches: [{ batchNumber: "VE2602", expiryInDays: 420, unitName: "Bình", quantity: 12, unitCost: 72000 }],
+    batches: [
+      { batchNumber: "VE2602", expiryInDays: 420, unitName: "Bình", quantity: 12, unitCost: 72000 },
+    ],
   },
   {
     ...base,
@@ -546,7 +588,9 @@ export const EXTRA_PRODUCTS: ExtraProduct[] = [
       { name: "Gói", conversionToBase: 1, salePrice: 2500, isDefaultSaleUnit: true },
       { name: "Hộp", conversionToBase: 30, salePrice: 68000 },
     ],
-    batches: [{ batchNumber: "AC2603", expiryInDays: 560, unitName: "Hộp", quantity: 10, unitCost: 50000 }],
+    batches: [
+      { batchNumber: "AC2603", expiryInDays: 560, unitName: "Hộp", quantity: 10, unitCost: 50000 },
+    ],
   },
   {
     ...base,
@@ -565,7 +609,9 @@ export const EXTRA_PRODUCTS: ExtraProduct[] = [
       { name: "Viên", conversionToBase: 1, salePrice: 700, isDefaultSaleUnit: true },
       { name: "Vỉ", conversionToBase: 10, salePrice: 6500 },
     ],
-    batches: [{ batchNumber: "BR2601", expiryInDays: 640, unitName: "Vỉ", quantity: 40, unitCost: 4800 }],
+    batches: [
+      { batchNumber: "BR2601", expiryInDays: 640, unitName: "Vỉ", quantity: 40, unitCost: 4800 },
+    ],
   },
   {
     ...base,
@@ -581,7 +627,9 @@ export const EXTRA_PRODUCTS: ExtraProduct[] = [
     minStockBaseQuantity: 15,
     ingredients: [{ name: "Cao lá thường xuân", strengthText: "7 g/100 ml" }],
     units: [{ name: "Chai", conversionToBase: 1, salePrice: 95000, isDefaultSaleUnit: true }],
-    batches: [{ batchNumber: "PR2605", expiryInDays: 480, unitName: "Chai", quantity: 18, unitCost: 72000 }],
+    batches: [
+      { batchNumber: "PR2605", expiryInDays: 480, unitName: "Chai", quantity: 18, unitCost: 72000 },
+    ],
   },
 
   // --- Dị ứng --------------------------------------------------------------
@@ -602,7 +650,9 @@ export const EXTRA_PRODUCTS: ExtraProduct[] = [
       { name: "Viên", conversionToBase: 1, salePrice: 1200, isDefaultSaleUnit: true },
       { name: "Vỉ", conversionToBase: 10, salePrice: 11000 },
     ],
-    batches: [{ batchNumber: "LR2602", expiryInDays: 620, unitName: "Vỉ", quantity: 35, unitCost: 8000 }],
+    batches: [
+      { batchNumber: "LR2602", expiryInDays: 620, unitName: "Vỉ", quantity: 35, unitCost: 8000 },
+    ],
   },
   {
     ...base,
@@ -621,7 +671,9 @@ export const EXTRA_PRODUCTS: ExtraProduct[] = [
       { name: "Viên", conversionToBase: 1, salePrice: 300, isDefaultSaleUnit: true },
       { name: "Lọ", conversionToBase: 100, salePrice: 25000 },
     ],
-    batches: [{ batchNumber: "CL2601", expiryInDays: 600, unitName: "Lọ", quantity: 12, unitCost: 18000 }],
+    batches: [
+      { batchNumber: "CL2601", expiryInDays: 600, unitName: "Lọ", quantity: 12, unitCost: 18000 },
+    ],
   },
 
   // --- Da liễu, sát khuẩn ---------------------------------------------------
@@ -639,7 +691,9 @@ export const EXTRA_PRODUCTS: ExtraProduct[] = [
     minStockBaseQuantity: 20,
     ingredients: [{ name: "Betamethason", strengthText: "0,05%" }],
     units: [{ name: "Tuýp", conversionToBase: 1, salePrice: 28000, isDefaultSaleUnit: true }],
-    batches: [{ batchNumber: "BM2603", expiryInDays: 500, unitName: "Tuýp", quantity: 24, unitCost: 20000 }],
+    batches: [
+      { batchNumber: "BM2603", expiryInDays: 500, unitName: "Tuýp", quantity: 24, unitCost: 20000 },
+    ],
   },
   {
     ...base,
@@ -655,7 +709,9 @@ export const EXTRA_PRODUCTS: ExtraProduct[] = [
     minStockBaseQuantity: 30,
     ingredients: [{ name: "Povidon iod", strengthText: "10%" }],
     units: [{ name: "Lọ", conversionToBase: 1, salePrice: 18000, isDefaultSaleUnit: true }],
-    batches: [{ batchNumber: "PV2601", expiryInDays: 700, unitName: "Lọ", quantity: 30, unitCost: 12000 }],
+    batches: [
+      { batchNumber: "PV2601", expiryInDays: 700, unitName: "Lọ", quantity: 30, unitCost: 12000 },
+    ],
   },
 
   // --- Mắt, tai mũi họng ----------------------------------------------------
@@ -673,7 +729,9 @@ export const EXTRA_PRODUCTS: ExtraProduct[] = [
     minStockBaseQuantity: 60,
     ingredients: [{ name: "Natri clorid", strengthText: "0,9%" }],
     units: [{ name: "Lọ", conversionToBase: 1, salePrice: 5000, isDefaultSaleUnit: true }],
-    batches: [{ batchNumber: "NA2602", expiryInDays: 540, unitName: "Lọ", quantity: 80, unitCost: 3200 }],
+    batches: [
+      { batchNumber: "NA2602", expiryInDays: 540, unitName: "Lọ", quantity: 80, unitCost: 3200 },
+    ],
   },
   {
     ...base,
@@ -689,7 +747,9 @@ export const EXTRA_PRODUCTS: ExtraProduct[] = [
     minStockBaseQuantity: 20,
     ingredients: [{ name: "Tobramycin", strengthText: "0,3%" }],
     units: [{ name: "Lọ", conversionToBase: 1, salePrice: 25000, isDefaultSaleUnit: true }],
-    batches: [{ batchNumber: "TO2601", expiryInDays: 400, unitName: "Lọ", quantity: 20, unitCost: 18000 }],
+    batches: [
+      { batchNumber: "TO2601", expiryInDays: 400, unitName: "Lọ", quantity: 20, unitCost: 18000 },
+    ],
   },
 
   // --- Thực phẩm chức năng ---------------------------------------------------
@@ -714,7 +774,9 @@ export const EXTRA_PRODUCTS: ExtraProduct[] = [
       { name: "Viên", conversionToBase: 1, salePrice: 1500, isDefaultSaleUnit: true },
       { name: "Vỉ", conversionToBase: 10, salePrice: 14000 },
     ],
-    batches: [{ batchNumber: "VB2603", expiryInDays: 620, unitName: "Vỉ", quantity: 40, unitCost: 10000 }],
+    batches: [
+      { batchNumber: "VB2603", expiryInDays: 620, unitName: "Vỉ", quantity: 40, unitCost: 10000 },
+    ],
   },
   {
     ...base,
@@ -736,7 +798,9 @@ export const EXTRA_PRODUCTS: ExtraProduct[] = [
       { name: "Viên", conversionToBase: 1, salePrice: 4000, isDefaultSaleUnit: true },
       { name: "Tuýp", conversionToBase: 20, salePrice: 72000 },
     ],
-    batches: [{ batchNumber: "CA2602", expiryInDays: 580, unitName: "Tuýp", quantity: 15, unitCost: 54000 }],
+    batches: [
+      { batchNumber: "CA2602", expiryInDays: 580, unitName: "Tuýp", quantity: 15, unitCost: 54000 },
+    ],
   },
   {
     ...base,
@@ -756,7 +820,9 @@ export const EXTRA_PRODUCTS: ExtraProduct[] = [
       { name: "Viên", conversionToBase: 1, salePrice: 3500, isDefaultSaleUnit: true },
       { name: "Lọ", conversionToBase: 100, salePrice: 320000 },
     ],
-    batches: [{ batchNumber: "OM2601", expiryInDays: 660, unitName: "Lọ", quantity: 8, unitCost: 245000 }],
+    batches: [
+      { batchNumber: "OM2601", expiryInDays: 660, unitName: "Lọ", quantity: 8, unitCost: 245000 },
+    ],
   },
   {
     ...base,
@@ -772,7 +838,9 @@ export const EXTRA_PRODUCTS: ExtraProduct[] = [
     vatRatePercent: 8,
     ingredients: [{ name: "Kẽm gluconat", strengthText: "70 mg/5 ml" }],
     units: [{ name: "Chai", conversionToBase: 1, salePrice: 75000, isDefaultSaleUnit: true }],
-    batches: [{ batchNumber: "ZN2604", expiryInDays: 520, unitName: "Chai", quantity: 20, unitCost: 55000 }],
+    batches: [
+      { batchNumber: "ZN2604", expiryInDays: 520, unitName: "Chai", quantity: 20, unitCost: 55000 },
+    ],
   },
 
   // --- Vật tư y tế và chăm sóc cá nhân --------------------------------------
@@ -792,7 +860,15 @@ export const EXTRA_PRODUCTS: ExtraProduct[] = [
     vatRatePercent: 10,
     ingredients: [],
     units: [{ name: "Cái", conversionToBase: 1, salePrice: 1150000, isDefaultSaleUnit: true }],
-    batches: [{ batchNumber: "OMR2601", expiryInDays: 1460, unitName: "Cái", quantity: 5, unitCost: 890000 }],
+    batches: [
+      {
+        batchNumber: "OMR2601",
+        expiryInDays: 1460,
+        unitName: "Cái",
+        quantity: 5,
+        unitCost: 890000,
+      },
+    ],
   },
   {
     ...base,
@@ -808,7 +884,9 @@ export const EXTRA_PRODUCTS: ExtraProduct[] = [
     vatRatePercent: 10,
     ingredients: [],
     units: [{ name: "Gói", conversionToBase: 1, salePrice: 12000, isDefaultSaleUnit: true }],
-    batches: [{ batchNumber: "BG2601", expiryInDays: 900, unitName: "Gói", quantity: 60, unitCost: 8000 }],
+    batches: [
+      { batchNumber: "BG2601", expiryInDays: 900, unitName: "Gói", quantity: 60, unitCost: 8000 },
+    ],
   },
   {
     ...base,
@@ -827,7 +905,9 @@ export const EXTRA_PRODUCTS: ExtraProduct[] = [
       { name: "Miếng", conversionToBase: 1, salePrice: 4000, isDefaultSaleUnit: true },
       { name: "Hộp", conversionToBase: 10, salePrice: 36000 },
     ],
-    batches: [{ batchNumber: "GA2602", expiryInDays: 900, unitName: "Hộp", quantity: 20, unitCost: 26000 }],
+    batches: [
+      { batchNumber: "GA2602", expiryInDays: 900, unitName: "Hộp", quantity: 20, unitCost: 26000 },
+    ],
   },
   {
     ...base,
@@ -844,7 +924,9 @@ export const EXTRA_PRODUCTS: ExtraProduct[] = [
     minStockBaseQuantity: 30,
     ingredients: [],
     units: [{ name: "Chai", conversionToBase: 1, salePrice: 22000, isDefaultSaleUnit: true }],
-    batches: [{ batchNumber: "CO2601", expiryInDays: 760, unitName: "Chai", quantity: 40, unitCost: 15000 }],
+    batches: [
+      { batchNumber: "CO2601", expiryInDays: 760, unitName: "Chai", quantity: 40, unitCost: 15000 },
+    ],
   },
   {
     ...base,
@@ -861,7 +943,15 @@ export const EXTRA_PRODUCTS: ExtraProduct[] = [
     vatRatePercent: 10,
     ingredients: [],
     units: [{ name: "Tuýp", conversionToBase: 1, salePrice: 395000, isDefaultSaleUnit: true }],
-    batches: [{ batchNumber: "KC2602", expiryInDays: 600, unitName: "Tuýp", quantity: 12, unitCost: 290000 }],
+    batches: [
+      {
+        batchNumber: "KC2602",
+        expiryInDays: 600,
+        unitName: "Tuýp",
+        quantity: 12,
+        unitCost: 290000,
+      },
+    ],
   },
   {
     ...base,
@@ -878,6 +968,14 @@ export const EXTRA_PRODUCTS: ExtraProduct[] = [
     vatRatePercent: 10,
     ingredients: [],
     units: [{ name: "Chai", conversionToBase: 1, salePrice: 245000, isDefaultSaleUnit: true }],
-    batches: [{ batchNumber: "SR2601", expiryInDays: 720, unitName: "Chai", quantity: 10, unitCost: 185000 }],
+    batches: [
+      {
+        batchNumber: "SR2601",
+        expiryInDays: 720,
+        unitName: "Chai",
+        quantity: 10,
+        unitCost: 185000,
+      },
+    ],
   },
 ];

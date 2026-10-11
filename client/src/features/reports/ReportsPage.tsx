@@ -1,6 +1,32 @@
-import { AccountBookOutlined, BarChartOutlined, DollarCircleOutlined, DownloadOutlined, FileTextOutlined, ReloadOutlined, RiseOutlined, ShoppingOutlined, TrophyFilled } from "@ant-design/icons";
+import {
+  AccountBookOutlined,
+  BarChartOutlined,
+  DollarCircleOutlined,
+  DownloadOutlined,
+  FileTextOutlined,
+  ReloadOutlined,
+  RiseOutlined,
+  ShoppingOutlined,
+  TrophyFilled,
+} from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
-import { Alert, App, Button, Card, Col, DatePicker, Dropdown, Empty, Progress, Result, Row, Skeleton, Table, Tabs, Typography } from "antd";
+import {
+  Alert,
+  App,
+  Button,
+  Card,
+  Col,
+  DatePicker,
+  Dropdown,
+  Empty,
+  Progress,
+  Result,
+  Row,
+  Skeleton,
+  Table,
+  Tabs,
+  Typography,
+} from "antd";
 import dayjs, { type Dayjs } from "dayjs";
 import { useState } from "react";
 import { http } from "../../api/http.js";
@@ -13,13 +39,17 @@ import { PageHeader } from "../../ui/PageHeader.js";
 import { downloadExport, type ExportType } from "../excel/excel-api.js";
 import { StatCard, StatGrid, Trend } from "../../ui/StatCard.js";
 
-const dateText = (value: string) => new Date(value).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit" });
+const dateText = (value: string) =>
+  new Date(value).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit" });
 
 /** Xuất CSV từ dữ liệu đã tải, không phải tính năng máy chủ — dùng thẳng dữ liệu đang hiển thị. */
 function downloadCsv(filename: string, rows: Array<Record<string, string | number>>): void {
   if (rows.length === 0) return;
   const headers = Object.keys(rows[0]!);
-  const csv = [headers.join(","), ...rows.map((row) => headers.map((key) => JSON.stringify(row[key] ?? "")).join(","))].join("\n");
+  const csv = [
+    headers.join(","),
+    ...rows.map((row) => headers.map((key) => JSON.stringify(row[key] ?? "")).join(",")),
+  ].join("\n");
   const blob = new Blob([`﻿${csv}`], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -36,7 +66,10 @@ export function ReportsPage() {
 
   async function downloadBook(type: ExportType) {
     try {
-      await downloadExport(type, { from: range[0].format("YYYY-MM-DD"), to: range[1].format("YYYY-MM-DD") });
+      await downloadExport(type, {
+        from: range[0].format("YYYY-MM-DD"),
+        to: range[1].format("YYYY-MM-DD"),
+      });
     } catch (error) {
       void message.error(error instanceof Error ? error.message : "Không xuất được sổ doanh thu");
     }
@@ -47,7 +80,10 @@ export function ReportsPage() {
     queryFn: async () =>
       (
         await http.get<Envelope<ReportsSummary>>("/reports/summary", {
-          params: { from: range[0].format("YYYY-MM-DD"), to: range[1].add(1, "day").format("YYYY-MM-DD") },
+          params: {
+            from: range[0].format("YYYY-MM-DD"),
+            to: range[1].add(1, "day").format("YYYY-MM-DD"),
+          },
         })
       ).data.data,
     placeholderData: (previous) => previous,
@@ -69,7 +105,13 @@ export function ReportsPage() {
                 { label: "7 ngày qua", value: [dayjs().subtract(6, "day"), dayjs()] },
                 { label: "30 ngày qua", value: [dayjs().subtract(29, "day"), dayjs()] },
                 { label: "Tháng này", value: [dayjs().startOf("month"), dayjs()] },
-                { label: "Tháng trước", value: [dayjs().subtract(1, "month").startOf("month"), dayjs().subtract(1, "month").endOf("month")] },
+                {
+                  label: "Tháng trước",
+                  value: [
+                    dayjs().subtract(1, "month").startOf("month"),
+                    dayjs().subtract(1, "month").endOf("month"),
+                  ],
+                },
               ]}
               onChange={(value) => {
                 if (value?.[0] && value[1]) setRange([value[0], value[1]]);
@@ -95,7 +137,10 @@ export function ReportsPage() {
                   { muc: "Doanh thu thuần", gia_tri: data.kpis.netRevenue },
                   { muc: "Lợi nhuận gộp", gia_tri: data.kpis.grossProfit },
                   { muc: "Số hóa đơn", gia_tri: data.kpis.invoiceCount },
-                  ...data.topProducts.map((item) => ({ muc: `Sản phẩm: ${item.productName}`, gia_tri: item.revenue })),
+                  ...data.topProducts.map((item) => ({
+                    muc: `Sản phẩm: ${item.productName}`,
+                    gia_tri: item.revenue,
+                  })),
                 ])
               }
             >
@@ -122,7 +167,13 @@ export function ReportsPage() {
       {data ? (
         <>
           <StatGrid>
-            <StatCard tone="green" icon={<DollarCircleOutlined />} label="Doanh thu thuần" value={formatVnd(data.kpis.netRevenue)} hint={<Trend value={data.kpis.netRevenueChangePercent} suffix="so với kỳ trước" />} />
+            <StatCard
+              tone="green"
+              icon={<DollarCircleOutlined />}
+              label="Doanh thu thuần"
+              value={formatVnd(data.kpis.netRevenue)}
+              hint={<Trend value={data.kpis.netRevenueChangePercent} suffix="so với kỳ trước" />}
+            />
             <StatCard
               tone="blue"
               icon={<RiseOutlined />}
@@ -138,8 +189,22 @@ export function ReportsPage() {
                 )
               }
             />
-            <StatCard tone="purple" icon={<FileTextOutlined />} label="Số hóa đơn" value={formatNumber(data.kpis.invoiceCount)} hint={<Trend value={data.kpis.invoiceCountChangePercent} suffix="so với kỳ trước" />} />
-            <StatCard tone="orange" icon={<ShoppingOutlined />} label="Giá trị đơn trung bình" value={formatVnd(data.kpis.averageOrderValue)} hint={<Trend value={data.kpis.averageOrderValueChangePercent} suffix="so với kỳ trước" />} />
+            <StatCard
+              tone="purple"
+              icon={<FileTextOutlined />}
+              label="Số hóa đơn"
+              value={formatNumber(data.kpis.invoiceCount)}
+              hint={<Trend value={data.kpis.invoiceCountChangePercent} suffix="so với kỳ trước" />}
+            />
+            <StatCard
+              tone="orange"
+              icon={<ShoppingOutlined />}
+              label="Giá trị đơn trung bình"
+              value={formatVnd(data.kpis.averageOrderValue)}
+              hint={
+                <Trend value={data.kpis.averageOrderValueChangePercent} suffix="so với kỳ trước" />
+              }
+            />
           </StatGrid>
 
           {!data.costQuality.exact ? (
@@ -180,7 +245,13 @@ export function ReportsPage() {
   );
 }
 
-function TrendChart({ points, field }: { points: ReportsSummary["trend"]; field: "revenue" | "profit" }) {
+function TrendChart({
+  points,
+  field,
+}: {
+  points: ReportsSummary["trend"];
+  field: "revenue" | "profit";
+}) {
   return (
     <BarTrend
       variant={field}
@@ -204,7 +275,8 @@ function TrendChart({ points, field }: { points: ReportsSummary["trend"]; field:
 }
 
 function CategoryBars({ items }: { items: ReportsSummary["categoryBreakdown"] }) {
-  if (items.length === 0) return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có dữ liệu" />;
+  if (items.length === 0)
+    return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có dữ liệu" />;
   const maximum = Math.max(...items.map((item) => item.revenue), 1);
   return (
     <div className="category-stock-list">
@@ -216,7 +288,12 @@ function CategoryBars({ items }: { items: ReportsSummary["categoryBreakdown"] })
               {formatVnd(item.revenue)} <span className="text-secondary">· {item.percent}%</span>
             </strong>
           </div>
-          <Progress percent={Math.round((item.revenue / maximum) * 100)} showInfo={false} size="small" strokeColor="var(--c-primary)" />
+          <Progress
+            percent={Math.round((item.revenue / maximum) * 100)}
+            showInfo={false}
+            size="small"
+            strokeColor="var(--c-primary)"
+          />
         </div>
       ))}
     </div>
@@ -228,7 +305,11 @@ function PaymentDonut({ items }: { items: ReportsSummary["paymentMethods"] }) {
     <Donut
       centerLabel="Tổng thu"
       formatTotal={formatVnd}
-      slices={items.map((item, index) => ({ label: `${paymentMethodLabel(item.method)} (${formatNumber(item.count)} đơn)`, value: item.amount, color: chartColors[index % chartColors.length]! }))}
+      slices={items.map((item, index) => ({
+        label: `${paymentMethodLabel(item.method)} (${formatNumber(item.count)} đơn)`,
+        value: item.amount,
+        color: chartColors[index % chartColors.length]!,
+      }))}
     />
   );
 }
@@ -240,12 +321,37 @@ function TopProductsTable({ items }: { items: ReportsSummary["topProducts"] }) {
       size="small"
       pagination={false}
       dataSource={items}
-      locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có dữ liệu bán hàng" /> }}
+      locale={{
+        emptyText: (
+          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có dữ liệu bán hàng" />
+        ),
+      }}
       columns={[
-        { title: "#", key: "rank", width: 44, render: (_: unknown, __: unknown, index: number) => <span className="rank-badge">{index + 1}</span> },
+        {
+          title: "#",
+          key: "rank",
+          width: 44,
+          render: (_: unknown, __: unknown, index: number) => (
+            <span className="rank-badge">{index + 1}</span>
+          ),
+        },
         { title: "Sản phẩm", dataIndex: "productName", ellipsis: true },
-        { title: "Số lượng", dataIndex: "quantity", width: 100, align: "right", render: (value: number) => formatNumber(value) },
-        { title: "Doanh thu", key: "revenue", width: 130, align: "right", render: (_: unknown, row: ReportsSummary["topProducts"][number]) => <Typography.Text strong>{formatVnd(row.revenue)}</Typography.Text> },
+        {
+          title: "Số lượng",
+          dataIndex: "quantity",
+          width: 100,
+          align: "right",
+          render: (value: number) => formatNumber(value),
+        },
+        {
+          title: "Doanh thu",
+          key: "revenue",
+          width: 130,
+          align: "right",
+          render: (_: unknown, row: ReportsSummary["topProducts"][number]) => (
+            <Typography.Text strong>{formatVnd(row.revenue)}</Typography.Text>
+          ),
+        },
       ]}
     />
   );
@@ -279,7 +385,10 @@ function RevenueTab({ data }: { data: ReportsSummary }) {
 }
 
 function ProfitTab({ data }: { data: ReportsSummary }) {
-  const marginPercent = data.kpis.netRevenue > 0 ? Math.round((data.kpis.grossProfit / data.kpis.netRevenue) * 1000) / 10 : null;
+  const marginPercent =
+    data.kpis.netRevenue > 0
+      ? Math.round((data.kpis.grossProfit / data.kpis.netRevenue) * 1000) / 10
+      : null;
   return (
     <Row gutter={[16, 16]}>
       <Col xs={24} xl={16}>
@@ -293,7 +402,12 @@ function ProfitTab({ data }: { data: ReportsSummary }) {
             <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có doanh thu trong kỳ" />
           ) : (
             <div className="detail-stack">
-              <Progress type="dashboard" percent={Math.max(0, Math.min(100, marginPercent))} format={() => `${marginPercent}%`} strokeColor={marginPercent >= 0 ? "var(--tone-green)" : "var(--tone-red)"} />
+              <Progress
+                type="dashboard"
+                percent={Math.max(0, Math.min(100, marginPercent))}
+                format={() => `${marginPercent}%`}
+                strokeColor={marginPercent >= 0 ? "var(--tone-green)" : "var(--tone-red)"}
+              />
               <dl className="kv-list">
                 <div>
                   <dt>Doanh thu thuần</dt>
@@ -310,7 +424,10 @@ function ProfitTab({ data }: { data: ReportsSummary }) {
                   </dd>
                 </div>
               </dl>
-              <p className="section-note">Giá vốn tính theo giá nhập của đúng lô đã xuất; hàng khách trả về kho được hoàn giá vốn, hàng xuất hủy thì không.</p>
+              <p className="section-note">
+                Giá vốn tính theo giá nhập của đúng lô đã xuất; hàng khách trả về kho được hoàn giá
+                vốn, hàng xuất hủy thì không.
+              </p>
             </div>
           )}
         </Card>
@@ -350,14 +467,60 @@ function StaffTab({ data }: { data: ReportsSummary }) {
         pagination={false}
         scroll={{ x: 640 }}
         dataSource={data.staffPerformance}
-        locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có dữ liệu bán hàng" /> }}
+        locale={{
+          emptyText: (
+            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có dữ liệu bán hàng" />
+          ),
+        }}
         columns={[
-          { title: "#", key: "rank", width: 50, render: (_: unknown, __: unknown, index: number) => (index === 0 ? <TrophyFilled style={{ color: "#f5a524", fontSize: 18 }} /> : <span className="rank-badge">{index + 1}</span>) },
+          {
+            title: "#",
+            key: "rank",
+            width: 50,
+            render: (_: unknown, __: unknown, index: number) =>
+              index === 0 ? (
+                <TrophyFilled style={{ color: "#f5a524", fontSize: 18 }} />
+              ) : (
+                <span className="rank-badge">{index + 1}</span>
+              ),
+          },
           { title: "Nhân viên", dataIndex: "fullName" },
-          { title: "Số hóa đơn", dataIndex: "invoiceCount", width: 110, align: "right", render: (value: number) => formatNumber(value) },
-          { title: "Doanh thu bán", key: "revenue", width: 140, align: "right", render: (_: unknown, row: ReportsSummary["staffPerformance"][number]) => formatVnd(row.revenue) },
-          { title: "Hàng trả", key: "refund", width: 130, align: "right", render: (_: unknown, row: ReportsSummary["staffPerformance"][number]) => (row.refund ? <Typography.Text type="danger">− {formatVnd(row.refund)}</Typography.Text> : "—") },
-          { title: "Doanh thu thuần", key: "net", width: 150, align: "right", render: (_: unknown, row: ReportsSummary["staffPerformance"][number]) => <Typography.Text strong>{formatVnd(row.netRevenue)}</Typography.Text> },
+          {
+            title: "Số hóa đơn",
+            dataIndex: "invoiceCount",
+            width: 110,
+            align: "right",
+            render: (value: number) => formatNumber(value),
+          },
+          {
+            title: "Doanh thu bán",
+            key: "revenue",
+            width: 140,
+            align: "right",
+            render: (_: unknown, row: ReportsSummary["staffPerformance"][number]) =>
+              formatVnd(row.revenue),
+          },
+          {
+            title: "Hàng trả",
+            key: "refund",
+            width: 130,
+            align: "right",
+            render: (_: unknown, row: ReportsSummary["staffPerformance"][number]) =>
+              row.refund ? (
+                <Typography.Text type="danger">− {formatVnd(row.refund)}</Typography.Text>
+              ) : (
+                "—"
+              ),
+          },
+          {
+            title: "Doanh thu thuần",
+            key: "net",
+            width: 150,
+            align: "right",
+            render: (_: unknown, row: ReportsSummary["staffPerformance"][number]) => (
+              <Typography.Text strong>{formatVnd(row.netRevenue)}</Typography.Text>
+            ),
+          },
         ]}
       />
     </Card>

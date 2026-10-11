@@ -11,33 +11,78 @@ const DashboardPage = page(() => import("../features/dashboard/DashboardPage.js"
 const SalePage = page(() => import("../features/sales/SalePage.js"), "SalePage");
 const InvoicesPage = page(() => import("../features/sales/InvoicesPage.js"), "InvoicesPage");
 const ReturnsPage = page(() => import("../features/sales/ReturnsPage.js"), "ReturnsPage");
-const PrescriptionsPage = page(() => import("../features/prescriptions/PrescriptionsPage.js"), "PrescriptionsPage");
+const PrescriptionsPage = page(
+  () => import("../features/prescriptions/PrescriptionsPage.js"),
+  "PrescriptionsPage",
+);
 const EInvoicesPage = page(() => import("../features/einvoice/EInvoicesPage.js"), "EInvoicesPage");
 const CustomersPage = page(() => import("../features/customers/CustomersPage.js"), "CustomersPage");
 const ProductsPage = page(() => import("../features/catalog/ProductsPage.js"), "ProductsPage");
-const CatalogDataPage = page(() => import("../features/catalog/CatalogDataPage.js"), "CatalogDataPage");
-const ProductImagesBulkPage = page(() => import("../features/catalog/ProductImagesBulkPage.js"), "ProductImagesBulkPage");
+const CatalogDataPage = page(
+  () => import("../features/catalog/CatalogDataPage.js"),
+  "CatalogDataPage",
+);
+const ProductImagesBulkPage = page(
+  () => import("../features/catalog/ProductImagesBulkPage.js"),
+  "ProductImagesBulkPage",
+);
 const SuppliersPage = page(() => import("../features/catalog/SuppliersPage.js"), "SuppliersPage");
-const GoodsReceiptsPage = page(() => import("../features/inventory/GoodsReceiptsPage.js"), "GoodsReceiptsPage");
+const GoodsReceiptsPage = page(
+  () => import("../features/inventory/GoodsReceiptsPage.js"),
+  "GoodsReceiptsPage",
+);
 const BatchesPage = page(() => import("../features/inventory/BatchesPage.js"), "BatchesPage");
 const AlertsPage = page(() => import("../features/inventory/AlertsPage.js"), "AlertsPage");
-const StockAdjustmentsPage = page(() => import("../features/inventory/StockAdjustmentsPage.js"), "StockAdjustmentsPage");
-const StorageLogsPage = page(() => import("../features/inventory/StorageLogsPage.js"), "StorageLogsPage");
+const StockAdjustmentsPage = page(
+  () => import("../features/inventory/StockAdjustmentsPage.js"),
+  "StockAdjustmentsPage",
+);
+const StorageLogsPage = page(
+  () => import("../features/inventory/StorageLogsPage.js"),
+  "StorageLogsPage",
+);
 const UsersPage = page(() => import("../features/users/UsersPage.js"), "UsersPage");
 const StoresPage = page(() => import("../features/stores/StoresPage.js"), "StoresPage");
 const AuditLogPage = page(() => import("../features/audit/AuditLogPage.js"), "AuditLogPage");
 const SettingsPage = page(() => import("../features/settings/SettingsPage.js"), "SettingsPage");
-const ControlledDrugsPage = page(() => import("../features/controlled/ControlledDrugsPage.js"), "ControlledDrugsPage");
+const ControlledDrugsPage = page(
+  () => import("../features/controlled/ControlledDrugsPage.js"),
+  "ControlledDrugsPage",
+);
 const LabelsPage = page(() => import("../features/printing/LabelsPage.js"), "LabelsPage");
-const SupplierReturnsPage = page(() => import("../features/inventory/SupplierReturnsPage.js"), "SupplierReturnsPage");
-const SupplierDebtsPage = page(() => import("../features/inventory/SupplierDebtsPage.js"), "SupplierDebtsPage");
-const ExpiryAlertsPage = page(() => import("../features/inventory/ExpiryAlertsPage.js"), "ExpiryAlertsPage");
-const PurchaseSuggestionsPage = page(() => import("../features/inventory/PurchaseSuggestionsPage.js"), "PurchaseSuggestionsPage");
-const StockTransfersPage = page(() => import("../features/inventory/StockTransfersPage.js"), "StockTransfersPage");
-const StockCountsPage = page(() => import("../features/inventory/stock-counts/StockCountsPage.js"), "StockCountsPage");
+const SupplierReturnsPage = page(
+  () => import("../features/inventory/SupplierReturnsPage.js"),
+  "SupplierReturnsPage",
+);
+const SupplierDebtsPage = page(
+  () => import("../features/inventory/SupplierDebtsPage.js"),
+  "SupplierDebtsPage",
+);
+const ExpiryAlertsPage = page(
+  () => import("../features/inventory/ExpiryAlertsPage.js"),
+  "ExpiryAlertsPage",
+);
+const PurchaseSuggestionsPage = page(
+  () => import("../features/inventory/PurchaseSuggestionsPage.js"),
+  "PurchaseSuggestionsPage",
+);
+const StockTransfersPage = page(
+  () => import("../features/inventory/StockTransfersPage.js"),
+  "StockTransfersPage",
+);
+const StockCountsPage = page(
+  () => import("../features/inventory/stock-counts/StockCountsPage.js"),
+  "StockCountsPage",
+);
 const ExcelHubPage = page(() => import("../features/excel/ExcelHubPage.js"), "ExcelHubPage");
-const NationalSyncPage = page(() => import("../features/national-sync/NationalSyncPage.js"), "NationalSyncPage");
-const QualityReportsPage = page(() => import("../features/quality/QualityReportsPage.js"), "QualityReportsPage");
+const NationalSyncPage = page(
+  () => import("../features/national-sync/NationalSyncPage.js"),
+  "NationalSyncPage",
+);
+const QualityReportsPage = page(
+  () => import("../features/quality/QualityReportsPage.js"),
+  "QualityReportsPage",
+);
 const RecallsPage = page(() => import("../features/recalls/RecallsPage.js"), "RecallsPage");
 const ReportsPage = page(() => import("../features/reports/ReportsPage.js"), "ReportsPage");
 

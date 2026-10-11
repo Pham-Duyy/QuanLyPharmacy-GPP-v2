@@ -14,7 +14,25 @@ import {
   WarningFilled,
 } from "@ant-design/icons";
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, App, AutoComplete, Button, DatePicker, Divider, Dropdown, Empty, Form, Input, InputNumber, Modal, Select, Table, Tag, Tooltip, Typography } from "antd";
+import {
+  Alert,
+  App,
+  AutoComplete,
+  Button,
+  DatePicker,
+  Divider,
+  Dropdown,
+  Empty,
+  Form,
+  Input,
+  InputNumber,
+  Modal,
+  Select,
+  Table,
+  Tag,
+  Tooltip,
+  Typography,
+} from "antd";
 import type { RefSelectProps } from "antd";
 import dayjs from "dayjs";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -33,7 +51,12 @@ import {
 import { daysUntil, formatNumber, vnDateKey } from "../../ui/format.js";
 import { useDebounced } from "../../ui/useDebounced.js";
 import { useAuth } from "../auth/auth-context.js";
-import { downloadTemplate, sendImport, type ImportPreview, type ReceiptLine } from "../excel/excel-api.js";
+import {
+  downloadTemplate,
+  sendImport,
+  type ImportPreview,
+  type ReceiptLine,
+} from "../excel/excel-api.js";
 
 type DraftLine = {
   key: string;
@@ -74,7 +97,9 @@ const SHORT_SHELF_LIFE_DAYS = 180;
 const LONG_SHELF_LIFE_DAYS = 5 * 365 + 1;
 
 function shelfLifeDays(line: { manufactureDate: string; expiryDate: string }): number | null {
-  return line.manufactureDate && line.expiryDate ? dayjs(line.expiryDate).diff(dayjs(line.manufactureDate), "day") : null;
+  return line.manufactureDate && line.expiryDate
+    ? dayjs(line.expiryDate).diff(dayjs(line.manufactureDate), "day")
+    : null;
 }
 
 function toDateKey(value: string | null | undefined): string {
@@ -110,20 +135,35 @@ function toDraftLine(line: GoodsReceiptLine, index: number, lines: GoodsReceiptL
 function lineIssues(line: DraftLine, duplicate: boolean): Issue[] {
   const issues: Issue[] = [];
   const today = vnDateKey();
-  if (duplicate) issues.push({ level: "error", text: "Trùng sản phẩm, đơn vị và số lô với dòng khác" });
+  if (duplicate)
+    issues.push({ level: "error", text: "Trùng sản phẩm, đơn vị và số lô với dòng khác" });
   if (!line.batchNumber.trim()) issues.push({ level: "error", text: "Thiếu số lô" });
   if (line.quantity <= 0) issues.push({ level: "error", text: "Số lượng phải lớn hơn 0" });
   if (!line.expiryDate) issues.push({ level: "error", text: "Thiếu hạn dùng" });
   else if (line.expiryDate <= today) issues.push({ level: "error", text: "Hạn dùng đã qua" });
-  else if (daysUntil(line.expiryDate) <= NEAR_EXPIRY_DAYS) issues.push({ level: "warning", text: `Hạn dùng chỉ còn ${daysUntil(line.expiryDate)} ngày` });
-  if (line.manufactureDate && line.manufactureDate > today) issues.push({ level: "error", text: "Ngày sản xuất ở tương lai" });
+  else if (daysUntil(line.expiryDate) <= NEAR_EXPIRY_DAYS)
+    issues.push({ level: "warning", text: `Hạn dùng chỉ còn ${daysUntil(line.expiryDate)} ngày` });
+  if (line.manufactureDate && line.manufactureDate > today)
+    issues.push({ level: "error", text: "Ngày sản xuất ở tương lai" });
   const shelfLife = shelfLifeDays(line);
   if (shelfLife !== null && shelfLife < MIN_SHELF_LIFE_DAYS) {
-    issues.push({ level: "error", text: shelfLife <= 0 ? "Ngày sản xuất phải trước hạn dùng" : `Hạn dùng chỉ cách ngày sản xuất ${shelfLife} ngày — gần như chắc chắn nhập nhầm` });
+    issues.push({
+      level: "error",
+      text:
+        shelfLife <= 0
+          ? "Ngày sản xuất phải trước hạn dùng"
+          : `Hạn dùng chỉ cách ngày sản xuất ${shelfLife} ngày — gần như chắc chắn nhập nhầm`,
+    });
   } else if (shelfLife !== null && shelfLife < SHORT_SHELF_LIFE_DAYS) {
-    issues.push({ level: "warning", text: `Tuổi thọ chỉ khoảng ${Math.round(shelfLife / 30)} tháng — đối chiếu lại NSX/HSD trên bao bì` });
+    issues.push({
+      level: "warning",
+      text: `Tuổi thọ chỉ khoảng ${Math.round(shelfLife / 30)} tháng — đối chiếu lại NSX/HSD trên bao bì`,
+    });
   } else if (shelfLife !== null && shelfLife > LONG_SHELF_LIFE_DAYS) {
-    issues.push({ level: "warning", text: `Tuổi thọ hơn 5 năm (${(shelfLife / 365).toFixed(1)} năm) — đối chiếu lại NSX/HSD` });
+    issues.push({
+      level: "warning",
+      text: `Tuổi thọ hơn 5 năm (${(shelfLife / 365).toFixed(1)} năm) — đối chiếu lại NSX/HSD`,
+    });
   }
   if (line.unitCost === 0) issues.push({ level: "warning", text: "Đơn giá bằng 0 (hàng tặng?)" });
   return issues;
@@ -165,12 +205,22 @@ export function ReceiptFormModal({
   const suppliers = useQuery({
     queryKey: ["receipt-suppliers"],
     enabled: open,
-    queryFn: async () => (await http.get<Envelope<Paged<SupplierListItem>>>("/suppliers", { params: { page: 1, limit: 100 } })).data.data.items,
+    queryFn: async () =>
+      (
+        await http.get<Envelope<Paged<SupplierListItem>>>("/suppliers", {
+          params: { page: 1, limit: 100 },
+        })
+      ).data.data.items,
   });
   const products = useQuery({
     queryKey: ["receipt-products", productTerm],
     enabled: open && productTerm.length > 0,
-    queryFn: async () => (await http.get<Envelope<Paged<ProductListItem>>>("/products", { params: { search: productTerm, page: 1, limit: 15 } })).data.data.items,
+    queryFn: async () =>
+      (
+        await http.get<Envelope<Paged<ProductListItem>>>("/products", {
+          params: { search: productTerm, page: 1, limit: 15 },
+        })
+      ).data.data.items,
   });
 
   // Chi tiết từng sản phẩm trong phiếu: đủ đơn vị quy đổi, số đăng ký, hãng, điều kiện bảo quản.
@@ -183,7 +233,9 @@ export function ReceiptFormModal({
       staleTime: 5 * 60_000,
     })),
   });
-  const productById = new Map(productDetails.flatMap((query) => (query.data ? [[query.data.id, query.data] as const] : [])));
+  const productById = new Map(
+    productDetails.flatMap((query) => (query.data ? [[query.data.id, query.data] as const] : [])),
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -204,19 +256,35 @@ export function ReceiptFormModal({
     let cancelled = false;
     setLoadingPrefill(true);
     setSupplierId(prefill.supplierId);
-    void Promise.all(prefill.lines.map(async (item) => ({ item, line: await productToLine(item.productId, item.unitName) })))
+    void Promise.all(
+      prefill.lines.map(async (item) => ({
+        item,
+        line: await productToLine(item.productId, item.unitName),
+      })),
+    )
       .then((loaded) => {
         if (cancelled) return;
         const ready = loaded
-          .filter((entry): entry is { item: ReceiptPrefill["lines"][number]; line: DraftLine } => entry.line !== null)
+          .filter(
+            (entry): entry is { item: ReceiptPrefill["lines"][number]; line: DraftLine } =>
+              entry.line !== null,
+          )
           .map(({ item, line }) => ({ ...line, quantity: item.quantity, unitCost: item.unitCost }));
-        setLines(ready.map((line, index, all) => ({ ...line, extraBatch: all.slice(0, index).some((previous) => previous.productId === line.productId) })));
+        setLines(
+          ready.map((line, index, all) => ({
+            ...line,
+            extraBatch: all
+              .slice(0, index)
+              .some((previous) => previous.productId === line.productId),
+          })),
+        );
         if (ready.length < prefill.lines.length) {
           void message.warning("Có mặt hàng chưa có đơn vị tính nên không đưa vào phiếu được");
         }
       })
       .catch((error: unknown) => {
-        if (!cancelled) void message.error(getErrorMessage(error, "Không đổ được dòng hàng từ đề xuất"));
+        if (!cancelled)
+          void message.error(getErrorMessage(error, "Không đổ được dòng hàng từ đề xuất"));
       })
       .finally(() => {
         if (!cancelled) setLoadingPrefill(false);
@@ -233,38 +301,94 @@ export function ReceiptFormModal({
   const productCount = productIds.length;
 
   const duplicateKeys = useMemo(() => {
-    const keyOf = (line: DraftLine) => `${line.productId}|${line.unitId}|${line.batchNumber.trim().toUpperCase()}`;
+    const keyOf = (line: DraftLine) =>
+      `${line.productId}|${line.unitId}|${line.batchNumber.trim().toUpperCase()}`;
     const counts = new Map<string, number>();
     for (const line of lines) counts.set(keyOf(line), (counts.get(keyOf(line)) ?? 0) + 1);
-    return new Set(lines.filter((line) => line.batchNumber.trim() && (counts.get(keyOf(line)) ?? 0) > 1).map((line) => line.key));
+    return new Set(
+      lines
+        .filter((line) => line.batchNumber.trim() && (counts.get(keyOf(line)) ?? 0) > 1)
+        .map((line) => line.key),
+    );
   }, [lines]);
-  const issuesByLine = new Map(lines.map((line) => [line.key, lineIssues(line, duplicateKeys.has(line.key))]));
-  const errorLines = lines.filter((line) => issuesByLine.get(line.key)?.some((issue) => issue.level === "error")).length;
-  const warningLines = lines.filter((line) => issuesByLine.get(line.key)?.some((issue) => issue.level === "warning")).length;
+  const issuesByLine = new Map(
+    lines.map((line) => [line.key, lineIssues(line, duplicateKeys.has(line.key))]),
+  );
+  const errorLines = lines.filter((line) =>
+    issuesByLine.get(line.key)?.some((issue) => issue.level === "error"),
+  ).length;
+  const warningLines = lines.filter((line) =>
+    issuesByLine.get(line.key)?.some((issue) => issue.level === "warning"),
+  ).length;
   const completeLines = lines.filter((line) => line.batchNumber.trim() && line.expiryDate).length;
 
   const today = vnDateKey();
-  const invoiceGapDays = supplierInvoiceDate ? Math.abs(dayjs(supplierInvoiceDate).diff(dayjs(receivedAt), "day")) : 0;
+  const invoiceGapDays = supplierInvoiceDate
+    ? Math.abs(dayjs(supplierInvoiceDate).diff(dayjs(receivedAt), "day"))
+    : 0;
   const discountTooHigh = discountAmount > goodsAmount;
 
   const checks: Array<{ label: string; state: "ok" | "error" | "warning" }> = [
-    { label: supplier ? "Đã chọn nhà cung cấp" : "Chưa chọn nhà cung cấp", state: supplier ? "ok" : "error" },
-    { label: lines.length === 0 ? "Chưa có dòng hàng" : `${completeLines}/${lines.length} dòng đủ số lô và hạn dùng`, state: lines.length > 0 && completeLines === lines.length ? "ok" : "error" },
-    ...(errorLines > 0 ? [{ label: `${errorLines} dòng còn lỗi — di chuột vào biểu tượng đỏ để xem`, state: "error" as const }] : []),
-    ...(warningLines > 0 ? [{ label: `${warningLines} dòng cần lưu ý (cận hạn, tuổi thọ bất thường, đơn giá 0)`, state: "warning" as const }] : []),
-    ...(discountTooHigh ? [{ label: "Chiết khấu lớn hơn tổng tiền hàng", state: "error" as const }] : []),
-    ...(receivedAt > today || supplierInvoiceDate > today ? [{ label: "Ngày nhận hàng / ngày hóa đơn ở tương lai", state: "error" as const }] : []),
-    ...(invoiceGapDays > 30 ? [{ label: `Ngày hóa đơn và ngày nhận lệch ${invoiceGapDays} ngày — kiểm tra lại`, state: "warning" as const }] : []),
-    ...(supplier && !supplier.licenseNumber ? [{ label: "Nhà cung cấp chưa lưu số giấy phép kinh doanh dược", state: "warning" as const }] : []),
+    {
+      label: supplier ? "Đã chọn nhà cung cấp" : "Chưa chọn nhà cung cấp",
+      state: supplier ? "ok" : "error",
+    },
+    {
+      label:
+        lines.length === 0
+          ? "Chưa có dòng hàng"
+          : `${completeLines}/${lines.length} dòng đủ số lô và hạn dùng`,
+      state: lines.length > 0 && completeLines === lines.length ? "ok" : "error",
+    },
+    ...(errorLines > 0
+      ? [
+          {
+            label: `${errorLines} dòng còn lỗi — di chuột vào biểu tượng đỏ để xem`,
+            state: "error" as const,
+          },
+        ]
+      : []),
+    ...(warningLines > 0
+      ? [
+          {
+            label: `${warningLines} dòng cần lưu ý (cận hạn, tuổi thọ bất thường, đơn giá 0)`,
+            state: "warning" as const,
+          },
+        ]
+      : []),
+    ...(discountTooHigh
+      ? [{ label: "Chiết khấu lớn hơn tổng tiền hàng", state: "error" as const }]
+      : []),
+    ...(receivedAt > today || supplierInvoiceDate > today
+      ? [{ label: "Ngày nhận hàng / ngày hóa đơn ở tương lai", state: "error" as const }]
+      : []),
+    ...(invoiceGapDays > 30
+      ? [
+          {
+            label: `Ngày hóa đơn và ngày nhận lệch ${invoiceGapDays} ngày — kiểm tra lại`,
+            state: "warning" as const,
+          },
+        ]
+      : []),
+    ...(supplier && !supplier.licenseNumber
+      ? [{ label: "Nhà cung cấp chưa lưu số giấy phép kinh doanh dược", state: "warning" as const }]
+      : []),
   ];
   const blocked = checks.some((check) => check.state === "error");
 
-  async function productToLine(productId: string, preferredUnitName?: string): Promise<DraftLine | null> {
+  async function productToLine(
+    productId: string,
+    preferredUnitName?: string,
+  ): Promise<DraftLine | null> {
     const product = (await http.get<Envelope<ProductDetail>>(`/products/${productId}`)).data.data;
     const activeUnits = product.units.filter((unit) => unit.isActive !== false);
     // Nhà thuốc nhập theo quy cách đóng gói (hộp, chai…) nên chọn sẵn đơn vị lớn nhất còn dùng.
     const unit =
-      (preferredUnitName ? activeUnits.find((item) => item.name.toLowerCase() === preferredUnitName.trim().toLowerCase()) : undefined) ??
+      (preferredUnitName
+        ? activeUnits.find(
+            (item) => item.name.toLowerCase() === preferredUnitName.trim().toLowerCase(),
+          )
+        : undefined) ??
       [...activeUnits].sort((a, b) => b.conversionToBase - a.conversionToBase)[0] ??
       product.units[0];
     if (!unit) return null;
@@ -290,21 +414,31 @@ export function ReceiptFormModal({
       void message.error("Sản phẩm chưa có đơn vị tính");
       return;
     }
-    setLines((current) => [...current, { ...line, extraBatch: current.some((item) => item.productId === productId) }]);
+    setLines((current) => [
+      ...current,
+      { ...line, extraBatch: current.some((item) => item.productId === productId) },
+    ]);
     setProductSearch("");
   }
 
   async function addFromSearchEnter(): Promise<void> {
     const value = productSearch.trim();
     if (!value) return;
-    const found = (await http.get<Envelope<Paged<ProductListItem>>>("/products", { params: { search: value, page: 1, limit: 2 } })).data.data.items;
+    const found = (
+      await http.get<Envelope<Paged<ProductListItem>>>("/products", {
+        params: { search: value, page: 1, limit: 2 },
+      })
+    ).data.data.items;
     if (found.length === 1) await addProduct(found[0]!.id);
     else if (found.length === 0) void message.warning(`Không tìm thấy sản phẩm “${value}”`);
   }
 
   function appendLines(added: DraftLine[]): void {
     setLines((current) =>
-      [...current, ...added].map((line, index, all) => ({ ...line, extraBatch: all.slice(0, index).some((previous) => previous.productId === line.productId) })),
+      [...current, ...added].map((line, index, all) => ({
+        ...line,
+        extraBatch: all.slice(0, index).some((previous) => previous.productId === line.productId),
+      })),
     );
   }
 
@@ -315,9 +449,16 @@ export function ReceiptFormModal({
   async function importXlsx(file: File): Promise<void> {
     setImporting(true);
     try {
-      const preview = await sendImport<ImportPreview & { lines: ReceiptLine[] }>("receipt-lines", file, "preview");
+      const preview = await sendImport<ImportPreview & { lines: ReceiptLine[] }>(
+        "receipt-lines",
+        file,
+        "preview",
+      );
       if (preview.missingColumns.length > 0) {
-        void message.error(`Tệp thiếu cột: ${preview.missingColumns.join(", ")} — tải tệp mẫu để xem đúng tên cột`, 6);
+        void message.error(
+          `Tệp thiếu cột: ${preview.missingColumns.join(", ")} — tải tệp mẫu để xem đúng tên cột`,
+          6,
+        );
         return;
       }
       appendLines(
@@ -327,7 +468,11 @@ export function ReceiptFormModal({
           productCode: line.productCode,
           productName: line.productName,
           unitId: line.unitId,
-          fallbackUnit: { id: line.unitId, name: line.unitName, conversionToBase: line.conversionToBase },
+          fallbackUnit: {
+            id: line.unitId,
+            name: line.unitName,
+            conversionToBase: line.conversionToBase,
+          },
           quantity: line.quantity,
           unitCost: line.unitCost,
           batchNumber: line.batchNumber.toUpperCase(),
@@ -336,7 +481,8 @@ export function ReceiptFormModal({
           extraBatch: false,
         })),
       );
-      if (preview.lines.length > 0) void message.success(`Đã thêm ${preview.lines.length} dòng từ tệp Excel`);
+      if (preview.lines.length > 0)
+        void message.success(`Đã thêm ${preview.lines.length} dòng từ tệp Excel`);
       if (preview.issueCount > 0) {
         modal.warning({
           title: `${preview.issueCount} lỗi trong tệp — các dòng này chưa được thêm`,
@@ -376,8 +522,20 @@ export function ReceiptFormModal({
       const added: DraftLine[] = [];
       const failed: string[] = [];
       for (const [index, cells] of dataRows.entries()) {
-        const [code = "", unitName = "", quantity = "", unitCost = "", batchNumber = "", manufactureDate = "", expiryDate = ""] = cells;
-        const found = (await http.get<Envelope<Paged<ProductListItem>>>("/products", { params: { search: code, page: 1, limit: 20 } })).data.data.items;
+        const [
+          code = "",
+          unitName = "",
+          quantity = "",
+          unitCost = "",
+          batchNumber = "",
+          manufactureDate = "",
+          expiryDate = "",
+        ] = cells;
+        const found = (
+          await http.get<Envelope<Paged<ProductListItem>>>("/products", {
+            params: { search: code, page: 1, limit: 20 },
+          })
+        ).data.data.items;
         const product = found.find((item) => item.code.toLowerCase() === code.toLowerCase());
         const line = product ? await productToLine(product.id, unitName) : null;
         if (!line) {
@@ -395,7 +553,8 @@ export function ReceiptFormModal({
       }
       appendLines(added);
       if (added.length > 0) void message.success(`Đã thêm ${added.length} dòng từ file`);
-      if (failed.length > 0) void message.warning(`Không khớp mã sản phẩm ở ${failed.join(", ")}`, 6);
+      if (failed.length > 0)
+        void message.warning(`Không khớp mã sản phẩm ở ${failed.join(", ")}`, 6);
     } catch (error) {
       void message.error(getErrorMessage(error, "Không đọc được file"));
     } finally {
@@ -419,7 +578,15 @@ export function ReceiptFormModal({
   function addBatch(line: DraftLine): void {
     setLines((current) => {
       const lastIndex = current.map((item) => item.productId).lastIndexOf(line.productId);
-      const copy: DraftLine = { ...line, key: crypto.randomUUID(), quantity: 1, batchNumber: "", manufactureDate: "", expiryDate: "", extraBatch: true };
+      const copy: DraftLine = {
+        ...line,
+        key: crypto.randomUUID(),
+        quantity: 1,
+        batchNumber: "",
+        manufactureDate: "",
+        expiryDate: "",
+        extraBatch: true,
+      };
       return [...current.slice(0, lastIndex + 1), copy, ...current.slice(lastIndex + 1)];
     });
   }
@@ -428,7 +595,10 @@ export function ReceiptFormModal({
     setLines((current) =>
       current
         .filter((item) => item.key !== key)
-        .map((line, index, all) => ({ ...line, extraBatch: all.slice(0, index).some((previous) => previous.productId === line.productId) })),
+        .map((line, index, all) => ({
+          ...line,
+          extraBatch: all.slice(0, index).some((previous) => previous.productId === line.productId),
+        })),
     );
   }
 
@@ -453,15 +623,26 @@ export function ReceiptFormModal({
         })),
       };
       if (receipt) {
-        const response = await http.patch<Envelope<GoodsReceiptDetail>>(`/goods-receipts/${receipt.id}`, { ...body, version: receipt.version });
+        const response = await http.patch<Envelope<GoodsReceiptDetail>>(
+          `/goods-receipts/${receipt.id}`,
+          { ...body, version: receipt.version },
+        );
         return { id: response.data.data.id, options };
       }
-      const response = await http.post<Envelope<GoodsReceiptDetail>>("/goods-receipts", body, { headers: submitKey.headers(body) });
+      const response = await http.post<Envelope<GoodsReceiptDetail>>("/goods-receipts", body, {
+        headers: submitKey.headers(body),
+      });
       return { id: response.data.data.id, options };
     },
     onSuccess: async ({ id, options }) => {
       submitKey.done();
-      void message.success(options.inspect ? "Đã lưu nháp — tiếp tục kiểm nhận hàng" : receipt ? "Đã lưu phiếu nháp" : "Đã tạo phiếu nháp");
+      void message.success(
+        options.inspect
+          ? "Đã lưu nháp — tiếp tục kiểm nhận hàng"
+          : receipt
+            ? "Đã lưu phiếu nháp"
+            : "Đã tạo phiếu nháp",
+      );
       await onSaved(id, options);
     },
     onError: (error) => void message.error(getErrorMessage(error, "Không lưu được phiếu nhập")),
@@ -492,11 +673,20 @@ export function ReceiptFormModal({
             {summaryText} &nbsp;·&nbsp; <span className="required-mark">*</span> Thông tin bắt buộc
           </span>
           <Button onClick={onClose}>Đóng</Button>
-          <Button disabled={blocked} loading={save.isPending && !save.variables?.inspect} onClick={() => save.mutate({ inspect: false })}>
+          <Button
+            disabled={blocked}
+            loading={save.isPending && !save.variables?.inspect}
+            onClick={() => save.mutate({ inspect: false })}
+          >
             Lưu nháp
           </Button>
           {can("goods_receipt.confirm") ? (
-            <Button type="primary" disabled={blocked} loading={save.isPending && save.variables?.inspect} onClick={() => save.mutate({ inspect: true })}>
+            <Button
+              type="primary"
+              disabled={blocked}
+              loading={save.isPending && save.variables?.inspect}
+              onClick={() => save.mutate({ inspect: true })}
+            >
               Lưu nháp &amp; kiểm nhận <ArrowRightOutlined />
             </Button>
           ) : null}
@@ -504,7 +694,11 @@ export function ReceiptFormModal({
       }
     >
       <div className="receipt-form">
-        <Alert type="info" showIcon title="Lưu nháp chưa cộng tồn kho. Kiểm nhận từng dòng trước khi xác nhận nhập kho." />
+        <Alert
+          type="info"
+          showIcon
+          title="Lưu nháp chưa cộng tồn kho. Kiểm nhận từng dòng trước khi xác nhận nhập kho."
+        />
 
         <section className="form-section">
           <h4>
@@ -524,14 +718,24 @@ export function ReceiptFormModal({
                   loading={suppliers.isLoading}
                   value={supplierId}
                   onChange={setSupplierId}
-                  notFoundContent={suppliers.isLoading ? "Đang tải…" : "Không có nhà cung cấp phù hợp"}
-                  options={(suppliers.data ?? []).filter((item) => item.isActive || item.id === supplierId).map((item) => ({ value: item.id, label: item.name }))}
+                  notFoundContent={
+                    suppliers.isLoading ? "Đang tải…" : "Không có nhà cung cấp phù hợp"
+                  }
+                  options={(suppliers.data ?? [])
+                    .filter((item) => item.isActive || item.id === supplierId)
+                    .map((item) => ({ value: item.id, label: item.name }))}
                   popupRender={(menu) =>
                     can("catalog.manage") ? (
                       <>
                         {menu}
                         <Divider style={{ margin: "4px 0" }} />
-                        <Button type="text" block icon={<PlusOutlined />} className="select-footer-btn" onClick={() => setAddingSupplier(true)}>
+                        <Button
+                          type="text"
+                          block
+                          icon={<PlusOutlined />}
+                          className="select-footer-btn"
+                          onClick={() => setAddingSupplier(true)}
+                        >
                           Thêm nhà cung cấp mới
                         </Button>
                       </>
@@ -542,19 +746,29 @@ export function ReceiptFormModal({
                 />
                 {can("catalog.manage") ? (
                   <Tooltip title="Thêm nhà cung cấp mới">
-                    <Button icon={<PlusOutlined />} onClick={() => setAddingSupplier(true)} aria-label="Thêm nhà cung cấp mới" />
+                    <Button
+                      icon={<PlusOutlined />}
+                      onClick={() => setAddingSupplier(true)}
+                      aria-label="Thêm nhà cung cấp mới"
+                    />
                   </Tooltip>
                 ) : null}
               </div>
               {supplier ? (
                 <span className="field-hint">
-                  MST {supplier.taxCode ?? "—"} · GPKD {supplier.licenseNumber ?? "—"} · ĐT {supplier.phone ?? "—"}
+                  MST {supplier.taxCode ?? "—"} · GPKD {supplier.licenseNumber ?? "—"} · ĐT{" "}
+                  {supplier.phone ?? "—"}
                 </span>
               ) : null}
             </div>
             <label className="field">
               <span>Số hóa đơn</span>
-              <Input placeholder="Theo hóa đơn NCC" value={supplierInvoiceNumber} onChange={(event) => setSupplierInvoiceNumber(event.target.value)} maxLength={50} />
+              <Input
+                placeholder="Theo hóa đơn NCC"
+                value={supplierInvoiceNumber}
+                onChange={(event) => setSupplierInvoiceNumber(event.target.value)}
+                maxLength={50}
+              />
             </label>
             <label className="field">
               <span>Ngày hóa đơn</span>
@@ -563,7 +777,9 @@ export function ReceiptFormModal({
                 placeholder="dd/mm/yyyy"
                 value={supplierInvoiceDate ? dayjs(supplierInvoiceDate) : null}
                 disabledDate={(date) => date.isAfter(dayjs(), "day")}
-                onChange={(value) => setSupplierInvoiceDate(value ? value.format("YYYY-MM-DD") : "")}
+                onChange={(value) =>
+                  setSupplierInvoiceDate(value ? value.format("YYYY-MM-DD") : "")
+                }
               />
             </label>
             <label className="field">
@@ -583,15 +799,26 @@ export function ReceiptFormModal({
                 Kho nhận <span className="required-mark">*</span>
               </span>
               <Tooltip title="Hàng nhập vào kho của cửa hàng đang chọn ở thanh trên cùng">
-                <Select disabled value={storeId ?? undefined} options={store ? [{ value: store.id, label: `${store.name}` }] : []} />
+                <Select
+                  disabled
+                  value={storeId ?? undefined}
+                  options={store ? [{ value: store.id, label: `${store.name}` }] : []}
+                />
               </Tooltip>
             </label>
             <label className="field receipt-note-field">
               <span>Ghi chú</span>
-              <Input placeholder="Nhập ghi chú cho phiếu…" value={note} onChange={(event) => setNote(event.target.value)} maxLength={500} />
+              <Input
+                placeholder="Nhập ghi chú cho phiếu…"
+                value={note}
+                onChange={(event) => setNote(event.target.value)}
+                maxLength={500}
+              />
             </label>
           </div>
-          <p className="field-hint">Ngày hóa đơn theo chứng từ; ngày nhận hàng theo thực tế hàng về.</p>
+          <p className="field-hint">
+            Ngày hóa đơn theo chứng từ; ngày nhận hàng theo thực tế hàng về.
+          </p>
         </section>
 
         <section className="form-section">
@@ -613,11 +840,24 @@ export function ReceiptFormModal({
                 label: (
                   <div className="product-option">
                     <strong>{product.name}</strong>
-                    <span>{[product.code, product.dosageForm, product.strengthText, product.stock ? `tồn ${formatNumber(product.stock.sellable)}` : null].filter(Boolean).join(" · ")}</span>
+                    <span>
+                      {[
+                        product.code,
+                        product.dosageForm,
+                        product.strengthText,
+                        product.stock ? `tồn ${formatNumber(product.stock.sellable)}` : null,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </span>
                   </div>
                 ),
               }))}
-              notFoundContent={productTerm && !products.isFetching ? "Không tìm thấy — thêm sản phẩm mới ở trang Thuốc & sản phẩm" : null}
+              notFoundContent={
+                productTerm && !products.isFetching
+                  ? "Không tìm thấy — thêm sản phẩm mới ở trang Thuốc & sản phẩm"
+                  : null
+              }
             >
               <Input
                 prefix={<SearchOutlined />}
@@ -665,10 +905,26 @@ export function ReceiptFormModal({
             pagination={false}
             dataSource={lines}
             scroll={{ x: 1100 }}
-            rowClassName={(line) => (issuesByLine.get(line.key)?.some((issue) => issue.level === "error") ? "line-has-error" : "")}
-            locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có hàng — quét mã vạch hoặc tìm sản phẩm ở ô phía trên" /> }}
+            rowClassName={(line) =>
+              issuesByLine.get(line.key)?.some((issue) => issue.level === "error")
+                ? "line-has-error"
+                : ""
+            }
+            locale={{
+              emptyText: (
+                <Empty
+                  image={Empty.PRESENTED_IMAGE_SIMPLE}
+                  description="Chưa có hàng — quét mã vạch hoặc tìm sản phẩm ở ô phía trên"
+                />
+              ),
+            }}
             columns={[
-              { title: "#", key: "index", width: 40, render: (_: unknown, __: DraftLine, index: number) => index + 1 },
+              {
+                title: "#",
+                key: "index",
+                width: 40,
+                render: (_: unknown, __: DraftLine, index: number) => index + 1,
+              },
               {
                 title: "Sản phẩm",
                 key: "product",
@@ -678,28 +934,52 @@ export function ReceiptFormModal({
                   const issues = issuesByLine.get(line.key) ?? [];
                   const hasError = issues.some((issue) => issue.level === "error");
                   const units = product?.units ?? [line.fallbackUnit];
-                  const current = units.find((unit) => unit.id === line.unitId) ?? line.fallbackUnit;
+                  const current =
+                    units.find((unit) => unit.id === line.unitId) ?? line.fallbackUnit;
                   const base = units.find((unit) => unit.conversionToBase === 1);
                   const info = [
-                    product?.registrationNumber ? `SĐK: ${product.registrationNumber}` : product?.productType === "DRUG" ? "Chưa có số đăng ký" : null,
-                    [product?.manufacturer, product?.countryOfOrigin].filter(Boolean).join(" · ") || null,
+                    product?.registrationNumber
+                      ? `SĐK: ${product.registrationNumber}`
+                      : product?.productType === "DRUG"
+                        ? "Chưa có số đăng ký"
+                        : null,
+                    [product?.manufacturer, product?.countryOfOrigin].filter(Boolean).join(" · ") ||
+                      null,
                     product?.storageCondition ? `Bảo quản: ${product.storageCondition}` : null,
                   ].filter(Boolean);
                   return (
                     <div className="line-product">
                       <div className="line-product-name">
-                        <Tooltip title={info.length ? info.map((text) => <div key={text}>{text}</div>) : line.productCode}>
+                        <Tooltip
+                          title={
+                            info.length
+                              ? info.map((text) => <div key={text}>{text}</div>)
+                              : line.productCode
+                          }
+                        >
                           <strong>{line.productName}</strong>
                         </Tooltip>
                         {line.extraBatch ? <Tag className="extra-batch-tag">Lô bổ sung</Tag> : null}
                         {issues.length > 0 ? (
-                          <Tooltip title={issues.map((issue) => <div key={issue.text}>{issue.text}</div>)}>
-                            {hasError ? <ExclamationCircleFilled className="text-danger" /> : <WarningFilled className="text-warning" />}
+                          <Tooltip
+                            title={issues.map((issue) => (
+                              <div key={issue.text}>{issue.text}</div>
+                            ))}
+                          >
+                            {hasError ? (
+                              <ExclamationCircleFilled className="text-danger" />
+                            ) : (
+                              <WarningFilled className="text-warning" />
+                            )}
                           </Tooltip>
                         ) : null}
                       </div>
                       <div className="line-product-meta">
-                        <span>{current.conversionToBase > 1 ? `1 ${current.name.toLowerCase()} = ${formatNumber(current.conversionToBase)} ${(base?.name ?? "đơn vị lẻ").toLowerCase()}` : line.productCode}</span>
+                        <span>
+                          {current.conversionToBase > 1
+                            ? `1 ${current.name.toLowerCase()} = ${formatNumber(current.conversionToBase)} ${(base?.name ?? "đơn vị lẻ").toLowerCase()}`
+                            : line.productCode}
+                        </span>
                         <Button type="link" size="small" onClick={() => addBatch(line)}>
                           + Thêm lô
                         </Button>
@@ -713,8 +993,20 @@ export function ReceiptFormModal({
                 key: "unit",
                 width: 96,
                 render: (_: unknown, line: DraftLine) => {
-                  const units = productById.get(line.productId)?.units.filter((unit) => unit.isActive !== false || unit.id === line.unitId) ?? [line.fallbackUnit];
-                  return <Select style={{ width: "100%" }} value={line.unitId} onChange={(unitId) => changeLine(line.key, { unitId })} options={units.map((unit) => ({ value: unit.id, label: unit.name }))} popupMatchSelectWidth={false} />;
+                  const units = productById
+                    .get(line.productId)
+                    ?.units.filter(
+                      (unit) => unit.isActive !== false || unit.id === line.unitId,
+                    ) ?? [line.fallbackUnit];
+                  return (
+                    <Select
+                      style={{ width: "100%" }}
+                      value={line.unitId}
+                      onChange={(unitId) => changeLine(line.key, { unitId })}
+                      options={units.map((unit) => ({ value: unit.id, label: unit.name }))}
+                      popupMatchSelectWidth={false}
+                    />
+                  );
                 },
               },
               {
@@ -726,7 +1018,14 @@ export function ReceiptFormModal({
                 key: "qty",
                 width: 96,
                 render: (_: unknown, line: DraftLine) => (
-                  <InputNumber<number> style={{ width: "100%" }} min={1} precision={0} value={line.quantity} status={line.quantity > 0 ? undefined : "error"} onChange={(value) => changeLine(line.key, { quantity: value ?? 0 })} />
+                  <InputNumber<number>
+                    style={{ width: "100%" }}
+                    min={1}
+                    precision={0}
+                    value={line.quantity}
+                    status={line.quantity > 0 ? undefined : "error"}
+                    onChange={(value) => changeLine(line.key, { quantity: value ?? 0 })}
+                  />
                 ),
               },
               {
@@ -757,8 +1056,12 @@ export function ReceiptFormModal({
                   <Input
                     value={line.batchNumber}
                     placeholder="Theo bao bì"
-                    status={line.batchNumber.trim() && !duplicateKeys.has(line.key) ? undefined : "error"}
-                    onChange={(event) => changeLine(line.key, { batchNumber: event.target.value.toUpperCase() })}
+                    status={
+                      line.batchNumber.trim() && !duplicateKeys.has(line.key) ? undefined : "error"
+                    }
+                    onChange={(event) =>
+                      changeLine(line.key, { batchNumber: event.target.value.toUpperCase() })
+                    }
                     maxLength={50}
                   />
                 ),
@@ -771,10 +1074,27 @@ export function ReceiptFormModal({
                   <DatePicker
                     format={DATE_FORMAT}
                     placeholder="dd/mm/yyyy"
-                    status={line.manufactureDate && (line.manufactureDate > today || (shelfLifeDays(line) ?? MIN_SHELF_LIFE_DAYS) < MIN_SHELF_LIFE_DAYS) ? "error" : undefined}
+                    status={
+                      line.manufactureDate &&
+                      (line.manufactureDate > today ||
+                        (shelfLifeDays(line) ?? MIN_SHELF_LIFE_DAYS) < MIN_SHELF_LIFE_DAYS)
+                        ? "error"
+                        : undefined
+                    }
                     value={line.manufactureDate ? dayjs(line.manufactureDate) : null}
-                    disabledDate={(date) => date.isAfter(dayjs(), "day") || (Boolean(line.expiryDate) && date.isAfter(dayjs(line.expiryDate).subtract(MIN_SHELF_LIFE_DAYS, "day"), "day"))}
-                    onChange={(value) => changeLine(line.key, { manufactureDate: value ? value.format("YYYY-MM-DD") : "" })}
+                    disabledDate={(date) =>
+                      date.isAfter(dayjs(), "day") ||
+                      (Boolean(line.expiryDate) &&
+                        date.isAfter(
+                          dayjs(line.expiryDate).subtract(MIN_SHELF_LIFE_DAYS, "day"),
+                          "day",
+                        ))
+                    }
+                    onChange={(value) =>
+                      changeLine(line.key, {
+                        manufactureDate: value ? value.format("YYYY-MM-DD") : "",
+                      })
+                    }
                   />
                 ),
               },
@@ -787,7 +1107,10 @@ export function ReceiptFormModal({
                 key: "exp",
                 width: 136,
                 render: (_: unknown, line: DraftLine) => {
-                  const invalid = !line.expiryDate || line.expiryDate <= today || (shelfLifeDays(line) ?? MIN_SHELF_LIFE_DAYS) < MIN_SHELF_LIFE_DAYS;
+                  const invalid =
+                    !line.expiryDate ||
+                    line.expiryDate <= today ||
+                    (shelfLifeDays(line) ?? MIN_SHELF_LIFE_DAYS) < MIN_SHELF_LIFE_DAYS;
                   const near = !invalid && daysUntil(line.expiryDate) <= NEAR_EXPIRY_DAYS;
                   return (
                     <DatePicker
@@ -795,13 +1118,32 @@ export function ReceiptFormModal({
                       placeholder="dd/mm/yyyy"
                       status={invalid ? "error" : near ? "warning" : undefined}
                       value={line.expiryDate ? dayjs(line.expiryDate) : null}
-                      disabledDate={(date) => !date.isAfter(dayjs(), "day") || (Boolean(line.manufactureDate) && date.isBefore(dayjs(line.manufactureDate).add(MIN_SHELF_LIFE_DAYS, "day"), "day"))}
-                      onChange={(value) => changeLine(line.key, { expiryDate: value ? value.format("YYYY-MM-DD") : "" })}
+                      disabledDate={(date) =>
+                        !date.isAfter(dayjs(), "day") ||
+                        (Boolean(line.manufactureDate) &&
+                          date.isBefore(
+                            dayjs(line.manufactureDate).add(MIN_SHELF_LIFE_DAYS, "day"),
+                            "day",
+                          ))
+                      }
+                      onChange={(value) =>
+                        changeLine(line.key, {
+                          expiryDate: value ? value.format("YYYY-MM-DD") : "",
+                        })
+                      }
                     />
                   );
                 },
               },
-              { title: "Thành tiền", key: "total", width: 110, align: "right", render: (_: unknown, line: DraftLine) => <strong>{formatNumber(line.quantity * line.unitCost)}</strong> },
+              {
+                title: "Thành tiền",
+                key: "total",
+                width: 110,
+                align: "right",
+                render: (_: unknown, line: DraftLine) => (
+                  <strong>{formatNumber(line.quantity * line.unitCost)}</strong>
+                ),
+              },
               {
                 title: "",
                 key: "remove",
@@ -809,7 +1151,13 @@ export function ReceiptFormModal({
                 align: "center",
                 render: (_: unknown, line: DraftLine) => (
                   <Tooltip title="Xóa dòng">
-                    <Button type="text" danger icon={<DeleteOutlined />} aria-label="Xóa dòng" onClick={() => removeLine(line.key)} />
+                    <Button
+                      type="text"
+                      danger
+                      icon={<DeleteOutlined />}
+                      aria-label="Xóa dòng"
+                      onClick={() => removeLine(line.key)}
+                    />
                   </Tooltip>
                 ),
               },
@@ -826,12 +1174,28 @@ export function ReceiptFormModal({
         <div className="receipt-bottom">
           <div className="receipt-checks">
             <h4>
-              {blocked ? <ExclamationCircleFilled className="text-danger" /> : <CheckCircleFilled className="text-success" />} Kiểm tra trước khi lưu
+              {blocked ? (
+                <ExclamationCircleFilled className="text-danger" />
+              ) : (
+                <CheckCircleFilled className="text-success" />
+              )}{" "}
+              Kiểm tra trước khi lưu
             </h4>
             <ul className="check-list">
               {checks.map((check) => (
-                <li key={check.label} className={check.state === "ok" ? "done" : check.state === "warning" ? "warn" : "fail"}>
-                  {check.state === "ok" ? <CheckCircleFilled /> : check.state === "warning" ? <WarningFilled /> : <ExclamationCircleFilled />}
+                <li
+                  key={check.label}
+                  className={
+                    check.state === "ok" ? "done" : check.state === "warning" ? "warn" : "fail"
+                  }
+                >
+                  {check.state === "ok" ? (
+                    <CheckCircleFilled />
+                  ) : check.state === "warning" ? (
+                    <WarningFilled />
+                  ) : (
+                    <ExclamationCircleFilled />
+                  )}
                   <span>{check.label}</span>
                 </li>
               ))}
@@ -894,10 +1258,24 @@ export function ReceiptFormModal({
   );
 }
 
-type SupplierForm = { name: string; phone?: string; taxCode?: string; licenseNumber?: string; address?: string };
+type SupplierForm = {
+  name: string;
+  phone?: string;
+  taxCode?: string;
+  licenseNumber?: string;
+  address?: string;
+};
 
 /** Thêm nhanh nhà cung cấp ngay trong phiếu nhập, không phải rời màn hình. */
-function QuickSupplierModal({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated: (supplier: SupplierListItem) => void }) {
+function QuickSupplierModal({
+  open,
+  onClose,
+  onCreated,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onCreated: (supplier: SupplierListItem) => void;
+}) {
   const { message } = App.useApp();
   const queryClient = useQueryClient();
   const [form] = Form.useForm<SupplierForm>();
@@ -915,7 +1293,10 @@ function QuickSupplierModal({ open, onClose, onCreated }: { open: boolean; onClo
       ).data.data,
     onSuccess: async (created) => {
       void message.success(`Đã thêm nhà cung cấp ${created.name}`);
-      await Promise.all([queryClient.invalidateQueries({ queryKey: ["receipt-suppliers"] }), queryClient.invalidateQueries({ queryKey: ["suppliers-page"] })]);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["receipt-suppliers"] }),
+        queryClient.invalidateQueries({ queryKey: ["suppliers-page"] }),
+      ]);
       form.resetFields();
       onCreated(created);
     },
@@ -937,9 +1318,16 @@ function QuickSupplierModal({ open, onClose, onCreated }: { open: boolean; onClo
       }}
       destroyOnHidden
     >
-      <Typography.Paragraph type="secondary">Nhà thuốc chỉ được mua hàng từ cơ sở kinh doanh dược hợp pháp — nên ghi đủ mã số thuế và số giấy phép.</Typography.Paragraph>
+      <Typography.Paragraph type="secondary">
+        Nhà thuốc chỉ được mua hàng từ cơ sở kinh doanh dược hợp pháp — nên ghi đủ mã số thuế và số
+        giấy phép.
+      </Typography.Paragraph>
       <Form form={form} layout="vertical" requiredMark="optional">
-        <Form.Item name="name" label="Tên nhà cung cấp" rules={[{ required: true, whitespace: true, message: "Nhập tên nhà cung cấp" }]}>
+        <Form.Item
+          name="name"
+          label="Tên nhà cung cấp"
+          rules={[{ required: true, whitespace: true, message: "Nhập tên nhà cung cấp" }]}
+        >
           <Input placeholder="Ví dụ: Công ty CP Dược phẩm Traphaco" autoFocus />
         </Form.Item>
         <div className="form-grid">

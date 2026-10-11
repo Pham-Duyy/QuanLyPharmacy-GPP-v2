@@ -1,7 +1,14 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { prisma } from "../../db/prisma.js";
-import { api, authHeaders, login, seedFixture, truncateAll, type Fixture } from "../../test/helpers.js";
+import {
+  api,
+  authHeaders,
+  login,
+  seedFixture,
+  truncateAll,
+  type Fixture,
+} from "../../test/helpers.js";
 
 /**
  * Giá vốn: nhập thêm cùng một lô với giá khác thì lô tính lại **bình quân
@@ -19,7 +26,9 @@ const h = (token = adminToken) => authHeaders(token, fixture.storeId);
 const idem = () => ({ "Idempotency-Key": randomUUID() });
 
 function dayKey(days = 0): string {
-  const vnToday = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Ho_Chi_Minh" }).format(new Date());
+  const vnToday = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Ho_Chi_Minh" }).format(
+    new Date(),
+  );
   const date = new Date(`${vnToday}T00:00:00.000Z`);
   date.setUTCDate(date.getUTCDate() + days);
   return date.toISOString().slice(0, 10);
@@ -56,7 +65,12 @@ async function receive(options: {
   await api()
     .post(`/api/v1/goods-receipts/${created.body.data.id}/confirm`)
     .set({ ...h(pharmacistToken), ...idem() })
-    .send({ lines: created.body.data.lines.map((line: { id: string }) => ({ lineId: line.id, passed: true })) })
+    .send({
+      lines: created.body.data.lines.map((line: { id: string }) => ({
+        lineId: line.id,
+        passed: true,
+      })),
+    })
     .expect(200);
 }
 
@@ -99,7 +113,12 @@ beforeEach(async () => {
   productId = product.id;
   unitId = product.units[0]!.id;
   await prisma.productPrice.create({
-    data: { productUnitId: unitId, salePrice: 3000n, vatRatePercent: 5, effectiveFrom: new Date(`${dayKey(-2)}T00:00:00.000Z`) },
+    data: {
+      productUnitId: unitId,
+      salePrice: 3000n,
+      vatRatePercent: 5,
+      effectiveFrom: new Date(`${dayKey(-2)}T00:00:00.000Z`),
+    },
   });
   supplierId = (await prisma.supplier.create({ data: { name: "Dược Minh Tâm" } })).id;
 });

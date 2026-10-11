@@ -92,16 +92,22 @@ export async function fetchConfig(): Promise<NdsConfig> {
   return (await http.get<Envelope<NdsConfig>>(`${BASE}/config`)).data.data;
 }
 
-export async function saveConfig(patch: Partial<NdsConfig> & { password?: string | null }): Promise<NdsConfig> {
+export async function saveConfig(
+  patch: Partial<NdsConfig> & { password?: string | null },
+): Promise<NdsConfig> {
   return (await http.patch<Envelope<NdsConfig>>(`${BASE}/config`, patch)).data.data;
 }
 
 export async function testConnection(): Promise<{ ok: boolean; baseUrl: string }> {
-  return (await http.post<Envelope<{ ok: boolean; baseUrl: string }>>(`${BASE}/test-connection`, {})).data.data;
+  return (
+    await http.post<Envelope<{ ok: boolean; baseUrl: string }>>(`${BASE}/test-connection`, {})
+  ).data.data;
 }
 
 export async function syncMaster(full: boolean): Promise<{ units: number; drugs: number }> {
-  return (await http.post<Envelope<{ units: number; drugs: number }>>(`${BASE}/master-sync`, { full })).data.data;
+  return (
+    await http.post<Envelope<{ units: number; drugs: number }>>(`${BASE}/master-sync`, { full })
+  ).data.data;
 }
 
 export async function fetchMapping(params: { state?: string; search?: string }): Promise<{
@@ -109,7 +115,9 @@ export async function fetchMapping(params: { state?: string; search?: string }):
   summary: MappingSummary;
 }> {
   return (
-    await http.get<Envelope<{ items: MappingRow[]; summary: MappingSummary }>>(`${BASE}/mapping`, { params })
+    await http.get<Envelope<{ items: MappingRow[]; summary: MappingSummary }>>(`${BASE}/mapping`, {
+      params,
+    })
   ).data.data;
 }
 
@@ -124,7 +132,9 @@ export async function autoMatch(): Promise<{
 
 export async function searchDrugs(search: string): Promise<NationalDrug[]> {
   return (
-    await http.get<Envelope<{ items: NationalDrug[] }>>(`${BASE}/drugs`, { params: { search, limit: 20 } })
+    await http.get<Envelope<{ items: NationalDrug[] }>>(`${BASE}/drugs`, {
+      params: { search, limit: 20 },
+    })
   ).data.data.items;
 }
 
@@ -140,14 +150,18 @@ export async function confirmMapping(productId: string): Promise<void> {
 }
 
 export async function confirmMappings(productIds: string[]): Promise<{ confirmed: number }> {
-  return (await http.post<Envelope<{ confirmed: number }>>(`${BASE}/mapping/confirm-many`, { productIds })).data.data;
+  return (
+    await http.post<Envelope<{ confirmed: number }>>(`${BASE}/mapping/confirm-many`, { productIds })
+  ).data.data;
 }
 
 export async function removeMapping(productId: string): Promise<void> {
   await http.delete(`${BASE}/mapping/${productId}`);
 }
 
-export async function fetchJobs(status?: string): Promise<{ items: SyncJob[]; summary: QueueSummary }> {
+export async function fetchJobs(
+  status?: string,
+): Promise<{ items: SyncJob[]; summary: QueueSummary }> {
   return (
     await http.get<Envelope<{ items: SyncJob[]; summary: QueueSummary }>>(`${BASE}/jobs`, {
       params: { status, limit: 100 },

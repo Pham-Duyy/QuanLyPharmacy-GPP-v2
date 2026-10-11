@@ -68,7 +68,13 @@ describe("Trả hàng từng phần", () => {
     // Dòng 6 viên giá 2.000 = 12.000, giảm 2.000 → thành tiền 10.000.
     // Chia đều cho 6 đơn vị là 1.666,67đ nên nếu làm tròn từng lần trả sẽ
     // hoàn vượt; tiền hoàn phải tính lũy kế.
-    await makeBatch(stage, { product: para, batchNumber: "TRA-1", quantity: 100, unitCost: 900, expiryInDays: 90 });
+    await makeBatch(stage, {
+      product: para,
+      batchNumber: "TRA-1",
+      quantity: 100,
+      unitCost: 900,
+      expiryInDays: 90,
+    });
     const sale = await sell(
       stage,
       {
@@ -98,8 +104,20 @@ describe("Trả hàng từng phần", () => {
   });
 
   it("trả dòng xuất từ nhiều lô: phải chỉ rõ lô, hoàn đúng lô đó", async () => {
-    await makeBatch(stage, { product: para, batchNumber: "LO-A", quantity: 5, unitCost: 1000, expiryInDays: 30 });
-    await makeBatch(stage, { product: para, batchNumber: "LO-B", quantity: 50, unitCost: 2000, expiryInDays: 90 });
+    await makeBatch(stage, {
+      product: para,
+      batchNumber: "LO-A",
+      quantity: 5,
+      unitCost: 1000,
+      expiryInDays: 30,
+    });
+    await makeBatch(stage, {
+      product: para,
+      batchNumber: "LO-B",
+      quantity: 50,
+      unitCost: 2000,
+      expiryInDays: 90,
+    });
 
     // 1 vỉ = 10 viên: 5 viên của LO-A rồi 5 viên của LO-B.
     const sale = await sell(stage, { lines: [line(para, "Vỉ", 2)] }).expect(201);
@@ -133,7 +151,13 @@ describe("Trả hàng từng phần", () => {
   });
 
   it("hàng trả để tiêu hủy không làm tăng tồn cuối và không đổi giá vốn còn lại", async () => {
-    await makeBatch(stage, { product: para, batchNumber: "HUY-1", quantity: 100, unitCost: 1000, expiryInDays: 90 });
+    await makeBatch(stage, {
+      product: para,
+      batchNumber: "HUY-1",
+      quantity: 100,
+      unitCost: 1000,
+      expiryInDays: 90,
+    });
     const sale = await sell(stage, { lines: [line(para, "Viên", 10)] }).expect(201);
 
     const receipt = await draftReceipt(stage, {
@@ -173,7 +197,13 @@ describe("Trả hàng từng phần", () => {
   });
 
   it("hủy hóa đơn sau khi nhập thêm cùng lô: hoàn đúng số lượng và giá trị", async () => {
-    await makeBatch(stage, { product: para, batchNumber: "HUY-2", quantity: 100, unitCost: 1000, expiryInDays: 90 });
+    await makeBatch(stage, {
+      product: para,
+      batchNumber: "HUY-2",
+      quantity: 100,
+      unitCost: 1000,
+      expiryInDays: 90,
+    });
     const sale = await sell(stage, { lines: [line(para, "Viên", 10)] }).expect(201);
 
     const receipt = await draftReceipt(stage, {
@@ -202,7 +232,13 @@ describe("Trả hàng từng phần", () => {
 
 describe("Chặn thao tác sai trạng thái", () => {
   it("hóa đơn đã có phiếu trả thì không hủy được và ngược lại", async () => {
-    await makeBatch(stage, { product: para, batchNumber: "TT-1", quantity: 100, unitCost: 1000, expiryInDays: 90 });
+    await makeBatch(stage, {
+      product: para,
+      batchNumber: "TT-1",
+      quantity: 100,
+      unitCost: 1000,
+      expiryInDays: 90,
+    });
 
     const sale = await sell(stage, { lines: [line(para, "Viên", 5)] }).expect(201);
     await giveBack(sale.body.data.id, [
@@ -229,7 +265,13 @@ describe("Ảnh hưởng tới điểm khách và đơn thuốc", () => {
       drugClass: null,
       units: [["Viên", 1, 10_000]],
     });
-    await makeBatch(stage, { product: vitamin, batchNumber: "TP-1", quantity: 200, unitCost: 4000, expiryInDays: 200 });
+    await makeBatch(stage, {
+      product: vitamin,
+      batchNumber: "TP-1",
+      quantity: 200,
+      unitCost: 4000,
+      expiryInDays: 200,
+    });
     await api()
       .put("/api/v1/loyalty/settings")
       .set(h())
@@ -244,11 +286,14 @@ describe("Ảnh hưởng tới điểm khách và đơn thuốc", () => {
       })
       .expect(200);
 
-    const customer = await prisma.customer.create({ data: { fullName: "Chị Lan", phone: "0900000002" } });
+    const customer = await prisma.customer.create({
+      data: { fullName: "Chị Lan", phone: "0900000002" },
+    });
     // Mua 300.000đ → 30 điểm.
     await sell(stage, { customerId: customer.id, lines: [line(vitamin, "Viên", 30)] }).expect(201);
     const balance = async () =>
-      (await api().get(`/api/v1/customers/${customer.id}/loyalty`).set(h()).expect(200)).body.data.balance;
+      (await api().get(`/api/v1/customers/${customer.id}/loyalty`).set(h()).expect(200)).body.data
+        .balance;
     expect((await balance()).available).toBe(30);
 
     // Đổi 20 điểm = 10.000đ trên hóa đơn 100.000đ, còn phải trả 90.000 → tích 9 điểm.
@@ -272,8 +317,16 @@ describe("Ảnh hưởng tới điểm khách và đơn thuốc", () => {
       drugClass: "RX",
       units: [["Viên", 1, 3000]],
     });
-    await makeBatch(stage, { product: amox, batchNumber: "RX-1", quantity: 100, unitCost: 1200, expiryInDays: 180 });
-    const customer = await prisma.customer.create({ data: { fullName: "Anh Nam", phone: "0900000003" } });
+    await makeBatch(stage, {
+      product: amox,
+      batchNumber: "RX-1",
+      quantity: 100,
+      unitCost: 1200,
+      expiryInDays: 180,
+    });
+    const customer = await prisma.customer.create({
+      data: { fullName: "Anh Nam", phone: "0900000003" },
+    });
 
     const created = await api()
       .post("/api/v1/prescriptions")
@@ -282,7 +335,14 @@ describe("Ảnh hưởng tới điểm khách và đơn thuốc", () => {
         customerId: customer.id,
         prescriberName: "BS. Lê Thị B",
         prescribedDate: dayKey(0),
-        items: [{ productId: amox.id, drugNameText: "Amoxicillin 500mg", unitId: amox.units["Viên"]!, quantity: 20 }],
+        items: [
+          {
+            productId: amox.id,
+            drugNameText: "Amoxicillin 500mg",
+            unitId: amox.units["Viên"]!,
+            quantity: 20,
+          },
+        ],
       })
       .expect(201);
     await api()
@@ -293,12 +353,19 @@ describe("Ảnh hưởng tới điểm khách và đơn thuốc", () => {
 
     const sale = await sell(
       stage,
-      { customerId: customer.id, prescriptionId: created.body.data.id, lines: [line(amox, "Viên", 10)] },
+      {
+        customerId: customer.id,
+        prescriptionId: created.body.data.id,
+        lines: [line(amox, "Viên", 10)],
+      },
       stage.pharmacist,
     ).expect(201);
     expect(
-      (await prisma.prescriptionItem.findFirstOrThrow({ where: { prescriptionId: created.body.data.id } }))
-        .dispensedBaseQuantity,
+      (
+        await prisma.prescriptionItem.findFirstOrThrow({
+          where: { prescriptionId: created.body.data.id },
+        })
+      ).dispensedBaseQuantity,
     ).toBe(10);
 
     // Thuốc kê đơn chỉ nhận trả khi có lỗi chất lượng và phải hủy hàng.
@@ -312,7 +379,9 @@ describe("Ảnh hưởng tới điểm khách và đơn thuốc", () => {
       where: { prescriptionId: created.body.data.id },
     });
     expect(item.dispensedBaseQuantity).toBe(6);
-    const prescription = await prisma.prescription.findUniqueOrThrow({ where: { id: created.body.data.id } });
+    const prescription = await prisma.prescription.findUniqueOrThrow({
+      where: { id: created.body.data.id },
+    });
     expect(prescription.status).toBe("PARTIALLY_DISPENSED");
   });
 });

@@ -1,9 +1,38 @@
-import { CheckOutlined, CloseOutlined, CloudDownloadOutlined, EditOutlined, FilePdfOutlined, FileProtectOutlined, FileSearchOutlined, PlusOutlined, SendOutlined, UploadOutlined } from "@ant-design/icons";
+import {
+  CheckOutlined,
+  CloseOutlined,
+  CloudDownloadOutlined,
+  EditOutlined,
+  FilePdfOutlined,
+  FileProtectOutlined,
+  FileSearchOutlined,
+  PlusOutlined,
+  SendOutlined,
+  UploadOutlined,
+} from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { App, Button, Card, Empty, Image, Input, Modal, Segmented, Skeleton, Table, Tag, Typography } from "antd";
+import {
+  App,
+  Button,
+  Card,
+  Empty,
+  Image,
+  Input,
+  Modal,
+  Segmented,
+  Skeleton,
+  Table,
+  Tag,
+  Typography,
+} from "antd";
 import { useRef, useState } from "react";
 import { getErrorMessage, http } from "../../api/http.js";
-import type { Envelope, PrescriptionDetail, PrescriptionListItem, PrescriptionStatus } from "../../api/types.js";
+import type {
+  Envelope,
+  PrescriptionDetail,
+  PrescriptionListItem,
+  PrescriptionStatus,
+} from "../../api/types.js";
 import { daysUntil, formatDate, formatNumber } from "../../ui/format.js";
 import { PageHeader } from "../../ui/PageHeader.js";
 import { PanelEmpty } from "../../ui/PanelEmpty.js";
@@ -39,22 +68,36 @@ export function PrescriptionsPage() {
 
   const list = useQuery({
     queryKey: ["prescriptions", status],
-    queryFn: async () => (await http.get<Envelope<PrescriptionListItem[]>>("/prescriptions", { params: { status: status === "ALL" ? undefined : status } })).data.data,
+    queryFn: async () =>
+      (
+        await http.get<Envelope<PrescriptionListItem[]>>("/prescriptions", {
+          params: { status: status === "ALL" ? undefined : status },
+        })
+      ).data.data,
     placeholderData: (previous) => previous,
   });
 
   const detail = useQuery({
     queryKey: ["prescription", openId],
     enabled: openId !== null,
-    queryFn: async () => (await http.get<Envelope<PrescriptionDetail>>(`/prescriptions/${openId}`)).data.data,
+    queryFn: async () =>
+      (await http.get<Envelope<PrescriptionDetail>>(`/prescriptions/${openId}`)).data.data,
   });
 
   function afterAction() {
-    return Promise.all([queryClient.invalidateQueries({ queryKey: ["prescriptions"] }), queryClient.invalidateQueries({ queryKey: ["prescription", openId] })]);
+    return Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["prescriptions"] }),
+      queryClient.invalidateQueries({ queryKey: ["prescription", openId] }),
+    ]);
   }
 
   const submit = useMutation({
-    mutationFn: () => http.post(`/prescriptions/${openId}/submit`, {}, { headers: { "Idempotency-Key": crypto.randomUUID() } }),
+    mutationFn: () =>
+      http.post(
+        `/prescriptions/${openId}/submit`,
+        {},
+        { headers: { "Idempotency-Key": crypto.randomUUID() } },
+      ),
     onSuccess: async () => {
       void message.success("Đã nộp đơn chờ dược sĩ xác nhận");
       await afterAction();
@@ -63,7 +106,12 @@ export function PrescriptionsPage() {
   });
 
   const verify = useMutation({
-    mutationFn: () => http.post(`/prescriptions/${openId}/verify`, {}, { headers: { "Idempotency-Key": crypto.randomUUID() } }),
+    mutationFn: () =>
+      http.post(
+        `/prescriptions/${openId}/verify`,
+        {},
+        { headers: { "Idempotency-Key": crypto.randomUUID() } },
+      ),
     onSuccess: async () => {
       void message.success("Đã xác nhận đơn thuốc");
       await afterAction();
@@ -72,7 +120,12 @@ export function PrescriptionsPage() {
   });
 
   const reject = useMutation({
-    mutationFn: () => http.post(`/prescriptions/${openId}/reject`, { reason: rejectReason }, { headers: { "Idempotency-Key": crypto.randomUUID() } }),
+    mutationFn: () =>
+      http.post(
+        `/prescriptions/${openId}/reject`,
+        { reason: rejectReason },
+        { headers: { "Idempotency-Key": crypto.randomUUID() } },
+      ),
     onSuccess: async () => {
       void message.success("Đã từ chối đơn thuốc");
       setRejecting(false);
@@ -97,10 +150,12 @@ export function PrescriptionsPage() {
   });
 
   const data = detail.data;
-  const canEdit = data && can("prescription.create") && ["DRAFT", "PENDING_REVIEW"].includes(data.status);
+  const canEdit =
+    data && can("prescription.create") && ["DRAFT", "PENDING_REVIEW"].includes(data.status);
   const national = data?.source === "NATIONAL";
   const canSubmit = data && can("prescription.create") && data.status === "DRAFT";
-  const canVerify = data && can("prescription.verify") && ["DRAFT", "PENDING_REVIEW"].includes(data.status);
+  const canVerify =
+    data && can("prescription.verify") && ["DRAFT", "PENDING_REVIEW"].includes(data.status);
 
   return (
     <div>
@@ -110,13 +165,20 @@ export function PrescriptionsPage() {
         extra={
           can("prescription.create") ? (
             <>
-              <Button icon={<PlusOutlined />} onClick={() => {
-                setEditing(null);
-                setFormOpen(true);
-              }}>
+              <Button
+                icon={<PlusOutlined />}
+                onClick={() => {
+                  setEditing(null);
+                  setFormOpen(true);
+                }}
+              >
                 Nhập đơn giấy
               </Button>
-              <Button type="primary" icon={<CloudDownloadOutlined />} onClick={() => setImporting(true)}>
+              <Button
+                type="primary"
+                icon={<CloudDownloadOutlined />}
+                onClick={() => setImporting(true)}
+              >
                 Lấy đơn điện tử
               </Button>
             </>
@@ -130,7 +192,18 @@ export function PrescriptionsPage() {
             <Segmented
               value={status}
               onChange={(value) => setStatus(value as typeof status)}
-              options={[{ value: "ALL", label: "Tất cả" }, ...(["PENDING_REVIEW", "VERIFIED", "PARTIALLY_DISPENSED", "DRAFT", "REJECTED"] as PrescriptionStatus[]).map((value) => ({ value, label: STATUS_TAG[value].text }))]}
+              options={[
+                { value: "ALL", label: "Tất cả" },
+                ...(
+                  [
+                    "PENDING_REVIEW",
+                    "VERIFIED",
+                    "PARTIALLY_DISPENSED",
+                    "DRAFT",
+                    "REJECTED",
+                  ] as PrescriptionStatus[]
+                ).map((value) => ({ value, label: STATUS_TAG[value].text })),
+              ]}
             />
           </div>
           <Table
@@ -141,7 +214,11 @@ export function PrescriptionsPage() {
             scroll={{ x: 620 }}
             onRow={(row) => ({ onClick: () => setOpenId(row.id), style: { cursor: "pointer" } })}
             rowClassName={(row) => (row.id === openId ? "row-selected" : "")}
-            locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có đơn thuốc" /> }}
+            locale={{
+              emptyText: (
+                <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có đơn thuốc" />
+              ),
+            }}
             columns={[
               {
                 title: "Đơn thuốc",
@@ -149,15 +226,22 @@ export function PrescriptionsPage() {
                 render: (_: unknown, row: PrescriptionListItem) => (
                   <div className="cell-main">
                     <strong className="mono">
-                      {row.code} {row.source === "NATIONAL" ? <Tag color="blue">Điện tử</Tag> : null}
+                      {row.code}{" "}
+                      {row.source === "NATIONAL" ? <Tag color="blue">Điện tử</Tag> : null}
                     </strong>
                     <span>
-                      {row.customer?.fullName ?? row.patientName ?? "Khách lẻ"} · {row._count.items} thuốc
+                      {row.customer?.fullName ?? row.patientName ?? "Khách lẻ"} · {row._count.items}{" "}
+                      thuốc
                     </span>
                   </div>
                 ),
               },
-              { title: "Ngày kê", key: "date", width: 110, render: (_: unknown, row: PrescriptionListItem) => formatDate(row.prescribedDate) },
+              {
+                title: "Ngày kê",
+                key: "date",
+                width: 110,
+                render: (_: unknown, row: PrescriptionListItem) => formatDate(row.prescribedDate),
+              },
               {
                 title: "Hiệu lực",
                 key: "valid",
@@ -167,12 +251,21 @@ export function PrescriptionsPage() {
                   return (
                     <div className="cell-main">
                       <strong>{formatDate(row.validUntil)}</strong>
-                      <span className={days < 0 ? "text-danger" : undefined}>{days < 0 ? "Đã hết hạn" : `Còn ${days} ngày`}</span>
+                      <span className={days < 0 ? "text-danger" : undefined}>
+                        {days < 0 ? "Đã hết hạn" : `Còn ${days} ngày`}
+                      </span>
                     </div>
                   );
                 },
               },
-              { title: "Trạng thái", key: "status", width: 140, render: (_: unknown, row: PrescriptionListItem) => <StatusTag status={row.status} /> },
+              {
+                title: "Trạng thái",
+                key: "status",
+                width: 140,
+                render: (_: unknown, row: PrescriptionListItem) => (
+                  <StatusTag status={row.status} />
+                ),
+              },
             ]}
           />
         </Card>
@@ -180,7 +273,11 @@ export function PrescriptionsPage() {
         <aside className="split-aside">
           {openId === null ? (
             <Card title="Chi tiết đơn thuốc">
-              <PanelEmpty icon={<FileSearchOutlined />} title="Chưa chọn đơn thuốc" description="Bấm vào một đơn để xem thuốc trong đơn, ảnh đơn và xác nhận." />
+              <PanelEmpty
+                icon={<FileSearchOutlined />}
+                title="Chưa chọn đơn thuốc"
+                description="Bấm vào một đơn để xem thuốc trong đơn, ảnh đơn và xác nhận."
+              />
             </Card>
           ) : (
             <Card
@@ -201,8 +298,16 @@ export function PrescriptionsPage() {
                     <h3 className="detail-title" style={{ marginTop: 8 }}>
                       {data.customer?.fullName ?? data.patientName ?? "Khách lẻ"}
                     </h3>
-                    {data.patientBirthDate ? <span className="detail-sub" style={{ display: "block" }}>Ngày sinh: {data.patientBirthDate}</span> : null}
-                    {data.externalCode ? <span className="detail-sub">Mã đơn quốc gia: <span className="mono">{data.externalCode}</span></span> : null}
+                    {data.patientBirthDate ? (
+                      <span className="detail-sub" style={{ display: "block" }}>
+                        Ngày sinh: {data.patientBirthDate}
+                      </span>
+                    ) : null}
+                    {data.externalCode ? (
+                      <span className="detail-sub">
+                        Mã đơn quốc gia: <span className="mono">{data.externalCode}</span>
+                      </span>
+                    ) : null}
                   </div>
                   <dl className="kv-list">
                     <div>
@@ -241,10 +346,19 @@ export function PrescriptionsPage() {
                     <div className="panel-actions">
                       {canVerify ? (
                         <div className="panel-actions-row">
-                          <Button type="primary" icon={<CheckOutlined />} onClick={() => verify.mutate()} loading={verify.isPending}>
+                          <Button
+                            type="primary"
+                            icon={<CheckOutlined />}
+                            onClick={() => verify.mutate()}
+                            loading={verify.isPending}
+                          >
                             Xác nhận đơn
                           </Button>
-                          <Button danger icon={<CloseOutlined />} onClick={() => setRejecting(true)}>
+                          <Button
+                            danger
+                            icon={<CloseOutlined />}
+                            onClick={() => setRejecting(true)}
+                          >
                             Từ chối
                           </Button>
                         </div>
@@ -263,7 +377,11 @@ export function PrescriptionsPage() {
                             </Button>
                           ) : null}
                           {canSubmit ? (
-                            <Button icon={<SendOutlined />} onClick={() => submit.mutate()} loading={submit.isPending}>
+                            <Button
+                              icon={<SendOutlined />}
+                              onClick={() => submit.mutate()}
+                              loading={submit.isPending}
+                            >
                               Nộp duyệt
                             </Button>
                           ) : null}
@@ -290,14 +408,26 @@ export function PrescriptionsPage() {
                               Chưa khớp sản phẩm trong danh mục
                             </Typography.Text>
                           )}
-                          {national && canEdit && !item.productId ? <MatchItem prescriptionId={data.id} item={item} onMatched={() => void afterAction()} /> : null}
-                          {item.dosageInstruction ? <span>Liều dùng: {item.dosageInstruction}</span> : null}
+                          {national && canEdit && !item.productId ? (
+                            <MatchItem
+                              prescriptionId={data.id}
+                              item={item}
+                              onMatched={() => void afterAction()}
+                            />
+                          ) : null}
+                          {item.dosageInstruction ? (
+                            <span>Liều dùng: {item.dosageInstruction}</span>
+                          ) : null}
                         </div>
                         <div className="line-item-side">
                           <strong>
                             {formatNumber(item.quantity)} {item.unitName ?? ""}
                           </strong>
-                          <span>{item.baseQuantity !== null ? `${formatNumber(item.dispensedBaseQuantity)}/${formatNumber(item.baseQuantity)}` : "—"}</span>
+                          <span>
+                            {item.baseQuantity !== null
+                              ? `${formatNumber(item.dispensedBaseQuantity)}/${formatNumber(item.baseQuantity)}`
+                              : "—"}
+                          </span>
                         </div>
                       </div>
                     ))}
@@ -311,12 +441,21 @@ export function PrescriptionsPage() {
                       <div className="image-grid">
                         {data.images.map((image) =>
                           image.contentType === "application/pdf" ? (
-                            <Button key={image.id} icon={<FilePdfOutlined />} onClick={() => window.open(image.url, "_blank", "noopener")}>
+                            <Button
+                              key={image.id}
+                              icon={<FilePdfOutlined />}
+                              onClick={() => window.open(image.url, "_blank", "noopener")}
+                            >
                               Bản {image.versionNo} (PDF)
                             </Button>
                           ) : (
                             <figure key={image.id}>
-                              <Image src={image.url} width={88} height={88} style={{ objectFit: "cover", borderRadius: 8 }} />
+                              <Image
+                                src={image.url}
+                                width={88}
+                                height={88}
+                                style={{ objectFit: "cover", borderRadius: 8 }}
+                              />
                               <figcaption>Bản {image.versionNo}</figcaption>
                             </figure>
                           ),
@@ -336,7 +475,11 @@ export function PrescriptionsPage() {
                             event.target.value = "";
                           }}
                         />
-                        <Button icon={<UploadOutlined />} loading={uploadImage.isPending} onClick={() => fileInputRef.current?.click()}>
+                        <Button
+                          icon={<UploadOutlined />}
+                          loading={uploadImage.isPending}
+                          onClick={() => fileInputRef.current?.click()}
+                        >
                           Tải ảnh / PDF đơn thuốc
                         </Button>
                       </>
@@ -361,7 +504,12 @@ export function PrescriptionsPage() {
         onOk={() => reject.mutate()}
         onCancel={() => setRejecting(false)}
       >
-        <Input.TextArea rows={3} placeholder="Lý do từ chối (bắt buộc)" value={rejectReason} onChange={(event) => setRejectReason(event.target.value)} />
+        <Input.TextArea
+          rows={3}
+          placeholder="Lý do từ chối (bắt buộc)"
+          value={rejectReason}
+          onChange={(event) => setRejectReason(event.target.value)}
+        />
       </Modal>
       <EPrescriptionImportModal
         open={importing}

@@ -1,6 +1,28 @@
-import { CheckCircleOutlined, PlusOutlined, RollbackOutlined, SearchOutlined, StopOutlined } from "@ant-design/icons";
+import {
+  CheckCircleOutlined,
+  PlusOutlined,
+  RollbackOutlined,
+  SearchOutlined,
+  StopOutlined,
+} from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, App, Button, Card, Empty, Form, Input, InputNumber, Modal, Radio, Segmented, Select, Skeleton, Table, Tag } from "antd";
+import {
+  Alert,
+  App,
+  Button,
+  Card,
+  Empty,
+  Form,
+  Input,
+  InputNumber,
+  Modal,
+  Radio,
+  Segmented,
+  Select,
+  Skeleton,
+  Table,
+  Tag,
+} from "antd";
 import { useMemo, useState } from "react";
 import { getErrorMessage, http } from "../../api/http.js";
 import { useSubmitKey } from "../../api/submit-key.js";
@@ -60,12 +82,21 @@ type ReturnDetail = ReturnListItem & {
 };
 
 const SETTLEMENTS: Array<{ value: Settlement; label: string; hint: string }> = [
-  { value: "DEDUCT_DEBT", label: "Trừ vào công nợ", hint: "Giá trị hàng trả được trừ thẳng vào khoản còn nợ của phiếu nhập gốc." },
+  {
+    value: "DEDUCT_DEBT",
+    label: "Trừ vào công nợ",
+    hint: "Giá trị hàng trả được trừ thẳng vào khoản còn nợ của phiếu nhập gốc.",
+  },
   { value: "REFUND", label: "Nhận lại tiền", hint: "Nhà cung cấp hoàn tiền; công nợ giữ nguyên." },
-  { value: "REPLACEMENT", label: "Đổi hàng khác", hint: "Nhà cung cấp giao bù hàng; công nợ giữ nguyên, hàng về lập phiếu nhập mới." },
+  {
+    value: "REPLACEMENT",
+    label: "Đổi hàng khác",
+    hint: "Nhà cung cấp giao bù hàng; công nợ giữ nguyên, hàng về lập phiếu nhập mới.",
+  },
 ];
 
-const settlementLabel = (value: Settlement) => SETTLEMENTS.find((item) => item.value === value)?.label ?? value;
+const settlementLabel = (value: Settlement) =>
+  SETTLEMENTS.find((item) => item.value === value)?.label ?? value;
 
 /**
  * Đơn vị mặc định khi trả: đơn vị lớn nhất mà tồn còn đủ ít nhất một đơn vị.
@@ -97,25 +128,37 @@ export function SupplierReturnsPage() {
   const list = useQuery({
     queryKey: ["supplier-returns", statusFilter],
     queryFn: async () =>
-      (await http.get<Envelope<ReturnListItem[]>>("/supplier-returns", { params: { status: statusFilter === "ALL" ? undefined : statusFilter } })).data.data,
+      (
+        await http.get<Envelope<ReturnListItem[]>>("/supplier-returns", {
+          params: { status: statusFilter === "ALL" ? undefined : statusFilter },
+        })
+      ).data.data,
   });
 
   const detail = useQuery({
     queryKey: ["supplier-return", openId],
     enabled: Boolean(openId),
-    queryFn: async () => (await http.get<Envelope<ReturnDetail>>(`/supplier-returns/${openId}`)).data.data,
+    queryFn: async () =>
+      (await http.get<Envelope<ReturnDetail>>(`/supplier-returns/${openId}`)).data.data,
   });
 
   const suppliers = useQuery({
     queryKey: ["suppliers-for-return"],
     enabled: creating,
-    queryFn: async () => (await http.get<Envelope<Paged<SupplierOption>>>("/suppliers", { params: { limit: 100 } })).data.data.items,
+    queryFn: async () =>
+      (await http.get<Envelope<Paged<SupplierOption>>>("/suppliers", { params: { limit: 100 } }))
+        .data.data.items,
   });
 
   const returnable = useQuery({
     queryKey: ["returnable-batches", supplierId, search],
     enabled: creating && Boolean(supplierId),
-    queryFn: async () => (await http.get<Envelope<Returnable[]>>("/supplier-returns/returnable", { params: { supplierId, search: search.trim() || undefined } })).data.data,
+    queryFn: async () =>
+      (
+        await http.get<Envelope<Returnable[]>>("/supplier-returns/returnable", {
+          params: { supplierId, search: search.trim() || undefined },
+        })
+      ).data.data,
   });
 
   const submitKey = useSubmitKey();
@@ -130,7 +173,9 @@ export function SupplierReturnsPage() {
           .filter(([, line]) => line.quantity > 0)
           .map(([batchId, line]) => ({ batchId, unitId: line.unitId, quantity: line.quantity })),
       };
-      return http.post<Envelope<ReturnDetail>>("/supplier-returns", body, { headers: submitKey.headers(body) });
+      return http.post<Envelope<ReturnDetail>>("/supplier-returns", body, {
+        headers: submitKey.headers(body),
+      });
     },
     onSuccess: async (response) => {
       submitKey.done();
@@ -140,7 +185,8 @@ export function SupplierReturnsPage() {
       setOpenId(response.data.data.id);
       await queryClient.invalidateQueries({ queryKey: ["supplier-returns"] });
     },
-    onError: (error) => void message.error(getErrorMessage(error, "Không lập được phiếu trả hàng"), 8),
+    onError: (error) =>
+      void message.error(getErrorMessage(error, "Không lập được phiếu trả hàng"), 8),
   });
 
   const confirm = useMutation({
@@ -151,11 +197,13 @@ export function SupplierReturnsPage() {
       await queryClient.invalidateQueries({ queryKey: ["supplier-return"] });
       await queryClient.invalidateQueries({ queryKey: ["supplier-debts"] });
     },
-    onError: (error) => void message.error(getErrorMessage(error, "Không xác nhận được phiếu trả"), 8),
+    onError: (error) =>
+      void message.error(getErrorMessage(error, "Không xác nhận được phiếu trả"), 8),
   });
 
   const cancel = useMutation({
-    mutationFn: async (values: { reason: string }) => http.post(`/supplier-returns/${cancelling!.id}/cancel`, { reason: values.reason }),
+    mutationFn: async (values: { reason: string }) =>
+      http.post(`/supplier-returns/${cancelling!.id}/cancel`, { reason: values.reason }),
     onSuccess: async () => {
       void message.success("Đã hủy phiếu trả hàng");
       setCancelling(null);
@@ -210,7 +258,14 @@ export function SupplierReturnsPage() {
         }
       />
 
-      {list.isError ? <Alert type="error" showIcon title="Không đọc được danh sách phiếu trả" description={getErrorMessage(list.error)} /> : null}
+      {list.isError ? (
+        <Alert
+          type="error"
+          showIcon
+          title="Không đọc được danh sách phiếu trả"
+          description={getErrorMessage(list.error)}
+        />
+      ) : null}
 
       <Card>
         <div className="count-toolbar">
@@ -244,12 +299,17 @@ export function SupplierReturnsPage() {
                   <div className="cell-main">
                     <span className="cell-title">{code}</span>
                     <span className="cell-sub">
-                      {formatDateTime(row.returnedAt)} · {row.createdByName} · {formatNumber(row.lineCount)} dòng
+                      {formatDateTime(row.returnedAt)} · {row.createdByName} ·{" "}
+                      {formatNumber(row.lineCount)} dòng
                     </span>
                   </div>
                 ),
               },
-              { title: "Nhà cung cấp", dataIndex: "supplier", render: (supplier: ReturnListItem["supplier"]) => supplier.name },
+              {
+                title: "Nhà cung cấp",
+                dataIndex: "supplier",
+                render: (supplier: ReturnListItem["supplier"]) => supplier.name,
+              },
               {
                 title: "Lý do",
                 dataIndex: "reason",
@@ -260,8 +320,19 @@ export function SupplierReturnsPage() {
                   </div>
                 ),
               },
-              { title: "Giá trị", dataIndex: "totalValue", width: 130, align: "right", render: (value: number) => <b>{formatVnd(value)}</b> },
-              { title: "Trạng thái", dataIndex: "status", width: 120, render: (status: Status) => statusTag(status) },
+              {
+                title: "Giá trị",
+                dataIndex: "totalValue",
+                width: 130,
+                align: "right",
+                render: (value: number) => <b>{formatVnd(value)}</b>,
+              },
+              {
+                title: "Trạng thái",
+                dataIndex: "status",
+                width: 120,
+                render: (status: Status) => statusTag(status),
+              },
             ]}
             locale={{ emptyText: <Empty description="Chưa có phiếu trả hàng nào" /> }}
           />
@@ -280,7 +351,12 @@ export function SupplierReturnsPage() {
         onOk={() => form.submit()}
         destroyOnHidden
       >
-        <Form form={form} layout="vertical" initialValues={{ settlement: "DEDUCT_DEBT" }} onFinish={(values) => create.mutate(values)}>
+        <Form
+          form={form}
+          layout="vertical"
+          initialValues={{ settlement: "DEDUCT_DEBT" }}
+          onFinish={(values) => create.mutate(values)}
+        >
           <div className="count-toolbar">
             <Select
               showSearch
@@ -307,7 +383,13 @@ export function SupplierReturnsPage() {
           </div>
 
           {!supplierId ? (
-            <Alert type="info" showIcon className="count-banner" title="Chọn nhà cung cấp trước" description="Danh sách chỉ hiện những lô đã nhập từ nhà cung cấp đó, để trả đúng nơi đã mua." />
+            <Alert
+              type="info"
+              showIcon
+              className="count-banner"
+              title="Chọn nhà cung cấp trước"
+              description="Danh sách chỉ hiện những lô đã nhập từ nhà cung cấp đó, để trả đúng nơi đã mua."
+            />
           ) : (
             <Table
               rowKey="batchId"
@@ -315,7 +397,9 @@ export function SupplierReturnsPage() {
               className="count-banner"
               loading={returnable.isFetching}
               dataSource={returnable.data ?? []}
-              pagination={(returnable.data?.length ?? 0) > 8 ? { pageSize: 8, size: "small" } : false}
+              pagination={
+                (returnable.data?.length ?? 0) > 8 ? { pageSize: 8, size: "small" } : false
+              }
               scroll={{ x: 640 }}
               columns={[
                 {
@@ -339,7 +423,11 @@ export function SupplierReturnsPage() {
                   render: (value: number, row: Returnable) => (
                     <div className="cell-main" style={{ alignItems: "flex-end" }}>
                       <span className="cell-title">{formatNumber(value)}</span>
-                      <span className="cell-sub">{row.unitCost === null ? "Chưa có giá vốn" : `${formatVnd(row.unitCost)}/đv`}</span>
+                      <span className="cell-sub">
+                        {row.unitCost === null
+                          ? "Chưa có giá vốn"
+                          : `${formatVnd(row.unitCost)}/đv`}
+                      </span>
                     </div>
                   ),
                 },
@@ -350,7 +438,8 @@ export function SupplierReturnsPage() {
                   render: (batchId: string, row: Returnable) => {
                     const current = picked[batchId];
                     const unitId = current?.unitId ?? defaultUnit(row).id;
-                    const conversion = row.units.find((unit) => unit.id === unitId)?.conversionToBase ?? 1;
+                    const conversion =
+                      row.units.find((unit) => unit.id === unitId)?.conversionToBase ?? 1;
                     const maxQuantity = Math.floor(row.quantityOnHand / conversion);
                     return (
                       <div className="count-entry">
@@ -381,7 +470,8 @@ export function SupplierReturnsPage() {
                           }))}
                           onChange={(value) =>
                             setPicked((state) => {
-                              const nextConversion = row.units.find((unit) => unit.id === value)?.conversionToBase ?? 1;
+                              const nextConversion =
+                                row.units.find((unit) => unit.id === value)?.conversionToBase ?? 1;
                               const limit = Math.floor(row.quantityOnHand / nextConversion);
                               const quantity = Math.min(state[batchId]?.quantity ?? 0, limit);
                               const next = { ...state };
@@ -397,17 +487,30 @@ export function SupplierReturnsPage() {
                   },
                 },
               ]}
-              locale={{ emptyText: <Empty description="Nhà cung cấp này không còn lô nào trong kho" /> }}
+              locale={{
+                emptyText: <Empty description="Nhà cung cấp này không còn lô nào trong kho" />,
+              }}
             />
           )}
 
-          <Form.Item name="reason" label="Lý do trả hàng" rules={[{ required: true, message: "Phải ghi lý do trả hàng" }]}>
-            <Input placeholder="Ví dụ: hàng cận hạn, nhà cung cấp đồng ý nhận lại" maxLength={500} />
+          <Form.Item
+            name="reason"
+            label="Lý do trả hàng"
+            rules={[{ required: true, message: "Phải ghi lý do trả hàng" }]}
+          >
+            <Input
+              placeholder="Ví dụ: hàng cận hạn, nhà cung cấp đồng ý nhận lại"
+              maxLength={500}
+            />
           </Form.Item>
           <Form.Item name="settlement" label="Cách tất toán" rules={[{ required: true }]}>
             <Radio.Group>
               {SETTLEMENTS.map((item) => (
-                <Radio key={item.value} value={item.value} style={{ display: "block", marginBottom: 6 }}>
+                <Radio
+                  key={item.value}
+                  value={item.value}
+                  style={{ display: "block", marginBottom: 6 }}
+                >
                   {item.label} <span className="cell-sub">— {item.hint}</span>
                 </Radio>
               ))}
@@ -435,7 +538,12 @@ export function SupplierReturnsPage() {
               ) : null}
               <Button onClick={() => setOpenId(null)}>Đóng</Button>
               {canConfirm ? (
-                <Button type="primary" icon={<CheckCircleOutlined />} loading={confirm.isPending} onClick={() => confirm.mutate(detail.data!.id)}>
+                <Button
+                  type="primary"
+                  icon={<CheckCircleOutlined />}
+                  loading={confirm.isPending}
+                  onClick={() => confirm.mutate(detail.data!.id)}
+                >
                   Xác nhận trả hàng
                 </Button>
               ) : null}
@@ -450,11 +558,18 @@ export function SupplierReturnsPage() {
           <>
             <Alert
               className="count-banner"
-              type={detail.data.status === "CONFIRMED" ? "success" : detail.data.status === "CANCELLED" ? "warning" : "info"}
+              type={
+                detail.data.status === "CONFIRMED"
+                  ? "success"
+                  : detail.data.status === "CANCELLED"
+                    ? "warning"
+                    : "info"
+              }
               showIcon
               title={
                 <span>
-                  {statusTag(detail.data.status)} {detail.data.supplier.name} · {settlementLabel(detail.data.settlement)}
+                  {statusTag(detail.data.status)} {detail.data.supplier.name} ·{" "}
+                  {settlementLabel(detail.data.settlement)}
                 </span>
               }
               description={
@@ -463,9 +578,13 @@ export function SupplierReturnsPage() {
                   {detail.data.note ? ` · ${detail.data.note}` : ""}
                   <br />
                   Lập bởi {detail.data.createdByName} lúc {formatDateTime(detail.data.returnedAt)}
-                  {detail.data.confirmedByName ? ` · xác nhận bởi ${detail.data.confirmedByName}` : ""}
+                  {detail.data.confirmedByName
+                    ? ` · xác nhận bởi ${detail.data.confirmedByName}`
+                    : ""}
                   {detail.data.cancelReason ? ` · hủy: ${detail.data.cancelReason}` : ""}
-                  {detail.data.status === "DRAFT" ? " · tồn kho chưa bị trừ, chỉ trừ khi xác nhận" : ""}
+                  {detail.data.status === "DRAFT"
+                    ? " · tồn kho chưa bị trừ, chỉ trừ khi xác nhận"
+                    : ""}
                 </span>
               }
             />
@@ -494,10 +613,23 @@ export function SupplierReturnsPage() {
                   dataIndex: "quantity",
                   width: 140,
                   align: "right",
-                  render: (value: number, row: ReturnDetail["lines"][number]) => `${formatNumber(value)} ${row.unitName}`,
+                  render: (value: number, row: ReturnDetail["lines"][number]) =>
+                    `${formatNumber(value)} ${row.unitName}`,
                 },
-                { title: "Giá vốn", dataIndex: "unitCost", width: 120, align: "right", render: (value: number) => formatVnd(value) },
-                { title: "Thành tiền", dataIndex: "lineValue", width: 130, align: "right", render: (value: number) => <b>{formatVnd(value)}</b> },
+                {
+                  title: "Giá vốn",
+                  dataIndex: "unitCost",
+                  width: 120,
+                  align: "right",
+                  render: (value: number) => formatVnd(value),
+                },
+                {
+                  title: "Thành tiền",
+                  dataIndex: "lineValue",
+                  width: 130,
+                  align: "right",
+                  render: (value: number) => <b>{formatVnd(value)}</b>,
+                },
               ]}
               summary={() => (
                 <Table.Summary.Row>
@@ -526,8 +658,14 @@ export function SupplierReturnsPage() {
         destroyOnHidden
       >
         <Form form={cancelForm} layout="vertical" onFinish={(values) => cancel.mutate(values)}>
-          <p>Phiếu còn nháp nên chưa trừ tồn kho. Hủy xong phiếu vẫn nằm trong danh sách để tra lại.</p>
-          <Form.Item name="reason" label="Lý do hủy" rules={[{ required: true, message: "Phải ghi lý do hủy phiếu" }]}>
+          <p>
+            Phiếu còn nháp nên chưa trừ tồn kho. Hủy xong phiếu vẫn nằm trong danh sách để tra lại.
+          </p>
+          <Form.Item
+            name="reason"
+            label="Lý do hủy"
+            rules={[{ required: true, message: "Phải ghi lý do hủy phiếu" }]}
+          >
             <Input.TextArea rows={2} maxLength={500} placeholder="Ví dụ: chọn nhầm lô" />
           </Form.Item>
         </Form>

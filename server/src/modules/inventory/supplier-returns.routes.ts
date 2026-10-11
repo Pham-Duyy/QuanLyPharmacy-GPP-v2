@@ -30,43 +30,80 @@ const createSchema = z.object({
 });
 
 /** GET /api/v1/supplier-returns/returnable: lô còn tồn kèm nhà cung cấp đã mang về. */
-supplierReturnsRouter.get("/supplier-returns/returnable", requirePermission("goods_receipt.read"), async (req, res) => {
-  const query = parseOrThrow(z.object({ supplierId: z.uuid().optional(), search: z.string().trim().max(100).optional() }), req.query);
-  sendData(res, await service.listReturnable(req.auth!.storeId!, query));
-});
+supplierReturnsRouter.get(
+  "/supplier-returns/returnable",
+  requirePermission("goods_receipt.read"),
+  async (req, res) => {
+    const query = parseOrThrow(
+      z.object({ supplierId: z.uuid().optional(), search: z.string().trim().max(100).optional() }),
+      req.query,
+    );
+    sendData(res, await service.listReturnable(req.auth!.storeId!, query));
+  },
+);
 
-supplierReturnsRouter.get("/supplier-returns", requirePermission("goods_receipt.read"), async (req, res) => {
-  const query = parseOrThrow(z.object({ status: z.enum(["DRAFT", "CONFIRMED", "CANCELLED"]).optional(), supplierId: z.uuid().optional() }), req.query);
-  sendData(res, await service.list(req.auth!.storeId!, query));
-});
+supplierReturnsRouter.get(
+  "/supplier-returns",
+  requirePermission("goods_receipt.read"),
+  async (req, res) => {
+    const query = parseOrThrow(
+      z.object({
+        status: z.enum(["DRAFT", "CONFIRMED", "CANCELLED"]).optional(),
+        supplierId: z.uuid().optional(),
+      }),
+      req.query,
+    );
+    sendData(res, await service.list(req.auth!.storeId!, query));
+  },
+);
 
-supplierReturnsRouter.get("/supplier-returns/:id", requirePermission("goods_receipt.read"), async (req, res) => {
-  sendData(res, await service.getDetail(req.auth!.storeId!, String(req.params.id)));
-});
+supplierReturnsRouter.get(
+  "/supplier-returns/:id",
+  requirePermission("goods_receipt.read"),
+  async (req, res) => {
+    sendData(res, await service.getDetail(req.auth!.storeId!, String(req.params.id)));
+  },
+);
 
 /** POST /api/v1/supplier-returns: lập phiếu trả hàng ở trạng thái nháp. */
 // Nháp chưa trừ tồn, nhưng hai bản nháp giống nhau dễ bị xác nhận cả hai, nên vẫn bắt Idempotency-Key.
-supplierReturnsRouter.post("/supplier-returns", requirePermission("goods_receipt.create"), idempotency, async (req, res) => {
-  const input = parseOrThrow(createSchema, req.body);
-  const id = await service.createDraft(req.auth!.storeId!, req.auth!, {
-    supplierId: input.supplierId,
-    reason: input.reason,
-    settlement: input.settlement,
-    note: input.note ?? null,
-    lines: input.lines,
-  });
-  sendData(res, await service.getDetail(req.auth!.storeId!, id), 201);
-});
+supplierReturnsRouter.post(
+  "/supplier-returns",
+  requirePermission("goods_receipt.create"),
+  idempotency,
+  async (req, res) => {
+    const input = parseOrThrow(createSchema, req.body);
+    const id = await service.createDraft(req.auth!.storeId!, req.auth!, {
+      supplierId: input.supplierId,
+      reason: input.reason,
+      settlement: input.settlement,
+      note: input.note ?? null,
+      lines: input.lines,
+    });
+    sendData(res, await service.getDetail(req.auth!.storeId!, id), 201);
+  },
+);
 
 /** POST /api/v1/supplier-returns/{id}/confirm: xác nhận, trừ tồn và ghi thẻ kho. */
-supplierReturnsRouter.post("/supplier-returns/:id/confirm", requirePermission("goods_receipt.confirm"), async (req, res) => {
-  await service.confirmReturn(req.auth!.storeId!, String(req.params.id), req.auth!);
-  sendData(res, await service.getDetail(req.auth!.storeId!, String(req.params.id)));
-});
+supplierReturnsRouter.post(
+  "/supplier-returns/:id/confirm",
+  requirePermission("goods_receipt.confirm"),
+  async (req, res) => {
+    await service.confirmReturn(req.auth!.storeId!, String(req.params.id), req.auth!);
+    sendData(res, await service.getDetail(req.auth!.storeId!, String(req.params.id)));
+  },
+);
 
 /** POST /api/v1/supplier-returns/{id}/cancel: hủy phiếu còn nháp, bắt buộc có lý do. */
-supplierReturnsRouter.post("/supplier-returns/:id/cancel", requirePermission("goods_receipt.create"), async (req, res) => {
-  const input = parseOrThrow(z.object({ reason: z.string().trim().min(1, "Phải ghi lý do hủy phiếu").max(500) }), req.body);
-  await service.cancelReturn(req.auth!.storeId!, String(req.params.id), req.auth!, input.reason);
-  sendData(res, await service.getDetail(req.auth!.storeId!, String(req.params.id)));
-});
+supplierReturnsRouter.post(
+  "/supplier-returns/:id/cancel",
+  requirePermission("goods_receipt.create"),
+  async (req, res) => {
+    const input = parseOrThrow(
+      z.object({ reason: z.string().trim().min(1, "Phải ghi lý do hủy phiếu").max(500) }),
+      req.body,
+    );
+    await service.cancelReturn(req.auth!.storeId!, String(req.params.id), req.auth!, input.reason);
+    sendData(res, await service.getDetail(req.auth!.storeId!, String(req.params.id)));
+  },
+);

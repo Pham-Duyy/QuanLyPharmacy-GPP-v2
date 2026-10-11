@@ -21,7 +21,20 @@ import {
   WarningFilled,
 } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { App, AutoComplete, Button, Checkbox, Dropdown, Input, InputNumber, Modal, Select, Space, Tag, Typography } from "antd";
+import {
+  App,
+  AutoComplete,
+  Button,
+  Checkbox,
+  Dropdown,
+  Input,
+  InputNumber,
+  Modal,
+  Select,
+  Space,
+  Tag,
+  Typography,
+} from "antd";
 import type { InputRef } from "antd";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
@@ -44,7 +57,11 @@ import { formatDateTime, formatNumber } from "../../ui/format.js";
 import { PageHeader } from "../../ui/PageHeader.js";
 import { useDebounced } from "../../ui/useDebounced.js";
 import { useAuth } from "../auth/auth-context.js";
-import { maxRedeemablePoints, useCustomerLoyalty, useLoyaltySettings } from "../loyalty/loyalty-api.js";
+import {
+  maxRedeemablePoints,
+  useCustomerLoyalty,
+  useLoyaltySettings,
+} from "../loyalty/loyalty-api.js";
 import { ERX_CODE, importEPrescription } from "../prescriptions/eprescription-api.js";
 import { ProductThumb } from "../catalog/products/ProductThumb.js";
 import { printDocument, printInvoice, printUrl } from "../printing/printing.js";
@@ -93,8 +110,14 @@ const PAYMENT_METHODS = [
 /** Mệnh giá gợi ý cho "Khách đưa": đúng số tiền, rồi làm tròn lên các mệnh giá hay gặp. */
 function quickTenders(total: number): number[] {
   if (total <= 0) return [];
-  const candidates = [total, ...[10_000, 50_000, 100_000, 200_000, 500_000].map((step) => Math.ceil(total / step) * step)];
-  return [...new Set(candidates)].filter((value) => value >= total).sort((a, b) => a - b).slice(0, 3);
+  const candidates = [
+    total,
+    ...[10_000, 50_000, 100_000, 200_000, 500_000].map((step) => Math.ceil(total / step) * step),
+  ];
+  return [...new Set(candidates)]
+    .filter((value) => value >= total)
+    .sort((a, b) => a - b)
+    .slice(0, 3);
 }
 
 /**
@@ -141,12 +164,20 @@ export function SalePage() {
   const customerSearchResults = useQuery({
     queryKey: ["customer-search", customerTerm],
     enabled: customerTerm.length >= 3,
-    queryFn: async () => (await http.get<Envelope<CustomerSearchItem[]>>("/customers", { params: { search: customerTerm } })).data.data,
+    queryFn: async () =>
+      (
+        await http.get<Envelope<CustomerSearchItem[]>>("/customers", {
+          params: { search: customerTerm },
+        })
+      ).data.data,
   });
 
   const loyaltyQuery = useLoyaltySettings();
   const loyaltyProgram = loyaltyQuery.data?.settings;
-  const customerLoyalty = useCustomerLoyalty(customer?.id ?? null, Boolean(loyaltyProgram?.enabled));
+  const customerLoyalty = useCustomerLoyalty(
+    customer?.id ?? null,
+    Boolean(loyaltyProgram?.enabled),
+  );
 
   const createCustomer = useMutation({
     mutationFn: async () =>
@@ -166,7 +197,15 @@ export function SalePage() {
     onError: (error) => void message.error(getErrorMessage(error, "Không thể tạo khách hàng")),
   });
 
-  const cartLines = useMemo(() => cart.map((line) => ({ productId: line.product.id, unitId: line.unitId, quantity: line.quantity })), [cart]);
+  const cartLines = useMemo(
+    () =>
+      cart.map((line) => ({
+        productId: line.product.id,
+        unitId: line.unitId,
+        quantity: line.quantity,
+      })),
+    [cart],
+  );
 
   // Tải một lần rồi lọc theo mã hoặc tên khách ngay trên trình duyệt. Endpoint
   // chỉ lọc được một trạng thái mỗi lần gọi, nên lấy hết rồi tự lọc còn dùng
@@ -174,7 +213,10 @@ export function SalePage() {
   const verifiedPrescriptions = useQuery({
     queryKey: ["usable-prescriptions"],
     enabled: can("prescription.read"),
-    queryFn: async () => (await http.get<Envelope<PrescriptionListItem[]>>("/prescriptions")).data.data.filter((item) => item.status === "VERIFIED" || item.status === "PARTIALLY_DISPENSED"),
+    queryFn: async () =>
+      (await http.get<Envelope<PrescriptionListItem[]>>("/prescriptions")).data.data.filter(
+        (item) => item.status === "VERIFIED" || item.status === "PARTIALLY_DISPENSED",
+      ),
   });
 
   // Thuốc kiểm soát đặc biệt: phải ghi người mua vào sổ theo dõi trước khi bán.
@@ -210,13 +252,18 @@ export function SalePage() {
   const loyaltyEligibleSubtotal = loyaltyProgram
     ? cart.reduce(
         (sum, line) =>
-          loyaltyProgram.earnOnDrugs || line.product.productType !== "DRUG" ? sum + lineTotal(line) : sum,
+          loyaltyProgram.earnOnDrugs || line.product.productType !== "DRUG"
+            ? sum + lineTotal(line)
+            : sum,
         0,
       )
     : 0;
   const maxRedeem =
-    loyaltyProgram && customer ? maxRedeemablePoints(loyaltyProgram, loyaltyEligibleSubtotal, pointsAvailable) : 0;
-  const canRedeem = Boolean(loyaltyProgram?.enabled) && maxRedeem >= (loyaltyProgram?.minRedeemPoints ?? 0);
+    loyaltyProgram && customer
+      ? maxRedeemablePoints(loyaltyProgram, loyaltyEligibleSubtotal, pointsAvailable)
+      : 0;
+  const canRedeem =
+    Boolean(loyaltyProgram?.enabled) && maxRedeem >= (loyaltyProgram?.minRedeemPoints ?? 0);
   const appliedRedeem =
     canRedeem && loyaltyProgram && redeemPoints >= loyaltyProgram.minRedeemPoints
       ? Math.min(redeemPoints, maxRedeem)
@@ -234,9 +281,16 @@ export function SalePage() {
       prescriptionItemId: line.prescriptionItemId,
       usageInstruction: usageOf(line) || null,
     })),
-    discount: discountValue > 0 ? { type: discountType, value: discountValue, reason: discountReason || "Giảm giá" } : null,
+    discount:
+      discountValue > 0
+        ? { type: discountType, value: discountValue, reason: discountReason || "Giảm giá" }
+        : null,
     loyaltyRedeemPoints: appliedRedeem,
-    acknowledgedWarnings: liveAcked.map((code) => ({ code, productIds: [], reason: ackReason || null })),
+    acknowledgedWarnings: liveAcked.map((code) => ({
+      code,
+      productIds: [],
+      reason: ackReason || null,
+    })),
     payment: { method: paymentMethod, amountTendered: paymentMethod === "CASH" ? tendered : null },
   };
 
@@ -265,7 +319,9 @@ export function SalePage() {
 
   const checkout = useMutation({
     mutationFn: async () => {
-      const response = await http.post<Envelope<Invoice>>("/invoices", body, { headers: submitKey.headers(body) });
+      const response = await http.post<Envelope<Invoice>>("/invoices", body, {
+        headers: submitKey.headers(body),
+      });
       return response.data.data;
     },
     onSuccess: (invoice) => {
@@ -288,7 +344,8 @@ export function SalePage() {
       if (committed?.resourceType === "invoice") {
         void (async () => {
           try {
-            const invoice = (await http.get<Envelope<Invoice>>(`/invoices/${committed.resourceId}`)).data.data;
+            const invoice = (await http.get<Envelope<Invoice>>(`/invoices/${committed.resourceId}`))
+              .data.data;
             submitKey.done();
             void message.warning("Đơn này đã được lập từ lần bấm trước, mở lại hóa đơn đã lưu", 8);
             setDone(invoice);
@@ -310,7 +367,8 @@ export function SalePage() {
   /** Gắn một đơn đã xác nhận vào đơn bán. */
   async function attachPrescription(id: string) {
     try {
-      const detail = (await http.get<Envelope<PrescriptionDetail>>(`/prescriptions/${id}`)).data.data;
+      const detail = (await http.get<Envelope<PrescriptionDetail>>(`/prescriptions/${id}`)).data
+        .data;
       setPrescription(detail);
       setPrescriptionSearch("");
       // Đơn thuốc thường đã gắn sẵn khách — tự điền nếu chưa chọn ai.
@@ -328,7 +386,9 @@ export function SalePage() {
     try {
       const result = await importEPrescription(code);
       setPrescriptionSearch("");
-      const detail = (await http.get<Envelope<PrescriptionDetail>>(`/prescriptions/${result.prescriptionId}`)).data.data;
+      const detail = (
+        await http.get<Envelope<PrescriptionDetail>>(`/prescriptions/${result.prescriptionId}`)
+      ).data.data;
       if (detail.status === "VERIFIED" || detail.status === "PARTIALLY_DISPENSED") {
         await attachPrescription(detail.id);
         return;
@@ -338,11 +398,17 @@ export function SalePage() {
         return;
       }
       if (result.unmatched > 0 || detail.items.some((item) => !item.productId)) {
-        void message.warning(`Đã lấy đơn về (${detail.code}). Còn thuốc chưa khớp sản phẩm — chọn ở màn Đơn thuốc rồi quay lại.`, 8);
+        void message.warning(
+          `Đã lấy đơn về (${detail.code}). Còn thuốc chưa khớp sản phẩm — chọn ở màn Đơn thuốc rồi quay lại.`,
+          8,
+        );
         return;
       }
       if (!can("prescription.verify")) {
-        void message.info(`Đã lấy đơn về (${detail.code}). Cần dược sĩ xác nhận đơn trước khi bán.`, 8);
+        void message.info(
+          `Đã lấy đơn về (${detail.code}). Cần dược sĩ xác nhận đơn trước khi bán.`,
+          8,
+        );
         return;
       }
       modal.confirm({
@@ -351,7 +417,11 @@ export function SalePage() {
         okText: "Xác nhận và bán",
         cancelText: "Để sau",
         onOk: async () => {
-          await http.post(`/prescriptions/${detail.id}/verify`, {}, { headers: { "Idempotency-Key": crypto.randomUUID() } });
+          await http.post(
+            `/prescriptions/${detail.id}/verify`,
+            {},
+            { headers: { "Idempotency-Key": crypto.randomUUID() } },
+          );
           await attachPrescription(detail.id);
           void queryClient.invalidateQueries({ queryKey: ["usable-prescriptions"] });
         },
@@ -362,19 +432,27 @@ export function SalePage() {
   }
 
   function matchingPrescriptionItems(productId: string, source = prescription) {
-    return (source?.items ?? []).filter((item) => item.productId === productId && (item.baseQuantity ?? 0) > item.dispensedBaseQuantity);
+    return (source?.items ?? []).filter(
+      (item) =>
+        item.productId === productId && (item.baseQuantity ?? 0) > item.dispensedBaseQuantity,
+    );
   }
 
   /**
    * Thêm sản phẩm vào đơn. `unitId` là đơn vị người bán chọn ở danh sách;
    * `scannedCode` là mã vạch vừa quét (quét mã hộp thì thêm một hộp).
    */
-  async function addProduct(productId: string, options: { unitId?: string; scannedCode?: string } = {}) {
+  async function addProduct(
+    productId: string,
+    options: { unitId?: string; scannedCode?: string } = {},
+  ) {
     try {
       const product = (await http.get<Envelope<ProductDetail>>(`/products/${productId}`)).data.data;
       const unit =
         (options.unitId ? product.units.find((item) => item.id === options.unitId) : undefined) ??
-        (options.scannedCode ? product.units.find((item) => item.barcodes?.includes(options.scannedCode!)) : undefined) ??
+        (options.scannedCode
+          ? product.units.find((item) => item.barcodes?.includes(options.scannedCode!))
+          : undefined) ??
         product.units.find((item) => item.isDefaultSaleUnit) ??
         product.units.find((item) => item.conversionToBase === 1) ??
         product.units[0];
@@ -384,13 +462,29 @@ export function SalePage() {
       }
 
       // Thuốc kê đơn thì thử khớp sẵn vào đơn đang chọn nếu chỉ có đúng một dòng phù hợp.
-      const candidates = needsPrescription(product.drugClass) ? matchingPrescriptionItems(product.id) : [];
+      const candidates = needsPrescription(product.drugClass)
+        ? matchingPrescriptionItems(product.id)
+        : [];
       const prescriptionItemId = candidates.length === 1 ? candidates[0]!.id : null;
 
       setCart((current) => {
-        const found = current.find((line) => line.product.id === product.id && line.unitId === unit.id);
-        if (found) return current.map((line) => (line.key === found.key ? { ...line, quantity: line.quantity + 1 } : line));
-        return [...current, { key: `${product.id}:${unit.id}:${Date.now()}`, product, unitId: unit.id, quantity: 1, prescriptionItemId }];
+        const found = current.find(
+          (line) => line.product.id === product.id && line.unitId === unit.id,
+        );
+        if (found)
+          return current.map((line) =>
+            line.key === found.key ? { ...line, quantity: line.quantity + 1 } : line,
+          );
+        return [
+          ...current,
+          {
+            key: `${product.id}:${unit.id}:${Date.now()}`,
+            product,
+            unitId: unit.id,
+            quantity: 1,
+            prescriptionItemId,
+          },
+        ];
       });
       setTerm("");
       searchRef.current?.focus();
@@ -407,7 +501,11 @@ export function SalePage() {
     const value = term.trim();
     if (!value) return;
     try {
-      const items = (await http.get<Envelope<Paged<ProductListItem>>>("/products", { params: { search: value, page: 1, limit: 2 } })).data.data.items;
+      const items = (
+        await http.get<Envelope<Paged<ProductListItem>>>("/products", {
+          params: { search: value, page: 1, limit: 2 },
+        })
+      ).data.data.items;
       if (items.length === 1) await addProduct(items[0]!.id, { scannedCode: value });
       else if (items.length === 0) void message.warning(`Không tìm thấy sản phẩm khớp “${value}”`);
       else void message.info("Có nhiều sản phẩm khớp — chọn dòng cần bán rồi Enter");
@@ -436,17 +534,30 @@ export function SalePage() {
   }
 
   const subtotal = cart.reduce((sum, line) => sum + lineTotal(line), 0);
-  const estimatedDiscount = discountValue <= 0 ? 0 : discountType === "PERCENT" ? Math.floor((subtotal * discountValue) / 100) : Math.min(discountValue, subtotal);
+  const estimatedDiscount =
+    discountValue <= 0
+      ? 0
+      : discountType === "PERCENT"
+        ? Math.floor((subtotal * discountValue) / 100)
+        : Math.min(discountValue, subtotal);
   const estimatedTotal = subtotal - estimatedDiscount - loyaltyDiscount;
   const cash = paymentMethod === "CASH";
-  const shortfall = cash && tendered !== null && cart.length > 0 && tendered < estimatedTotal ? estimatedTotal - tendered : null;
-  const estimatedChange = cash && tendered !== null && tendered >= estimatedTotal && cart.length > 0 ? tendered - estimatedTotal : null;
+  const shortfall =
+    cash && tendered !== null && cart.length > 0 && tendered < estimatedTotal
+      ? estimatedTotal - tendered
+      : null;
+  const estimatedChange =
+    cash && tendered !== null && tendered >= estimatedTotal && cart.length > 0
+      ? tendered - estimatedTotal
+      : null;
 
   const needAck = warnings.filter((warning) => warning.requiresAck);
   const missingAck = needAck.filter((warning) => !liveAcked.includes(warning.code));
-  const canSell = cart.length > 0 && blocking.length === 0 && missingAck.length === 0 && !safety.isFetching;
+  const canSell =
+    cart.length > 0 && blocking.length === 0 && missingAck.length === 0 && !safety.isFetching;
 
-  const nameOf = (productId: string) => cart.find((line) => line.product.id === productId)?.product.name ?? productId;
+  const nameOf = (productId: string) =>
+    cart.find((line) => line.product.id === productId)?.product.name ?? productId;
 
   // Mở từ màn Khách hàng ("Tạo đơn bán cho khách"): chọn sẵn khách rồi bỏ tham số khỏi URL.
   useEffect(() => {
@@ -457,7 +568,8 @@ export function SalePage() {
       .then((response) => {
         if (cancelled) return;
         const found = response.data.data;
-        if (!found.isAnonymized) setCustomer({ id: found.id, fullName: found.fullName, phone: found.phone });
+        if (!found.isAnonymized)
+          setCustomer({ id: found.id, fullName: found.fullName, phone: found.phone });
       })
       .catch((error: unknown) => {
         if (!cancelled) void message.error(getErrorMessage(error, "Không mở được khách hàng"));
@@ -504,7 +616,8 @@ export function SalePage() {
     if (cart.length === 0 && !customer && !prescription) return;
     modal.confirm({
       title: "Xóa đơn đang bán?",
-      content: "Toàn bộ thuốc, khách hàng và đơn thuốc đã chọn sẽ bị bỏ. Chưa có gì được ghi vào hệ thống.",
+      content:
+        "Toàn bộ thuốc, khách hàng và đơn thuốc đã chọn sẽ bị bỏ. Chưa có gì được ghi vào hệ thống.",
       okText: "Xóa đơn",
       okButtonProps: { danger: true },
       cancelText: "Giữ lại",
@@ -522,13 +635,22 @@ export function SalePage() {
       savedAt: new Date().toISOString(),
       customer,
       prescriptionId: prescription?.id ?? null,
-      lines: cart.map((line) => ({ productId: line.product.id, productName: line.product.name, unitId: line.unitId, quantity: line.quantity })),
+      lines: cart.map((line) => ({
+        productId: line.product.id,
+        productName: line.product.name,
+        unitId: line.unitId,
+        quantity: line.quantity,
+      })),
       discount: { type: discountType, value: discountValue, reason: discountReason },
     };
     try {
       setDraftCache({ storeId, list: writeDrafts(storeId, [draft, ...drafts]) });
       resetSale();
-      void message.success(drafts.length >= MAX_SALE_DRAFTS ? `Đã lưu nháp; chỉ giữ ${MAX_SALE_DRAFTS} đơn nháp gần nhất` : "Đã lưu nháp — mở lại ở mục Đơn nháp");
+      void message.success(
+        drafts.length >= MAX_SALE_DRAFTS
+          ? `Đã lưu nháp; chỉ giữ ${MAX_SALE_DRAFTS} đơn nháp gần nhất`
+          : "Đã lưu nháp — mở lại ở mục Đơn nháp",
+      );
       searchRef.current?.focus();
     } catch {
       void message.error("Trình duyệt không cho lưu nháp trên máy này");
@@ -538,7 +660,13 @@ export function SalePage() {
   function removeDraft(id: string) {
     if (!storeId) return;
     try {
-      setDraftCache({ storeId, list: writeDrafts(storeId, drafts.filter((item) => item.id !== id)) });
+      setDraftCache({
+        storeId,
+        list: writeDrafts(
+          storeId,
+          drafts.filter((item) => item.id !== id),
+        ),
+      });
     } catch {
       // Không xóa được thì danh sách giữ nguyên.
     }
@@ -548,29 +676,55 @@ export function SalePage() {
   async function openDraft(draft: SaleDraft) {
     setRestoringDraft(true);
     try {
-      const products = await Promise.all(draft.lines.map((line) => http.get<Envelope<ProductDetail>>(`/products/${line.productId}`).then((response) => response.data.data)));
-      const restoredPrescription = draft.prescriptionId ? (await http.get<Envelope<PrescriptionDetail>>(`/prescriptions/${draft.prescriptionId}`)).data.data : null;
+      const products = await Promise.all(
+        draft.lines.map((line) =>
+          http
+            .get<Envelope<ProductDetail>>(`/products/${line.productId}`)
+            .then((response) => response.data.data),
+        ),
+      );
+      const restoredPrescription = draft.prescriptionId
+        ? (await http.get<Envelope<PrescriptionDetail>>(`/prescriptions/${draft.prescriptionId}`))
+            .data.data
+        : null;
       const lines: CartLine[] = [];
       const skipped: string[] = [];
       draft.lines.forEach((line, index) => {
         const product = products[index]!;
-        const unit = product.units.find((item) => item.id === line.unitId && item.isActive !== false);
+        const unit = product.units.find(
+          (item) => item.id === line.unitId && item.isActive !== false,
+        );
         if (!unit || !product.isActive) {
           skipped.push(line.productName);
           return;
         }
-        const candidates = needsPrescription(product.drugClass) ? matchingPrescriptionItems(product.id, restoredPrescription) : [];
-        lines.push({ key: `${product.id}:${unit.id}:${Date.now()}:${index}`, product, unitId: unit.id, quantity: line.quantity, prescriptionItemId: candidates.length === 1 ? candidates[0]!.id : null });
+        const candidates = needsPrescription(product.drugClass)
+          ? matchingPrescriptionItems(product.id, restoredPrescription)
+          : [];
+        lines.push({
+          key: `${product.id}:${unit.id}:${Date.now()}:${index}`,
+          product,
+          unitId: unit.id,
+          quantity: line.quantity,
+          prescriptionItemId: candidates.length === 1 ? candidates[0]!.id : null,
+        });
       });
       resetSale();
       setCart(lines);
       setCustomer(draft.customer);
-      setPrescription(restoredPrescription && (restoredPrescription.status === "VERIFIED" || restoredPrescription.status === "PARTIALLY_DISPENSED") ? restoredPrescription : null);
+      setPrescription(
+        restoredPrescription &&
+          (restoredPrescription.status === "VERIFIED" ||
+            restoredPrescription.status === "PARTIALLY_DISPENSED")
+          ? restoredPrescription
+          : null,
+      );
       setDiscountType(draft.discount.type);
       setDiscountValue(draft.discount.value);
       setDiscountReason(draft.discount.reason);
       removeDraft(draft.id);
-      if (skipped.length > 0) void message.warning(`Bỏ qua sản phẩm không còn bán: ${skipped.join(", ")}`);
+      if (skipped.length > 0)
+        void message.warning(`Bỏ qua sản phẩm không còn bán: ${skipped.join(", ")}`);
       else void message.success("Đã mở lại đơn nháp");
     } catch (error) {
       void message.error(getErrorMessage(error, "Không mở lại được đơn nháp"));
@@ -593,27 +747,28 @@ export function SalePage() {
     });
   }
 
-  const safetyStatus = cart.length === 0 ? null : safety.isFetching ? (
-    <span className="pos-status">
-      <LoadingOutlined /> Đang kiểm tra an toàn
-    </span>
-  ) : safety.isError ? (
-    <span className="pos-status is-danger">
-      <WarningFilled /> Chưa kiểm tra được
-    </span>
-  ) : blocking.length > 0 ? (
-    <span className="pos-status is-danger">
-      <WarningFilled /> Có vấn đề chặn bán
-    </span>
-  ) : missingAck.length > 0 ? (
-    <span className="pos-status is-warning">
-      <ClockCircleOutlined /> Cần ghi nhận {missingAck.length} cảnh báo
-    </span>
-  ) : (
-    <span className="pos-status is-ok">
-      <SafetyCertificateOutlined /> Đã kiểm tra an toàn
-    </span>
-  );
+  const safetyStatus =
+    cart.length === 0 ? null : safety.isFetching ? (
+      <span className="pos-status">
+        <LoadingOutlined /> Đang kiểm tra an toàn
+      </span>
+    ) : safety.isError ? (
+      <span className="pos-status is-danger">
+        <WarningFilled /> Chưa kiểm tra được
+      </span>
+    ) : blocking.length > 0 ? (
+      <span className="pos-status is-danger">
+        <WarningFilled /> Có vấn đề chặn bán
+      </span>
+    ) : missingAck.length > 0 ? (
+      <span className="pos-status is-warning">
+        <ClockCircleOutlined /> Cần ghi nhận {missingAck.length} cảnh báo
+      </span>
+    ) : (
+      <span className="pos-status is-ok">
+        <SafetyCertificateOutlined /> Đã kiểm tra an toàn
+      </span>
+    );
 
   const discountLimitedByRole = !can("sale.discount");
 
@@ -635,7 +790,13 @@ export function SalePage() {
       />
 
       <div className="pos-layout">
-        <PosCatalog term={term} onTermChange={setTerm} searchRef={searchRef} onScanEnter={() => void handleScanEnter()} onAdd={(productId, unitId) => void addProduct(productId, { unitId })} />
+        <PosCatalog
+          term={term}
+          onTermChange={setTerm}
+          searchRef={searchRef}
+          onScanEnter={() => void handleScanEnter()}
+          onAdd={(productId, unitId) => void addProduct(productId, { unitId })}
+        />
 
         <section className="pos-panel pos-checkout-panel" aria-label="Đơn bán hiện tại">
           <div className="pos-checkout-head">
@@ -684,7 +845,13 @@ export function SalePage() {
                   </Button>
                 </Dropdown>
               ) : null}
-              <Button type="text" danger icon={<DeleteOutlined />} disabled={cart.length === 0 && !customer && !prescription} onClick={confirmClear}>
+              <Button
+                type="text"
+                danger
+                icon={<DeleteOutlined />}
+                disabled={cart.length === 0 && !customer && !prescription}
+                onClick={confirmClear}
+              >
                 Xóa đơn
               </Button>
             </span>
@@ -713,15 +880,27 @@ export function SalePage() {
                   className="pos-field-input"
                   value={customerSearch}
                   onChange={setCustomerSearch}
-                  options={(customerSearchResults.data ?? []).map((item) => ({ value: item.id, label: `${item.fullName ?? "Chưa rõ tên"}${item.phone ? ` · ${item.phone}` : ""}` }))}
+                  options={(customerSearchResults.data ?? []).map((item) => ({
+                    value: item.id,
+                    label: `${item.fullName ?? "Chưa rõ tên"}${item.phone ? ` · ${item.phone}` : ""}`,
+                  }))}
                   onSelect={(id) => {
                     const found = customerSearchResults.data?.find((item) => item.id === id);
                     if (found) setCustomer(found);
                     setCustomerSearch("");
                   }}
-                  notFoundContent={customerTerm.length >= 3 && !customerSearchResults.isFetching ? "Không tìm thấy khách" : null}
+                  notFoundContent={
+                    customerTerm.length >= 3 && !customerSearchResults.isFetching
+                      ? "Không tìm thấy khách"
+                      : null
+                  }
                 >
-                  <Input prefix={<UserOutlined />} placeholder="Khách lẻ · tìm tên hoặc SĐT (≥ 3 ký tự)" allowClear aria-label="Tìm khách hàng" />
+                  <Input
+                    prefix={<UserOutlined />}
+                    placeholder="Khách lẻ · tìm tên hoặc SĐT (≥ 3 ký tự)"
+                    allowClear
+                    aria-label="Tìm khách hàng"
+                  />
                 </AutoComplete>
               )}
               {can("customer.manage") ? (
@@ -738,20 +917,36 @@ export function SalePage() {
                   Đơn thuốc: <strong>{prescription.code}</strong>
                 </span>
                 <span className="muted">{prescription.customer?.fullName ?? "Khách lẻ"}</span>
-                <Button type="text" size="small" icon={<CloseOutlined />} aria-label="Bỏ đơn thuốc" onClick={clearPrescription} />
+                <Button
+                  type="text"
+                  size="small"
+                  icon={<CloseOutlined />}
+                  aria-label="Bỏ đơn thuốc"
+                  onClick={clearPrescription}
+                />
               </div>
             ) : can("prescription.read") ? (
               <AutoComplete
                 className="pos-field-input"
                 value={prescriptionSearch}
                 onChange={setPrescriptionSearch}
-                filterOption={(input, option) => typeof option?.label === "string" && option.label.toLowerCase().includes(input.toLowerCase())}
+                filterOption={(input, option) =>
+                  typeof option?.label === "string" &&
+                  option.label.toLowerCase().includes(input.toLowerCase())
+                }
                 options={[
                   // Gõ hoặc quét đúng mã đơn điện tử: lấy đơn từ hệ thống quốc gia ngay tại quầy.
-                  ...(ERX_CODE.test(prescriptionSearch.trim()) ? [{ value: ERX_OPTION, label: `Lấy đơn điện tử ${prescriptionSearch.trim()}` }] : []),
-                  ...(verifiedPrescriptions.data ?? []).map((item) => ({ value: item.id, label: `${item.code} — ${item.customer?.fullName ?? item.patientName ?? "Khách lẻ"}` })),
+                  ...(ERX_CODE.test(prescriptionSearch.trim())
+                    ? [{ value: ERX_OPTION, label: `Lấy đơn điện tử ${prescriptionSearch.trim()}` }]
+                    : []),
+                  ...(verifiedPrescriptions.data ?? []).map((item) => ({
+                    value: item.id,
+                    label: `${item.code} — ${item.customer?.fullName ?? item.patientName ?? "Khách lẻ"}`,
+                  })),
                 ]}
-                notFoundContent={verifiedPrescriptions.data?.length === 0 ? "Chưa có đơn thuốc đã xác nhận" : null}
+                notFoundContent={
+                  verifiedPrescriptions.data?.length === 0 ? "Chưa có đơn thuốc đã xác nhận" : null
+                }
                 onSelect={async (id) => {
                   if (id === ERX_OPTION) {
                     await loadEPrescription(prescriptionSearch.trim());
@@ -760,7 +955,12 @@ export function SalePage() {
                   await attachPrescription(id);
                 }}
               >
-                <Input prefix={<FileProtectOutlined />} placeholder="Đơn thuốc: chọn đơn đã xác nhận, hoặc quét mã đơn điện tử" allowClear aria-label="Chọn đơn thuốc" />
+                <Input
+                  prefix={<FileProtectOutlined />}
+                  placeholder="Đơn thuốc: chọn đơn đã xác nhận, hoặc quét mã đơn điện tử"
+                  allowClear
+                  aria-label="Chọn đơn thuốc"
+                />
               </AutoComplete>
             ) : null}
           </div>
@@ -788,7 +988,11 @@ export function SalePage() {
                   return (
                     <div className="pos-cart-line" key={line.key}>
                       <div className="pos-cart-product">
-                        <ProductThumb src={line.product.images?.[0]?.thumbUrl} alt={line.product.name} size={44} />
+                        <ProductThumb
+                          src={line.product.images?.[0]?.thumbUrl}
+                          alt={line.product.name}
+                          size={44}
+                        />
                         <div className="pos-cart-text">
                           <strong>{line.product.name}</strong>
                           <span className="pos-cart-unit">
@@ -798,15 +1002,25 @@ export function SalePage() {
                               value={line.unitId}
                               aria-label={`Đơn vị ${line.product.name}`}
                               onChange={(unitId) => updateLine(line.key, { unitId })}
-                              options={line.product.units.filter((item) => item.isSellable !== false && item.isActive !== false).map((item) => ({ value: item.id, label: item.name }))}
+                              options={line.product.units
+                                .filter(
+                                  (item) => item.isSellable !== false && item.isActive !== false,
+                                )
+                                .map((item) => ({ value: item.id, label: item.name }))}
                               popupMatchSelectWidth={false}
                             />
-                            <span className="muted">· {price === null || price === undefined ? "Chưa đặt giá" : money(price)}</span>
+                            <span className="muted">
+                              ·{" "}
+                              {price === null || price === undefined
+                                ? "Chưa đặt giá"
+                                : money(price)}
+                            </span>
                           </span>
                           {rx ? (
                             candidates.length === 0 ? (
                               <Typography.Text type="danger" className="pos-cart-rx">
-                                <WarningFilled /> {prescription ? "Không có trong đơn thuốc" : "Cần chọn đơn thuốc"}
+                                <WarningFilled />{" "}
+                                {prescription ? "Không có trong đơn thuốc" : "Cần chọn đơn thuốc"}
                               </Typography.Text>
                             ) : (
                               <Select
@@ -814,8 +1028,13 @@ export function SalePage() {
                                 className="pos-cart-rx"
                                 value={line.prescriptionItemId ?? undefined}
                                 placeholder="Chọn dòng đơn thuốc"
-                                onChange={(prescriptionItemId) => updateLine(line.key, { prescriptionItemId })}
-                                options={candidates.map((item) => ({ value: item.id, label: `${item.quantity - item.dispensedBaseQuantity} ${item.unitName ?? ""} còn lại theo đơn` }))}
+                                onChange={(prescriptionItemId) =>
+                                  updateLine(line.key, { prescriptionItemId })
+                                }
+                                options={candidates.map((item) => ({
+                                  value: item.id,
+                                  label: `${item.quantity - item.dispensedBaseQuantity} ${item.unitName ?? ""} còn lại theo đơn`,
+                                }))}
                               />
                             )
                           ) : null}
@@ -838,19 +1057,50 @@ export function SalePage() {
                               }}
                             />
                           ) : (
-                            <Button type="link" size="small" className="pos-cart-usage" onClick={() => setEditingUsage(line.key)}>
+                            <Button
+                              type="link"
+                              size="small"
+                              className="pos-cart-usage"
+                              onClick={() => setEditingUsage(line.key)}
+                            >
                               {usageOf(line) ? `Cách dùng: ${usageOf(line)}` : "+ Cách dùng"}
                             </Button>
                           )}
                         </div>
                       </div>
                       <div className="pos-qty">
-                        <Button icon={<MinusOutlined />} aria-label={`Giảm số lượng ${line.product.name}`} disabled={line.quantity <= 1} onClick={() => updateLine(line.key, { quantity: Math.max(1, line.quantity - 1) })} />
-                        <InputNumber min={1} precision={0} controls={false} value={line.quantity} onChange={(quantity) => updateLine(line.key, { quantity: quantity ?? 1 })} aria-label={`Số lượng ${line.product.name}`} />
-                        <Button icon={<PlusOutlined />} aria-label={`Tăng số lượng ${line.product.name}`} onClick={() => updateLine(line.key, { quantity: line.quantity + 1 })} />
+                        <Button
+                          icon={<MinusOutlined />}
+                          aria-label={`Giảm số lượng ${line.product.name}`}
+                          disabled={line.quantity <= 1}
+                          onClick={() =>
+                            updateLine(line.key, { quantity: Math.max(1, line.quantity - 1) })
+                          }
+                        />
+                        <InputNumber
+                          min={1}
+                          precision={0}
+                          controls={false}
+                          value={line.quantity}
+                          onChange={(quantity) => updateLine(line.key, { quantity: quantity ?? 1 })}
+                          aria-label={`Số lượng ${line.product.name}`}
+                        />
+                        <Button
+                          icon={<PlusOutlined />}
+                          aria-label={`Tăng số lượng ${line.product.name}`}
+                          onClick={() => updateLine(line.key, { quantity: line.quantity + 1 })}
+                        />
                       </div>
                       <strong className="col-num pos-cart-total">{money(lineTotal(line))}</strong>
-                      <Button type="text" danger icon={<DeleteOutlined />} aria-label={`Xóa ${line.product.name} khỏi đơn`} onClick={() => setCart((current) => current.filter((item) => item.key !== line.key))} />
+                      <Button
+                        type="text"
+                        danger
+                        icon={<DeleteOutlined />}
+                        aria-label={`Xóa ${line.product.name} khỏi đơn`}
+                        onClick={() =>
+                          setCart((current) => current.filter((item) => item.key !== line.key))
+                        }
+                      />
                     </div>
                   );
                 })}
@@ -918,7 +1168,14 @@ export function SalePage() {
                 />
               </Space.Compact>
             </div>
-            {discountValue > 0 ? <Input placeholder="Lý do giảm giá (bắt buộc)" value={discountReason} onChange={(event) => setDiscountReason(event.target.value)} aria-label="Lý do giảm giá" /> : null}
+            {discountValue > 0 ? (
+              <Input
+                placeholder="Lý do giảm giá (bắt buộc)"
+                value={discountReason}
+                onChange={(event) => setDiscountReason(event.target.value)}
+                aria-label="Lý do giảm giá"
+              />
+            ) : null}
             {estimatedDiscount > 0 ? (
               <div className="pos-summary-row muted">
                 <span>Giảm tạm tính</span>
@@ -931,7 +1188,9 @@ export function SalePage() {
                   <span>
                     <GiftOutlined /> Điểm của khách
                   </span>
-                  <strong>{customerLoyalty.isLoading ? "…" : `${formatNumber(pointsAvailable)} điểm`}</strong>
+                  <strong>
+                    {customerLoyalty.isLoading ? "…" : `${formatNumber(pointsAvailable)} điểm`}
+                  </strong>
                 </div>
                 {canRedeem ? (
                   <>
@@ -990,7 +1249,9 @@ export function SalePage() {
                 type="button"
                 role="radio"
                 aria-checked={paymentMethod === method.value}
-                className={paymentMethod === method.value ? "pos-pay-method is-active" : "pos-pay-method"}
+                className={
+                  paymentMethod === method.value ? "pos-pay-method is-active" : "pos-pay-method"
+                }
                 onClick={() => setPaymentMethod(method.value)}
               >
                 {method.icon} {method.label}
@@ -1018,7 +1279,12 @@ export function SalePage() {
               {quickTenders(estimatedTotal).length > 0 ? (
                 <div className="pos-quick-tender">
                   {quickTenders(estimatedTotal).map((value) => (
-                    <button key={value} type="button" className={tendered === value ? "is-active" : undefined} onClick={() => setTendered(value)}>
+                    <button
+                      key={value}
+                      type="button"
+                      className={tendered === value ? "is-active" : undefined}
+                      onClick={() => setTendered(value)}
+                    >
                       {money(value)}
                     </button>
                   ))}
@@ -1039,11 +1305,17 @@ export function SalePage() {
           ) : null}
 
           <div className="pos-status-row">
-            <Checkbox checked={printAfterPayment} onChange={(event) => setPrintAfterPayment(event.target.checked)}>
+            <Checkbox
+              checked={printAfterPayment}
+              onChange={(event) => setPrintAfterPayment(event.target.checked)}
+            >
               In hóa đơn
             </Checkbox>
             {cart.some((line) => usageOf(line)) ? (
-              <Checkbox checked={printLabels} onChange={(event) => setPrintLabels(event.target.checked)}>
+              <Checkbox
+                checked={printLabels}
+                onChange={(event) => setPrintLabels(event.target.checked)}
+              >
                 In nhãn cách dùng
               </Checkbox>
             ) : null}
@@ -1051,17 +1323,35 @@ export function SalePage() {
           </div>
           {cart.length > 0 && !canSell && !safety.isFetching ? (
             <p className="pos-blocked">
-              <WarningFilled /> {blocking.length > 0 ? "Còn vấn đề chặn bán, xem mục Kiểm tra an toàn." : `Còn ${missingAck.length} cảnh báo cần ghi nhận trước khi bán.`}
+              <WarningFilled />{" "}
+              {blocking.length > 0
+                ? "Còn vấn đề chặn bán, xem mục Kiểm tra an toàn."
+                : `Còn ${missingAck.length} cảnh báo cần ghi nhận trước khi bán.`}
             </p>
           ) : null}
-          <p className="pos-note">Số tạm tính. Máy chủ tính lại đơn giá, VAT và tổng tiền khi lập hóa đơn.</p>
+          <p className="pos-note">
+            Số tạm tính. Máy chủ tính lại đơn giá, VAT và tổng tiền khi lập hóa đơn.
+          </p>
 
           <div className="pos-actions">
-            <Button size="large" icon={<FileTextOutlined />} disabled={cart.length === 0 || !storeId} onClick={saveDraft}>
+            <Button
+              size="large"
+              icon={<FileTextOutlined />}
+              disabled={cart.length === 0 || !storeId}
+              onClick={saveDraft}
+            >
               Lưu nháp
             </Button>
-            <Button type="primary" size="large" className="pos-pay" disabled={!canSell} loading={checkout.isPending} onClick={() => checkout.mutate()}>
-              {!checkout.isPending ? <CreditCardOutlined /> : null} Thanh toán · {money(estimatedTotal)} <kbd>F9</kbd>
+            <Button
+              type="primary"
+              size="large"
+              className="pos-pay"
+              disabled={!canSell}
+              loading={checkout.isPending}
+              onClick={() => checkout.mutate()}
+            >
+              {!checkout.isPending ? <CreditCardOutlined /> : null} Thanh toán ·{" "}
+              {money(estimatedTotal)} <kbd>F9</kbd>
             </Button>
           </div>
         </section>
@@ -1078,9 +1368,22 @@ export function SalePage() {
         onCancel={() => setNewCustomerOpen(false)}
       >
         <Space orientation="vertical" style={{ width: "100%" }}>
-          <Typography.Text type="secondary">Nhập ít nhất họ tên hoặc số điện thoại. Thông tin sức khỏe chỉ được bổ sung khi khách đồng ý.</Typography.Text>
-          <Input placeholder="Họ và tên" value={newCustomerName} onChange={(event) => setNewCustomerName(event.target.value)} autoFocus />
-          <Input placeholder="Số điện thoại" inputMode="tel" value={newCustomerPhone} onChange={(event) => setNewCustomerPhone(event.target.value)} />
+          <Typography.Text type="secondary">
+            Nhập ít nhất họ tên hoặc số điện thoại. Thông tin sức khỏe chỉ được bổ sung khi khách
+            đồng ý.
+          </Typography.Text>
+          <Input
+            placeholder="Họ và tên"
+            value={newCustomerName}
+            onChange={(event) => setNewCustomerName(event.target.value)}
+            autoFocus
+          />
+          <Input
+            placeholder="Số điện thoại"
+            inputMode="tel"
+            value={newCustomerPhone}
+            onChange={(event) => setNewCustomerPhone(event.target.value)}
+          />
         </Space>
       </Modal>
 
@@ -1092,11 +1395,17 @@ export function SalePage() {
         width={460}
         footer={
           <div className="sale-done-actions">
-            <Button icon={<PrinterOutlined />} onClick={() => done && void printInvoice(done.id, message)}>
+            <Button
+              icon={<PrinterOutlined />}
+              onClick={() => done && void printInvoice(done.id, message)}
+            >
               In lại hóa đơn
             </Button>
             {done?.lines.some((line) => line.usageInstruction) ? (
-              <Button icon={<PrinterOutlined />} onClick={() => void printDocument(printUrl.usageLabels(done.id), message)}>
+              <Button
+                icon={<PrinterOutlined />}
+                onClick={() => void printDocument(printUrl.usageLabels(done.id), message)}
+              >
                 In nhãn cách dùng
               </Button>
             ) : null}
@@ -1138,7 +1447,8 @@ export function SalePage() {
                 <div>
                   <dt>Đổi điểm</dt>
                   <dd>
-                    {formatNumber(done.loyaltyPointsRedeemed)} điểm · −{formatVnd(done.loyaltyDiscountAmount)}
+                    {formatNumber(done.loyaltyPointsRedeemed)} điểm · −
+                    {formatVnd(done.loyaltyDiscountAmount)}
                   </dd>
                 </div>
               ) : null}

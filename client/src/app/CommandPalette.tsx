@@ -1,4 +1,10 @@
-import { EnterOutlined, FileTextOutlined, MedicineBoxOutlined, SearchOutlined, UserOutlined } from "@ant-design/icons";
+import {
+  EnterOutlined,
+  FileTextOutlined,
+  MedicineBoxOutlined,
+  SearchOutlined,
+  UserOutlined,
+} from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
 import { Input, Modal, Spin } from "antd";
 import type { InputRef } from "antd";
@@ -6,7 +12,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { useNavigate } from "react-router";
 import { http } from "../api/http.js";
-import { formatVnd, type CustomerSearchItem, type Envelope, type InvoiceListItem, type Paged, type ProductListItem } from "../api/types.js";
+import {
+  formatVnd,
+  type CustomerSearchItem,
+  type Envelope,
+  type InvoiceListItem,
+  type Paged,
+  type ProductListItem,
+} from "../api/types.js";
 import { useAuth } from "../features/auth/auth-context.js";
 import { useDebounced } from "../ui/useDebounced.js";
 import { confirmLeave } from "./leave-guard.js";
@@ -29,13 +42,20 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
     queryKey: ["palette-products", term],
     enabled: open && can("catalog.read") && term.length >= 2,
     queryFn: async () =>
-      (await http.get<Envelope<Paged<ProductListItem>>>("/products", { params: { search: term, page: 1, limit: 5 } })).data.data.items,
+      (
+        await http.get<Envelope<Paged<ProductListItem>>>("/products", {
+          params: { search: term, page: 1, limit: 5 },
+        })
+      ).data.data.items,
     staleTime: 30_000,
   });
   const customers = useQuery({
     queryKey: ["palette-customers", term],
     enabled: open && can("customer.read") && term.length >= 3,
-    queryFn: async () => (await http.get<Envelope<CustomerSearchItem[]>>("/customers", { params: { search: term } })).data.data.slice(0, 5),
+    queryFn: async () =>
+      (
+        await http.get<Envelope<CustomerSearchItem[]>>("/customers", { params: { search: term } })
+      ).data.data.slice(0, 5),
     staleTime: 30_000,
   });
   // Số hóa đơn luôn có chữ số, tránh gọi API khi người dùng đang gõ tên thuốc.
@@ -43,7 +63,11 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
     queryKey: ["palette-invoices", term],
     enabled: open && can("invoice.read") && term.length >= 3 && /\d/.test(term),
     queryFn: async () =>
-      (await http.get<Envelope<Paged<InvoiceListItem>>>("/invoices", { params: { code: term, page: 1, limit: 5 } })).data.data.items,
+      (
+        await http.get<Envelope<Paged<InvoiceListItem>>>("/invoices", {
+          params: { code: term, page: 1, limit: 5 },
+        })
+      ).data.data.items,
     staleTime: 30_000,
   });
 
@@ -51,11 +75,21 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
     const folded = foldText(query.trim());
     // Tìm trong toàn bộ trang được phép, kể cả công cụ không nằm trên sidebar.
     const pages = allowedPages(can)
-      .filter((item) => !folded || foldText(`${item.label} ${item.keywords ?? ""}`).includes(folded))
+      .filter(
+        (item) => !folded || foldText(`${item.label} ${item.keywords ?? ""}`).includes(folded),
+      )
       .slice(0, folded ? 5 : 8)
-      .map<Result>((item) => ({ key: `page:${item.path}`, icon: item.icon, title: item.label, subtitle: "Mở trang", path: item.path }));
+      .map<Result>((item) => ({
+        key: `page:${item.path}`,
+        icon: item.icon,
+        title: item.label,
+        subtitle: "Mở trang",
+        path: item.path,
+      }));
 
-    const list: Section[] = [{ label: folded ? "Trang" : "Đi tới trang", results: pages, loading: false }];
+    const list: Section[] = [
+      { label: folded ? "Trang" : "Đi tới trang", results: pages, loading: false },
+    ];
     if (term.length >= 2 && can("catalog.read")) {
       list.push({
         label: "Thuốc & sản phẩm",
@@ -64,7 +98,13 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
           key: `product:${item.id}`,
           icon: <MedicineBoxOutlined />,
           title: item.name,
-          subtitle: [item.code, item.categoryName, item.currentPrice ? formatVnd(item.currentPrice.salePrice) : null].filter(Boolean).join(" · "),
+          subtitle: [
+            item.code,
+            item.categoryName,
+            item.currentPrice ? formatVnd(item.currentPrice.salePrice) : null,
+          ]
+            .filter(Boolean)
+            .join(" · "),
           path: `/san-pham?id=${item.id}`,
         })),
       });
@@ -96,7 +136,17 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
       });
     }
     return list;
-  }, [query, term, can, products.data, products.isFetching, customers.data, customers.isFetching, invoices.data, invoices.isFetching]);
+  }, [
+    query,
+    term,
+    can,
+    products.data,
+    products.isFetching,
+    customers.data,
+    customers.isFetching,
+    invoices.data,
+    invoices.isFetching,
+  ]);
 
   const flat = useMemo(() => sections.flatMap((section) => section.results), [sections]);
   const offsets = sections.map((_, sectionIndex) =>
@@ -106,7 +156,9 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
   const loading = sections.some((section) => section.loading);
 
   useEffect(() => {
-    listRef.current?.querySelector<HTMLElement>(`[data-index="${activeIndex}"]`)?.scrollIntoView({ block: "nearest" });
+    listRef.current
+      ?.querySelector<HTMLElement>(`[data-index="${activeIndex}"]`)
+      ?.scrollIntoView({ block: "nearest" });
   }, [activeIndex]);
 
   function close() {
@@ -185,7 +237,9 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
                       <strong>{result.title}</strong>
                       {result.subtitle ? <span>{result.subtitle}</span> : null}
                     </span>
-                    {current === activeIndex ? <EnterOutlined className="palette-item-enter" /> : null}
+                    {current === activeIndex ? (
+                      <EnterOutlined className="palette-item-enter" />
+                    ) : null}
                   </button>
                 );
               })}

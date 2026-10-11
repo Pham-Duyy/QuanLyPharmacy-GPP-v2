@@ -1,4 +1,10 @@
-import { AppstoreOutlined, ProfileOutlined, SettingOutlined, ShoppingOutlined, SolutionOutlined } from "@ant-design/icons";
+import {
+  AppstoreOutlined,
+  ProfileOutlined,
+  SettingOutlined,
+  ShoppingOutlined,
+  SolutionOutlined,
+} from "@ant-design/icons";
 import type { ReactNode } from "react";
 import type { PagePath } from "./pages.js";
 
@@ -13,12 +19,25 @@ import type { PagePath } from "./pages.js";
  */
 export type SidebarEntry =
   | { kind: "page"; path: PagePath }
-  | { kind: "group"; key: string; label: string; icon: ReactNode; paths: readonly PagePath[]; divided?: boolean };
+  | {
+      kind: "group";
+      key: string;
+      label: string;
+      icon: ReactNode;
+      paths: readonly PagePath[];
+      divided?: boolean;
+    };
 
 export const SIDEBAR: readonly SidebarEntry[] = [
   { kind: "page", path: "/tai-khoan" },
   { kind: "page", path: "/ban-hang" },
-  { kind: "group", key: "sales", label: "Giao dịch bán", icon: <ProfileOutlined />, paths: ["/hoa-don", "/hoa-don-dien-tu", "/tra-hang", "/don-thuoc"] },
+  {
+    kind: "group",
+    key: "sales",
+    label: "Giao dịch bán",
+    icon: <ProfileOutlined />,
+    paths: ["/hoa-don", "/hoa-don-dien-tu", "/tra-hang", "/don-thuoc"],
+  },
   {
     kind: "group",
     key: "goods",

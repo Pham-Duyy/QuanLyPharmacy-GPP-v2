@@ -53,7 +53,14 @@ export function allowedPages(can: Can): PageDef[] {
 
 export type VisibleEntry =
   | { kind: "page"; page: PageDef }
-  | { kind: "group"; key: string; label: string; icon: ReactNode; pages: PageDef[]; divided: boolean };
+  | {
+      kind: "group";
+      key: string;
+      label: string;
+      icon: ReactNode;
+      pages: PageDef[];
+      divided: boolean;
+    };
 
 export type FeatureOn = (feature: StoreFeature) => boolean;
 
@@ -79,7 +86,14 @@ export function visibleSidebar(can: Can, featureOn: FeatureOn = () => true): Vis
     }
     const pages = entry.paths.map((path) => findPage(path)).filter(show);
     if (pages.length > 0) {
-      out.push({ kind: "group", key: entry.key, label: entry.label, icon: entry.icon, pages, divided: entry.divided ?? false });
+      out.push({
+        kind: "group",
+        key: entry.key,
+        label: entry.label,
+        icon: entry.icon,
+        pages,
+        divided: entry.divided ?? false,
+      });
     }
   }
   return out;
@@ -97,7 +111,8 @@ export function activeNav(pathname: string): ActiveNav {
   if (!page) return { selectedPath: null, groupKey: null };
   const target = page.navTarget ?? page.path;
   for (const entry of SIDEBAR) {
-    if (entry.kind === "page" && entry.path === target) return { selectedPath: target, groupKey: null };
+    if (entry.kind === "page" && entry.path === target)
+      return { selectedPath: target, groupKey: null };
     if (entry.kind === "group" && (entry.paths as readonly string[]).includes(target)) {
       return { selectedPath: target, groupKey: entry.key };
     }
@@ -118,9 +133,17 @@ const START_RULES: ReadonlyArray<{ roles: readonly string[]; path: PagePath }> =
 
 export type RoleAssignment = { code: string; storeId: string | null };
 
-export function startPageFor(roles: readonly RoleAssignment[], storeId: string | null, can: Can): string | null {
+export function startPageFor(
+  roles: readonly RoleAssignment[],
+  storeId: string | null,
+  can: Can,
+): string | null {
   // Chỉ vai trò toàn chuỗi hoặc tại cửa hàng đang chọn mới có hiệu lực.
-  const active = new Set(roles.filter((role) => role.storeId === null || role.storeId === storeId).map((role) => role.code));
+  const active = new Set(
+    roles
+      .filter((role) => role.storeId === null || role.storeId === storeId)
+      .map((role) => role.code),
+  );
 
   for (const rule of START_RULES) {
     if (!rule.roles.some((code) => active.has(code))) continue;

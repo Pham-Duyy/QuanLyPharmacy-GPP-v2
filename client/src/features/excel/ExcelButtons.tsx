@@ -43,7 +43,13 @@ type MenuProps = {
 };
 
 /** Một nút "Excel" gom nhập và xuất cho các trang danh mục, đỡ chật thanh công cụ. */
-export function ExcelMenuButton({ onImport, exportType, range, importLabel = "Nhập từ Excel", exportLabel = "Xuất ra Excel" }: MenuProps) {
+export function ExcelMenuButton({
+  onImport,
+  exportType,
+  range,
+  importLabel = "Nhập từ Excel",
+  exportLabel = "Xuất ra Excel",
+}: MenuProps) {
   const { message } = App.useApp();
   const [loading, setLoading] = useState(false);
 

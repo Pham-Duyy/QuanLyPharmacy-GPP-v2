@@ -78,17 +78,18 @@ export function NationalSyncPage() {
   const store = me?.stores.find((item) => item.id === storeId);
 
   // Cấu hình và chứng từ theo cửa hàng đang chọn: khóa truy vấn gồm storeId để đổi cửa hàng là tải lại.
-  const config = useQuery({ queryKey: ["nds", storeId, "config"], queryFn: fetchConfig, enabled: storeId !== null });
+  const config = useQuery({
+    queryKey: ["nds", storeId, "config"],
+    queryFn: fetchConfig,
+    enabled: storeId !== null,
+  });
   const refreshAll = async (): Promise<void> => {
     await queryClient.invalidateQueries({ queryKey: ["nds"] });
   };
 
   return (
     <div>
-      <PageHeader
-        icon={<ApiOutlined />}
-        title="Liên thông CSDL Dược quốc gia"
-      />
+      <PageHeader icon={<ApiOutlined />} title="Liên thông CSDL Dược quốc gia" />
 
       {store ? (
         <Alert
@@ -117,7 +118,9 @@ export function NationalSyncPage() {
             {
               key: "connection",
               label: "Kết nối",
-              children: <ConnectionTab config={config.data} canManage={canManage} onChanged={refreshAll} />,
+              children: (
+                <ConnectionTab config={config.data} canManage={canManage} onChanged={refreshAll} />
+              ),
             },
             {
               key: "mapping",
@@ -127,7 +130,9 @@ export function NationalSyncPage() {
             {
               key: "jobs",
               label: "Chứng từ đã gửi",
-              children: <JobsTab canManage={canManage} config={config.data} onChanged={refreshAll} />,
+              children: (
+                <JobsTab canManage={canManage} config={config.data} onChanged={refreshAll} />
+              ),
             },
             {
               key: "eprescription",
@@ -154,9 +159,10 @@ export function NationalSyncPage() {
         title="Tài khoản liên thông do chính nhà thuốc đăng ký"
         description={
           <>
-            Theo quy định của Trung tâm Thông tin Y tế Quốc gia, đơn vị làm phần mềm không được đăng ký tài khoản hộ.
-            Nhà thuốc tự đăng ký tại <b>csdlduoc.com.vn</b> bằng số giấy chứng nhận đủ điều kiện kinh doanh dược, chờ
-            duyệt qua email rồi lấy tài khoản nhập vào đây. Hỗ trợ: 19008255 — ttyqg@moh.gov.vn.
+            Theo quy định của Trung tâm Thông tin Y tế Quốc gia, đơn vị làm phần mềm không được đăng
+            ký tài khoản hộ. Nhà thuốc tự đăng ký tại <b>csdlduoc.com.vn</b> bằng số giấy chứng nhận
+            đủ điều kiện kinh doanh dược, chờ duyệt qua email rồi lấy tài khoản nhập vào đây. Hỗ
+            trợ: 19008255 — ttyqg@moh.gov.vn.
           </>
         }
         style={{ marginTop: 16 }}
@@ -248,7 +254,11 @@ function ConnectionTab({
             />
           </Form.Item>
 
-          <Form.Item name="username" label="Tên đăng nhập" extra="Mã số thuế + mã địa điểm kinh doanh, do cổng cấp.">
+          <Form.Item
+            name="username"
+            label="Tên đăng nhập"
+            extra="Mã số thuế + mã địa điểm kinh doanh, do cổng cấp."
+          >
             <Input placeholder="Ví dụ: 0101234567-001" maxLength={200} />
           </Form.Item>
 
@@ -261,7 +271,10 @@ function ConnectionTab({
                 : "Chưa có mật khẩu nào được lưu."
             }
           >
-            <Input.Password placeholder={config.hasPassword ? "••••••••" : "Nhập mật khẩu"} maxLength={200} />
+            <Input.Password
+              placeholder={config.hasPassword ? "••••••••" : "Nhập mật khẩu"}
+              maxLength={200}
+            />
           </Form.Item>
 
           <Form.Item
@@ -269,7 +282,10 @@ function ConnectionTab({
             label="Mã giấy phép hành nghề"
             extra="Chỉ cần khi tài khoản mẹ của chuỗi gửi thay cho cơ sở thành viên."
           >
-            <Input placeholder="Bỏ trống nếu nhà thuốc gửi bằng tài khoản của chính mình" maxLength={50} />
+            <Input
+              placeholder="Bỏ trống nếu nhà thuốc gửi bằng tài khoản của chính mình"
+              maxLength={50}
+            />
           </Form.Item>
 
           <Space wrap>
@@ -294,7 +310,9 @@ function ConnectionTab({
             <Space orientation="vertical" size={2}>
               <span>{config.baseUrl}</span>
               {config.baseUrlOverridden ? (
-                <Tag color="purple">Địa chỉ do cấu hình NDS_BASE_URL chỉ định, không phải địa chỉ chính thức</Tag>
+                <Tag color="purple">
+                  Địa chỉ do cấu hình NDS_BASE_URL chỉ định, không phải địa chỉ chính thức
+                </Tag>
               ) : null}
             </Space>
           </Descriptions.Item>
@@ -312,7 +330,11 @@ function ConnectionTab({
             {config.startDate ?? <span className="muted">Chưa gửi tồn đầu kỳ</span>}
           </Descriptions.Item>
           <Descriptions.Item label="Đồng bộ danh mục lần cuối">
-            {config.lastMasterSyncAt ? formatDateTime(config.lastMasterSyncAt) : <span className="muted">Chưa đồng bộ</span>}
+            {config.lastMasterSyncAt ? (
+              formatDateTime(config.lastMasterSyncAt)
+            ) : (
+              <span className="muted">Chưa đồng bộ</span>
+            )}
           </Descriptions.Item>
         </Descriptions>
 
@@ -326,7 +348,10 @@ function ConnectionTab({
             Đồng bộ danh mục thuốc
           </Button>
           <Tooltip title="Tải lại toàn bộ danh mục thay vì chỉ phần thay đổi">
-            <Button onClick={() => master.mutate(true)} disabled={!canManage || !config.hasPassword}>
+            <Button
+              onClick={() => master.mutate(true)}
+              disabled={!canManage || !config.hasPassword}
+            >
               Tải lại toàn bộ
             </Button>
           </Tooltip>
@@ -338,7 +363,13 @@ function ConnectionTab({
 
 // --- Thẻ Ghép mã ------------------------------------------------------------
 
-function MappingTab({ canManage, onChanged }: { canManage: boolean; onChanged: () => Promise<void> }) {
+function MappingTab({
+  canManage,
+  onChanged,
+}: {
+  canManage: boolean;
+  onChanged: () => Promise<void>;
+}) {
   const { message } = App.useApp();
   const [state, setState] = useState("all");
   const [search, setSearch] = useState("");
@@ -407,8 +438,16 @@ function MappingTab({ canManage, onChanged }: { canManage: boolean; onChanged: (
           <Space size="large" wrap>
             <Statistic title="Tổng mặt hàng" value={summary.total} />
             <Statistic title="Gửi được" value={summary.usable} valueStyle={{ color: "#389e0d" }} />
-            <Statistic title="Chờ xác nhận" value={summary.needsReview} valueStyle={{ color: "#d46b08" }} />
-            <Statistic title="Chưa ghép" value={summary.unlinked} valueStyle={{ color: "#cf1322" }} />
+            <Statistic
+              title="Chờ xác nhận"
+              value={summary.needsReview}
+              valueStyle={{ color: "#d46b08" }}
+            />
+            <Statistic
+              title="Chưa ghép"
+              value={summary.unlinked}
+              valueStyle={{ color: "#cf1322" }}
+            />
           </Space>
         </Card>
       ) : null}
@@ -447,7 +486,11 @@ function MappingTab({ canManage, onChanged }: { canManage: boolean; onChanged: (
             cancelText="Để xem lại"
             onConfirm={() => confirmMany.mutate(pendingIds)}
           >
-            <Button icon={<CheckCircleOutlined />} loading={confirmMany.isPending} disabled={!canManage}>
+            <Button
+              icon={<CheckCircleOutlined />}
+              loading={confirmMany.isPending}
+              disabled={!canManage}
+            >
               Xác nhận {pendingIds.length} dòng đang hiển thị
             </Button>
           </Popconfirm>
@@ -470,7 +513,8 @@ function MappingTab({ canManage, onChanged }: { canManage: boolean; onChanged: (
                   <b>{row.code}</b> — {row.name}
                 </div>
                 <span className="muted">
-                  Đơn vị cơ bản: {row.baseUnitName ?? "—"} · SĐK: {row.registrationNumber ?? "chưa nhập"}
+                  Đơn vị cơ bản: {row.baseUnitName ?? "—"} · SĐK:{" "}
+                  {row.registrationNumber ?? "chưa nhập"}
                 </span>
               </>
             ),
@@ -623,14 +667,26 @@ function JobsTab({
         <Card size="small">
           <Space size="large" wrap>
             <Statistic title="Tổng chứng từ" value={summary.total} />
-            <Statistic title="Xong" value={summary.byStatus["COMPLETED"] ?? 0} valueStyle={{ color: "#389e0d" }} />
+            <Statistic
+              title="Xong"
+              value={summary.byStatus["COMPLETED"] ?? 0}
+              valueStyle={{ color: "#389e0d" }}
+            />
             <Statistic
               title="Chờ gửi"
-              value={(summary.byStatus["PENDING"] ?? 0) + (summary.byStatus["ACCEPTED"] ?? 0) + (summary.byStatus["PROCESSING"] ?? 0)}
+              value={
+                (summary.byStatus["PENDING"] ?? 0) +
+                (summary.byStatus["ACCEPTED"] ?? 0) +
+                (summary.byStatus["PROCESSING"] ?? 0)
+              }
             />
             <Statistic
               title="Cần xử lý"
-              value={(summary.byStatus["BLOCKED"] ?? 0) + (summary.byStatus["REJECTED"] ?? 0) + (summary.byStatus["FAILED"] ?? 0)}
+              value={
+                (summary.byStatus["BLOCKED"] ?? 0) +
+                (summary.byStatus["REJECTED"] ?? 0) +
+                (summary.byStatus["FAILED"] ?? 0)
+              }
               valueStyle={{ color: "#cf1322" }}
             />
           </Space>
@@ -653,7 +709,10 @@ function JobsTab({
           style={{ width: 200 }}
           value={status}
           onChange={setStatus}
-          options={Object.entries(JOB_STATUS).map(([value, meta]) => ({ value, label: meta.label }))}
+          options={Object.entries(JOB_STATUS).map(([value, meta]) => ({
+            value,
+            label: meta.label,
+          }))}
         />
       </Space>
 
@@ -673,7 +732,8 @@ function JobsTab({
                   <b>{row.referenceNumber}</b>
                 </div>
                 <span className="muted">
-                  {SOURCE_LABEL[row.sourceType] ?? row.sourceType} · {JOB_KIND[row.kind] ?? row.kind} · {row.documentDate}
+                  {SOURCE_LABEL[row.sourceType] ?? row.sourceType} ·{" "}
+                  {JOB_KIND[row.kind] ?? row.kind} · {row.documentDate}
                 </span>
               </>
             ),
@@ -684,7 +744,9 @@ function JobsTab({
             width: 180,
             render: (_value, row) => (
               <>
-                <Tag color={JOB_STATUS[row.status]?.color}>{JOB_STATUS[row.status]?.label ?? row.status}</Tag>
+                <Tag color={JOB_STATUS[row.status]?.color}>
+                  {JOB_STATUS[row.status]?.label ?? row.status}
+                </Tag>
                 {row.attempts > 1 ? <span className="muted">đã thử {row.attempts} lần</span> : null}
               </>
             ),
@@ -693,13 +755,18 @@ function JobsTab({
             title: "Ghi chú của hệ thống quốc gia",
             dataIndex: "lastError",
             render: (_value, row) =>
-              row.lastError ? <span className="image-nomatch">{row.lastError}</span> : <span className="muted">—</span>,
+              row.lastError ? (
+                <span className="image-nomatch">{row.lastError}</span>
+              ) : (
+                <span className="muted">—</span>
+              ),
           },
           {
             title: "Gửi lúc",
             dataIndex: "submittedAt",
             width: 150,
-            render: (value: string | null) => (value ? formatDateTime(value) : <span className="muted">chưa gửi</span>),
+            render: (value: string | null) =>
+              value ? formatDateTime(value) : <span className="muted">chưa gửi</span>,
           },
           {
             title: "",

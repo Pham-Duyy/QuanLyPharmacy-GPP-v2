@@ -15,7 +15,11 @@ export const loyaltySettingsSchema = z
       .min(1000, "Mỗi điểm phải ứng với ít nhất 1.000đ chi tiêu")
       .max(10_000_000),
     /** Mỗi điểm đổi được bao nhiêu đồng khi thanh toán. */
-    pointValue: z.coerce.number().int().min(100, "Mỗi điểm phải đổi được ít nhất 100đ").max(1_000_000),
+    pointValue: z.coerce
+      .number()
+      .int()
+      .min(100, "Mỗi điểm phải đổi được ít nhất 100đ")
+      .max(1_000_000),
     /** Số điểm tối thiểu cho một lần đổi. */
     minRedeemPoints: z.coerce.number().int().min(0).max(100_000),
     /** Trần phần trăm giá trị hàng được tính điểm mà một lần đổi được giảm. */
@@ -26,7 +30,8 @@ export const loyaltySettingsSchema = z
     earnOnDrugs: z.boolean(),
   })
   .refine((value) => value.pointValue * 2 <= value.earnAmountPerPoint, {
-    message: "Giá trị quy đổi quá cao: mỗi điểm không nên đổi quá một nửa số tiền cần chi để có điểm đó",
+    message:
+      "Giá trị quy đổi quá cao: mỗi điểm không nên đổi quá một nửa số tiền cần chi để có điểm đó",
     path: ["pointValue"],
   });
 

@@ -1,5 +1,13 @@
 import { prisma } from "../../db/prisma.js";
-import { COMMIT_TIMEOUT_MS, RowReader, fold, headerMap, type ImportDefinition, type ImportIssue, type PlannedRow } from "./import-kit.js";
+import {
+  COMMIT_TIMEOUT_MS,
+  RowReader,
+  fold,
+  headerMap,
+  type ImportDefinition,
+  type ImportIssue,
+  type PlannedRow,
+} from "./import-kit.js";
 import { asChoice, asInt, asText, type ColumnDef } from "./workbook.js";
 
 const ACTIVE_CHOICES = { "Đang giao dịch": true, "Ngừng giao dịch": false } as const;
@@ -10,14 +18,28 @@ const ACTIVE_CHOICES = { "Đang giao dịch": true, "Ngừng giao dịch": false
 
 export const SUPPLIER_COLUMNS: ColumnDef[] = [
   { key: "name", header: "Tên nhà cung cấp", required: true, width: 36 },
-  { key: "taxCode", header: "Mã số thuế", width: 16, note: "Dùng để nhận biết nhà cung cấp đã có. Không có MST thì so theo tên." },
+  {
+    key: "taxCode",
+    header: "Mã số thuế",
+    width: 16,
+    note: "Dùng để nhận biết nhà cung cấp đã có. Không có MST thì so theo tên.",
+  },
   { key: "licenseNumber", header: "Số giấy phép kinh doanh dược", width: 24 },
   { key: "address", header: "Địa chỉ", width: 40 },
   { key: "phone", header: "Điện thoại", width: 16 },
-  { key: "status", header: "Trạng thái", width: 16, note: "Đang giao dịch hoặc Ngừng giao dịch. Để trống: giữ nguyên." },
+  {
+    key: "status",
+    header: "Trạng thái",
+    width: 16,
+    note: "Đang giao dịch hoặc Ngừng giao dịch. Để trống: giữ nguyên.",
+  },
 ];
 
-type SupplierRow = { existingId: string | null; fields: Record<string, string | null>; isActive: boolean | null };
+type SupplierRow = {
+  existingId: string | null;
+  fields: Record<string, string | null>;
+  isActive: boolean | null;
+};
 
 export const suppliersImport: ImportDefinition<SupplierRow> = {
   type: "suppliers",
@@ -31,15 +53,26 @@ export const suppliersImport: ImportDefinition<SupplierRow> = {
     "Có lỗi ở bất kỳ dòng nào thì không dòng nào được ghi.",
   ],
   example: [
-    { name: "Công ty CP Dược phẩm Minh Tâm", taxCode: "0301234567", licenseNumber: "1234/ĐKKD-BYT", address: "25 Nguyễn Trãi, Q.5, TP.HCM", phone: "02838123456", status: "Đang giao dịch" },
+    {
+      name: "Công ty CP Dược phẩm Minh Tâm",
+      taxCode: "0301234567",
+      licenseNumber: "1234/ĐKKD-BYT",
+      address: "25 Nguyễn Trãi, Q.5, TP.HCM",
+      phone: "02838123456",
+      status: "Đang giao dịch",
+    },
   ],
 
   async plan(rows) {
     const headers = headerMap(SUPPLIER_COLUMNS);
     const issues: ImportIssue[] = [];
     const planned: PlannedRow<SupplierRow>[] = [];
-    const suppliers = await prisma.supplier.findMany({ select: { id: true, name: true, taxCode: true } });
-    const byTax = new Map(suppliers.filter((item) => item.taxCode).map((item) => [item.taxCode!, item.id]));
+    const suppliers = await prisma.supplier.findMany({
+      select: { id: true, name: true, taxCode: true },
+    });
+    const byTax = new Map(
+      suppliers.filter((item) => item.taxCode).map((item) => [item.taxCode!, item.id]),
+    );
     const byName = new Map(suppliers.map((item) => [fold(item.name), item.id]));
     const seen = new Map<string, number>();
 
@@ -51,13 +84,16 @@ export const suppliersImport: ImportDefinition<SupplierRow> = {
       const fields = {
         name,
         taxCode,
-        licenseNumber: r.read("licenseNumber", () => asText(v["licenseNumber"], 50, "Số giấy phép")),
+        licenseNumber: r.read("licenseNumber", () =>
+          asText(v["licenseNumber"], 50, "Số giấy phép"),
+        ),
         address: r.read("address", () => asText(v["address"], 500, "Địa chỉ")),
         phone: r.read("phone", () => asText(v["phone"], 20, "Điện thoại")),
       };
       const isActive = r.read("status", () => asChoice(v["status"], "Trạng thái", ACTIVE_CHOICES));
       r.require("name", name);
-      if (taxCode && !/^[0-9-]+$/.test(taxCode)) r.fail("taxCode", "Mã số thuế chỉ gồm chữ số và dấu gạch ngang");
+      if (taxCode && !/^[0-9-]+$/.test(taxCode))
+        r.fail("taxCode", "Mã số thuế chỉ gồm chữ số và dấu gạch ngang");
 
       const key = taxCode ? `tax:${taxCode}` : name ? `name:${fold(name)}` : "";
       if (key) {
@@ -68,8 +104,14 @@ export const suppliersImport: ImportDefinition<SupplierRow> = {
       issues.push(...r.issues);
       if (r.issues.length > 0 || !name) continue;
 
-      const existingId = (taxCode ? byTax.get(taxCode) : undefined) ?? byName.get(fold(name)) ?? null;
-      planned.push({ row: raw.rowNumber, action: existingId ? "update" : "create", label: name, data: { existingId, fields, isActive } });
+      const existingId =
+        (taxCode ? byTax.get(taxCode) : undefined) ?? byName.get(fold(name)) ?? null;
+      planned.push({
+        row: raw.rowNumber,
+        action: existingId ? "update" : "create",
+        label: name,
+        data: { existingId, fields, isActive },
+      });
     }
     return { rows: planned, issues, notes: [] };
   },
@@ -80,15 +122,23 @@ export const suppliersImport: ImportDefinition<SupplierRow> = {
     await prisma.$transaction(
       async (tx) => {
         for (const { data } of plan.rows) {
-          const values = Object.fromEntries(Object.entries(data.fields).filter(([, value]) => value !== null));
+          const values = Object.fromEntries(
+            Object.entries(data.fields).filter(([, value]) => value !== null),
+          );
           if (data.existingId) {
             await tx.supplier.update({
               where: { id: data.existingId },
-              data: { ...values, ...(data.isActive !== null ? { isActive: data.isActive } : {}), version: { increment: 1 } },
+              data: {
+                ...values,
+                ...(data.isActive !== null ? { isActive: data.isActive } : {}),
+                version: { increment: 1 },
+              },
             });
             updated++;
           } else {
-            await tx.supplier.create({ data: { name: data.fields["name"]!, ...values, isActive: data.isActive ?? true } });
+            await tx.supplier.create({
+              data: { name: data.fields["name"]!, ...values, isActive: data.isActive ?? true },
+            });
             created++;
           }
         }
@@ -106,9 +156,19 @@ export const suppliersImport: ImportDefinition<SupplierRow> = {
 const GENDER_CHOICES = { Nam: "MALE", Nữ: "FEMALE", Khác: "OTHER" } as const;
 
 export const CUSTOMER_COLUMNS: ColumnDef[] = [
-  { key: "code", header: "Mã KH", width: 11, note: "Để trống với khách mới (hệ thống tự cấp). Có mã thì cập nhật đúng khách đó." },
+  {
+    key: "code",
+    header: "Mã KH",
+    width: 11,
+    note: "Để trống với khách mới (hệ thống tự cấp). Có mã thì cập nhật đúng khách đó.",
+  },
   { key: "fullName", header: "Họ tên", width: 26 },
-  { key: "phone", header: "Số điện thoại", width: 15, note: "Không có mã KH thì so theo số điện thoại để tránh tạo trùng khách." },
+  {
+    key: "phone",
+    header: "Số điện thoại",
+    width: 15,
+    note: "Không có mã KH thì so theo số điện thoại để tránh tạo trùng khách.",
+  },
   { key: "birthYear", header: "Năm sinh", kind: "int", width: 10 },
   { key: "gender", header: "Giới tính", width: 10, note: "Nam, Nữ, Khác" },
   { key: "email", header: "Email", width: 24 },
@@ -130,21 +190,47 @@ export const customersImport: ImportDefinition<CustomerRow> = {
     "Chỉ nhập thông tin liên hệ cơ bản. Hồ sơ sức khỏe (dị ứng, bệnh nền) phải ghi nhận đồng ý của khách trên phần mềm, không nhập qua Excel.",
     "Có lỗi ở bất kỳ dòng nào thì không dòng nào được ghi.",
   ],
-  example: [{ code: "", fullName: "Nguyễn Thị Mai", phone: "0901234567", birthYear: 1988, gender: "Nữ", email: "mai@example.com", address: "Phường B, TP. Hồ Chí Minh", note: "Ưu tiên liên hệ qua điện thoại" }],
+  example: [
+    {
+      code: "",
+      fullName: "Nguyễn Thị Mai",
+      phone: "0901234567",
+      birthYear: 1988,
+      gender: "Nữ",
+      email: "mai@example.com",
+      address: "Phường B, TP. Hồ Chí Minh",
+      note: "Ưu tiên liên hệ qua điện thoại",
+    },
+  ],
 
   async plan(rows) {
     const headers = headerMap(CUSTOMER_COLUMNS);
     const issues: ImportIssue[] = [];
     const planned: PlannedRow<CustomerRow>[] = [];
-    const codes = rows.map((row) => String(row.values["code"] ?? "").trim().toUpperCase()).filter(Boolean);
-    const phones = rows.map((row) => String(row.values["phone"] ?? "").replace(/\s/g, "")).filter(Boolean);
+    const codes = rows
+      .map((row) =>
+        String(row.values["code"] ?? "")
+          .trim()
+          .toUpperCase(),
+      )
+      .filter(Boolean);
+    const phones = rows
+      .map((row) => String(row.values["phone"] ?? "").replace(/\s/g, ""))
+      .filter(Boolean);
     const [byCodeRows, byPhoneRows] = await Promise.all([
-      prisma.customer.findMany({ where: { code: { in: codes } }, select: { id: true, code: true, isAnonymized: true } }),
-      prisma.customer.findMany({ where: { phone: { in: phones }, isAnonymized: false }, select: { id: true, phone: true } }),
+      prisma.customer.findMany({
+        where: { code: { in: codes } },
+        select: { id: true, code: true, isAnonymized: true },
+      }),
+      prisma.customer.findMany({
+        where: { phone: { in: phones }, isAnonymized: false },
+        select: { id: true, phone: true },
+      }),
     ]);
     const byCode = new Map(byCodeRows.map((row) => [row.code, row]));
     const phoneOwners = new Map<string, string[]>();
-    for (const row of byPhoneRows) phoneOwners.set(row.phone!, [...(phoneOwners.get(row.phone!) ?? []), row.id]);
+    for (const row of byPhoneRows)
+      phoneOwners.set(row.phone!, [...(phoneOwners.get(row.phone!) ?? []), row.id]);
     const seenPhones = new Map<string, number>();
     const currentYear = new Date().getUTCFullYear();
 
@@ -153,7 +239,8 @@ export const customersImport: ImportDefinition<CustomerRow> = {
       const v = raw.values;
       const code = r.read("code", () => asText(v["code"], 20, "Mã KH"))?.toUpperCase() ?? null;
       const fullName = r.read("fullName", () => asText(v["fullName"], 200, "Họ tên"));
-      const phone = r.read("phone", () => asText(v["phone"], 20, "Số điện thoại"))?.replace(/\s/g, "") ?? null;
+      const phone =
+        r.read("phone", () => asText(v["phone"], 20, "Số điện thoại"))?.replace(/\s/g, "") ?? null;
       const birthYear = r.read("birthYear", () => asInt(v["birthYear"], "Năm sinh", { min: 1900 }));
       const gender = r.read("gender", () => asChoice(v["gender"], "Giới tính", GENDER_CHOICES));
       const email = r.read("email", () => asText(v["email"], 200, "Email"));
@@ -169,11 +256,13 @@ export const customersImport: ImportDefinition<CustomerRow> = {
       if (code) {
         const found = byCode.get(code);
         if (!found) r.fail("code", `Không có khách mã ${code}`);
-        else if (found.isAnonymized) r.fail("code", "Khách này đã được ẩn danh, không cập nhật được");
+        else if (found.isAnonymized)
+          r.fail("code", "Khách này đã được ẩn danh, không cập nhật được");
         else existingId = found.id;
       } else if (phone) {
         const owners = phoneOwners.get(phone) ?? [];
-        if (owners.length > 1) r.fail("phone", "Có nhiều khách cùng số điện thoại này — điền Mã KH để chỉ rõ khách nào");
+        if (owners.length > 1)
+          r.fail("phone", "Có nhiều khách cùng số điện thoại này — điền Mã KH để chỉ rõ khách nào");
         existingId = owners[0] ?? null;
       }
       if (phone) {
@@ -200,9 +289,14 @@ export const customersImport: ImportDefinition<CustomerRow> = {
     await prisma.$transaction(
       async (tx) => {
         for (const { data } of plan.rows) {
-          const values = Object.fromEntries(Object.entries(data.fields).filter(([, value]) => value !== null));
+          const values = Object.fromEntries(
+            Object.entries(data.fields).filter(([, value]) => value !== null),
+          );
           if (data.existingId) {
-            await tx.customer.update({ where: { id: data.existingId }, data: { ...values, version: { increment: 1 } } });
+            await tx.customer.update({
+              where: { id: data.existingId },
+              data: { ...values, version: { increment: 1 } },
+            });
             updated++;
           } else {
             await tx.customer.create({ data: values });

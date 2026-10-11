@@ -11,7 +11,15 @@ import { useAuth } from "../auth/auth-context.js";
 import { ExcelExportButton } from "../excel/ExcelButtons.js";
 import { rangeParams } from "../excel/excel-api.js";
 
-type ControlledProduct = { id: string; code: string; name: string; strengthText: string | null; baseUnitName: string; isActive: boolean; stockOnHand: number };
+type ControlledProduct = {
+  id: string;
+  code: string;
+  name: string;
+  strengthText: string | null;
+  baseUnitName: string;
+  isActive: boolean;
+  stockOnHand: number;
+};
 
 type LedgerEntry = {
   occurredAt: string;
@@ -52,7 +60,12 @@ type LedgerResponse = {
   from: string;
   to: string;
   products: LedgerProduct[];
-  mismatches: Array<{ productId: string; name: string; closingBalance: number; stockOnHand: number }>;
+  mismatches: Array<{
+    productId: string;
+    name: string;
+    closingBalance: number;
+    stockOnHand: number;
+  }>;
 };
 
 export function ControlledDrugsPage() {
@@ -62,13 +75,19 @@ export function ControlledDrugsPage() {
 
   const products = useQuery({
     queryKey: ["controlled-products"],
-    queryFn: async () => (await http.get<Envelope<ControlledProduct[]>>("/controlled-drugs")).data.data,
+    queryFn: async () =>
+      (await http.get<Envelope<ControlledProduct[]>>("/controlled-drugs")).data.data,
   });
 
-  const params = { from: range[0].format("YYYY-MM-DD"), to: range[1].format("YYYY-MM-DD"), productId };
+  const params = {
+    from: range[0].format("YYYY-MM-DD"),
+    to: range[1].format("YYYY-MM-DD"),
+    productId,
+  };
   const ledger = useQuery({
     queryKey: ["controlled-ledger", params],
-    queryFn: async () => (await http.get<Envelope<LedgerResponse>>("/controlled-drugs/ledger", { params })).data.data,
+    queryFn: async () =>
+      (await http.get<Envelope<LedgerResponse>>("/controlled-drugs/ledger", { params })).data.data,
   });
 
   const columns = [
@@ -96,8 +115,20 @@ export function ControlledDrugsPage() {
         </div>
       ),
     },
-    { title: "Nhập", dataIndex: "inQuantity", width: 80, align: "right" as const, render: (value: number) => (value ? formatNumber(value) : "—") },
-    { title: "Xuất", dataIndex: "outQuantity", width: 80, align: "right" as const, render: (value: number) => (value ? formatNumber(value) : "—") },
+    {
+      title: "Nhập",
+      dataIndex: "inQuantity",
+      width: 80,
+      align: "right" as const,
+      render: (value: number) => (value ? formatNumber(value) : "—"),
+    },
+    {
+      title: "Xuất",
+      dataIndex: "outQuantity",
+      width: 80,
+      align: "right" as const,
+      render: (value: number) => (value ? formatNumber(value) : "—"),
+    },
     {
       title: "Tồn sau",
       dataIndex: "balanceAfter",
@@ -112,7 +143,8 @@ export function ControlledDrugsPage() {
         row.buyerName ? (
           <div className="cell-main">
             <span className="cell-title">
-              {row.buyerName} {row.relationship ? <Tag variant="filled">{row.relationship}</Tag> : null}
+              {row.buyerName}{" "}
+              {row.relationship ? <Tag variant="filled">{row.relationship}</Tag> : null}
             </span>
             <span className="cell-sub">
               {row.buyerIdNumber} · {row.buyerAddress}
@@ -140,7 +172,12 @@ export function ControlledDrugsPage() {
           <span className="cell-sub">—</span>
         ),
     },
-    { title: "Người thực hiện", dataIndex: "handledBy", width: 150, render: (value: string | null) => value ?? "—" },
+    {
+      title: "Người thực hiện",
+      dataIndex: "handledBy",
+      width: 150,
+      render: (value: string | null) => value ?? "—",
+    },
   ];
 
   return (
@@ -157,19 +194,47 @@ export function ControlledDrugsPage() {
               disabledDate={(day) => day.isAfter(dayjs(), "day")}
               presets={[
                 { label: "Tháng này", value: [dayjs().startOf("month"), dayjs()] },
-                { label: "Tháng trước", value: [dayjs().subtract(1, "month").startOf("month"), dayjs().subtract(1, "month").endOf("month")] },
-                { label: "Quý này", value: [dayjs().startOf("month").subtract(dayjs().month() % 3, "month"), dayjs()] },
+                {
+                  label: "Tháng trước",
+                  value: [
+                    dayjs().subtract(1, "month").startOf("month"),
+                    dayjs().subtract(1, "month").endOf("month"),
+                  ],
+                },
+                {
+                  label: "Quý này",
+                  value: [
+                    dayjs()
+                      .startOf("month")
+                      .subtract(dayjs().month() % 3, "month"),
+                    dayjs(),
+                  ],
+                },
               ]}
               onChange={(value) => {
                 if (value?.[0] && value[1]) setRange([value[0], value[1]]);
               }}
             />
-            {can("controlled.read") ? <ExcelExportButton type="controlled-ledger" label="Xuất sổ" range={rangeParams(range)} tooltip="Xuất sổ theo dõi ra Excel để in hoặc nộp khi thanh tra" /> : null}
+            {can("controlled.read") ? (
+              <ExcelExportButton
+                type="controlled-ledger"
+                label="Xuất sổ"
+                range={rangeParams(range)}
+                tooltip="Xuất sổ theo dõi ra Excel để in hoặc nộp khi thanh tra"
+              />
+            ) : null}
           </>
         }
       />
 
-      {products.isError ? <Alert type="error" showIcon title="Không đọc được danh mục thuốc kiểm soát đặc biệt" description={getErrorMessage(products.error)} /> : null}
+      {products.isError ? (
+        <Alert
+          type="error"
+          showIcon
+          title="Không đọc được danh mục thuốc kiểm soát đặc biệt"
+          description={getErrorMessage(products.error)}
+        />
+      ) : null}
 
       {products.data && products.data.length === 0 ? (
         <Empty description="Nhà thuốc chưa có thuốc nào thuộc nhóm kiểm soát đặc biệt. Đánh dấu ở danh mục Thuốc & sản phẩm nếu có kinh doanh nhóm này." />
@@ -199,7 +264,10 @@ export function ControlledDrugsPage() {
               className="controlled-banner"
               title="Sổ không khớp tồn kho"
               description={ledger.data.mismatches
-                .map((item) => `${item.name}: sổ ${formatNumber(item.closingBalance)}, kho ${formatNumber(item.stockOnHand)}`)
+                .map(
+                  (item) =>
+                    `${item.name}: sổ ${formatNumber(item.closingBalance)}, kho ${formatNumber(item.stockOnHand)}`,
+                )
                 .join(" · ")}
             />
           ) : null}
@@ -213,7 +281,9 @@ export function ControlledDrugsPage() {
               title={
                 <span>
                   {product.name}
-                  {product.strengthText ? <span className="cell-sub"> · {product.strengthText}</span> : null}
+                  {product.strengthText ? (
+                    <span className="cell-sub"> · {product.strengthText}</span>
+                  ) : null}
                 </span>
               }
               extra={
@@ -234,7 +304,9 @@ export function ControlledDrugsPage() {
               }
             >
               <Table
-                rowKey={(row) => `${row.documentCode}-${row.occurredAt}-${row.batchNumber}-${row.balanceAfter}`}
+                rowKey={(row) =>
+                  `${row.documentCode}-${row.occurredAt}-${row.batchNumber}-${row.balanceAfter}`
+                }
                 size="small"
                 dataSource={product.entries}
                 columns={columns}

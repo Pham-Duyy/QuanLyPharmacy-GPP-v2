@@ -92,7 +92,11 @@ export function TemplateEditorLayout(props: {
         <div className={!wide && mobileTab !== "form" ? "tpl-pane is-hidden" : "tpl-pane"}>
           {props.formPanel}
         </div>
-        <div className={!wide && mobileTab !== "preview" ? "tpl-pane is-hidden" : "tpl-pane tpl-pane-preview"}>
+        <div
+          className={
+            !wide && mobileTab !== "preview" ? "tpl-pane is-hidden" : "tpl-pane tpl-pane-preview"
+          }
+        >
           {props.previewPanel}
         </div>
       </div>
@@ -110,11 +114,19 @@ export function TemplateEditorLayout(props: {
           ) : null}
         </div>
         <div className="tpl-actions">
-          <Button icon={<UndoOutlined />} disabled={!dirty || props.saving} onClick={props.onDiscard}>
+          <Button
+            icon={<UndoOutlined />}
+            disabled={!dirty || props.saving}
+            onClick={props.onDiscard}
+          >
             <span className="label-long">Hủy thay đổi</span>
             <span className="label-short">Hủy</span>
           </Button>
-          <Button icon={<PrinterOutlined />} loading={props.testPrinting} onClick={props.onTestPrint}>
+          <Button
+            icon={<PrinterOutlined />}
+            loading={props.testPrinting}
+            onClick={props.onTestPrint}
+          >
             In thử
           </Button>
           <Button

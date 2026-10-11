@@ -44,7 +44,13 @@ afterAll(async () => {
 
 describe("Phạm vi cửa hàng", () => {
   it("nhân viên quầy B không thao tác được trên dữ liệu quầy A", async () => {
-    await makeBatch(stage, { product: para, batchNumber: "A-1", quantity: 100, unitCost: 1000, expiryInDays: 90 });
+    await makeBatch(stage, {
+      product: para,
+      batchNumber: "A-1",
+      quantity: 100,
+      unitCost: 1000,
+      expiryInDays: 90,
+    });
     const sale = await sell(stage, { lines: [line(para, "Viên", 5)] }, stage.sellerA).expect(201);
 
     // Gửi kèm X-Store-Id của cửa hàng A bằng token của người chỉ thuộc B.
@@ -63,7 +69,13 @@ describe("Phạm vi cửa hàng", () => {
   });
 
   it("tồn kho và báo cáo chỉ tính hàng của cửa hàng đang làm việc", async () => {
-    await makeBatch(stage, { product: para, batchNumber: "A-2", quantity: 100, unitCost: 1000, expiryInDays: 90 });
+    await makeBatch(stage, {
+      product: para,
+      batchNumber: "A-2",
+      quantity: 100,
+      unitCost: 1000,
+      expiryInDays: 90,
+    });
     await makeBatch(stage, {
       product: para,
       batchNumber: "B-2",
@@ -77,16 +89,25 @@ describe("Phạm vi cửa hàng", () => {
       .get(`/api/v1/inventory/batches?productId=${para.id}`)
       .set(h(stage.admin, stage.fixture.storeId))
       .expect(200);
-    expect(atA.body.data.items.map((item: { batchNumber: string }) => item.batchNumber)).toEqual(["A-2"]);
+    expect(atA.body.data.items.map((item: { batchNumber: string }) => item.batchNumber)).toEqual([
+      "A-2",
+    ]);
 
     const atB = await api()
       .get(`/api/v1/inventory/batches?productId=${para.id}`)
       .set(h(stage.admin, stage.fixture.otherStoreId))
       .expect(200);
-    expect(atB.body.data.items.map((item: { batchNumber: string }) => item.batchNumber)).toEqual(["B-2"]);
+    expect(atB.body.data.items.map((item: { batchNumber: string }) => item.batchNumber)).toEqual([
+      "B-2",
+    ]);
 
     // Bán ở cửa hàng B chỉ trừ tồn của B.
-    await sell(stage, { lines: [line(para, "Viên", 10)] }, stage.sellerB, stage.fixture.otherStoreId).expect(201);
+    await sell(
+      stage,
+      { lines: [line(para, "Viên", 10)] },
+      stage.sellerB,
+      stage.fixture.otherStoreId,
+    ).expect(201);
     expect((await batchOf("A-2", stage.fixture.storeId)).quantityOnHand).toBe(100);
     expect((await batchOf("B-2", stage.fixture.otherStoreId)).quantityOnHand).toBe(60);
 
@@ -140,13 +161,25 @@ describe("Phân quyền chặn ở máy chủ", () => {
       drugClass: "RX",
       units: [["Viên", 1, 3000]],
     });
-    await makeBatch(stage, { product: amox, batchNumber: "RX-Q", quantity: 50, unitCost: 1200, expiryInDays: 180 });
+    await makeBatch(stage, {
+      product: amox,
+      batchNumber: "RX-Q",
+      quantity: 50,
+      unitCost: 1200,
+      expiryInDays: 180,
+    });
     const rx = await sell(stage, { lines: [line(amox, "Viên", 1)] }, stage.sellerA).expect(403);
     expect(rx.body.error.message).toContain("invoice.create");
   });
 
   it("giảm giá vượt hạn mức của vai trò bị chặn ở máy chủ", async () => {
-    await makeBatch(stage, { product: para, batchNumber: "GG-1", quantity: 100, unitCost: 1000, expiryInDays: 90 });
+    await makeBatch(stage, {
+      product: para,
+      batchNumber: "GG-1",
+      quantity: 100,
+      unitCost: 1000,
+      expiryInDays: 90,
+    });
 
     // Nhân viên bán hàng: hạn mức 5%. Giảm 20.000/100.000 = 20%.
     const over = await sell(
@@ -231,7 +264,8 @@ describe("Phân quyền chặn ở máy chủ", () => {
     // Không trừ tồn, không đổi trạng thái phiếu.
     expect((await batchOf("NO-3")).quantityOnHand).toBe(100);
     expect(
-      (await prisma.supplierReturn.findFirstOrThrow({ where: { id: supplierReturn.body.data.id } })).status,
+      (await prisma.supplierReturn.findFirstOrThrow({ where: { id: supplierReturn.body.data.id } }))
+        .status,
     ).toBe("DRAFT");
 
     // Đổi sang hình thức nhận lại tiền thì xác nhận được.

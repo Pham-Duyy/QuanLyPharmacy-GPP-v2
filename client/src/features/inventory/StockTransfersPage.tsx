@@ -213,7 +213,9 @@ export function StockTransfersPage() {
           quantity: line.quantity,
         })),
       };
-      return http.post<Envelope<TransferDetail>>("/stock-transfers", body, { headers: submitKey.headers(body) });
+      return http.post<Envelope<TransferDetail>>("/stock-transfers", body, {
+        headers: submitKey.headers(body),
+      });
     },
     onSuccess: async (response) => {
       submitKey.done();

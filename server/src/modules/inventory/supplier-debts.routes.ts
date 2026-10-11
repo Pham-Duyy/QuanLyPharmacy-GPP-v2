@@ -9,7 +9,12 @@ import { requireStore, storeContext } from "../../middlewares/store-context.js";
 import * as service from "./supplier-debts.service.js";
 
 export const supplierDebtsRouter = Router();
-supplierDebtsRouter.use(["/supplier-debts", "/supplier-payments"], authenticate, storeContext, requireStore);
+supplierDebtsRouter.use(
+  ["/supplier-debts", "/supplier-payments"],
+  authenticate,
+  storeContext,
+  requireStore,
+);
 
 const debtQuerySchema = z.object({
   supplierId: z.uuid("supplierId không hợp lệ").optional(),
@@ -43,44 +48,76 @@ const listPaymentsSchema = z.object({
 });
 
 /** GET /api/v1/supplier-debts: công nợ theo từng nhà cung cấp, kèm phiếu còn nợ. */
-supplierDebtsRouter.get("/supplier-debts", requirePermission("supplier_debt.read"), async (req, res) => {
-  const query = parseOrThrow(debtQuerySchema, req.query);
-  sendData(res, await service.listDebts(req.auth!.storeId!, query));
-});
+supplierDebtsRouter.get(
+  "/supplier-debts",
+  requirePermission("supplier_debt.read"),
+  async (req, res) => {
+    const query = parseOrThrow(debtQuerySchema, req.query);
+    sendData(res, await service.listDebts(req.auth!.storeId!, query));
+  },
+);
 
 /** PUT /api/v1/supplier-debts/{supplierId}/term: đổi kỳ hạn thanh toán. */
-supplierDebtsRouter.put("/supplier-debts/:supplierId/term", requirePermission("supplier_payment.manage"), async (req, res) => {
-  const input = parseOrThrow(z.object({ paymentTermDays: z.coerce.number().int().min(0).max(365) }), req.body);
-  await service.setPaymentTerm(String(req.params.supplierId), input.paymentTermDays, req.auth!, req.auth!.storeId!);
-  sendData(res, { ok: true });
-});
+supplierDebtsRouter.put(
+  "/supplier-debts/:supplierId/term",
+  requirePermission("supplier_payment.manage"),
+  async (req, res) => {
+    const input = parseOrThrow(
+      z.object({ paymentTermDays: z.coerce.number().int().min(0).max(365) }),
+      req.body,
+    );
+    await service.setPaymentTerm(
+      String(req.params.supplierId),
+      input.paymentTermDays,
+      req.auth!,
+      req.auth!.storeId!,
+    );
+    sendData(res, { ok: true });
+  },
+);
 
 /** GET /api/v1/supplier-payments: lịch sử trả tiền nhà cung cấp. */
-supplierDebtsRouter.get("/supplier-payments", requirePermission("supplier_debt.read"), async (req, res) => {
-  const query = parseOrThrow(listPaymentsSchema, req.query);
-  sendData(res, await service.listPayments(req.auth!.storeId!, query));
-});
+supplierDebtsRouter.get(
+  "/supplier-payments",
+  requirePermission("supplier_debt.read"),
+  async (req, res) => {
+    const query = parseOrThrow(listPaymentsSchema, req.query);
+    sendData(res, await service.listPayments(req.auth!.storeId!, query));
+  },
+);
 
 /**
  * POST /api/v1/supplier-payments: ghi nhận một lần trả tiền, phân bổ về từng phiếu nhập.
  * Bắt buộc Idempotency-Key: phiếu chi trừ công nợ ngay, gửi trùng là trả hai lần.
  */
-supplierDebtsRouter.post("/supplier-payments", requirePermission("supplier_payment.manage"), idempotency, async (req, res) => {
-  const input = parseOrThrow(paymentSchema, req.body);
-  const id = await service.createPayment(req.auth!.storeId!, req.auth!, {
-    supplierId: input.supplierId,
-    paidAt: input.paidAt,
-    method: input.method,
-    reference: input.reference ?? null,
-    note: input.note ?? null,
-    allocations: input.allocations,
-  });
-  sendData(res, { id }, 201);
-});
+supplierDebtsRouter.post(
+  "/supplier-payments",
+  requirePermission("supplier_payment.manage"),
+  idempotency,
+  async (req, res) => {
+    const input = parseOrThrow(paymentSchema, req.body);
+    const id = await service.createPayment(req.auth!.storeId!, req.auth!, {
+      supplierId: input.supplierId,
+      paidAt: input.paidAt,
+      method: input.method,
+      reference: input.reference ?? null,
+      note: input.note ?? null,
+      allocations: input.allocations,
+    });
+    sendData(res, { id }, 201);
+  },
+);
 
 /** POST /api/v1/supplier-payments/{id}/void: hủy phiếu chi ghi nhầm, bắt buộc có lý do. */
-supplierDebtsRouter.post("/supplier-payments/:id/void", requirePermission("supplier_payment.manage"), async (req, res) => {
-  const input = parseOrThrow(z.object({ reason: z.string().trim().min(1, "Phải ghi lý do hủy phiếu chi").max(500) }), req.body);
-  await service.voidPayment(req.auth!.storeId!, String(req.params.id), req.auth!, input.reason);
-  sendData(res, { ok: true });
-});
+supplierDebtsRouter.post(
+  "/supplier-payments/:id/void",
+  requirePermission("supplier_payment.manage"),
+  async (req, res) => {
+    const input = parseOrThrow(
+      z.object({ reason: z.string().trim().min(1, "Phải ghi lý do hủy phiếu chi").max(500) }),
+      req.body,
+    );
+    await service.voidPayment(req.auth!.storeId!, String(req.params.id), req.auth!, input.reason);
+    sendData(res, { ok: true });
+  },
+);

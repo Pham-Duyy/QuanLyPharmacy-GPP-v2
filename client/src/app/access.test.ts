@@ -3,14 +3,31 @@ import { describe, expect, it } from "vitest";
 // Ma trận vai trò → quyền THẬT của server, không chép tay: đổi quyền ở server
 // mà quên tính lại trang bắt đầu hay menu thì test này đỏ.
 import { ROLES } from "../../../server/src/config/permissions.js";
-import { activeNav, allowedPages, findPage, pageAccess, startPageFor, visibleSidebar, type Can } from "./access.js";
-import { DEFAULT_MENU_PREFS, dropLegacyMenuPrefs, menuPrefsKey, readMenuPrefs, sanitizeOpenGroup, writeMenuPrefs } from "./menu-prefs.js";
+import {
+  activeNav,
+  allowedPages,
+  findPage,
+  pageAccess,
+  startPageFor,
+  visibleSidebar,
+  type Can,
+} from "./access.js";
+import {
+  DEFAULT_MENU_PREFS,
+  dropLegacyMenuPrefs,
+  menuPrefsKey,
+  readMenuPrefs,
+  sanitizeOpenGroup,
+  writeMenuPrefs,
+} from "./menu-prefs.js";
 import { PAGE_ELEMENTS } from "./page-elements.js";
 import { PAGES } from "./pages.js";
 import { SIDEBAR } from "./sidebar.js";
 
 function canFor(...roleCodes: string[]): Can {
-  const granted = new Set(ROLES.filter((role) => roleCodes.includes(role.code)).flatMap((role) => role.permissions));
+  const granted = new Set(
+    ROLES.filter((role) => roleCodes.includes(role.code)).flatMap((role) => role.permissions),
+  );
   return (permission) => granted.has(permission);
 }
 
@@ -32,12 +49,16 @@ describe("danh sách đăng ký trang", () => {
   });
 
   it("mọi mục trên sidebar đều là trang đã đăng ký", () => {
-    const sidebarPaths = SIDEBAR.flatMap((entry) => (entry.kind === "page" ? [entry.path] : [...entry.paths]));
+    const sidebarPaths = SIDEBAR.flatMap((entry) =>
+      entry.kind === "page" ? [entry.path] : [...entry.paths],
+    );
     for (const path of sidebarPaths) expect(findPage(path), path).toBeDefined();
   });
 
   it("trang không nằm trên sidebar vẫn chỉ tới một mục sidebar để đánh dấu", () => {
-    const sidebarPaths = new Set(SIDEBAR.flatMap((entry) => (entry.kind === "page" ? [entry.path] : [...entry.paths])));
+    const sidebarPaths = new Set(
+      SIDEBAR.flatMap((entry) => (entry.kind === "page" ? [entry.path] : [...entry.paths])),
+    );
     for (const page of PAGES) {
       const target = "navTarget" in page ? page.navTarget : page.path;
       expect(sidebarPaths.has(target), `${page.path} → ${target}`).toBe(true);
@@ -54,7 +75,8 @@ describe("danh sách đăng ký trang", () => {
 
   it("cấp đầu tối đa 9 mục, mỗi nhóm tối đa 6 trang", () => {
     expect(SIDEBAR.length).toBeLessThanOrEqual(9);
-    for (const entry of SIDEBAR) if (entry.kind === "group") expect(entry.paths.length).toBeLessThanOrEqual(6);
+    for (const entry of SIDEBAR)
+      if (entry.kind === "group") expect(entry.paths.length).toBeLessThanOrEqual(6);
   });
 
   it("Quầy bán ở cấp đầu: mở bằng một lần bấm", () => {
@@ -109,7 +131,9 @@ describe("quyền mở trang", () => {
     const paths = allowedPages(canFor("pharmacist")).map((page) => page.path);
     expect(paths).toContain("/anh-san-pham");
     expect(paths).toContain("/danh-muc");
-    expect(allowedPages(canFor("warehouse_staff")).map((page) => page.path)).not.toContain("/anh-san-pham");
+    expect(allowedPages(canFor("warehouse_staff")).map((page) => page.path)).not.toContain(
+      "/anh-san-pham",
+    );
   });
 
   it("không có quyền nào thì không thấy trang nào", () => {
@@ -127,15 +151,25 @@ describe("sidebar theo quyền", () => {
     expect(keys).not.toContain("/bao-cao");
     expect(keys).toContain("/ban-hang");
 
-    const purchasing = entries.find((entry) => entry.kind === "group" && entry.key === "purchasing");
-    const purchasingPaths = purchasing?.kind === "group" ? purchasing.pages.map((page) => page.path) : [];
+    const purchasing = entries.find(
+      (entry) => entry.kind === "group" && entry.key === "purchasing",
+    );
+    const purchasingPaths =
+      purchasing?.kind === "group" ? purchasing.pages.map((page) => page.path) : [];
     // Có stock.read và catalog.read nên thấy Đề xuất đặt hàng và Nhà cung cấp, dược sĩ còn xem được Phiếu nhập và Trả nhà cung cấp.
-    expect(purchasingPaths).toEqual(["/phieu-nhap", "/de-xuat-dat-hang", "/tra-hang-ncc", "/nha-cung-cap"]);
+    expect(purchasingPaths).toEqual([
+      "/phieu-nhap",
+      "/de-xuat-dat-hang",
+      "/tra-hang-ncc",
+      "/nha-cung-cap",
+    ]);
   });
 
   it("nhóm Quản trị của dược sĩ chỉ còn Nhập / xuất Excel", () => {
     // Hệ quả của việc giữ nguyên quyền trang Excel (ai có catalog.read cũng mở được).
-    const admin = visibleSidebar(canFor("pharmacist")).find((entry) => entry.kind === "group" && entry.key === "admin");
+    const admin = visibleSidebar(canFor("pharmacist")).find(
+      (entry) => entry.kind === "group" && entry.key === "admin",
+    );
     expect(admin?.kind === "group" ? admin.pages.map((page) => page.path) : []).toEqual(["/excel"]);
   });
 
@@ -145,7 +179,9 @@ describe("sidebar theo quyền", () => {
 
   it("hóa đơn điện tử, liên thông chưa bật thì dược sĩ không thấy; quản lý vẫn thấy để bật", () => {
     const paths = (entries: ReturnType<typeof visibleSidebar>) =>
-      entries.flatMap((entry) => (entry.kind === "page" ? [entry.page.path] : entry.pages.map((page) => page.path)));
+      entries.flatMap((entry) =>
+        entry.kind === "page" ? [entry.page.path] : entry.pages.map((page) => page.path),
+      );
     const off = () => false;
 
     const pharmacistOff = paths(visibleSidebar(canFor("pharmacist"), off));
@@ -216,7 +252,9 @@ describe("trang bắt đầu theo vai trò", () => {
   });
 
   it("vai trò toàn chuỗi có hiệu lực ở mọi cửa hàng", () => {
-    expect(startPageFor([{ code: "admin", storeId: null }], NT02, canFor("admin"))).toBe("/tai-khoan");
+    expect(startPageFor([{ code: "admin", storeId: null }], NT02, canFor("admin"))).toBe(
+      "/tai-khoan",
+    );
   });
 
   it("không đủ quyền trang đích thì chuyển sang trang dự phòng hợp lệ", () => {

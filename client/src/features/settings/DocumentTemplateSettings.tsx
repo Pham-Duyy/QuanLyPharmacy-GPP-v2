@@ -1,10 +1,29 @@
 import { CarOutlined, InboxOutlined, RollbackOutlined, SwapOutlined } from "@ant-design/icons";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, App, AutoComplete, Button, Card, Checkbox, Form, Grid, Input, Radio, Segmented } from "antd";
+import {
+  Alert,
+  App,
+  AutoComplete,
+  Button,
+  Card,
+  Checkbox,
+  Form,
+  Grid,
+  Input,
+  Radio,
+  Segmented,
+} from "antd";
 import { useState } from "react";
 import type { ReactNode } from "react";
 import { http } from "../../api/http.js";
-import type { DocumentPrintConfig, DocumentPrintSettings, DocumentPrintState, DocumentPrintType, Envelope, PaperSize } from "../../api/types.js";
+import type {
+  DocumentPrintConfig,
+  DocumentPrintSettings,
+  DocumentPrintState,
+  DocumentPrintType,
+  Envelope,
+  PaperSize,
+} from "../../api/types.js";
 import { useDebounced } from "../../ui/useDebounced.js";
 import { useAuth } from "../auth/auth-context.js";
 import { fetchPrintPage, printHtml } from "../printing/printing.js";
@@ -34,7 +53,8 @@ const TYPES: Record<DocumentPrintType, TypeMeta> = {
     label: "Phiếu nhập kho",
     short: "Nhập kho",
     icon: <InboxOutlined />,
-    description: "In từ màn Nhập hàng: nhà cung cấp, số lô, hạn dùng, giá nhập và chữ ký kiểm nhập.",
+    description:
+      "In từ màn Nhập hàng: nhà cung cấp, số lô, hạn dùng, giá nhập và chữ ký kiểm nhập.",
     papers: ["A4", "A5"],
     titles: ["PHIẾU NHẬP KHO", "PHIẾU NHẬP HÀNG", "BIÊN BẢN KIỂM NHẬP"],
     hasAmount: true,
@@ -64,7 +84,8 @@ const TYPES: Record<DocumentPrintType, TypeMeta> = {
     label: "Phiếu chuyển kho",
     short: "Chuyển kho",
     icon: <CarOutlined />,
-    description: "In từ màn Chuyển hàng để đi cùng hàng: cửa hàng gửi, cửa hàng nhận, số lô, hạn dùng, số gửi và số thực nhận.",
+    description:
+      "In từ màn Chuyển hàng để đi cùng hàng: cửa hàng gửi, cửa hàng nhận, số lô, hạn dùng, số gửi và số thực nhận.",
     papers: ["A4", "A5"],
     titles: ["PHIẾU CHUYỂN KHO", "PHIẾU ĐIỀU CHUYỂN HÀNG HÓA", "BIÊN BẢN GIAO NHẬN HÀNG"],
     hasAmount: false,
@@ -75,22 +96,39 @@ const TYPES: Record<DocumentPrintType, TypeMeta> = {
 const TYPE_KEYS = Object.keys(TYPES) as DocumentPrintType[];
 
 /** Cài đặt → Kho & chứng từ → Mẫu in phiếu. */
-export function DocumentTemplateSettings({ onOpenInvoiceTemplate }: { onOpenInvoiceTemplate: () => void }) {
+export function DocumentTemplateSettings({
+  onOpenInvoiceTemplate,
+}: {
+  onOpenInvoiceTemplate: () => void;
+}) {
   const { storeId } = useAuth();
   const query = useQuery({
     queryKey: [QUERY_KEY, storeId],
     enabled: storeId !== null,
-    queryFn: async () => (await http.get<Envelope<DocumentPrintState>>("/settings/document-print")).data.data,
+    queryFn: async () =>
+      (await http.get<Envelope<DocumentPrintState>>("/settings/document-print")).data.data,
   });
 
   return (
     <SettingsGate query={query} rows={10} errorTitle="Không tải được cài đặt in phiếu">
-      {(data) => <DocumentEditor key={`${storeId}:${data.updatedAt ?? "default"}`} state={data} onOpenInvoiceTemplate={onOpenInvoiceTemplate} />}
+      {(data) => (
+        <DocumentEditor
+          key={`${storeId}:${data.updatedAt ?? "default"}`}
+          state={data}
+          onOpenInvoiceTemplate={onOpenInvoiceTemplate}
+        />
+      )}
     </SettingsGate>
   );
 }
 
-function DocumentEditor({ state, onOpenInvoiceTemplate }: { state: DocumentPrintState; onOpenInvoiceTemplate: () => void }) {
+function DocumentEditor({
+  state,
+  onOpenInvoiceTemplate,
+}: {
+  state: DocumentPrintState;
+  onOpenInvoiceTemplate: () => void;
+}) {
   const { message } = App.useApp();
   const { me, storeId } = useAuth();
   const queryClient = useQueryClient();
@@ -104,7 +142,9 @@ function DocumentEditor({ state, onOpenInvoiceTemplate }: { state: DocumentPrint
   const config = draft[type];
   const meta = TYPES[type];
   const dirty = JSON.stringify(draft) !== JSON.stringify(state.settings);
-  const dirtyTypes = TYPE_KEYS.filter((key) => JSON.stringify(draft[key]) !== JSON.stringify(state.settings[key]));
+  const dirtyTypes = TYPE_KEYS.filter(
+    (key) => JSON.stringify(draft[key]) !== JSON.stringify(state.settings[key]),
+  );
   const invalidTypes = TYPE_KEYS.filter((key) => draft[key].title.trim() === "");
   const storeName = me?.stores.find((item) => item.id === storeId)?.name;
 
@@ -117,7 +157,8 @@ function DocumentEditor({ state, onOpenInvoiceTemplate }: { state: DocumentPrint
     enabled: previewable,
     placeholderData: keepPreviousData,
     retry: false,
-    queryFn: () => fetchPrintPage("/settings/document-print/preview", { type, settings: debounced }),
+    queryFn: () =>
+      fetchPrintPage("/settings/document-print/preview", { type, settings: debounced }),
   });
 
   function change(patch: Partial<DocumentPrintConfig>) {
@@ -141,12 +182,15 @@ function DocumentEditor({ state, onOpenInvoiceTemplate }: { state: DocumentPrint
     if (invalidTypes.length === 0) return true;
     setType(invalidTypes[0]!);
     if (!wide) setMobileTab("form");
-    void message.warning(`Phải nhập tiêu đề cho ${invalidTypes.map((key) => TYPES[key].label.toLowerCase()).join(", ")}`);
+    void message.warning(
+      `Phải nhập tiêu đề cho ${invalidTypes.map((key) => TYPES[key].label.toLowerCase()).join(", ")}`,
+    );
     return false;
   }
 
   const save = useMutation({
-    mutationFn: async () => (await http.put<Envelope<DocumentPrintState>>("/settings/document-print", draft)).data.data,
+    mutationFn: async () =>
+      (await http.put<Envelope<DocumentPrintState>>("/settings/document-print", draft)).data.data,
     onSuccess: (saved) => {
       void message.success("Đã lưu mẫu in phiếu. Các phiếu in từ bây giờ sẽ dùng mẫu này");
       queryClient.setQueryData([QUERY_KEY, storeId], saved);
@@ -155,11 +199,15 @@ function DocumentEditor({ state, onOpenInvoiceTemplate }: { state: DocumentPrint
   });
 
   const testPrint = useMutation({
-    mutationFn: async () => printHtml((await fetchPrintPage("/settings/document-print/preview", { type, settings: draft })).html),
+    mutationFn: async () =>
+      printHtml(
+        (await fetchPrintPage("/settings/document-print/preview", { type, settings: draft })).html,
+      ),
     onError: (error) => void message.error(readErrors(error)),
   });
 
-  const titleError = config.title.trim() === "" ? "Phải nhập tiêu đề phiếu" : serverErrors[`${type}.title`];
+  const titleError =
+    config.title.trim() === "" ? "Phải nhập tiêu đề phiếu" : serverErrors[`${type}.title`];
   const paperError = serverErrors[`${type}.paperSize`];
 
   const formPanel = (
@@ -175,7 +223,9 @@ function DocumentEditor({ state, onOpenInvoiceTemplate }: { state: DocumentPrint
             <span className="doc-type-option">
               {TYPES[key].icon}
               <span title={TYPES[key].label}>{TYPES[key].short}</span>
-              {dirtyTypes.includes(key) ? <span className="doc-type-dot" aria-label="Có thay đổi chưa lưu" /> : null}
+              {dirtyTypes.includes(key) ? (
+                <span className="doc-type-dot" aria-label="Có thay đổi chưa lưu" />
+              ) : null}
             </span>
           ),
         }))}
@@ -190,7 +240,12 @@ function DocumentEditor({ state, onOpenInvoiceTemplate }: { state: DocumentPrint
         description={
           <span>
             Mọi chứng từ của cửa hàng dùng chung phần đầu này.{" "}
-            <Button type="link" size="small" className="inline-link" onClick={onOpenInvoiceTemplate}>
+            <Button
+              type="link"
+              size="small"
+              className="inline-link"
+              onClick={onOpenInvoiceTemplate}
+            >
               Sửa thông tin đơn vị
             </Button>
           </span>
@@ -202,7 +257,12 @@ function DocumentEditor({ state, onOpenInvoiceTemplate }: { state: DocumentPrint
           <h3>Nội dung {meta.label.toLowerCase()}</h3>
         </div>
         <div className="tpl-row2">
-          <Form.Item label="Tiêu đề" required validateStatus={titleError ? "error" : undefined} help={titleError}>
+          <Form.Item
+            label="Tiêu đề"
+            required
+            validateStatus={titleError ? "error" : undefined}
+            help={titleError}
+          >
             <AutoComplete
               aria-label="Tiêu đề phiếu"
               value={config.title}
@@ -211,8 +271,16 @@ function DocumentEditor({ state, onOpenInvoiceTemplate }: { state: DocumentPrint
               onChange={(value: string) => change({ title: value })}
             />
           </Form.Item>
-          <Form.Item label="Khổ giấy" validateStatus={paperError ? "error" : undefined} help={paperError}>
-            <Radio.Group className="tpl-paper" value={config.paperSize} onChange={(event) => change({ paperSize: event.target.value as PaperSize })}>
+          <Form.Item
+            label="Khổ giấy"
+            validateStatus={paperError ? "error" : undefined}
+            help={paperError}
+          >
+            <Radio.Group
+              className="tpl-paper"
+              value={config.paperSize}
+              onChange={(event) => change({ paperSize: event.target.value as PaperSize })}
+            >
               {meta.papers.map((paper) => (
                 <Radio key={paper} value={paper}>
                   {PAPER_LABEL[paper]}
@@ -221,18 +289,30 @@ function DocumentEditor({ state, onOpenInvoiceTemplate }: { state: DocumentPrint
             </Radio.Group>
           </Form.Item>
         </div>
-        <Form.Item label="Hiển thị trên phiếu" extra="Dữ liệu phiếu (thuốc, số lô, số lượng, tiền) được điền tự động khi in.">
+        <Form.Item
+          label="Hiển thị trên phiếu"
+          extra="Dữ liệu phiếu (thuốc, số lô, số lượng, tiền) được điền tự động khi in."
+        >
           <div className="tpl-display-grid">
-            <Checkbox checked={config.showSignatures} onChange={(event) => change({ showSignatures: event.target.checked })}>
+            <Checkbox
+              checked={config.showSignatures}
+              onChange={(event) => change({ showSignatures: event.target.checked })}
+            >
               Ô ký tên cuối phiếu
             </Checkbox>
             {meta.hasAmount ? (
-              <Checkbox checked={config.showAmountInWords} onChange={(event) => change({ showAmountInWords: event.target.checked })}>
+              <Checkbox
+                checked={config.showAmountInWords}
+                onChange={(event) => change({ showAmountInWords: event.target.checked })}
+              >
                 Số tiền bằng chữ
               </Checkbox>
             ) : null}
             {meta.hasNote ? (
-              <Checkbox checked={config.showNote} onChange={(event) => change({ showNote: event.target.checked })}>
+              <Checkbox
+                checked={config.showNote}
+                onChange={(event) => change({ showNote: event.target.checked })}
+              >
                 Ghi chú của phiếu
               </Checkbox>
             ) : null}
@@ -258,24 +338,44 @@ function DocumentEditor({ state, onOpenInvoiceTemplate }: { state: DocumentPrint
       className="tpl-preview-card"
       title={`Xem trước ${meta.label.toLowerCase()}`}
       extra={
-        <span className="tpl-preview-meta">
-          {PAPER_LABEL[config.paperSize]} · Dữ liệu minh họa
-        </span>
+        <span className="tpl-preview-meta">{PAPER_LABEL[config.paperSize]} · Dữ liệu minh họa</span>
       }
     >
       {!previewable ? (
-        <Alert type="warning" showIcon className="tpl-preview-alert" title="Nhập tiêu đề phiếu để xem trước." />
+        <Alert
+          type="warning"
+          showIcon
+          className="tpl-preview-alert"
+          title="Nhập tiêu đề phiếu để xem trước."
+        />
       ) : preview.isError ? (
-        <Alert type="error" showIcon className="tpl-preview-alert" title={readApiError(preview.error).message} />
+        <Alert
+          type="error"
+          showIcon
+          className="tpl-preview-alert"
+          title={readApiError(preview.error).message}
+        />
       ) : null}
-      <PrintPaper html={preview.data?.html} paperSize={preview.data?.paperSize ?? config.paperSize} loading={preview.isFetching} />
+      <PrintPaper
+        html={preview.data?.html}
+        paperSize={preview.data?.paperSize ?? config.paperSize}
+        loading={preview.isFetching}
+      />
       <p className="tpl-preview-note">Bản xem trước dùng dữ liệu mẫu, không tạo chứng từ nào.</p>
     </Card>
   );
 
   return (
     <TemplateEditorLayout
-      defaultNotice={state.isDefault ? { title: "Đang dùng mẫu phiếu mặc định", description: "Mọi phiếu vẫn in được ngay. Chỉnh sửa rồi bấm “Lưu mẫu in” để áp dụng riêng cho cửa hàng này." } : null}
+      defaultNotice={
+        state.isDefault
+          ? {
+              title: "Đang dùng mẫu phiếu mặc định",
+              description:
+                "Mọi phiếu vẫn in được ngay. Chỉnh sửa rồi bấm “Lưu mẫu in” để áp dụng riêng cho cửa hàng này.",
+            }
+          : null
+      }
       wide={wide}
       mobileTab={mobileTab}
       onMobileTab={setMobileTab}

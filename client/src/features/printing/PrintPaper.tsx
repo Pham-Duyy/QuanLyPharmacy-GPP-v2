@@ -18,7 +18,12 @@ type PrintPaperProps = {
  * cao nội dung, nhờ vậy tờ giấy dài đúng bằng hóa đơn thật. Khung hẹp hơn
  * khổ giấy (A5 trên điện thoại) thì thu nhỏ cả tờ thay vì cắt bớt nội dung.
  */
-export function PrintPaper({ html, paperSize, loading, title = "Xem trước bản in" }: PrintPaperProps) {
+export function PrintPaper({
+  html,
+  paperSize,
+  loading,
+  title = "Xem trước bản in",
+}: PrintPaperProps) {
   const stageRef = useRef<HTMLDivElement>(null);
   const frameRef = useRef<HTMLIFrameElement>(null);
   const [height, setHeight] = useState(480);
@@ -46,7 +51,10 @@ export function PrintPaper({ html, paperSize, loading, title = "Xem trước b�
     <div ref={stageRef} className={`print-paper-stage paper-${paperSize.toLowerCase()}`}>
       <Spin spinning={Boolean(loading)}>
         <div className="print-paper-frame" style={{ width: width * scale, height: height * scale }}>
-          <div className="print-paper" style={{ width, transform: scale < 1 ? `scale(${scale})` : undefined }}>
+          <div
+            className="print-paper"
+            style={{ width, transform: scale < 1 ? `scale(${scale})` : undefined }}
+          >
             {html ? (
               <iframe
                 ref={frameRef}

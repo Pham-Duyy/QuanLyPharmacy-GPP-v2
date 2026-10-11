@@ -1,6 +1,18 @@
 import { GiftOutlined, HistoryOutlined, MinusOutlined, PlusOutlined } from "@ant-design/icons";
 import { useMutation } from "@tanstack/react-query";
-import { Alert, App, Button, Empty, Form, Input, InputNumber, Modal, Skeleton, Table, Tag } from "antd";
+import {
+  Alert,
+  App,
+  Button,
+  Empty,
+  Form,
+  Input,
+  InputNumber,
+  Modal,
+  Skeleton,
+  Table,
+  Tag,
+} from "antd";
 import { useState } from "react";
 import { getErrorMessage, http } from "../../api/http.js";
 import { useSubmitKey } from "../../api/submit-key.js";
@@ -31,8 +43,13 @@ export function LoyaltyPanel({ customerId }: { customerId: string }) {
   const submitKey = useSubmitKey();
   const adjust = useMutation({
     mutationFn: async (values: { points: number; reason: string }) => {
-      const body = { points: adjusting === "SUBTRACT" ? -values.points : values.points, reason: values.reason };
-      return http.post(`/customers/${customerId}/loyalty/adjust`, body, { headers: submitKey.headers(customerId, body) });
+      const body = {
+        points: adjusting === "SUBTRACT" ? -values.points : values.points,
+        reason: values.reason,
+      };
+      return http.post(`/customers/${customerId}/loyalty/adjust`, body, {
+        headers: submitKey.headers(customerId, body),
+      });
     },
     onSuccess: async () => {
       submitKey.done();
@@ -43,7 +60,8 @@ export function LoyaltyPanel({ customerId }: { customerId: string }) {
     onError: (error) => void message.error(getErrorMessage(error, "Không điều chỉnh được điểm"), 8),
   });
 
-  if (loyaltyQuery.isLoading || settingsQuery.isLoading) return <Skeleton active paragraph={{ rows: 6 }} />;
+  if (loyaltyQuery.isLoading || settingsQuery.isLoading)
+    return <Skeleton active paragraph={{ rows: 6 }} />;
   if (!data) {
     return (
       <Alert
@@ -107,7 +125,11 @@ export function LoyaltyPanel({ customerId }: { customerId: string }) {
           <Button icon={<PlusOutlined />} onClick={() => setAdjusting("ADD")}>
             Cộng điểm
           </Button>
-          <Button icon={<MinusOutlined />} disabled={balance.available === 0} onClick={() => setAdjusting("SUBTRACT")}>
+          <Button
+            icon={<MinusOutlined />}
+            disabled={balance.available === 0}
+            onClick={() => setAdjusting("SUBTRACT")}
+          >
             Trừ điểm
           </Button>
         </div>
@@ -161,7 +183,8 @@ export function LoyaltyPanel({ customerId }: { customerId: string }) {
             title: "Hạn dùng",
             dataIndex: "expiresAt",
             width: 120,
-            render: (value: string | null) => (value ? formatDate(value) : <span className="muted">Không hết hạn</span>),
+            render: (value: string | null) =>
+              value ? formatDate(value) : <span className="muted">Không hết hạn</span>,
           },
         ]}
       />
@@ -184,7 +207,13 @@ export function LoyaltyPanel({ customerId }: { customerId: string }) {
             rules={[
               { required: true, message: "Nhập số điểm" },
               ...(adjusting === "SUBTRACT"
-                ? [{ type: "number" as const, max: balance.available, message: `Khách chỉ còn ${balance.available} điểm` }]
+                ? [
+                    {
+                      type: "number" as const,
+                      max: balance.available,
+                      message: `Khách chỉ còn ${balance.available} điểm`,
+                    },
+                  ]
                 : []),
             ]}
           >
@@ -199,7 +228,11 @@ export function LoyaltyPanel({ customerId }: { customerId: string }) {
             <Input.TextArea
               rows={3}
               maxLength={500}
-              placeholder={adjusting === "SUBTRACT" ? "VD: Trừ điểm cộng nhầm ngày 20/9" : "VD: Bù điểm hóa đơn quên quét thẻ"}
+              placeholder={
+                adjusting === "SUBTRACT"
+                  ? "VD: Trừ điểm cộng nhầm ngày 20/9"
+                  : "VD: Bù điểm hóa đơn quên quét thẻ"
+              }
             />
           </Form.Item>
         </Form>

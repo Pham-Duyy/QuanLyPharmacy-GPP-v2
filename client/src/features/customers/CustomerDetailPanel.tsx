@@ -23,7 +23,12 @@ import type { CustomerDetail, Envelope } from "../../api/types.js";
 import { formatDate, formatDateTime } from "../../ui/format.js";
 import { useAuth } from "../auth/auth-context.js";
 import { LoyaltyPanel } from "../loyalty/LoyaltyPanel.js";
-import { AnonymizeModal, CustomerFormModal, HealthProfilePanel, InvoiceHistoryPanel } from "./customer-forms.js";
+import {
+  AnonymizeModal,
+  CustomerFormModal,
+  HealthProfilePanel,
+  InvoiceHistoryPanel,
+} from "./customer-forms.js";
 import { GENDER, SEGMENT, avatarTone, initials, money } from "./customer-labels.js";
 
 type Tab = "overview" | "history" | "health" | "note" | "loyalty";
@@ -34,7 +39,15 @@ function maskPhone(phone: string | null): string | null {
 }
 
 /** Hồ sơ một khách: thông tin liên hệ, tổng hợp mua, giao dịch gần đây, ghi chú chăm sóc. */
-export function CustomerDetailPanel({ customerId, onClose, onChanged }: { customerId: string; onClose: () => void; onChanged: () => Promise<unknown> }) {
+export function CustomerDetailPanel({
+  customerId,
+  onClose,
+  onChanged,
+}: {
+  customerId: string;
+  onClose: () => void;
+  onChanged: () => Promise<unknown>;
+}) {
   const { can } = useAuth();
   const { message } = App.useApp();
   const navigate = useNavigate();
@@ -46,7 +59,8 @@ export function CustomerDetailPanel({ customerId, onClose, onChanged }: { custom
 
   const detailQuery = useQuery({
     queryKey: ["customer", customerId],
-    queryFn: async () => (await http.get<Envelope<CustomerDetail>>(`/customers/${customerId}`)).data.data,
+    queryFn: async () =>
+      (await http.get<Envelope<CustomerDetail>>(`/customers/${customerId}`)).data.data,
   });
   const detail = detailQuery.data;
   const canSensitive = can("customer.sensitive");
@@ -58,7 +72,11 @@ export function CustomerDetailPanel({ customerId, onClose, onChanged }: { custom
   }
 
   const saveNote = useMutation({
-    mutationFn: async (note: string) => http.patch(`/customers/${customerId}`, { note: note.trim() || null, version: detail!.version }),
+    mutationFn: async (note: string) =>
+      http.patch(`/customers/${customerId}`, {
+        note: note.trim() || null,
+        version: detail!.version,
+      }),
     onSuccess: async () => {
       void message.success("Đã lưu ghi chú chăm sóc");
       setNoteDraft(null);
@@ -69,7 +87,12 @@ export function CustomerDetailPanel({ customerId, onClose, onChanged }: { custom
 
   const head = (
     <div className="cust-panel-close">
-      <Button type="text" icon={<CloseOutlined />} aria-label="Đóng hồ sơ khách hàng" onClick={onClose} />
+      <Button
+        type="text"
+        icon={<CloseOutlined />}
+        aria-label="Đóng hồ sơ khách hàng"
+        onClick={onClose}
+      />
     </div>
   );
 
@@ -77,7 +100,12 @@ export function CustomerDetailPanel({ customerId, onClose, onChanged }: { custom
     return (
       <section className="cust-panel">
         {head}
-        <Result status="warning" title="Không tải được hồ sơ khách" subTitle={getErrorMessage(detailQuery.error, "Thử lại sau.")} extra={<Button onClick={() => void detailQuery.refetch()}>Thử lại</Button>} />
+        <Result
+          status="warning"
+          title="Không tải được hồ sơ khách"
+          subTitle={getErrorMessage(detailQuery.error, "Thử lại sau.")}
+          extra={<Button onClick={() => void detailQuery.refetch()}>Thử lại</Button>}
+        />
       </section>
     );
   }
@@ -91,13 +119,22 @@ export function CustomerDetailPanel({ customerId, onClose, onChanged }: { custom
   }
 
   const segment = SEGMENT[detail.stats.segment];
-  const average = detail.stats.orderCount > 0 ? Math.round(detail.stats.totalSpent / detail.stats.orderCount) : null;
+  const average =
+    detail.stats.orderCount > 0
+      ? Math.round(detail.stats.totalSpent / detail.stats.orderCount)
+      : null;
   const missing = <span className="muted">Chưa cập nhật</span>;
   const phoneValue = detail.phone ? (
     <span className="cust-phone">
       <span className="mono">{phoneShown ? detail.phone : maskPhone(detail.phone)}</span>
       <Tooltip title={phoneShown ? "Che số điện thoại" : "Hiện đầy đủ"}>
-        <Button type="text" size="small" icon={phoneShown ? <EyeInvisibleOutlined /> : <EyeOutlined />} aria-label={phoneShown ? "Che số điện thoại" : "Hiện đầy đủ số điện thoại"} onClick={() => setPhoneShown((value) => !value)} />
+        <Button
+          type="text"
+          size="small"
+          icon={phoneShown ? <EyeInvisibleOutlined /> : <EyeOutlined />}
+          aria-label={phoneShown ? "Che số điện thoại" : "Hiện đầy đủ số điện thoại"}
+          onClick={() => setPhoneShown((value) => !value)}
+        />
       </Tooltip>
     </span>
   ) : (
@@ -127,7 +164,12 @@ export function CustomerDetailPanel({ customerId, onClose, onChanged }: { custom
         <Button disabled={noteDraft === null} onClick={() => setNoteDraft(null)}>
           Hủy
         </Button>
-        <Button type="primary" loading={saveNote.isPending} disabled={noteDraft === null} onClick={() => saveNote.mutate(noteDraft ?? "")}>
+        <Button
+          type="primary"
+          loading={saveNote.isPending}
+          disabled={noteDraft === null}
+          onClick={() => saveNote.mutate(noteDraft ?? "")}
+        >
           Lưu ghi chú
         </Button>
       </div>
@@ -167,7 +209,9 @@ export function CustomerDetailPanel({ customerId, onClose, onChanged }: { custom
         <div className="cust-metric tone-green">
           <CalendarOutlined aria-hidden />
           <span>Lần mua cuối</span>
-          <strong>{detail.stats.lastPurchaseAt ? formatDate(detail.stats.lastPurchaseAt) : "Chưa mua"}</strong>
+          <strong>
+            {detail.stats.lastPurchaseAt ? formatDate(detail.stats.lastPurchaseAt) : "Chưa mua"}
+          </strong>
         </div>
       </div>
 
@@ -181,10 +225,15 @@ export function CustomerDetailPanel({ customerId, onClose, onChanged }: { custom
           ) : null}
         </div>
         {canSensitive ? (
-          <InvoiceHistoryPanel customerId={customerId} limit={3} onOpenInvoice={(id) => void navigate(`/hoa-don?id=${id}`)} />
+          <InvoiceHistoryPanel
+            customerId={customerId}
+            limit={3}
+            onOpenInvoice={(id) => void navigate(`/hoa-don?id=${id}`)}
+          />
         ) : (
           <p className="cust-locked">
-            <LockOutlined /> Vai trò hiện tại chỉ xem được số liệu tổng hợp, không xem chi tiết từng lần mua.
+            <LockOutlined /> Vai trò hiện tại chỉ xem được số liệu tổng hợp, không xem chi tiết từng
+            lần mua.
           </p>
         )}
       </section>
@@ -221,7 +270,9 @@ export function CustomerDetailPanel({ customerId, onClose, onChanged }: { custom
           <div>
             <span className="mono muted">{detail.code}</span>
             <span className={`class-badge tone-${segment.tone}`}>{segment.label}</span>
-            {detail.hasHealthConsent ? <span className="class-badge tone-purple">Có hồ sơ SK</span> : null}
+            {detail.hasHealthConsent ? (
+              <span className="class-badge tone-purple">Có hồ sơ SK</span>
+            ) : null}
           </div>
         </div>
         <div className="cust-panel-actions">
@@ -231,15 +282,41 @@ export function CustomerDetailPanel({ customerId, onClose, onChanged }: { custom
             </Button>
           ) : null}
           {canSensitive && !detail.isAnonymized ? (
-            <Dropdown trigger={["click"]} placement="bottomRight" menu={{ items: [{ key: "anonymize", danger: true, icon: <EyeInvisibleOutlined />, label: "Ẩn danh hồ sơ" }], onClick: () => setAnonymizing(true) }}>
+            <Dropdown
+              trigger={["click"]}
+              placement="bottomRight"
+              menu={{
+                items: [
+                  {
+                    key: "anonymize",
+                    danger: true,
+                    icon: <EyeInvisibleOutlined />,
+                    label: "Ẩn danh hồ sơ",
+                  },
+                ],
+                onClick: () => setAnonymizing(true),
+              }}
+            >
               <Button icon={<MoreOutlined />} aria-label="Thao tác khác" />
             </Dropdown>
           ) : null}
-          <Button type="text" icon={<CloseOutlined />} aria-label="Đóng hồ sơ khách hàng" onClick={onClose} />
+          <Button
+            type="text"
+            icon={<CloseOutlined />}
+            aria-label="Đóng hồ sơ khách hàng"
+            onClick={onClose}
+          />
         </div>
       </header>
 
-      {detail.isAnonymized ? <Alert type="warning" showIcon title="Khách hàng này đã được ẩn danh" description="Họ tên, liên hệ và hồ sơ sức khỏe đã bị xóa theo yêu cầu. Chứng từ đã phát sinh vẫn giữ nguyên." /> : null}
+      {detail.isAnonymized ? (
+        <Alert
+          type="warning"
+          showIcon
+          title="Khách hàng này đã được ẩn danh"
+          description="Họ tên, liên hệ và hồ sơ sức khỏe đã bị xóa theo yêu cầu. Chứng từ đã phát sinh vẫn giữ nguyên."
+        />
+      ) : null}
 
       <Tabs
         activeKey={tab}
@@ -249,25 +326,58 @@ export function CustomerDetailPanel({ customerId, onClose, onChanged }: { custom
           {
             key: "history",
             label: "Lịch sử mua",
-            children: canSensitive ? <InvoiceHistoryPanel customerId={customerId} onOpenInvoice={(id) => void navigate(`/hoa-don?id=${id}`)} /> : <p className="cust-locked"><LockOutlined /> Cần quyền xem dữ liệu nhạy cảm của khách.</p>,
+            children: canSensitive ? (
+              <InvoiceHistoryPanel
+                customerId={customerId}
+                onOpenInvoice={(id) => void navigate(`/hoa-don?id=${id}`)}
+              />
+            ) : (
+              <p className="cust-locked">
+                <LockOutlined /> Cần quyền xem dữ liệu nhạy cảm của khách.
+              </p>
+            ),
           },
-          { key: "loyalty", label: "Điểm tích lũy", children: <LoyaltyPanel customerId={customerId} /> },
+          {
+            key: "loyalty",
+            label: "Điểm tích lũy",
+            children: <LoyaltyPanel customerId={customerId} />,
+          },
           {
             key: "health",
             label: "Hồ sơ sức khỏe",
-            children: canSensitive ? <HealthProfilePanel customerId={customerId} onSaved={refresh} /> : <p className="cust-locked"><LockOutlined /> Cần quyền xem dữ liệu nhạy cảm của khách.</p>,
+            children: canSensitive ? (
+              <HealthProfilePanel customerId={customerId} onSaved={refresh} />
+            ) : (
+              <p className="cust-locked">
+                <LockOutlined /> Cần quyền xem dữ liệu nhạy cảm của khách.
+              </p>
+            ),
           },
           {
             key: "note",
             label: "Ghi chú",
-            children: canManage && !detail.isAnonymized ? noteEditor : detail.note ? <div className="cust-note"><span>{detail.note}</span></div> : <p className="muted">Chưa có ghi chú chăm sóc.</p>,
+            children:
+              canManage && !detail.isAnonymized ? (
+                noteEditor
+              ) : detail.note ? (
+                <div className="cust-note">
+                  <span>{detail.note}</span>
+                </div>
+              ) : (
+                <p className="muted">Chưa có ghi chú chăm sóc.</p>
+              ),
           },
         ]}
       />
 
       <div className="cust-panel-footer">
         {can("invoice.create") && !detail.isAnonymized ? (
-          <Button type="primary" size="large" icon={<PlusOutlined />} onClick={() => void navigate(`/ban-hang?khach=${customerId}`)}>
+          <Button
+            type="primary"
+            size="large"
+            icon={<PlusOutlined />}
+            onClick={() => void navigate(`/ban-hang?khach=${customerId}`)}
+          >
             Tạo đơn bán cho khách
           </Button>
         ) : null}

@@ -1,16 +1,41 @@
 import { prisma } from "../../db/prisma.js";
 import { AppError } from "../../lib/app-error.js";
 import { saveCounts } from "../inventory/stock-counts.service.js";
-import { RowReader, fold, headerMap, type ImportDefinition, type ImportIssue, type PlannedRow } from "./import-kit.js";
+import {
+  RowReader,
+  fold,
+  headerMap,
+  type ImportDefinition,
+  type ImportIssue,
+  type PlannedRow,
+} from "./import-kit.js";
 import { asInt, asText, type ColumnDef } from "./workbook.js";
 
 const STOCK_COUNT_COLUMNS: ColumnDef[] = [
   { key: "productCode", header: "Mã sản phẩm", required: true, width: 14 },
-  { key: "productName", header: "Tên sản phẩm", width: 34, note: "Chỉ để dễ đọc, hệ thống khớp theo mã sản phẩm và số lô." },
+  {
+    key: "productName",
+    header: "Tên sản phẩm",
+    width: 34,
+    note: "Chỉ để dễ đọc, hệ thống khớp theo mã sản phẩm và số lô.",
+  },
   { key: "batchNumber", header: "Số lô", required: true, width: 14 },
   { key: "shelfLocation", header: "Vị trí kệ", width: 12 },
-  { key: "unit", header: "Đơn vị đếm", required: true, width: 12, note: "Tên đơn vị của sản phẩm: Viên, Hộp…" },
-  { key: "counted", header: "Số đếm được", required: true, kind: "int", width: 12, note: "Số lượng đếm thực tế trên kệ. Để trống nếu chưa đếm dòng đó." },
+  {
+    key: "unit",
+    header: "Đơn vị đếm",
+    required: true,
+    width: 12,
+    note: "Tên đơn vị của sản phẩm: Viên, Hộp…",
+  },
+  {
+    key: "counted",
+    header: "Số đếm được",
+    required: true,
+    kind: "int",
+    width: 12,
+    note: "Số lượng đếm thực tế trên kệ. Để trống nếu chưa đếm dòng đó.",
+  },
   { key: "note", header: "Ghi chú", width: 26 },
 ];
 
@@ -33,26 +58,47 @@ export const stockCountImport: ImportDefinition<CountEntryRow> = {
     "Khớp dòng theo Mã sản phẩm + Số lô. Lô không nằm trong đợt sẽ bị báo lỗi — thêm lô đó trên giao diện kiểm kê rồi nhập lại.",
     "Ô Số đếm được để trống nghĩa là chưa đếm, hệ thống bỏ qua dòng đó chứ không ghi 0.",
   ],
-  example: [{ productCode: "TH0001", productName: "Paracetamol 500mg", batchNumber: "PA260901", shelfLocation: "Kệ A1", unit: "Hộp", counted: 12, note: "" }],
+  example: [
+    {
+      productCode: "TH0001",
+      productName: "Paracetamol 500mg",
+      batchNumber: "PA260901",
+      shelfLocation: "Kệ A1",
+      unit: "Hộp",
+      counted: 12,
+      note: "",
+    },
+  ],
 
   async plan(rows, ctx) {
     const headers = headerMap(STOCK_COUNT_COLUMNS);
     const issues: ImportIssue[] = [];
     const planned: PlannedRow<CountEntryRow>[] = [];
 
-    const count = await prisma.stockCount.findFirst({ where: { storeId: ctx.storeId!, status: "COUNTING" } });
+    const count = await prisma.stockCount.findFirst({
+      where: { storeId: ctx.storeId!, status: "COUNTING" },
+    });
     if (!count) {
-      throw AppError.invalidState("Cửa hàng chưa có đợt kiểm kê nào đang mở. Mở đợt ở trang Kiểm kê kho trước khi nhập số đếm.");
+      throw AppError.invalidState(
+        "Cửa hàng chưa có đợt kiểm kê nào đang mở. Mở đợt ở trang Kiểm kê kho trước khi nhập số đếm.",
+      );
     }
 
     const lines = await prisma.stockCountLine.findMany({
       where: { stockCountId: count.id },
       include: {
         batch: { select: { batchNumber: true } },
-        product: { select: { code: true, units: { where: { isActive: true }, select: { id: true, name: true } } } },
+        product: {
+          select: {
+            code: true,
+            units: { where: { isActive: true }, select: { id: true, name: true } },
+          },
+        },
       },
     });
-    const byKey = new Map(lines.map((line) => [`${fold(line.product.code)}|${fold(line.batch.batchNumber)}`, line]));
+    const byKey = new Map(
+      lines.map((line) => [`${fold(line.product.code)}|${fold(line.batch.batchNumber)}`, line]),
+    );
     const seen = new Map<string, number>();
 
     for (const raw of rows) {
@@ -70,13 +116,25 @@ export const stockCountImport: ImportDefinition<CountEntryRow> = {
       if (counted === null && r.issues.length === 0) continue;
       r.require("unit", unitName);
 
-      const line = productCode && batchNumber ? byKey.get(`${fold(productCode)}|${fold(batchNumber)}`) : undefined;
+      const line =
+        productCode && batchNumber
+          ? byKey.get(`${fold(productCode)}|${fold(batchNumber)}`)
+          : undefined;
       if (productCode && batchNumber && !line) {
-        r.fail("batchNumber", `Lô ${batchNumber} của ${productCode} không nằm trong đợt kiểm kê ${count.code}`);
+        r.fail(
+          "batchNumber",
+          `Lô ${batchNumber} của ${productCode} không nằm trong đợt kiểm kê ${count.code}`,
+        );
       }
-      const unit = line && unitName ? line.product.units.find((item) => fold(item.name) === fold(unitName)) : undefined;
+      const unit =
+        line && unitName
+          ? line.product.units.find((item) => fold(item.name) === fold(unitName))
+          : undefined;
       if (line && unitName && !unit) {
-        r.fail("unit", `Sản phẩm không có đơn vị "${unitName}" (có: ${line.product.units.map((item) => item.name).join(", ")})`);
+        r.fail(
+          "unit",
+          `Sản phẩm không có đơn vị "${unitName}" (có: ${line.product.units.map((item) => item.name).join(", ")})`,
+        );
       }
       if (line) {
         const duplicate = seen.get(line.id);
@@ -95,16 +153,26 @@ export const stockCountImport: ImportDefinition<CountEntryRow> = {
       });
     }
 
-    const notes = [`Ghi số đếm vào đợt ${count.code} (${planned.length}/${lines.length} dòng của đợt).`];
+    const notes = [
+      `Ghi số đếm vào đợt ${count.code} (${planned.length}/${lines.length} dòng của đợt).`,
+    ];
     return { rows: planned, issues, notes };
   },
 
   async commit(plan, ctx) {
-    const count = await prisma.stockCount.findFirst({ where: { storeId: ctx.storeId!, status: "COUNTING" } });
-    if (!count) throw AppError.invalidState("Đợt kiểm kê đã được chốt hoặc hủy trong lúc bạn kiểm tra tệp");
+    const count = await prisma.stockCount.findFirst({
+      where: { storeId: ctx.storeId!, status: "COUNTING" },
+    });
+    if (!count)
+      throw AppError.invalidState("Đợt kiểm kê đã được chốt hoặc hủy trong lúc bạn kiểm tra tệp");
 
     const result = await saveCounts(ctx.storeId!, count.id, ctx.auth.userId, {
-      entries: plan.rows.map(({ data }) => ({ lineId: data.lineId, unitId: data.unitId, quantity: data.quantity, note: data.note })),
+      entries: plan.rows.map(({ data }) => ({
+        lineId: data.lineId,
+        unitId: data.unitId,
+        quantity: data.quantity,
+        note: data.note,
+      })),
     });
     const created = plan.rows.filter((row) => row.action === "create").length;
     return { created, updated: result.saved - created, documentId: count.id };

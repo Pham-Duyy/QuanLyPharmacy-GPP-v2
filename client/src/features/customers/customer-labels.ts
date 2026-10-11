@@ -11,7 +11,10 @@ export const SEGMENT: Record<CustomerSegment, { label: string; tone: string }> =
 
 /** Chữ viết tắt trên avatar: chữ đầu của hai từ cuối trong họ tên Việt ("Nguyễn Thị Mai" → "TM"). */
 export function initials(fullName: string | null): string {
-  const words = (fullName ?? "").trim().split(/\s+/).filter((word) => /^\p{L}/u.test(word));
+  const words = (fullName ?? "")
+    .trim()
+    .split(/\s+/)
+    .filter((word) => /^\p{L}/u.test(word));
   if (words.length === 0) return "?";
   const picked = words.length === 1 ? words : words.slice(-2);
   return picked.map((word) => word[0]!.toUpperCase()).join("");

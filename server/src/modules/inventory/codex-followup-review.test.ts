@@ -1,7 +1,14 @@
 ﻿import { randomUUID } from "node:crypto";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { prisma } from "../../db/prisma.js";
-import { api, authHeaders, login, seedFixture, truncateAll, type Fixture } from "../../test/helpers.js";
+import {
+  api,
+  authHeaders,
+  login,
+  seedFixture,
+  truncateAll,
+  type Fixture,
+} from "../../test/helpers.js";
 
 /**
  * Bảo toàn **số lượng và giá trị** tồn kho: mỗi lần hàng vào hay ra kho, giá
@@ -20,7 +27,9 @@ const h = (token = adminToken) => authHeaders(token, fixture.storeId);
 const idem = () => ({ "Idempotency-Key": randomUUID() });
 
 function dayKey(days = 0): string {
-  const vnToday = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Ho_Chi_Minh" }).format(new Date());
+  const vnToday = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Ho_Chi_Minh" }).format(
+    new Date(),
+  );
   const date = new Date(`${vnToday}T00:00:00.000Z`);
   date.setUTCDate(date.getUTCDate() + days);
   return date.toISOString().slice(0, 10);
@@ -64,7 +73,11 @@ const sell = (quantity: number) =>
     .set({ ...h(), ...idem() })
     .send({ lines: [{ productId, unitId, quantity }] });
 
-const returnLines = (invoice: { id: string; lines: Array<{ id: string }> }, quantity: number, disposition = "RESTOCK") =>
+const returnLines = (
+  invoice: { id: string; lines: Array<{ id: string }> },
+  quantity: number,
+  disposition = "RESTOCK",
+) =>
   api()
     .post(`/api/v1/invoices/${invoice.id}/returns`)
     .set({ ...h(pharmacistToken), ...idem() })
@@ -113,17 +126,28 @@ afterAll(async () => {
 
 describe("Independent follow-up review", () => {
   it("lost idempotency owner must roll back business writes", async () => {
-    const { idempotencyStore, markIdempotentResource } = await import("../../lib/idempotency-context.js");
+    const { idempotencyStore, markIdempotentResource } =
+      await import("../../lib/idempotency-context.js");
     const key = randomUUID();
-    await prisma.idempotencyKey.create({ data: {
-      key, userId: fixture.adminId, ownerToken: randomUUID(), method: "POST",
-      path: "/review", requestHash: "review", status: "IN_PROGRESS", expiresAt: new Date(Date.now() + 60000),
-    }});
-    const transaction = idempotencyStore.run({ key, userId: fixture.adminId, ownerToken: randomUUID() }, () =>
-      prisma.$transaction(async (tx) => {
-        const saved = await tx.customer.create({ data: { fullName: "STALE_OWNER_WRITE" } });
-        await markIdempotentResource(tx, "customer", saved.id);
-      })
+    await prisma.idempotencyKey.create({
+      data: {
+        key,
+        userId: fixture.adminId,
+        ownerToken: randomUUID(),
+        method: "POST",
+        path: "/review",
+        requestHash: "review",
+        status: "IN_PROGRESS",
+        expiresAt: new Date(Date.now() + 60000),
+      },
+    });
+    const transaction = idempotencyStore.run(
+      { key, userId: fixture.adminId, ownerToken: randomUUID() },
+      () =>
+        prisma.$transaction(async (tx) => {
+          const saved = await tx.customer.create({ data: { fullName: "STALE_OWNER_WRITE" } });
+          await markIdempotentResource(tx, "customer", saved.id);
+        }),
     );
     await expect(transaction).rejects.toThrow();
     expect(await prisma.customer.count({ where: { fullName: "STALE_OWNER_WRITE" } })).toBe(0);
@@ -132,10 +156,18 @@ describe("Independent follow-up review", () => {
   it("unknown original cost on a prior-period sale must flag current-period return report", async () => {
     await receive({ quantity: 100, unitCost: 1000, batchNumber: "PREVIOUS" });
     const sale = (await sell(10).expect(201)).body.data;
-    await prisma.invoice.update({ where: { id: sale.id }, data: { businessDate: new Date(`${dayKey(-2)}T00:00:00.000Z`) } });
-    await prisma.invoiceAllocation.updateMany({ data: { unitCost: null, unitCostSource: "UNKNOWN" } });
+    await prisma.invoice.update({
+      where: { id: sale.id },
+      data: { businessDate: new Date(`${dayKey(-2)}T00:00:00.000Z`) },
+    });
+    await prisma.invoiceAllocation.updateMany({
+      data: { unitCost: null, unitCostSource: "UNKNOWN" },
+    });
     await returnLines(sale, 2).expect(201);
-    const response = await api().get(`/api/v1/reports/summary?from=${dayKey()}&to=${dayKey(1)}`).set(h()).expect(200);
+    const response = await api()
+      .get(`/api/v1/reports/summary?from=${dayKey()}&to=${dayKey(1)}`)
+      .set(h())
+      .expect(200);
     expect(response.body.data.costQuality.exact).toBe(false);
   });
 });

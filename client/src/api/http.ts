@@ -52,7 +52,9 @@ function oneTabAtATime<T>(run: () => Promise<T>): Promise<T> {
 export function refreshAccessToken(): Promise<string> {
   refreshing ??= oneTabAtATime(() =>
     axios
-      .post<{ data: { accessToken: string } }>("/api/v1/auth/refresh", null, { withCredentials: true })
+      .post<{ data: { accessToken: string } }>("/api/v1/auth/refresh", null, {
+        withCredentials: true,
+      })
       .then((response) => response.data.data.accessToken),
   ).finally(() => {
     refreshing = null;
@@ -99,7 +101,12 @@ export function getCommittedResource(
 ): { resourceType: string | null; resourceId: string } | null {
   if (!(error instanceof AxiosError)) return null;
   const payload = error.response?.data as
-    | { error?: { code?: string; details?: Array<{ resourceType?: string | null; resourceId?: string }> } }
+    | {
+        error?: {
+          code?: string;
+          details?: Array<{ resourceType?: string | null; resourceId?: string }>;
+        };
+      }
     | undefined;
   if (payload?.error?.code !== "REQUEST_ALREADY_COMMITTED") return null;
   const first = payload.error.details?.[0];
@@ -110,8 +117,7 @@ export function getCommittedResource(
 export function getErrorMessage(error: unknown, fallback = "Đã xảy ra lỗi"): string {
   if (error instanceof AxiosError) {
     const payload = error.response?.data as
-      | { error?: { message?: string; code?: string } }
-      | undefined;
+      { error?: { message?: string; code?: string } } | undefined;
     return payload?.error?.message ?? error.message ?? fallback;
   }
   return fallback;

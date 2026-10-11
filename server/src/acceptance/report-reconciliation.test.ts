@@ -94,7 +94,9 @@ describe("Đối chiếu báo cáo với số liệu tính tay", () => {
     expect(receipt.body.data.totalCost).toBe(100 * 4000 + 200 * 1000);
     await confirmReceipt(stage, receipt.body.data).expect(200);
 
-    const customer = await prisma.customer.create({ data: { fullName: "Chị Lan", phone: "0900000004" } });
+    const customer = await prisma.customer.create({
+      data: { fullName: "Chị Lan", phone: "0900000004" },
+    });
     await api()
       .put("/api/v1/loyalty/settings")
       .set(h())

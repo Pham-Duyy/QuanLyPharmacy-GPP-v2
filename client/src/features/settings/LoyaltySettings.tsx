@@ -51,7 +51,10 @@ function LoyaltyForm({ state }: { state: EffectiveLoyaltySettings }) {
   const sample = 500_000;
   const samplePoints = Math.floor(sample / Math.max(1, current.earnAmountPerPoint));
   const sampleValue = samplePoints * current.pointValue;
-  const refundPercent = ((current.pointValue / Math.max(1, current.earnAmountPerPoint)) * 100).toFixed(1);
+  const refundPercent = (
+    (current.pointValue / Math.max(1, current.earnAmountPerPoint)) *
+    100
+  ).toFixed(1);
 
   return (
     <Card
@@ -164,7 +167,12 @@ function LoyaltyForm({ state }: { state: EffectiveLoyaltySettings }) {
           >
             Khôi phục
           </Button>
-          <Button type="primary" icon={<SaveOutlined />} loading={save.isPending} onClick={() => void form.submit()}>
+          <Button
+            type="primary"
+            icon={<SaveOutlined />}
+            loading={save.isPending}
+            onClick={() => void form.submit()}
+          >
             Lưu cài đặt
           </Button>
         </div>

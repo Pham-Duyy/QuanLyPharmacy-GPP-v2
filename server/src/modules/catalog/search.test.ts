@@ -1,6 +1,13 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { prisma } from "../../db/prisma.js";
-import { api, authHeaders, login, seedFixture, truncateAll, type Fixture } from "../../test/helpers.js";
+import {
+  api,
+  authHeaders,
+  login,
+  seedFixture,
+  truncateAll,
+  type Fixture,
+} from "../../test/helpers.js";
 
 /**
  * Tìm kiếm danh mục phải phân trang và đếm đúng.
@@ -44,11 +51,17 @@ describe("Phân trang khi có nhiều kết quả khớp", () => {
     });
 
     // Gõ không dấu vẫn khớp tên có dấu.
-    const first = await api().get("/api/v1/products?search=thuoc ho&page=1&limit=20").set(h()).expect(200);
+    const first = await api()
+      .get("/api/v1/products?search=thuoc ho&page=1&limit=20")
+      .set(h())
+      .expect(200);
     expect(first.body.data.pagination.total).toBe(520);
 
     // Trang 26 nằm ngoài mức trần 500 của cách làm cũ.
-    const late = await api().get("/api/v1/products?search=thuoc ho&page=26&limit=20").set(h()).expect(200);
+    const late = await api()
+      .get("/api/v1/products?search=thuoc ho&page=26&limit=20")
+      .set(h())
+      .expect(200);
     expect(late.body.data.items).toHaveLength(20);
     expect(late.body.data.pagination.total).toBe(520);
 
@@ -95,7 +108,10 @@ describe("Phân trang khi có nhiều kết quả khớp", () => {
       ],
     });
 
-    const rx = await api().get("/api/v1/products?search=amoxicillin&drugClass=RX").set(h()).expect(200);
+    const rx = await api()
+      .get("/api/v1/products?search=amoxicillin&drugClass=RX")
+      .set(h())
+      .expect(200);
     expect(rx.body.data.pagination.total).toBe(5);
 
     const all = await api().get("/api/v1/products?search=amoxicillin").set(h()).expect(200);
@@ -115,21 +131,33 @@ describe("Tổng số kết quả không phụ thuộc trang đang xem", () => {
       })),
     });
 
-    const first = await api().get("/api/v1/products?search=siro ho&page=1&limit=10").set(h()).expect(200);
+    const first = await api()
+      .get("/api/v1/products?search=siro ho&page=1&limit=10")
+      .set(h())
+      .expect(200);
     expect(first.body.data.items).toHaveLength(10);
     expect(first.body.data.pagination.total).toBe(25);
 
-    const last = await api().get("/api/v1/products?search=siro ho&page=3&limit=10").set(h()).expect(200);
+    const last = await api()
+      .get("/api/v1/products?search=siro ho&page=3&limit=10")
+      .set(h())
+      .expect(200);
     expect(last.body.data.items).toHaveLength(5);
     expect(last.body.data.pagination.total).toBe(25);
 
     // Trang vượt quá số kết quả: không còn dòng nào nhưng tổng vẫn phải đúng.
-    const beyond = await api().get("/api/v1/products?search=siro ho&page=9&limit=10").set(h()).expect(200);
+    const beyond = await api()
+      .get("/api/v1/products?search=siro ho&page=9&limit=10")
+      .set(h())
+      .expect(200);
     expect(beyond.body.data.items).toHaveLength(0);
     expect(beyond.body.data.pagination.total).toBe(25);
 
     // Bộ lọc không có kết quả thì tổng là 0.
-    const none = await api().get("/api/v1/products?search=khong-co-mat-hang-nay").set(h()).expect(200);
+    const none = await api()
+      .get("/api/v1/products?search=khong-co-mat-hang-nay")
+      .set(h())
+      .expect(200);
     expect(none.body.data.items).toHaveLength(0);
     expect(none.body.data.pagination.total).toBe(0);
   });
@@ -146,7 +174,10 @@ describe("Tổng số kết quả không phụ thuộc trang đang xem", () => {
     expect(beyond.body.data.items).toHaveLength(0);
     expect(beyond.body.data.pagination.total).toBe(12);
 
-    const none = await api().get("/api/v1/active-ingredients?search=khong-co&page=1").set(h()).expect(200);
+    const none = await api()
+      .get("/api/v1/active-ingredients?search=khong-co&page=1")
+      .set(h())
+      .expect(200);
     expect(none.body.data.pagination.total).toBe(0);
   });
 });
