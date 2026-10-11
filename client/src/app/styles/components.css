@@ -129,13 +129,34 @@
   margin: 4px 0;
 }
 
-.tone-blue .stat-card-icon { background: var(--tone-blue-bg); color: var(--tone-blue); }
-.tone-green .stat-card-icon { background: var(--tone-green-bg); color: var(--tone-green); }
-.tone-orange .stat-card-icon { background: var(--tone-orange-bg); color: var(--tone-orange); }
-.tone-purple .stat-card-icon { background: var(--tone-purple-bg); color: var(--tone-purple); }
-.tone-red .stat-card-icon { background: var(--tone-red-bg); color: var(--tone-red); }
-.tone-cyan .stat-card-icon { background: var(--tone-cyan-bg); color: var(--tone-cyan); }
-.tone-slate .stat-card-icon { background: var(--tone-slate-bg); color: var(--tone-slate); }
+.tone-blue .stat-card-icon {
+  background: var(--tone-blue-bg);
+  color: var(--tone-blue);
+}
+.tone-green .stat-card-icon {
+  background: var(--tone-green-bg);
+  color: var(--tone-green);
+}
+.tone-orange .stat-card-icon {
+  background: var(--tone-orange-bg);
+  color: var(--tone-orange);
+}
+.tone-purple .stat-card-icon {
+  background: var(--tone-purple-bg);
+  color: var(--tone-purple);
+}
+.tone-red .stat-card-icon {
+  background: var(--tone-red-bg);
+  color: var(--tone-red);
+}
+.tone-cyan .stat-card-icon {
+  background: var(--tone-cyan-bg);
+  color: var(--tone-cyan);
+}
+.tone-slate .stat-card-icon {
+  background: var(--tone-slate-bg);
+  color: var(--tone-slate);
+}
 
 .trend {
   display: inline-flex;
@@ -432,7 +453,9 @@
   padding: 12px;
   border: 1px solid var(--c-border);
   border-radius: var(--r-md);
-  transition: border-color 0.15s, background 0.15s;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
 }
 
 .inspect-item.failed {

@@ -136,6 +136,14 @@ npm run format           # prettier
 npm run typecheck
 ```
 
+```bash
+cd client
+npm test                 # kiểm thử đơn vị (vitest)
+npm run lint             # oxlint
+npm run format:check     # prettier cho .ts, .tsx, .css
+npm run build            # kiểm tra kiểu + đóng gói
+```
+
 Kiểm thử chạy trên **PostgreSQL thật**, không dùng mock, vì phần lớn ràng buộc quan trọng của dự án nằm ở tầng CSDL: `CHECK` tồn không âm, khóa duy nhất `NULLS NOT DISTINCT`, khóa ngoại tổ hợp chặn bán lô của cửa hàng khác. Mock sẽ không bắt được những lỗi đó.
 
 Mỗi test tự xóa sạch dữ liệu rồi dựng lại bộ dữ liệu tối thiểu gồm hai cửa hàng, đủ permission và vai trò, một tài khoản bao toàn chuỗi và một dược sĩ chỉ thuộc cửa hàng thứ nhất. Có hai cửa hàng để kiểm tra được việc không lộ dữ liệu chéo.
