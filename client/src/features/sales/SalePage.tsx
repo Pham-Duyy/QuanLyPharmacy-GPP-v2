@@ -70,6 +70,7 @@ import { cashShiftKeys } from "./cash-shift-api.js";
 import { CashShiftBar } from "./CashShiftBar.js";
 import { MAX_SALE_DRAFTS, readDrafts, writeDrafts, type SaleDraft } from "./pos/drafts.js";
 import { PosCatalog } from "./pos/PosCatalog.js";
+import { prescriptionCartLines, productsToFetch, remainingText } from "./pos/prescription-cart.js";
 import { ControlledBuyerCard, type ControlledBuyer } from "./pos/ControlledBuyerCard.js";
 import { SafetyPanel } from "./pos/SafetyPanel.js";
 
@@ -226,6 +227,11 @@ export function SalePage() {
   const controlledLines = cart.filter((line) => line.product.drugClass === "CONTROLLED");
   const hasControlledBuyer = Boolean(controlledBuyer);
 
+  // Số thuốc trong đơn thuốc đang gắn còn bán được mà giỏ chưa có.
+  const prescriptionPending = prescription
+    ? productsToFetch(prescription.items, new Set(cart.map((line) => line.product.id))).length
+    : 0;
+
   const safety = useQuery({
     queryKey: ["safety-check", cartLines, prescription?.id, customer?.id, hasControlledBuyer],
     enabled: cart.length > 0,
@@ -367,8 +373,10 @@ export function SalePage() {
     },
   });
 
-  /** Dòng đơn thuốc còn khớp được với một sản phẩm: đúng thuốc, chưa bán hết theo đơn. */
-  /** Gắn một đơn đã xác nhận vào đơn bán. */
+  /**
+   * Gắn một đơn đã xác nhận vào đơn bán. Giỏ đang trống thì điền luôn thuốc
+   * theo đơn; giỏ đã có thuốc thì để người bán bấm "Thêm thuốc theo đơn".
+   */
   async function attachPrescription(id: string) {
     try {
       const detail = (await http.get<Envelope<PrescriptionDetail>>(`/prescriptions/${id}`)).data
@@ -377,8 +385,46 @@ export function SalePage() {
       setPrescriptionSearch("");
       // Đơn thuốc thường đã gắn sẵn khách — tự điền nếu chưa chọn ai.
       if (!customer && detail.customer) setCustomer(detail.customer);
+      if (cart.length === 0) await addPrescriptionLines(detail, []);
     } catch (error) {
       void message.error(getErrorMessage(error, "Không mở được đơn thuốc"));
+    }
+  }
+
+  /**
+   * Thêm các thuốc còn bán được của đơn mà giỏ chưa có, đúng đơn vị và số
+   * lượng kê, kèm vị trí kệ của lô sẽ bán trước: người bán chỉ còn đi lấy.
+   */
+  async function addPrescriptionLines(detail: PrescriptionDetail, current: CartLine[]) {
+    const inCart = new Set(current.map((line) => line.product.id));
+    try {
+      const products = await Promise.all(
+        productsToFetch(detail.items, inCart).map((productId) =>
+          http
+            .get<Envelope<ProductDetail>>(`/products/${productId}`)
+            .then((response) => response.data.data),
+        ),
+      );
+      const { lines, skipped } = prescriptionCartLines(
+        detail.items,
+        new Map(products.map((product) => [product.id, product])),
+        inCart,
+      );
+      const stamp = Date.now();
+      setCart((existing) => [
+        ...existing,
+        ...lines
+          .filter((line) => !existing.some((item) => item.product.id === line.product.id))
+          .map((line, index) => ({
+            ...line,
+            key: `${line.product.id}:${line.unitId}:${stamp}:${index}`,
+          })),
+      ]);
+      if (skipped.length > 0)
+        void message.warning(`Chưa tự thêm được: ${skipped.join(", ")}. Thêm tay nếu cần.`, 8);
+      else if (lines.length > 0) void message.success(`Đã thêm ${lines.length} thuốc theo đơn`);
+    } catch (error) {
+      void message.error(getErrorMessage(error, "Không thêm được thuốc theo đơn"));
     }
   }
 
@@ -435,6 +481,7 @@ export function SalePage() {
     }
   }
 
+  /** Dòng đơn thuốc còn khớp được với một sản phẩm: đúng thuốc, chưa bán hết theo đơn. */
   function matchingPrescriptionItems(productId: string, source = prescription) {
     return (source?.items ?? []).filter(
       (item) =>
@@ -918,20 +965,32 @@ export function SalePage() {
             </div>
 
             {prescription ? (
-              <div className="pos-field pos-field-rx">
-                <FileProtectOutlined />
-                <span>
-                  Đơn thuốc: <strong>{prescription.code}</strong>
-                </span>
-                <span className="muted">{prescription.customer?.fullName ?? "Khách lẻ"}</span>
-                <Button
-                  type="text"
-                  size="small"
-                  icon={<CloseOutlined />}
-                  aria-label="Bỏ đơn thuốc"
-                  onClick={clearPrescription}
-                />
-              </div>
+              <>
+                <div className="pos-field pos-field-rx">
+                  <FileProtectOutlined />
+                  <span>
+                    Đơn thuốc: <strong>{prescription.code}</strong>
+                  </span>
+                  <span className="muted">{prescription.customer?.fullName ?? "Khách lẻ"}</span>
+                  <Button
+                    type="text"
+                    size="small"
+                    icon={<CloseOutlined />}
+                    aria-label="Bỏ đơn thuốc"
+                    onClick={clearPrescription}
+                  />
+                </div>
+                {prescriptionPending > 0 ? (
+                  <Button
+                    block
+                    type="dashed"
+                    icon={<PlusOutlined />}
+                    onClick={() => void addPrescriptionLines(prescription, cart)}
+                  >
+                    Thêm {prescriptionPending} thuốc theo đơn
+                  </Button>
+                ) : null}
+              </>
             ) : can("prescription.read") ? (
               <AutoComplete
                 className="pos-field-input"
@@ -1045,7 +1104,7 @@ export function SalePage() {
                                 }
                                 options={candidates.map((item) => ({
                                   value: item.id,
-                                  label: `${item.quantity - item.dispensedBaseQuantity} ${item.unitName ?? ""} còn lại theo đơn`,
+                                  label: `${remainingText(item, line.product.units.find((candidate) => candidate.conversionToBase === 1)?.name)} còn lại theo đơn`,
                                 }))}
                               />
                             )
