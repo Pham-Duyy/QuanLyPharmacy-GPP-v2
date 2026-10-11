@@ -9,6 +9,7 @@ import { authenticate } from "../../middlewares/authenticate.js";
 import { idempotency } from "../../middlewares/idempotency.js";
 import { requirePermission } from "../../middlewares/require-permission.js";
 import { requireStore, storeContext } from "../../middlewares/store-context.js";
+import { locationHints, normalizeShelfLocation } from "./shelf-location.js";
 
 export const batchesRouter = Router();
 
@@ -164,5 +165,61 @@ batchesRouter.post(
       req.auth!.userId,
     );
     sendData(res, { id: String(req.params.id), status: "AVAILABLE" });
+  },
+);
+
+/** GET /api/v1/inventory/batches/locations?productIds=a,b: gợi ý khi nhập vị trí (contract §8). */
+batchesRouter.get(
+  "/inventory/batches/locations",
+  requirePermission("stock.read"),
+  async (req, res) => {
+    const query = parseOrThrow(
+      z.object({ productIds: z.string().max(8000).optional() }),
+      req.query,
+    );
+    const productIds = parseOrThrow(
+      z.array(z.uuid("productIds không hợp lệ")).max(200),
+      (query.productIds ?? "")
+        .split(",")
+        .map((id) => id.trim())
+        .filter(Boolean),
+    );
+    sendData(res, await locationHints(req.auth!.storeId!, productIds));
+  },
+);
+
+/** PATCH /api/v1/inventory/batches/{id}/location: dời lô sang tủ–kệ–ngăn khác, có ghi nhật ký. */
+batchesRouter.patch(
+  "/inventory/batches/:id/location",
+  requirePermission("stock.adjust.create"),
+  async (req, res) => {
+    const input = parseOrThrow(
+      z.object({ shelfLocation: z.string().max(60, "Vị trí tối đa 30 ký tự").nullable() }),
+      req.body,
+    );
+    const storeId = req.auth!.storeId!;
+    const id = String(req.params.id);
+    const location = normalizeShelfLocation(input.shelfLocation);
+    await prisma.$transaction(async (tx) => {
+      const batch = await tx.batch.findFirst({
+        where: { id, storeId },
+        select: { shelfLocation: true },
+      });
+      if (!batch) throw AppError.notFound("Không tìm thấy lô");
+      if (batch.shelfLocation === location) return;
+      await tx.batch.update({ where: { id }, data: { shelfLocation: location } });
+      await tx.auditLog.create({
+        data: {
+          storeId,
+          actorId: req.auth!.userId,
+          action: "BATCH_LOCATION_UPDATE",
+          resourceType: "batch",
+          resourceId: id,
+          before: { shelfLocation: batch.shelfLocation },
+          after: { shelfLocation: location },
+        },
+      });
+    });
+    sendData(res, { id, shelfLocation: location });
   },
 );

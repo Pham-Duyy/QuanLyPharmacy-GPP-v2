@@ -5,7 +5,7 @@ import { prisma } from "../../db/prisma.js";
 import { AppError } from "../../lib/app-error.js";
 import { pageResult, parsePageQuery } from "../../lib/pagination.js";
 import { withMappedErrors } from "../../lib/prisma-errors.js";
-import { businessDateNow } from "../../lib/settings.js";
+import { businessDateNow, getSetting } from "../../lib/settings.js";
 import { sendData } from "../../lib/respond.js";
 import { updateWithVersion } from "../../lib/optimistic.js";
 import { parseOrThrow } from "../../lib/validate.js";
@@ -14,6 +14,7 @@ import { requirePermission } from "../../middlewares/require-permission.js";
 import { storeContext } from "../../middlewares/store-context.js";
 import { orderByIds, searchProductPage } from "./search.js";
 import * as images from "./product-images.service.js";
+import { firstPickLocations } from "../sales/cart.js";
 import { getCurrentPrices, getStockSummary } from "./products.service.js";
 
 export const productsRouter = Router();
@@ -113,7 +114,7 @@ productsRouter.get("/products", requirePermission("catalog.read"), async (req, r
 
   const storeId = req.auth?.storeId ?? null;
   const unitIds = products.flatMap((product) => product.units.map((unit) => unit.id));
-  const [prices, stock, primaryImages] = await Promise.all([
+  const [prices, stock, primaryImages, pickLocations] = await Promise.all([
     getCurrentPrices(unitIds, storeId),
     storeId
       ? getStockSummary(
@@ -122,6 +123,16 @@ productsRouter.get("/products", requirePermission("catalog.read"), async (req, r
         )
       : new Map(),
     images.primaryImagesFor(products.map((p) => p.id)),
+    // Tủ–kệ–ngăn của lô sẽ bán trước, để quầy biết lấy hàng ở đâu.
+    storeId
+      ? getSetting("minRemainingShelfLifeDays", storeId).then((days) =>
+          firstPickLocations(
+            storeId,
+            products.map((p) => p.id),
+            days,
+          ),
+        )
+      : new Map<string, string>(),
   ]);
 
   const items = products.map((product) => {
@@ -176,6 +187,7 @@ productsRouter.get("/products", requirePermission("catalog.read"), async (req, r
         : null,
       baseUnit: baseUnit ? { id: baseUnit.id, name: baseUnit.name } : null,
       stock: productStock,
+      shelfLocation: pickLocations.get(product.id) ?? null,
       // Cùng quy tắc với cảnh báo tồn thấp ở Tồn kho / Tổng quan.
       isBelowMinStock:
         productStock !== null &&
@@ -201,13 +213,18 @@ productsRouter.get("/products/:id", requirePermission("catalog.read"), async (re
   if (!product) throw AppError.notFound("Không tìm thấy sản phẩm");
 
   const storeId = req.auth?.storeId ?? null;
-  const [prices, stock, productImages] = await Promise.all([
+  const [prices, stock, productImages, pickLocations] = await Promise.all([
     getCurrentPrices(
       product.units.map((unit) => unit.id),
       storeId,
     ),
     storeId ? getStockSummary([product.id], storeId) : new Map(),
     images.listImages(product.id),
+    storeId
+      ? getSetting("minRemainingShelfLifeDays", storeId).then((days) =>
+          firstPickLocations(storeId, [product.id], days),
+        )
+      : new Map<string, string>(),
   ]);
 
   sendData(res, {
@@ -229,6 +246,7 @@ productsRouter.get("/products/:id", requirePermission("catalog.read"), async (re
       currentPrice: prices.get(unit.id) ?? null,
     })),
     stock: stock.get(product.id) ?? (storeId ? EMPTY_STOCK : null),
+    shelfLocation: pickLocations.get(product.id) ?? null,
     images: productImages,
   });
 });

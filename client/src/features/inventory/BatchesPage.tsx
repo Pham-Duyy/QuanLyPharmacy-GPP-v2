@@ -1,6 +1,7 @@
 import {
   BellOutlined,
   DatabaseOutlined,
+  EditOutlined,
   ExclamationCircleOutlined,
   FieldTimeOutlined,
   ImportOutlined,
@@ -20,6 +21,7 @@ import {
   Modal,
   Segmented,
   Skeleton,
+  Space,
   Table,
   Tabs,
   Tag,
@@ -45,6 +47,8 @@ import { PageHeader } from "../../ui/PageHeader.js";
 import { StatCard, StatGrid } from "../../ui/StatCard.js";
 import { useDebounced } from "../../ui/useDebounced.js";
 import { useAuth } from "../auth/auth-context.js";
+import { ShelfLocationInput } from "./ShelfLocationInput.js";
+import { useShelfHints } from "./shelf-location-api.js";
 
 const STATUS: Record<BatchListItem["status"], { label: string; color: string }> = {
   AVAILABLE: { label: "Có thể bán", color: "green" },
@@ -223,6 +227,9 @@ function BatchPanel({
   const { message } = App.useApp();
   const queryClient = useQueryClient();
   const [changing, setChanging] = useState(false);
+  /** Đang sửa vị trí: chuỗi đang gõ; null là không sửa. */
+  const [shelfDraft, setShelfDraft] = useState<string | null>(null);
+  const shelfHints = useShelfHints([batch.productId], shelfDraft !== null);
   const showCost = can("stock.cost.read");
   const isAvailable = batch.status === "AVAILABLE";
 
@@ -234,6 +241,23 @@ function BatchPanel({
           params: { batchId: batch.id, limit: 50 },
         })
       ).data.data,
+  });
+
+  const moveShelf = useMutation({
+    mutationFn: async (value: string) =>
+      (
+        await http.patch<Envelope<{ shelfLocation: string | null }>>(
+          `/inventory/batches/${batch.id}/location`,
+          { shelfLocation: value.trim() || null },
+        )
+      ).data.data,
+    onSuccess: async (result) => {
+      void message.success("Đã cập nhật vị trí");
+      setShelfDraft(null);
+      onChanged({ ...batch, shelfLocation: result.shelfLocation });
+      await queryClient.invalidateQueries({ queryKey: ["inventory-batches"] });
+    },
+    onError: (error) => void message.error(getErrorMessage(error, "Không cập nhật được vị trí")),
   });
 
   const action = useMutation({
@@ -303,7 +327,44 @@ function BatchPanel({
           </div>
           <div>
             <dt>Vị trí kệ</dt>
-            <dd>{batch.shelfLocation ?? "—"}</dd>
+            <dd>
+              {shelfDraft === null ? (
+                <>
+                  {batch.shelfLocation ?? "—"}
+                  {can("stock.adjust.create") ? (
+                    <Button
+                      type="link"
+                      size="small"
+                      icon={<EditOutlined />}
+                      onClick={() => setShelfDraft(batch.shelfLocation ?? "")}
+                    >
+                      Sửa
+                    </Button>
+                  ) : null}
+                </>
+              ) : (
+                <Space.Compact style={{ width: "100%" }}>
+                  <ShelfLocationInput
+                    size="small"
+                    autoFocus
+                    value={shelfDraft}
+                    onChange={setShelfDraft}
+                    locations={shelfHints.data?.locations ?? []}
+                  />
+                  <Button
+                    size="small"
+                    type="primary"
+                    loading={moveShelf.isPending}
+                    onClick={() => moveShelf.mutate(shelfDraft)}
+                  >
+                    Lưu
+                  </Button>
+                  <Button size="small" onClick={() => setShelfDraft(null)}>
+                    Hủy
+                  </Button>
+                </Space.Compact>
+              )}
+            </dd>
           </div>
           {showCost ? (
             <div>

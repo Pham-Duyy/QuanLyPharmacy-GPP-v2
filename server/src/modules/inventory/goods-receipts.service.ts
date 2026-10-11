@@ -4,6 +4,7 @@ import { AppError } from "../../lib/app-error.js";
 import { markIdempotentResource } from "../../lib/idempotency-context.js";
 import { codeDay, nextDocumentCode } from "../../lib/document-code.js";
 import { addToBatch, insertBatchIfAbsent, readBatchByNumber } from "./batch-value.js";
+import { placeBatch } from "./shelf-location.js";
 import { businessDateNow } from "../../lib/settings.js";
 import type {
   ConfirmReceiptInput,
@@ -324,6 +325,12 @@ export async function confirm(
             sourceId: receiptId,
           });
           if (created) {
+            await placeBatch(tx, {
+              storeId,
+              batchId: created.id,
+              productId: line.productId,
+              requested: result.shelfLocation,
+            });
             await afterBatchWrite(tx, {
               storeId,
               userId,
@@ -395,6 +402,12 @@ export async function confirm(
         } else {
           throw AppError.invalidState(`Không khóa được lô ${line.batchNumber} để nhập hàng`);
         }
+        await placeBatch(tx, {
+          storeId,
+          batchId,
+          productId: line.productId,
+          requested: result.shelfLocation,
+        });
 
         await afterBatchWrite(tx, {
           storeId,

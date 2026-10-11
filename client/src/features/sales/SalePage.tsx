@@ -7,6 +7,7 @@ import {
   DeleteOutlined,
   DollarOutlined,
   EditOutlined,
+  EnvironmentOutlined,
   FileProtectOutlined,
   FileTextOutlined,
   GiftOutlined,
@@ -1001,6 +1002,11 @@ export function SalePage() {
                         />
                         <div className="pos-cart-text">
                           <strong>{line.product.name}</strong>
+                          {line.product.shelfLocation ? (
+                            <span className="pos-shelf">
+                              <EnvironmentOutlined /> {line.product.shelfLocation}
+                            </span>
+                          ) : null}
                           <span className="pos-cart-unit">
                             <Select
                               size="small"
