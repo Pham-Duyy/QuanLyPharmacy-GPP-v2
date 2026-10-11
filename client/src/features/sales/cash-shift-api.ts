@@ -4,7 +4,7 @@ import type { Envelope } from "../../api/types.js";
 
 /** Ca thu ngân, chốt két (contract §14.5). */
 
-export type ShiftTotals = {
+type ShiftTotals = {
   openingCash: number;
   cashSales: number;
   cashVoided: number;
@@ -18,7 +18,7 @@ export type ShiftTotals = {
   refundCount: number;
 };
 
-export type CashMovement = {
+type CashMovement = {
   id: string;
   direction: "IN" | "OUT";
   amount: number;
