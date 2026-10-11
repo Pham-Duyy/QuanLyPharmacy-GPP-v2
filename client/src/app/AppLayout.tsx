@@ -14,7 +14,7 @@ import { Avatar, Button, Drawer, Dropdown, Grid, Layout, Menu, Select, Skeleton,
 import type { MenuProps } from "antd";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router";
-import { useAuth } from "../features/auth/AuthProvider.js";
+import { useAuth } from "../features/auth/auth-context.js";
 import { ChangePasswordModal } from "../features/auth/ChangePasswordModal.js";
 import { activeNav, visibleSidebar } from "./access.js";
 import { CommandPalette } from "./CommandPalette.js";

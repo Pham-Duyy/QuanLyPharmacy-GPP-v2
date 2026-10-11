@@ -3,10 +3,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, App, Button, Card, Empty, Form, Input, InputNumber, Modal, Radio, Segmented, Select, Skeleton, Table, Tag } from "antd";
 import { useMemo, useState } from "react";
 import { getErrorMessage, http } from "../../api/http.js";
+import { useSubmitKey } from "../../api/submit-key.js";
 import { formatVnd, type Envelope, type Paged } from "../../api/types.js";
 import { formatDate, formatDateTime, formatNumber } from "../../ui/format.js";
 import { PageHeader } from "../../ui/PageHeader.js";
-import { useAuth } from "../auth/AuthProvider.js";
+import { useAuth } from "../auth/auth-context.js";
 
 type Settlement = "DEDUCT_DEBT" | "REFUND" | "REPLACEMENT";
 type Status = "DRAFT" | "CONFIRMED" | "CANCELLED";
@@ -117,9 +118,10 @@ export function SupplierReturnsPage() {
     queryFn: async () => (await http.get<Envelope<Returnable[]>>("/supplier-returns/returnable", { params: { supplierId, search: search.trim() || undefined } })).data.data,
   });
 
+  const submitKey = useSubmitKey();
   const create = useMutation({
-    mutationFn: async (values: { reason: string; settlement: Settlement; note?: string }) =>
-      http.post<Envelope<ReturnDetail>>("/supplier-returns", {
+    mutationFn: async (values: { reason: string; settlement: Settlement; note?: string }) => {
+      const body = {
         supplierId,
         reason: values.reason,
         settlement: values.settlement,
@@ -127,8 +129,11 @@ export function SupplierReturnsPage() {
         lines: Object.entries(picked)
           .filter(([, line]) => line.quantity > 0)
           .map(([batchId, line]) => ({ batchId, unitId: line.unitId, quantity: line.quantity })),
-      }),
+      };
+      return http.post<Envelope<ReturnDetail>>("/supplier-returns", body, { headers: submitKey.headers(body) });
+    },
     onSuccess: async (response) => {
+      submitKey.done();
       void message.success(`Đã lập phiếu trả ${response.data.data.code} ở trạng thái nháp`);
       setCreating(false);
       setPicked({});

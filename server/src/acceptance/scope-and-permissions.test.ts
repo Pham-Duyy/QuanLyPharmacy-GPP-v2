@@ -200,7 +200,7 @@ describe("Phân quyền chặn ở máy chủ", () => {
 
     await api()
       .post("/api/v1/supplier-payments")
-      .set(h(stage.admin, stage.fixture.storeId))
+      .set({ ...h(stage.admin, stage.fixture.storeId), ...idem() })
       .send({
         supplierId: stage.supplierId,
         method: "CASH",
@@ -211,7 +211,7 @@ describe("Phân quyền chặn ở máy chủ", () => {
     const batch = await batchOf("NO-3");
     const supplierReturn = await api()
       .post("/api/v1/supplier-returns")
-      .set(h(stage.pharmacist, stage.fixture.storeId))
+      .set({ ...h(stage.pharmacist, stage.fixture.storeId), ...idem() })
       .send({
         supplierId: stage.supplierId,
         reason: "Hàng cận hạn, nhà cung cấp nhận lại",

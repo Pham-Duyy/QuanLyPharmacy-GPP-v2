@@ -150,7 +150,7 @@ describe("Thanh toán công nợ nhà cung cấp", () => {
     const pay = () =>
       api()
         .post("/api/v1/supplier-payments")
-        .set(h())
+        .set({ ...h(), ...idem() })
         .send({ supplierId, method: "CASH", allocations: [{ goodsReceiptId: receiptId, amount: 100_000 }] });
 
     const results = await Promise.allSettled([pay(), pay()]);
@@ -166,7 +166,7 @@ describe("Thanh toán công nợ nhà cung cấp", () => {
 
     const bad = await api()
       .post("/api/v1/supplier-payments")
-      .set(h())
+      .set({ ...h(), ...idem() })
       .send({
         supplierId,
         method: "CASH",
@@ -184,7 +184,7 @@ describe("Thanh toán công nợ nhà cung cấp", () => {
     const receiptId = await receive(100, 1000, "L1");
     const payment = await api()
       .post("/api/v1/supplier-payments")
-      .set(h())
+      .set({ ...h(), ...idem() })
       .send({ supplierId, method: "CASH", allocations: [{ goodsReceiptId: receiptId, amount: 40_000 }] })
       .expect(201);
 
@@ -205,7 +205,7 @@ describe("Phiếu trả hàng nhà cung cấp", () => {
 
     const draft = await api()
       .post("/api/v1/supplier-returns")
-      .set(h(pharmacistToken))
+      .set({ ...h(pharmacistToken), ...idem() })
       .send({
         supplierId,
         reason: "Hàng cận hạn, nhà cung cấp nhận lại",

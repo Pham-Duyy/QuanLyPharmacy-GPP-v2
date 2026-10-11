@@ -382,7 +382,7 @@ describe("Hủy hóa đơn và trả hàng", () => {
 
 describe("Điều chỉnh điểm bằng tay", () => {
   const adjust = (body: Record<string, unknown>, token = adminToken) =>
-    api().post(`/api/v1/customers/${customerId}/loyalty/adjust`).set(h(token)).send(body);
+    api().post(`/api/v1/customers/${customerId}/loyalty/adjust`).set({ ...h(token), ...idem() }).send(body);
 
   it("cộng điểm có lý do và ghi audit", async () => {
     const result = await adjust({ points: 50, reason: "Bù điểm cho hóa đơn ghi thiếu" }).expect(200);
@@ -409,6 +409,27 @@ describe("Điều chỉnh điểm bằng tay", () => {
     expect((await loyaltyOf()).balance.available).toBe(20);
   });
 
+  it("gửi lại cùng khóa không cộng điểm hai lần; thiếu khóa thì bị từ chối", async () => {
+    const body = { points: 30, reason: "Bù điểm cho hóa đơn ghi thiếu" };
+    const key = { "Idempotency-Key": randomUUID() };
+    const url = `/api/v1/customers/${customerId}/loyalty/adjust`;
+    await api()
+      .post(url)
+      .set({ ...h(), ...key })
+      .send(body)
+      .expect(200);
+    const again = await api()
+      .post(url)
+      .set({ ...h(), ...key })
+      .send(body)
+      .expect(200);
+
+    expect(again.body.data.available).toBe(30);
+    expect((await loyaltyOf()).balance.available).toBe(30);
+    const missing = await api().post(url).set(h()).send(body).expect(400);
+    expect(missing.body.error.code).toBe("IDEMPOTENCY_KEY_REQUIRED");
+  });
+
   it("nhân viên bán hàng không được tự cộng điểm nhưng vẫn xem được sổ điểm", async () => {
     await adjust({ points: 10, reason: "Tự thưởng" }, salesToken).expect(403);
     expect((await loyaltyOf(salesToken)).balance.available).toBe(0);
@@ -417,7 +438,7 @@ describe("Điều chỉnh điểm bằng tay", () => {
   it("khách không tồn tại thì báo 404", async () => {
     await api()
       .post(`/api/v1/customers/${randomUUID()}/loyalty/adjust`)
-      .set(h())
+      .set({ ...h(), ...idem() })
       .send({ points: 10, reason: "Thử" })
       .expect(404);
   });

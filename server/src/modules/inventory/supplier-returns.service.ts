@@ -1,6 +1,7 @@
 import { Prisma } from "../../generated/prisma/client.js";
 import { prisma } from "../../db/prisma.js";
 import { AppError } from "../../lib/app-error.js";
+import { markIdempotentResource } from "../../lib/idempotency-context.js";
 import { codeDay, nextDocumentCode } from "../../lib/document-code.js";
 import { lockGoodsReceipts, lockSupplierReturn } from "../../lib/locks.js";
 import type { AuthContext } from "../auth/auth.context.js";
@@ -140,6 +141,7 @@ export async function createDraft(storeId: string, auth: AuthContext, input: Ret
         lines: { create: lines },
       },
     });
+    await markIdempotentResource(tx, "supplier_return", created.id);
     return created.id;
   });
 }

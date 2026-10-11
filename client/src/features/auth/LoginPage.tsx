@@ -10,7 +10,7 @@ import {
 } from "@ant-design/icons";
 import { useNavigate } from "react-router";
 import { getErrorMessage } from "../../api/http.js";
-import { useAuth } from "./AuthProvider.js";
+import { useAuth } from "./auth-context.js";
 
 type LoginForm = { username: string; password: string };
 

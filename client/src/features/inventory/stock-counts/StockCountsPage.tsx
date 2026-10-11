@@ -7,7 +7,7 @@ import { getErrorMessage, http } from "../../../api/http.js";
 import type { Envelope, Paged } from "../../../api/types.js";
 import { formatDateTime, formatNumber } from "../../../ui/format.js";
 import { PageHeader } from "../../../ui/PageHeader.js";
-import { useAuth } from "../../auth/AuthProvider.js";
+import { useAuth } from "../../auth/auth-context.js";
 import { CountingBoard } from "./CountingBoard.js";
 import { listCounts, openCount, type CountListItem } from "./stock-count-api.js";
 

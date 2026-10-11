@@ -30,7 +30,7 @@ import { ExcelImportModal } from "../excel/ExcelImportModal.js";
 import { PageHeader } from "../../ui/PageHeader.js";
 import { StatCard, StatGrid } from "../../ui/StatCard.js";
 import { useDebounced } from "../../ui/useDebounced.js";
-import { useAuth } from "../auth/AuthProvider.js";
+import { useAuth } from "../auth/auth-context.js";
 
 const STATUS: Record<BatchListItem["status"], { label: string; color: string }> = {
   AVAILABLE: { label: "Có thể bán", color: "green" },

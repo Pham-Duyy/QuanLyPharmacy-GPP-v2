@@ -9,7 +9,7 @@ import { daysUntil, formatDate, formatNumber } from "../../ui/format.js";
 import { PageHeader } from "../../ui/PageHeader.js";
 import { PanelEmpty } from "../../ui/PanelEmpty.js";
 import { StatCard, StatGrid } from "../../ui/StatCard.js";
-import { useAuth } from "../auth/AuthProvider.js";
+import { useAuth } from "../auth/auth-context.js";
 
 type Level = "danger" | "warning" | "info";
 type AlertRow = { key: string; level: Level; kind: string; productName: string; detail: string; batch?: BatchListItem };

@@ -1,6 +1,7 @@
 import { Prisma } from "../../generated/prisma/client.js";
 import { prisma } from "../../db/prisma.js";
 import { AppError } from "../../lib/app-error.js";
+import { markIdempotentResource } from "../../lib/idempotency-context.js";
 import { lockCustomer } from "../../lib/locks.js";
 import type { AuthContext } from "../auth/auth.context.js";
 import { loyaltySettingsSchema, type LoyaltySettings } from "./loyalty.schema.js";
@@ -339,9 +340,10 @@ type EntryInput = {
 };
 
 /** Ghi một bút toán vào sổ điểm. Bút toán 0 điểm bị bỏ qua, không ghi rác. */
-export async function record(tx: Tx, entry: EntryInput): Promise<void> {
-  if (entry.points === 0) return;
-  await tx.loyaltyTransaction.create({
+/** Ghi một bút toán điểm; trả id bút toán, `null` khi 0 điểm (không ghi gì). */
+export async function record(tx: Tx, entry: EntryInput): Promise<string | null> {
+  if (entry.points === 0) return null;
+  const created = await tx.loyaltyTransaction.create({
     data: {
       storeId: entry.storeId,
       customerId: entry.customerId,
@@ -355,6 +357,7 @@ export async function record(tx: Tx, entry: EntryInput): Promise<void> {
       createdBy: entry.createdBy ?? null,
     },
   });
+  return created.id;
 }
 
 /**
@@ -482,7 +485,7 @@ export async function adjust(
       );
     }
 
-    await record(tx, {
+    const entryId = await record(tx, {
       storeId,
       customerId,
       type: "ADJUST",
@@ -491,6 +494,7 @@ export async function adjust(
       note: input.reason,
       createdBy: auth.userId,
     });
+    if (entryId) await markIdempotentResource(tx, "loyalty_transaction", entryId);
 
     await tx.auditLog.create({
       data: {

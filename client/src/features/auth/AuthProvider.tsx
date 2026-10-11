@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import {
   http,
@@ -8,20 +8,8 @@ import {
   setCurrentStoreId,
   setOnSessionExpired,
 } from "../../api/http.js";
+import { AuthContext, type AuthState } from "./auth-context.js";
 import type { Me } from "./auth-types.js";
-
-type AuthState = {
-  status: "loading" | "anonymous" | "authenticated";
-  me: Me | null;
-  storeId: string | null;
-  login: (username: string, password: string) => Promise<void>;
-  logout: () => Promise<void>;
-  selectStore: (storeId: string) => void;
-  can: (permission: string) => boolean;
-  reloadMe: () => Promise<void>;
-};
-
-const AuthContext = createContext<AuthState | null>(null);
 
 /**
  * Cửa hàng đang làm việc được nhớ lại giữa các lần tải trang. Không nhớ thì
@@ -45,12 +33,6 @@ function rememberStore(storeId: string | null): void {
   } catch {
     // Trình duyệt chặn localStorage thì chỉ mất tiện ích nhớ cửa hàng.
   }
-}
-
-export function useAuth(): AuthState {
-  const value = useContext(AuthContext);
-  if (!value) throw new Error("useAuth phải nằm trong AuthProvider");
-  return value;
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {

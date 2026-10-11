@@ -31,7 +31,7 @@ import {
 } from "../../api/types.js";
 import { daysUntil, formatNumber, vnDateKey } from "../../ui/format.js";
 import { useDebounced } from "../../ui/useDebounced.js";
-import { useAuth } from "../auth/AuthProvider.js";
+import { useAuth } from "../auth/auth-context.js";
 import { downloadTemplate, sendImport, type ImportPreview, type ReceiptLine } from "../excel/excel-api.js";
 
 type DraftLine = {

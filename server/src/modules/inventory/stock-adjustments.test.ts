@@ -40,7 +40,7 @@ async function makeBatch(batchNumber: string, quantity: number) {
 function createDraft(body: Record<string, unknown>) {
   return api()
     .post("/api/v1/stock-adjustments")
-    .set(authHeaders(pharmacistToken, fixture.storeId))
+    .set({ ...authHeaders(pharmacistToken, fixture.storeId), ...idem() })
     .send(body);
 }
 
@@ -147,11 +147,21 @@ describe("Lập phiếu điều chỉnh", () => {
     expect(response.body.error.code).toBe("UNIT_NOT_IN_PRODUCT");
   });
 
-  it("không cần Idempotency-Key khi lập phiếu", async () => {
+  it("bắt Idempotency-Key khi lập phiếu; gửi lại cùng khóa không thêm bản nháp thứ hai", async () => {
     const batchId = await makeBatch("L1", 100);
-    await createDraft({
-      lines: [{ batchId, unitId, reasonCode: "DAMAGED", quantity: 5 }],
-    }).expect(201);
+    const body = { lines: [{ batchId, unitId, reasonCode: "DAMAGED", quantity: 5 }] };
+    const headers = { ...authHeaders(pharmacistToken, fixture.storeId), ...idem() };
+    const first = await api().post("/api/v1/stock-adjustments").set(headers).send(body).expect(201);
+    const again = await api().post("/api/v1/stock-adjustments").set(headers).send(body).expect(201);
+
+    expect(again.body.data.id).toBe(first.body.data.id);
+    expect(await prisma.stockAdjustment.count()).toBe(1);
+    const missing = await api()
+      .post("/api/v1/stock-adjustments")
+      .set(authHeaders(pharmacistToken, fixture.storeId))
+      .send(body)
+      .expect(400);
+    expect(missing.body.error.code).toBe("IDEMPOTENCY_KEY_REQUIRED");
   });
 });
 

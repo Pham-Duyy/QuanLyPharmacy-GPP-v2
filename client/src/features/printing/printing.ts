@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { App } from "antd";
 import { getErrorMessage, http } from "../../api/http.js";
 import type { Envelope, PaperSize, PrintTemplateState } from "../../api/types.js";
-import { useAuth } from "../auth/AuthProvider.js";
+import { useAuth } from "../auth/auth-context.js";
 
 type MessageApi = ReturnType<typeof App.useApp>["message"];
 

@@ -7,7 +7,7 @@ import type { Envelope, PrescriptionDetail, PrescriptionListItem, PrescriptionSt
 import { daysUntil, formatDate, formatNumber } from "../../ui/format.js";
 import { PageHeader } from "../../ui/PageHeader.js";
 import { PanelEmpty } from "../../ui/PanelEmpty.js";
-import { useAuth } from "../auth/AuthProvider.js";
+import { useAuth } from "../auth/auth-context.js";
 import { PrescriptionFormModal } from "./PrescriptionFormModal.js";
 import { EPrescriptionImportModal, MatchItem } from "./eprescription.js";
 

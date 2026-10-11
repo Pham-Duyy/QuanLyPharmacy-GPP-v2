@@ -1,7 +1,7 @@
 import { DeleteOutlined, HeartOutlined } from "@ant-design/icons";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Alert, App, Button, Checkbox, Empty, Input, InputNumber, Modal, Select, Skeleton, Tag, Typography } from "antd";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { getErrorMessage, http } from "../../api/http.js";
 import type { CustomerDetail, CustomerHealthProfile, CustomerInvoiceHistoryItem, Envelope, Paged } from "../../api/types.js";
 import { formatVnd } from "../../api/types.js";
@@ -171,16 +171,20 @@ export function CustomerFormModal({
   const [email, setEmail] = useState("");
   const [address, setAddress] = useState("");
 
-  useEffect(() => {
-    if (!open) return;
-    setEmail(customer?.email ?? "");
-    setAddress(customer?.address ?? "");
-    setFullName(customer?.fullName ?? "");
-    setPhone(customer?.phone ?? "");
-    setBirthYear(customer?.birthYear ?? null);
-    setGender(customer?.gender ?? undefined);
-    setNote(customer?.note ?? "");
-  }, [open, customer]);
+  // Nạp lại form mỗi lần mở, ngay trong lượt render (không qua effect nên không vẽ thêm một lượt).
+  const [wasOpen, setWasOpen] = useState(false);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) {
+      setEmail(customer?.email ?? "");
+      setAddress(customer?.address ?? "");
+      setFullName(customer?.fullName ?? "");
+      setPhone(customer?.phone ?? "");
+      setBirthYear(customer?.birthYear ?? null);
+      setGender(customer?.gender ?? undefined);
+      setNote(customer?.note ?? "");
+    }
+  }
 
   const save = useMutation({
     mutationFn: async () => {
@@ -267,13 +271,17 @@ function HealthProfileFormModal({
   const [ingredientSearch, setIngredientSearch] = useState("");
   const [allergies, setAllergies] = useState<Array<{ ingredientId: string; ingredientName: string; note: string }>>([]);
 
-  useEffect(() => {
-    if (!open) return;
-    setConsent(profile?.hasHealthConsent ?? false);
-    setChronicConditions(profile?.chronicConditions ?? "");
-    setNote(profile?.note ?? "");
-    setAllergies((profile?.allergies ?? []).map((a) => ({ ...a, note: a.note ?? "" })));
-  }, [open, profile]);
+  // Nạp lại form mỗi lần mở, ngay trong lượt render (không qua effect nên không vẽ thêm một lượt).
+  const [wasOpen, setWasOpen] = useState(false);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) {
+      setConsent(profile?.hasHealthConsent ?? false);
+      setChronicConditions(profile?.chronicConditions ?? "");
+      setNote(profile?.note ?? "");
+      setAllergies((profile?.allergies ?? []).map((a) => ({ ...a, note: a.note ?? "" })));
+    }
+  }
 
   const ingredientSearchQuery = useQuery({
     queryKey: ["ingredient-search", ingredientSearch],

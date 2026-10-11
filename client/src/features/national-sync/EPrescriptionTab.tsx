@@ -18,7 +18,7 @@ import { useState } from "react";
 import { getErrorMessage, http } from "../../api/http.js";
 import type { Envelope } from "../../api/types.js";
 import { formatDateTime } from "../../ui/format.js";
-import { useAuth } from "../auth/AuthProvider.js";
+import { useAuth } from "../auth/auth-context.js";
 
 type Config = {
   enabled: boolean;

@@ -6,7 +6,7 @@ import { useNavigate } from "react-router";
 import { getErrorMessage, http } from "../../../api/http.js";
 import type { Envelope, ProductDetail, ProductUnit } from "../../../api/types.js";
 import { formatNumber } from "../../../ui/format.js";
-import { useAuth } from "../../auth/AuthProvider.js";
+import { useAuth } from "../../auth/auth-context.js";
 import { ClassBadge } from "./ClassBadge.js";
 import { IMAGE_FALLBACK, PRODUCT_DETAIL_QUERY, priceText, stockText } from "./product-labels.js";
 import { ProductEditModal, PriceModal, UnitModal } from "./ProductModals.js";

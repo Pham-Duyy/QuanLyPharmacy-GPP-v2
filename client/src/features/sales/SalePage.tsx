@@ -42,7 +42,7 @@ import {
 import { formatDateTime, formatNumber } from "../../ui/format.js";
 import { PageHeader } from "../../ui/PageHeader.js";
 import { useDebounced } from "../../ui/useDebounced.js";
-import { useAuth } from "../auth/AuthProvider.js";
+import { useAuth } from "../auth/auth-context.js";
 import { maxRedeemablePoints, useCustomerLoyalty, useLoyaltySettings } from "../loyalty/loyalty-api.js";
 import { ERX_CODE, importEPrescription } from "../prescriptions/eprescription-api.js";
 import { ProductThumb } from "../catalog/products/ProductThumb.js";

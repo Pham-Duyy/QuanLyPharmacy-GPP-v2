@@ -7,7 +7,7 @@ import type { RefObject } from "react";
 import { getErrorMessage, http } from "../../../api/http.js";
 import type { CategoryItem, Envelope, Paged, ProductListItem } from "../../../api/types.js";
 import { useDebounced } from "../../../ui/useDebounced.js";
-import { useAuth } from "../../auth/AuthProvider.js";
+import { useAuth } from "../../auth/auth-context.js";
 import { priceText, stockText } from "../../catalog/products/product-labels.js";
 import { ProductThumb } from "../../catalog/products/ProductThumb.js";
 

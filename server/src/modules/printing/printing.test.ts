@@ -223,7 +223,7 @@ describe("In phiếu trả hàng và phiếu điều chỉnh", () => {
     const batchId = await stockBatch(200);
     const created = await api()
       .post("/api/v1/stock-adjustments")
-      .set(h(pharmacistToken))
+      .set({ ...h(pharmacistToken), ...idem() })
       .send({
         reason: "Kiểm kê cuối tháng",
         lines: [

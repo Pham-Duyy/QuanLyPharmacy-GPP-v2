@@ -40,7 +40,7 @@ async function receive(quantityBoxes: number, unitCost: number, batchNumber: str
   return { receiptId: created.body.data.id as string, code: created.body.data.code as string, batchId: batch.id };
 }
 
-const createReturn = (body: Record<string, unknown>, token = pharmacistToken) => api().post("/api/v1/supplier-returns").set(h(token)).send(body);
+const createReturn = (body: Record<string, unknown>, token = pharmacistToken) => api().post("/api/v1/supplier-returns").set({ ...h(token), ...idem() }).send(body);
 const confirm = (id: string, token = pharmacistToken) => api().post(`/api/v1/supplier-returns/${id}/confirm`).set(h(token)).send({});
 const debts = async () => (await api().get("/api/v1/supplier-debts").set(authHeaders(adminToken, fixture.storeId)).expect(200)).body.data;
 
@@ -123,6 +123,17 @@ describe("Lập phiếu trả hàng nhà cung cấp", () => {
   it("phải ghi lý do trả hàng", async () => {
     const received = await receive(1, 50000, "L1");
     await createReturn({ supplierId, reason: "", lines: [{ batchId: received.batchId, unitId: boxId, quantity: 1 }] }).expect(422);
+  });
+
+  it("gửi lại cùng khóa không thêm phiếu trả nháp thứ hai", async () => {
+    const received = await receive(1, 50000, "L1");
+    const body = { supplierId, reason: "Hộp móp, nhà cung cấp nhận lại", settlement: "DEDUCT_DEBT", lines: [{ batchId: received.batchId, unitId: boxId, quantity: 1 }] };
+    const headers = { ...h(pharmacistToken), ...idem() };
+    const first = await api().post("/api/v1/supplier-returns").set(headers).send(body).expect(201);
+    const again = await api().post("/api/v1/supplier-returns").set(headers).send(body).expect(201);
+
+    expect(again.body.data.id).toBe(first.body.data.id);
+    expect(await prisma.supplierReturn.count()).toBe(1);
   });
 });
 

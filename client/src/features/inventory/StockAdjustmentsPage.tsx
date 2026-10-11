@@ -1,13 +1,14 @@
 import { CheckOutlined, CloseOutlined, DeleteOutlined, FileSearchOutlined, PlusOutlined, PrinterOutlined, StopOutlined, SwapOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, App, AutoComplete, Button, Card, Empty, Input, InputNumber, Modal, Segmented, Select, Skeleton, Table, Tag } from "antd";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { getErrorMessage, http } from "../../api/http.js";
+import { useSubmitKey } from "../../api/submit-key.js";
 import { type BatchListItem, type Envelope, type Paged, type ProductDetail, type ProductUnit, type StockAdjustmentDetail, type StockAdjustmentListItem } from "../../api/types.js";
 import { formatDateTime, formatNumber } from "../../ui/format.js";
 import { PageHeader } from "../../ui/PageHeader.js";
 import { PanelEmpty } from "../../ui/PanelEmpty.js";
-import { useAuth } from "../auth/AuthProvider.js";
+import { useAuth } from "../auth/auth-context.js";
 import { printDocument, printUrl } from "../printing/printing.js";
 import { PrintPreviewModal } from "../printing/PrintPreviewModal.js";
 
@@ -304,12 +305,16 @@ function CreateAdjustmentModal({ open, onClose, onCreated }: { open: boolean; on
   const [lines, setLines] = useState<DraftLine[]>([]);
   const [batchSearch, setBatchSearch] = useState("");
 
-  useEffect(() => {
-    if (!open) return;
-    setReason("");
-    setLines([]);
-    setBatchSearch("");
-  }, [open]);
+  // Nạp lại form mỗi lần mở, ngay trong lượt render (không qua effect nên không vẽ thêm một lượt).
+  const [wasOpen, setWasOpen] = useState(false);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) {
+      setReason("");
+      setLines([]);
+      setBatchSearch("");
+    }
+  }
 
   const batches = useQuery({
     queryKey: ["adjustment-batches", batchSearch],
@@ -331,6 +336,7 @@ function CreateAdjustmentModal({ open, onClose, onCreated }: { open: boolean; on
     setLines((current) => current.map((line) => (line.key === key ? { ...line, ...patch } : line)));
   }
 
+  const submitKey = useSubmitKey();
   const create = useMutation({
     mutationFn: async () => {
       const body = {
@@ -343,10 +349,11 @@ function CreateAdjustmentModal({ open, onClose, onCreated }: { open: boolean; on
           quantity: line.reasonCode === "COUNT_DIFFERENCE" ? undefined : line.quantity,
         })),
       };
-      const response = await http.post<Envelope<StockAdjustmentDetail>>("/stock-adjustments", body);
+      const response = await http.post<Envelope<StockAdjustmentDetail>>("/stock-adjustments", body, { headers: submitKey.headers(body) });
       return response.data.data.id;
     },
     onSuccess: async (id) => {
+      submitKey.done();
       void message.success("Đã lập phiếu điều chỉnh, chờ duyệt");
       await onCreated(id);
     },

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { sendData } from "../../lib/respond.js";
 import { parseOrThrow } from "../../lib/validate.js";
 import { authenticate } from "../../middlewares/authenticate.js";
+import { idempotency } from "../../middlewares/idempotency.js";
 import { requirePermission } from "../../middlewares/require-permission.js";
 import { requireStore, storeContext } from "../../middlewares/store-context.js";
 import { SETTLEMENTS } from "./supplier-returns.service.js";
@@ -44,7 +45,8 @@ supplierReturnsRouter.get("/supplier-returns/:id", requirePermission("goods_rece
 });
 
 /** POST /api/v1/supplier-returns: lập phiếu trả hàng ở trạng thái nháp. */
-supplierReturnsRouter.post("/supplier-returns", requirePermission("goods_receipt.create"), async (req, res) => {
+// Nháp chưa trừ tồn, nhưng hai bản nháp giống nhau dễ bị xác nhận cả hai, nên vẫn bắt Idempotency-Key.
+supplierReturnsRouter.post("/supplier-returns", requirePermission("goods_receipt.create"), idempotency, async (req, res) => {
   const input = parseOrThrow(createSchema, req.body);
   const id = await service.createDraft(req.auth!.storeId!, req.auth!, {
     supplierId: input.supplierId,

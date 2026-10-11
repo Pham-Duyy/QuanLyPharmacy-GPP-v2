@@ -90,7 +90,9 @@
 ### 2.3 Idempotency [Đã chốt]
 
 - Header `Idempotency-Key` (UUID do client sinh cho mỗi lần thao tác, **không** sinh lại khi retry) **bắt buộc** với:
-  - `POST /goods-receipts`, `POST /invoices`, `POST /invoices/{id}/returns`, `POST /recalls`, `POST /inventory/opening-balances`;
+  - `POST /goods-receipts`, `POST /invoices`, `POST /invoices/{id}/returns`, `POST /recalls`, `POST /inventory/opening-balances`, `POST /stock-transfers`;
+  - `POST /supplier-payments` và `POST /customers/{id}/loyalty/adjust` (ghi là có hiệu lực ngay: gửi trùng là trả tiền hoặc cộng điểm hai lần);
+  - `POST /stock-adjustments` và `POST /supplier-returns`: tuy chỉ là nháp, hai bản nháp giống hệt nhau dễ bị duyệt cả hai rồi trừ tồn hai lần;
   - mọi action endpoint đổi trạng thái: `confirm`, `cancel`, `approve`, `reject`, `submit`, `verify`, `void`, `quarantine`, `release`, `close`.
 - Máy chủ lưu khóa theo (khóa, người dùng, method + path, **cửa hàng**, hash nội dung, chứng từ đã ghi, response) trong 24 giờ.
   - Cùng khóa, cùng nội dung, đã xong: trả lại đúng response đã lưu.
@@ -732,7 +734,7 @@ Mỗi phiếu nhập **đã kiểm nhập** là một khoản phải trả. Hạ
 | GET | `/supplier-debts?supplierId&onlyOutstanding&dueSoonDays` | Nợ theo từng nhà cung cấp kèm danh sách phiếu còn nợ | `supplier_debt.read` |
 | PUT | `/supplier-debts/{supplierId}/term` | Đổi kỳ hạn thanh toán; ghi audit `SUPPLIER_TERM_UPDATE` | `supplier_payment.manage` |
 | GET | `/supplier-payments?supplierId&from&to` | Lịch sử phiếu chi | `supplier_debt.read` |
-| POST | `/supplier-payments` | Ghi nhận trả tiền; ghi audit `SUPPLIER_PAYMENT_CREATE` | `supplier_payment.manage` |
+| POST | `/supplier-payments` | Ghi nhận trả tiền; ghi audit `SUPPLIER_PAYMENT_CREATE`; cần `Idempotency-Key` | `supplier_payment.manage` |
 | POST | `/supplier-payments/{id}/void` | Hủy phiếu chi, bắt buộc `reason`; ghi audit `SUPPLIER_PAYMENT_VOID` | `supplier_payment.manage` |
 
 Quy tắc:
@@ -753,7 +755,7 @@ Hàng cận hạn được nhà cung cấp nhận lại, hàng lỗi, hàng thu 
 | GET | `/supplier-returns/returnable?supplierId&search` | Lô còn tồn kèm nhà cung cấp đã mang lô đó về | `goods_receipt.read` |
 | GET | `/supplier-returns?status&supplierId` | Danh sách phiếu trả | `goods_receipt.read` |
 | GET | `/supplier-returns/{id}` | Chi tiết phiếu trả | `goods_receipt.read` |
-| POST | `/supplier-returns` | Lập phiếu nháp: `supplierId`, `reason` (bắt buộc), `settlement`, `lines[{ batchId, unitId, quantity }]` | `goods_receipt.create` |
+| POST | `/supplier-returns` | Lập phiếu nháp: `supplierId`, `reason` (bắt buộc), `settlement`, `lines[{ batchId, unitId, quantity }]`; cần `Idempotency-Key` | `goods_receipt.create` |
 | POST | `/supplier-returns/{id}/confirm` | Xác nhận: trừ tồn, ghi thẻ kho `SUPPLIER_RETURN`; ghi audit `SUPPLIER_RETURN_CONFIRM` | `goods_receipt.confirm` |
 | POST | `/supplier-returns/{id}/cancel` | Hủy phiếu **còn nháp**, bắt buộc `reason` | `goods_receipt.create` |
 
@@ -812,7 +814,7 @@ Thẻ kho **chỉ thêm, không sửa, không xóa**. Tồn của một lô luô
 |---|---|---|---|
 | GET | `/stock-adjustments` | Lọc `status`, `from`, `to` | `stock.read` |
 | GET | `/stock-adjustments/{id}` | Chi tiết | `stock.read` |
-| POST | `/stock-adjustments` | Lập phiếu `DRAFT` | `stock.adjust.create` |
+| POST | `/stock-adjustments` | Lập phiếu `DRAFT`; cần `Idempotency-Key` | `stock.adjust.create` |
 | POST | `/stock-adjustments/{id}/approve` | Duyệt; cần `Idempotency-Key` | `stock.adjust.approve` |
 | POST | `/stock-adjustments/{id}/reject` | Từ chối; bắt buộc `reason` | `stock.adjust.approve` |
 | POST | `/stock-adjustments/{id}/cancel` | Người lập hủy phiếu nháp | `stock.adjust.create` |
@@ -973,7 +975,7 @@ Trạng thái: `DRAFT` → `IN_TRANSIT` → `RECEIVED`; `DRAFT` hoặc `IN_TRANS
 | PATCH | `/customers/{id}/health-profile` | Cập nhật hồ sơ sức khỏe | `customer.sensitive` |
 | GET | `/customers/{id}/invoices` | Lịch sử mua; ghi audit mỗi lần xem | `customer.sensitive` |
 | GET | `/customers/{id}/loyalty` | Số dư điểm (`available`, `expiringSoon`, `nextExpiryAt`, `expired`, `totalEarned`, `totalRedeemed`, `deficit`) và 50 bút toán gần nhất | `customer.read` |
-| POST | `/customers/{id}/loyalty/adjust` | Cộng/trừ điểm tay: `points` (khác 0), `reason` bắt buộc; ghi audit `LOYALTY_ADJUST`. Cần `X-Store-Id` | `loyalty.manage` |
+| POST | `/customers/{id}/loyalty/adjust` | Cộng/trừ điểm tay: `points` (khác 0), `reason` bắt buộc; ghi audit `LOYALTY_ADJUST`. Cần `X-Store-Id` và `Idempotency-Key` | `loyalty.manage` |
 | POST | `/customers/{id}/anonymize` | Ẩn danh hồ sơ khách: `reason` bắt buộc. Thay họ tên bằng mã `KH-AN-…`, xóa số điện thoại, email, địa chỉ, mốc đồng ý, hồ sơ sức khỏe và dị ứng; giữ nguyên hóa đơn, đơn thuốc. Không đảo ngược được; khách đã ẩn danh trả 409 `INVALID_STATE`. Ghi audit `CUSTOMER_ANONYMIZE` | `customer.sensitive` |
 
 - Thông tin cơ bản: `fullName`, `phone`, `email`, `address`, `birthYear`, `gender`, `note` (ghi chú chăm sóc). `code` (KH00001…) do hệ thống tự cấp.

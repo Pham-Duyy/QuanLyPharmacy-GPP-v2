@@ -8,7 +8,7 @@ import { getErrorMessage, http } from "../../api/http.js";
 import { formatVnd, type Envelope } from "../../api/types.js";
 import { formatDate, formatDateTime, formatNumber } from "../../ui/format.js";
 import { PageHeader } from "../../ui/PageHeader.js";
-import { useAuth } from "../auth/AuthProvider.js";
+import { useAuth } from "../auth/auth-context.js";
 
 type BucketKey = "EXPIRED" | "D30" | "D60" | "D90";
 type ExpiryAction = "RETURN_SUPPLIER" | "PRIORITIZE_SALE" | "DISCOUNT" | "DISPOSE";

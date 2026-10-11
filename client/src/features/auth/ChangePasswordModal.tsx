@@ -3,7 +3,7 @@ import { useMutation } from "@tanstack/react-query";
 import { App, Button, Form, Input, Modal, type FormInstance } from "antd";
 import type { ReactNode } from "react";
 import { getErrorMessage, http } from "../../api/http.js";
-import { useAuth } from "./AuthProvider.js";
+import { useAuth } from "./auth-context.js";
 
 type FormValues = { currentPassword: string; newPassword: string; confirmPassword: string };
 

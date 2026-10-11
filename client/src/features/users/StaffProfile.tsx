@@ -13,7 +13,7 @@ import { useState } from "react";
 import { getErrorMessage, http } from "../../api/http.js";
 import type { Envelope } from "../../api/types.js";
 import { PanelEmpty } from "../../ui/PanelEmpty.js";
-import { useAuth } from "../auth/AuthProvider.js";
+import { useAuth } from "../auth/auth-context.js";
 import { staffKeys, useStaffDetail } from "./staff-api.js";
 import { canManageAccount, useManagedScopes } from "./staff-scope.js";
 import { AccountStatus, Pairs, StaffAvatar, StaffNote } from "./staff-ui.js";

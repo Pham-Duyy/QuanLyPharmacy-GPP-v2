@@ -7,7 +7,7 @@ import { getErrorMessage, http } from "../../api/http.js";
 import type { DocumentPrintConfig, DocumentPrintSettings, DocumentPrintState, DocumentPrintType, Envelope, PaperSize } from "../../api/types.js";
 import { formatDateTime } from "../../ui/format.js";
 import { useDebounced } from "../../ui/useDebounced.js";
-import { useAuth } from "../auth/AuthProvider.js";
+import { useAuth } from "../auth/auth-context.js";
 import { fetchPrintPage, printHtml } from "../printing/printing.js";
 import { PrintPaper } from "../printing/PrintPaper.js";
 import { readApiError, useUnsavedGuard } from "./settings-shared.js";

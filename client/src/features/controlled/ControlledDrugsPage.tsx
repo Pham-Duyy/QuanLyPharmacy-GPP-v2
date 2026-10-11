@@ -7,7 +7,7 @@ import { getErrorMessage, http } from "../../api/http.js";
 import type { Envelope } from "../../api/types.js";
 import { formatDate, formatDateTime, formatNumber } from "../../ui/format.js";
 import { PageHeader } from "../../ui/PageHeader.js";
-import { useAuth } from "../auth/AuthProvider.js";
+import { useAuth } from "../auth/auth-context.js";
 import { ExcelExportButton } from "../excel/ExcelButtons.js";
 import { rangeParams } from "../excel/excel-api.js";
 

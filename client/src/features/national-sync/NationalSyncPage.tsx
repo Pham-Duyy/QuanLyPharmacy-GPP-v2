@@ -32,7 +32,7 @@ import { useState } from "react";
 import { getErrorMessage } from "../../api/http.js";
 import { formatDateTime } from "../../ui/format.js";
 import { PageHeader } from "../../ui/PageHeader.js";
-import { useAuth } from "../auth/AuthProvider.js";
+import { useAuth } from "../auth/auth-context.js";
 import { DrugPickerModal } from "./DrugPickerModal.js";
 import { EPrescriptionTab } from "./EPrescriptionTab.js";
 import {
