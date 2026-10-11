@@ -6,7 +6,7 @@ import { env } from "../config/env.js";
 export const ACCESS_TOKEN_TTL_SECONDS = 15 * 60;
 
 /** Refresh token hết hạn sau 7 ngày không hoạt động. */
-export const REFRESH_TOKEN_TTL_DAYS = 7;
+const REFRESH_TOKEN_TTL_DAYS = 7;
 
 export const REFRESH_COOKIE_NAME = "gpp_refresh";
 

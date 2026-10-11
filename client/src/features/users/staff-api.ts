@@ -3,9 +3,7 @@ import { http } from "../../api/http.js";
 import type { Envelope, RoleItem, StoreDetail, UserDetail, UserListItem } from "../../api/types.js";
 
 /**
- * Adapter API thật của phân mục Nhân viên (contract §21). Chỉ có tài khoản và
- * phân quyền; lịch làm, chấm công, thưởng, lương, đánh giá chưa có API — các
- * phần đó nằm trong bản xem trước ở ./preview, không đi qua file này.
+ * API của phân mục Nhân viên (contract §21): tài khoản đăng nhập và phân quyền.
  */
 
 type NewRoleAssignment = {

@@ -40,7 +40,7 @@ export function dayKey(offsetDays = 0): string {
   return date.toISOString().slice(0, 10);
 }
 
-export const dayDate = (offsetDays = 0): Date => new Date(`${dayKey(offsetDays)}T00:00:00.000Z`);
+const dayDate = (offsetDays = 0): Date => new Date(`${dayKey(offsetDays)}T00:00:00.000Z`);
 
 /** Dựng hai cửa hàng, ba vai trò và một nhà cung cấp. */
 export async function setupStage(): Promise<Stage> {

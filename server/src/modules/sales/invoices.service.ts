@@ -518,8 +518,11 @@ async function checkPrescription(
   return { dispensed, itemByLineIndex };
 }
 
-/** Cộng (`sign = 1`) hoặc trừ lại (`sign = -1`) số đã bán theo đơn thuốc. */
-async function applyDispensed(
+/**
+ * Cộng (`sign = 1`) hoặc trừ lại (`sign = -1`) số đã bán theo đơn thuốc rồi
+ * tính lại trạng thái đơn. Dùng chung cho bán, hủy hóa đơn và nhận trả hàng.
+ */
+export async function applyDispensed(
   tx: Tx,
   prescriptionId: string | null,
   dispensed: Map<string, number>,

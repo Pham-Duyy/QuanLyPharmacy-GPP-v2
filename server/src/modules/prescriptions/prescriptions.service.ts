@@ -1,6 +1,7 @@
 import { Prisma } from "../../generated/prisma/client.js";
 import { prisma } from "../../db/prisma.js";
 import { AppError } from "../../lib/app-error.js";
+import { addDays } from "../../lib/dates.js";
 import { markIdempotentResource } from "../../lib/idempotency-context.js";
 import { codeDay, nextDocumentCode } from "../../lib/document-code.js";
 import { createSignedImageUrl } from "../../lib/signed-url.js";
@@ -71,12 +72,6 @@ async function resolveItems(tx: Tx, items: ItemInput[]): Promise<ResolvedItem[]>
 
 async function nextCode(tx: Tx, storeId: string, storeCode: string): Promise<string> {
   return nextDocumentCode(tx, storeId, `DT-${storeCode}-${codeDay()}-`);
-}
-
-function addDays(date: Date, days: number): Date {
-  const result = new Date(date);
-  result.setUTCDate(result.getUTCDate() + days);
-  return result;
 }
 
 /**

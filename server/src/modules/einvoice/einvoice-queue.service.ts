@@ -1,5 +1,6 @@
 import { prisma } from "../../db/prisma.js";
 import { AppError } from "../../lib/app-error.js";
+import { nextAttemptAt } from "../../lib/retry.js";
 import { buildClient } from "./einvoice-config.service.js";
 import { buildMisaInvoice } from "./einvoice-payload.js";
 import { EInvoiceError, type MisaClient } from "./misa-client.js";
@@ -12,12 +13,8 @@ import { EInvoiceError, type MisaClient } from "./misa-client.js";
  * cơ quan thuế.
  */
 
-const BACKOFF_MINUTES = [1, 5, 15, 60, 6 * 60];
-
-function nextAttempt(attempts: number): Date {
-  const minutes = BACKOFF_MINUTES[Math.min(attempts, BACKOFF_MINUTES.length - 1)]!;
-  return new Date(Date.now() + minutes * 60_000);
-}
+/** Hóa đơn máy tính tiền phải lên cơ quan thuế trong ngày: chờ thử lại tối đa 6 giờ. */
+const nextAttempt = (attempts: number) => nextAttemptAt(attempts, 6 * 60);
 
 async function enabledConfigs(storeId?: string) {
   return prisma.eInvoiceStoreConfig.findMany({

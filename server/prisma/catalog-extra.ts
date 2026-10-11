@@ -10,14 +10,14 @@
  * cấp, đặt số giả vào đây dễ bị hiểu nhầm là số thật.
  */
 
-export type ExtraUnit = {
+type ExtraUnit = {
   name: string;
   conversionToBase: number;
   salePrice: number;
   isDefaultSaleUnit?: boolean;
 };
 
-export type ExtraBatch = {
+type ExtraBatch = {
   batchNumber: string;
   /** Hạn dùng tính theo số ngày kể từ hôm nay, để dữ liệu thử không bị cũ. */
   expiryInDays: number;

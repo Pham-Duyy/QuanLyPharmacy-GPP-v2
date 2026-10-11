@@ -43,9 +43,9 @@ function receiptAmounts(goodsAmount: bigint, discount: number, vat: number) {
 /**
  * Kiểm tra và quy đổi các dòng của phiếu nhập: sản phẩm phải đang kinh
  * doanh, đơn vị phải thuộc đúng sản phẩm. Dùng chung cho tạo mới và sửa,
- * để hai chỗ không lệch luật với nhau.
+ * để hai chỗ không lệch luật với nhau. Nhập tồn đầu kỳ cũng dùng lại.
  */
-async function resolveLines(tx: Tx, lines: LineInput[]): Promise<ResolvedLine[]> {
+export async function resolveLines(tx: Tx, lines: LineInput[]): Promise<ResolvedLine[]> {
   const productIds = [...new Set(lines.map((line) => line.productId))];
   const units = await tx.productUnit.findMany({
     where: { id: { in: lines.map((line) => line.unitId) } },

@@ -26,6 +26,7 @@ import type { InputRef } from "antd";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
 import { getCommittedResource, getErrorMessage, http } from "../../api/http.js";
+import { useSubmitKey } from "../../api/submit-key.js";
 import {
   formatVnd,
   type CustomerDetail,
@@ -242,9 +243,10 @@ export function SalePage() {
   /**
    * Khóa idempotency gắn với đúng một nội dung giỏ hàng: bấm lại sau khi mạng
    * lỗi thì dùng lại khóa cũ nên không bán hai lần, còn sửa giỏ hàng thì sinh
-   * khóa mới để máy chủ không báo trùng khóa với nội dung khác (contract §2.3).
+   * khóa mới (contract §2.3). Bán xong phải bỏ khóa: khách sau mua y hệt mà
+   * dùng lại khóa thì máy chủ chỉ trả lại hóa đơn cũ, đơn mới không được ghi.
    */
-  const attempt = useRef<{ signature: string; key: string }>({ signature: "", key: "" });
+  const submitKey = useSubmitKey();
 
   function resetSale() {
     setCart([]);
@@ -263,14 +265,11 @@ export function SalePage() {
 
   const checkout = useMutation({
     mutationFn: async () => {
-      const signature = JSON.stringify(body);
-      if (attempt.current.signature !== signature) {
-        attempt.current = { signature, key: crypto.randomUUID() };
-      }
-      const response = await http.post<Envelope<Invoice>>("/invoices", body, { headers: { "Idempotency-Key": attempt.current.key } });
+      const response = await http.post<Envelope<Invoice>>("/invoices", body, { headers: submitKey.headers(body) });
       return response.data.data;
     },
     onSuccess: (invoice) => {
+      submitKey.done();
       void queryClient.invalidateQueries({ queryKey: ["customer-loyalty"] });
       // In lần lượt: hộp thoại in thứ hai chỉ mở khi hộp thứ nhất đã đóng.
       const labels = printLabels && invoice.lines.some((line) => line.usageInstruction);
@@ -290,6 +289,7 @@ export function SalePage() {
         void (async () => {
           try {
             const invoice = (await http.get<Envelope<Invoice>>(`/invoices/${committed.resourceId}`)).data.data;
+            submitKey.done();
             void message.warning("Đơn này đã được lập từ lần bấm trước, mở lại hóa đơn đã lưu", 8);
             setDone(invoice);
             resetSale();

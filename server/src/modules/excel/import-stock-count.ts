@@ -4,7 +4,7 @@ import { saveCounts } from "../inventory/stock-counts.service.js";
 import { RowReader, fold, headerMap, type ImportDefinition, type ImportIssue, type PlannedRow } from "./import-kit.js";
 import { asInt, asText, type ColumnDef } from "./workbook.js";
 
-export const STOCK_COUNT_COLUMNS: ColumnDef[] = [
+const STOCK_COUNT_COLUMNS: ColumnDef[] = [
   { key: "productCode", header: "Mã sản phẩm", required: true, width: 14 },
   { key: "productName", header: "Tên sản phẩm", width: 34, note: "Chỉ để dễ đọc, hệ thống khớp theo mã sản phẩm và số lô." },
   { key: "batchNumber", header: "Số lô", required: true, width: 14 },

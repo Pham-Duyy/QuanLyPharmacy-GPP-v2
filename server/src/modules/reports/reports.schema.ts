@@ -9,4 +9,3 @@ export const reportsQuerySchema = z
     message: "to phải sau from",
     path: ["to"],
   });
-export type ReportsQuery = z.infer<typeof reportsQuerySchema>;

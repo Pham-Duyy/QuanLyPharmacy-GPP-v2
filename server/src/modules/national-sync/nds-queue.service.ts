@@ -1,5 +1,6 @@
 import { prisma } from "../../db/prisma.js";
 import { AppError } from "../../lib/app-error.js";
+import { nextAttemptAt } from "../../lib/retry.js";
 import { NdsError, type NdsClient } from "./nds-client.js";
 import { buildClient, enabledStoreConfigs } from "./nds-config.service.js";
 import {
@@ -27,7 +28,7 @@ import {
  *     vì nguồn sự thật là bảng chứng từ chứ không phải hàng đợi.
  */
 
-export type JobKind = "STOCK_IN" | "STOCK_OUT" | "STOCK_TAKING";
+type JobKind = "STOCK_IN" | "STOCK_OUT" | "STOCK_TAKING";
 
 type SourceSpec = {
   sourceType: string;
@@ -80,14 +81,6 @@ const SOURCES: Record<string, SourceSpec> = {
     build: buildStockCountPayload,
   },
 };
-
-/** Giãn dần khi gặp lỗi tạm thời; không thử lại dồn dập. */
-const BACKOFF_MINUTES = [1, 5, 15, 60, 6 * 60, 24 * 60];
-
-function nextAttempt(attempts: number): Date {
-  const minutes = BACKOFF_MINUTES[Math.min(attempts, BACKOFF_MINUTES.length - 1)]!;
-  return new Date(Date.now() + minutes * 60 * 1000);
-}
 
 // --- Quét chứng từ ----------------------------------------------------------
 
@@ -353,7 +346,7 @@ async function sendOne(client: NdsClient, jobId: string): Promise<SendOutcome> {
         lastError: built.message,
         messages: built.missing as object,
         // Ghép mã xong thì bấm gửi lại; không tự thử lại dồn dập.
-        nextAttemptAt: nextAttempt(job.attempts),
+        nextAttemptAt: nextAttemptAt(job.attempts),
       },
     });
     return { outcome: "blocked", rateLimited: false };
@@ -390,7 +383,7 @@ async function sendOne(client: NdsClient, jobId: string): Promise<SendOutcome> {
         attempts,
         lastError: message,
         sentPayload: built.payload as object,
-        ...(permanent ? { settledAt: new Date() } : { nextAttemptAt: nextAttempt(attempts) }),
+        ...(permanent ? { settledAt: new Date() } : { nextAttemptAt: nextAttemptAt(attempts) }),
       },
     });
     return {
@@ -515,7 +508,7 @@ async function pollStore(
       const message = error instanceof Error ? error.message : String(error);
       await prisma.nationalSyncJob.update({
         where: { id: job.id },
-        data: { lastError: message, nextAttemptAt: nextAttempt(job.attempts) },
+        data: { lastError: message, nextAttemptAt: nextAttemptAt(job.attempts) },
       });
     }
   }

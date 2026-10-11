@@ -19,7 +19,7 @@ import { env } from "../../config/env.js";
  * tài khoản sandbox thật.
  */
 
-export const MISA_ROOTS = {
+const MISA_ROOTS = {
   SANDBOX: "https://testapi.meinvoice.vn/api",
   PRODUCTION: "https://api.meinvoice.vn/api",
 } as const;

@@ -1,16 +1,16 @@
-import { CarOutlined, InboxOutlined, PrinterOutlined, RollbackOutlined, SaveOutlined, ShopOutlined, SwapOutlined, UndoOutlined } from "@ant-design/icons";
+import { CarOutlined, InboxOutlined, RollbackOutlined, SwapOutlined } from "@ant-design/icons";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, App, AutoComplete, Button, Card, Checkbox, Form, Grid, Input, Radio, Result, Segmented, Skeleton, Tag } from "antd";
+import { Alert, App, AutoComplete, Button, Card, Checkbox, Form, Grid, Input, Radio, Segmented } from "antd";
 import { useState } from "react";
 import type { ReactNode } from "react";
-import { getErrorMessage, http } from "../../api/http.js";
+import { http } from "../../api/http.js";
 import type { DocumentPrintConfig, DocumentPrintSettings, DocumentPrintState, DocumentPrintType, Envelope, PaperSize } from "../../api/types.js";
-import { formatDateTime } from "../../ui/format.js";
 import { useDebounced } from "../../ui/useDebounced.js";
 import { useAuth } from "../auth/auth-context.js";
 import { fetchPrintPage, printHtml } from "../printing/printing.js";
 import { PrintPaper } from "../printing/PrintPaper.js";
 import { readApiError, useUnsavedGuard } from "./settings-shared.js";
+import { SettingsGate, TemplateEditorLayout, type MobileTab } from "./settings-ui.js";
 
 const QUERY_KEY = "document-print-settings";
 
@@ -83,28 +83,11 @@ export function DocumentTemplateSettings({ onOpenInvoiceTemplate }: { onOpenInvo
     queryFn: async () => (await http.get<Envelope<DocumentPrintState>>("/settings/document-print")).data.data,
   });
 
-  if (query.isLoading) {
-    return (
-      <Card>
-        <Skeleton active paragraph={{ rows: 10 }} />
-      </Card>
-    );
-  }
-
-  if (query.isError || !query.data) {
-    return (
-      <Card>
-        <Result
-          status="error"
-          title="Không tải được cài đặt in phiếu"
-          subTitle={getErrorMessage(query.error, "Kiểm tra kết nối rồi thử lại.")}
-          extra={<Button onClick={() => void query.refetch()}>Thử lại</Button>}
-        />
-      </Card>
-    );
-  }
-
-  return <DocumentEditor key={`${storeId}:${query.data.updatedAt ?? "default"}`} state={query.data} onOpenInvoiceTemplate={onOpenInvoiceTemplate} />;
+  return (
+    <SettingsGate query={query} rows={10} errorTitle="Không tải được cài đặt in phiếu">
+      {(data) => <DocumentEditor key={`${storeId}:${data.updatedAt ?? "default"}`} state={data} onOpenInvoiceTemplate={onOpenInvoiceTemplate} />}
+    </SettingsGate>
+  );
 }
 
 function DocumentEditor({ state, onOpenInvoiceTemplate }: { state: DocumentPrintState; onOpenInvoiceTemplate: () => void }) {
@@ -115,7 +98,7 @@ function DocumentEditor({ state, onOpenInvoiceTemplate }: { state: DocumentPrint
   const wide = screens.xl ?? true;
   const [draft, setDraft] = useState<DocumentPrintSettings>(state.settings);
   const [type, setType] = useState<DocumentPrintType>("goodsReceipt");
-  const [mobileTab, setMobileTab] = useState<"form" | "preview">("form");
+  const [mobileTab, setMobileTab] = useState<MobileTab>("form");
   const [serverErrors, setServerErrors] = useState<Record<string, string>>({});
 
   const config = draft[type];
@@ -291,64 +274,25 @@ function DocumentEditor({ state, onOpenInvoiceTemplate }: { state: DocumentPrint
   );
 
   return (
-    <div className="tpl-editor">
-      {state.isDefault ? (
-        <Alert
-          type="info"
-          showIcon
-          className="tpl-default-alert"
-          title="Đang dùng mẫu phiếu mặc định"
-          description="Mọi phiếu vẫn in được ngay. Chỉnh sửa rồi bấm “Lưu mẫu in” để áp dụng riêng cho cửa hàng này."
-        />
-      ) : null}
-
-      {wide ? null : (
-        <Segmented
-          block
-          className="tpl-mobile-tabs"
-          value={mobileTab}
-          onChange={(value) => setMobileTab(value as "form" | "preview")}
-          options={[
-            { value: "form", label: "Thiết lập" },
-            { value: "preview", label: "Xem trước" },
-          ]}
-        />
-      )}
-
-      <div className="tpl-grid">
-        <div className={!wide && mobileTab !== "form" ? "tpl-pane is-hidden" : "tpl-pane"}>{formPanel}</div>
-        <div className={!wide && mobileTab !== "preview" ? "tpl-pane is-hidden" : "tpl-pane tpl-pane-preview"}>{previewPanel}</div>
-      </div>
-
-      <div className="tpl-actionbar">
-        <div className="tpl-scope">
-          <ShopOutlined />
-          <span>
-            Áp dụng cho: <strong>{storeName ?? "Cửa hàng hiện tại"}</strong>
-          </span>
-          {dirty ? <Tag color="orange">Chưa lưu</Tag> : state.updatedAt ? <span className="tpl-updated">Lưu lúc {formatDateTime(state.updatedAt)}</span> : null}
-        </div>
-        <div className="tpl-actions">
-          <Button
-            icon={<UndoOutlined />}
-            disabled={!dirty || save.isPending}
-            onClick={() => {
-              setDraft(state.settings);
-              setServerErrors({});
-            }}
-          >
-            <span className="label-long">Hủy thay đổi</span>
-            <span className="label-short">Hủy</span>
-          </Button>
-          <Button icon={<PrinterOutlined />} loading={testPrint.isPending} onClick={() => validated() && testPrint.mutate()}>
-            In thử
-          </Button>
-          <Button type="primary" icon={<SaveOutlined />} loading={save.isPending} disabled={!dirty && !state.isDefault} onClick={() => validated() && save.mutate()}>
-            <span className="label-long">Lưu mẫu in</span>
-            <span className="label-short">Lưu</span>
-          </Button>
-        </div>
-      </div>
-    </div>
+    <TemplateEditorLayout
+      defaultNotice={state.isDefault ? { title: "Đang dùng mẫu phiếu mặc định", description: "Mọi phiếu vẫn in được ngay. Chỉnh sửa rồi bấm “Lưu mẫu in” để áp dụng riêng cho cửa hàng này." } : null}
+      wide={wide}
+      mobileTab={mobileTab}
+      onMobileTab={setMobileTab}
+      formPanel={formPanel}
+      previewPanel={previewPanel}
+      storeName={storeName}
+      dirty={dirty}
+      updatedAt={state.updatedAt}
+      canSave={dirty || state.isDefault}
+      saving={save.isPending}
+      testPrinting={testPrint.isPending}
+      onDiscard={() => {
+        setDraft(state.settings);
+        setServerErrors({});
+      }}
+      onTestPrint={() => validated() && testPrint.mutate()}
+      onSave={() => validated() && save.mutate()}
+    />
   );
 }

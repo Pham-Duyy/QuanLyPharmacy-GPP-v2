@@ -12,7 +12,7 @@ import {
   type PrintPaper,
 } from "./print-common.js";
 
-export type DocumentColumn = {
+type DocumentColumn = {
   label: string;
   /**
    * Vai trò của cột khi in khổ nhiệt (không đủ chỗ cho bảng): `name` in đậm
@@ -25,7 +25,7 @@ export type DocumentColumn = {
   nowrap?: boolean;
 };
 
-export type DocumentSignature = { title: string; name?: string | null };
+type DocumentSignature = { title: string; name?: string | null };
 
 /**
  * Chứng từ đã dựng sẵn nội dung, không phụ thuộc loại phiếu. Mọi ô trong

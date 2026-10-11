@@ -10,7 +10,7 @@ export const DOCUMENT_TYPES = [
 export type DocumentType = (typeof DOCUMENT_TYPES)[number];
 
 /** Khổ giấy hợp lý cho từng loại: phiếu kho nhiều cột nên không in khổ nhiệt. */
-export const DOCUMENT_PAPERS = {
+const DOCUMENT_PAPERS = {
   goodsReceipt: ["A4", "A5"],
   return: ["K80", "K58", "A5", "A4"],
   stockAdjustment: ["A4", "A5"],

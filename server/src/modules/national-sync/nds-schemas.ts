@@ -27,18 +27,18 @@ const pagedSchema = <T extends z.ZodTypeAny>(item: T) =>
     data: z.array(item).default([]),
   });
 
-export const nationalUnitSchema = z.object({
+const nationalUnitSchema = z.object({
   id: z.coerce.string(),
   name: z.string().default(""),
 });
 
-export const nationalPackagingSchema = z.object({
+const nationalPackagingSchema = z.object({
   unit_id: z.coerce.string().optional(),
   unit_name: z.string().optional(),
   gtin: z.coerce.string().optional(),
 });
 
-export const nationalDrugSchema = z.object({
+const nationalDrugSchema = z.object({
   id: z.coerce.string(),
   name: z.string().default(""),
   drug_group_id: z.coerce.string().nullish(),
@@ -68,16 +68,6 @@ export type NationalUnitDto = z.infer<typeof nationalUnitSchema>;
 
 // --- Chứng từ ---------------------------------------------------------------
 
-/** Trạng thái xử lý phía hệ thống quốc gia. */
-export const REMOTE_STATUSES = [
-  "accepted",
-  "processing",
-  "completed",
-  "error",
-  "rejected",
-] as const;
-export type RemoteStatus = (typeof REMOTE_STATUSES)[number];
-
 export const transactionAckSchema = z.object({
   transaction_id: z.coerce.string().optional(),
   status: z.string().optional(),
@@ -91,7 +81,7 @@ export const transactionStatusSchema = z.object({
 });
 
 /** Mã lý do nhập hàng (đặc tả: reason của /transactions/stock-in). */
-export const STOCK_IN_REASONS = [
+const STOCK_IN_REASONS = [
   "supplier",
   "opening-balance",
   "return",
@@ -102,7 +92,7 @@ export const STOCK_IN_REASONS = [
 ] as const;
 
 /** Mã lý do xuất hàng (đặc tả: reason của /transactions/stock-out). */
-export const STOCK_OUT_REASONS = [
+const STOCK_OUT_REASONS = [
   "sale-wholesale",
   "sale-retail",
   "transfer-out",
@@ -180,7 +170,7 @@ export const stockTakingPayloadSchema = z.object({
     .default([]),
 });
 
-export type StockInPayload = z.infer<typeof stockInPayloadSchema>;
-export type StockOutPayload = z.infer<typeof stockOutPayloadSchema>;
-export type StockTakingPayload = z.infer<typeof stockTakingPayloadSchema>;
+type StockInPayload = z.infer<typeof stockInPayloadSchema>;
+type StockOutPayload = z.infer<typeof stockOutPayloadSchema>;
+type StockTakingPayload = z.infer<typeof stockTakingPayloadSchema>;
 export type SyncPayload = StockInPayload | StockOutPayload | StockTakingPayload;

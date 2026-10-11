@@ -12,7 +12,7 @@ const PAGE_SIZE = 50;
  * Chuẩn hóa tên thuốc để so khớp: bỏ dấu tiếng Việt, bỏ ký tự không phải chữ
  * và số, gộp khoảng trắng. "Amlodipin 5mg" và "AMLODIPIN 5 MG" thành một.
  */
-export function normalizeDrugName(value: string): string {
+function normalizeDrugName(value: string): string {
   return value
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")
@@ -23,7 +23,7 @@ export function normalizeDrugName(value: string): string {
 }
 
 /** Số đăng ký so khớp không phân biệt hoa thường, dấu cách và gạch nối. */
-export function normalizeRegistrationNumber(value: string): string {
+function normalizeRegistrationNumber(value: string): string {
   return value.toUpperCase().replace(/[\s-]+/g, "");
 }
 

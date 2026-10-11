@@ -116,8 +116,8 @@ const STOCK_COLUMNS = (options: { withManufacture: boolean; costLabel: string })
   { key: "expiryDate", header: "Hạn dùng", required: true, kind: "date", width: 14, note: "dd/mm/yyyy, phải sau hôm nay." },
 ];
 
-export const OPENING_BALANCE_COLUMNS = STOCK_COLUMNS({ withManufacture: false, costLabel: "Giá vốn" });
-export const RECEIPT_LINE_COLUMNS = STOCK_COLUMNS({ withManufacture: true, costLabel: "Đơn giá nhập" });
+const OPENING_BALANCE_COLUMNS = STOCK_COLUMNS({ withManufacture: false, costLabel: "Giá vốn" });
+const RECEIPT_LINE_COLUMNS = STOCK_COLUMNS({ withManufacture: true, costLabel: "Đơn giá nhập" });
 
 export const openingBalanceImport: ImportDefinition<StockLine> = {
   type: "opening-balance",

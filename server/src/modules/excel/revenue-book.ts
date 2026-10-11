@@ -30,9 +30,9 @@ const day = (date: Date) => date.toISOString().slice(0, 10).split("-").reverse()
 const range = (first: string, last: string) => (first === last ? first : `${first} → ${last}`);
 
 /** Một dòng sổ: số hiệu chứng từ, ngày, diễn giải, số tiền (âm với phiếu trả). */
-export type BookLine = { reference: string; date: Date; description: string; amount: number };
+type BookLine = { reference: string; date: Date; description: string; amount: number };
 
-export async function revenueBookLines(storeId: string, from: Date, to: Date): Promise<BookLine[]> {
+async function revenueBookLines(storeId: string, from: Date, to: Date): Promise<BookLine[]> {
   const [sales, refunds] = await Promise.all([
     prisma.$queryRaw<DayRow[]>(Prisma.sql`
       SELECT business_date AS date, SUM(total_amount)::bigint AS amount, COUNT(*)::bigint AS count,

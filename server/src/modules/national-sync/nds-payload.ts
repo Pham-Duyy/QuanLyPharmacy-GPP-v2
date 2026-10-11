@@ -39,7 +39,7 @@ function unitPrice(amount: bigint, conversionToBase: number): number {
   return Math.round((Number(amount) / conversionToBase) * 100) / 100;
 }
 
-export type MissingLink = { productId: string; code: string; name: string; reason: string };
+type MissingLink = { productId: string; code: string; name: string; reason: string };
 
 export type BuildResult =
   { ok: true; payload: SyncPayload } | { ok: false; missing: MissingLink[]; message: string };

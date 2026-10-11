@@ -8,10 +8,10 @@ import { loyaltySettingsSchema, type LoyaltySettings } from "./loyalty.schema.js
 
 type Tx = Prisma.TransactionClient;
 
-export const LOYALTY_KEY = "loyaltySettings";
+const LOYALTY_KEY = "loyaltySettings";
 
 /** Chưa cấu hình thì chương trình tắt — không tự tích điểm sau lưng chủ nhà thuốc. */
-export const LOYALTY_DEFAULTS: LoyaltySettings = {
+const LOYALTY_DEFAULTS: LoyaltySettings = {
   enabled: false,
   earnAmountPerPoint: 10_000,
   pointValue: 500,
@@ -22,7 +22,7 @@ export const LOYALTY_DEFAULTS: LoyaltySettings = {
 };
 
 /** Điểm sắp hết hạn trong bao nhiêu ngày thì nhắc khách. */
-export const EXPIRING_SOON_DAYS = 30;
+const EXPIRING_SOON_DAYS = 30;
 
 export type EffectiveLoyaltySettings = {
   settings: LoyaltySettings;

@@ -1,13 +1,9 @@
 import { Prisma } from "../../generated/prisma/client.js";
 import { prisma } from "../../db/prisma.js";
+import { addDays } from "../../lib/dates.js";
 
 function toDateKey(date: Date): string {
   return date.toISOString().slice(0, 10);
-}
-function addDays(date: Date, days: number): Date {
-  const result = new Date(date);
-  result.setUTCDate(result.getUTCDate() + days);
-  return result;
 }
 function percentageChange(current: number, previous: number): number | null {
   if (previous === 0) return null;
@@ -95,7 +91,7 @@ async function getTotals(storeId: string, from: Date, to: Date): Promise<Totals>
  * Dòng hoàn có thể thuộc hóa đơn của **kỳ trước**: đó chính là lý do không
  * thể chỉ nhìn hóa đơn bán trong kỳ để kết luận giá vốn đã đủ.
  */
-export type CostQuality = {
+type CostQuality = {
   /** Dòng xuất bán trong kỳ. */
   saleLines: number;
   /** Dòng hàng trả nhập lại kho trong kỳ (RESTOCK). */

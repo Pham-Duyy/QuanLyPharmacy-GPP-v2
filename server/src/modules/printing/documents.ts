@@ -27,7 +27,7 @@ type Amount = number | bigint;
 // Phiếu nhập kho
 // ---------------------------------------------------------------------------
 
-export type ReceiptForPrint = {
+type ReceiptForPrint = {
   code: string;
   status: string;
   supplier: {
@@ -61,7 +61,7 @@ export type ReceiptForPrint = {
   }>;
 };
 
-export function goodsReceiptDocument(receipt: ReceiptForPrint): PrintDocument {
+function goodsReceiptDocument(receipt: ReceiptForPrint): PrintDocument {
   const stamp =
     receipt.status === "DRAFT"
       ? "Bản nháp — chưa kiểm nhập, chưa ghi nhận vào kho"
@@ -134,7 +134,7 @@ export function goodsReceiptDocument(receipt: ReceiptForPrint): PrintDocument {
 // Phiếu trả hàng
 // ---------------------------------------------------------------------------
 
-export type ReturnForPrint = {
+type ReturnForPrint = {
   code: string;
   invoiceCode: string;
   customer: { fullName: string | null; phone: string | null } | null;
@@ -153,7 +153,7 @@ export type ReturnForPrint = {
   }>;
 };
 
-export function returnDocument(item: ReturnForPrint): PrintDocument {
+function returnDocument(item: ReturnForPrint): PrintDocument {
   const customer = item.customer?.fullName?.trim() || "Khách lẻ";
   return {
     code: item.code,
@@ -197,7 +197,7 @@ export function returnDocument(item: ReturnForPrint): PrintDocument {
 // Phiếu điều chỉnh tồn kho
 // ---------------------------------------------------------------------------
 
-export type AdjustmentForPrint = {
+type AdjustmentForPrint = {
   code: string;
   status: string;
   reason: string | null;
@@ -221,7 +221,7 @@ export type AdjustmentForPrint = {
 
 const signed = (value: number) => (value > 0 ? `+${num(value)}` : num(value));
 
-export function stockAdjustmentDocument(item: AdjustmentForPrint): PrintDocument {
+function stockAdjustmentDocument(item: AdjustmentForPrint): PrintDocument {
   const stamp =
     item.status === "DRAFT"
       ? "Chờ duyệt — chưa thay đổi tồn kho"
@@ -284,7 +284,7 @@ export function stockAdjustmentDocument(item: AdjustmentForPrint): PrintDocument
 // Phiếu chuyển kho giữa hai cửa hàng
 // ---------------------------------------------------------------------------
 
-export type TransferForPrint = {
+type TransferForPrint = {
   code: string;
   status: string;
   note: string | null;
@@ -318,7 +318,7 @@ const storeLine = (store: TransferForPrint["fromStore"]) =>
  * Phiếu đi cùng hàng. Lúc xuất kho cột "Thực nhận" để trống cho người nhận
  * ghi tay khi đếm; nhận xong in lại thì có số thực nhận và phần hao hụt.
  */
-export function stockTransferDocument(item: TransferForPrint): PrintDocument {
+function stockTransferDocument(item: TransferForPrint): PrintDocument {
   const stamp =
     item.status === "DRAFT"
       ? "Bản nháp — chưa xuất kho"

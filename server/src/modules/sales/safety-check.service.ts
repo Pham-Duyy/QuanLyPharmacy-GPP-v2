@@ -15,7 +15,7 @@ export type Blocking = {
   sellableBaseQuantity?: number;
 };
 
-export type Warning = {
+type Warning = {
   code: string;
   severity: "INFO" | "MEDIUM" | "HIGH";
   requiresAck: boolean;
@@ -25,7 +25,7 @@ export type Warning = {
   sourceVersion: string;
 };
 
-export type NotChecked = { productId: string; reason: string };
+type NotChecked = { productId: string; reason: string };
 
 export type SafetyResult = {
   blocking: Blocking[];

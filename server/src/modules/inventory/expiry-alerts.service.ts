@@ -13,10 +13,10 @@ import type { AuthContext } from "../auth/auth.context.js";
  */
 
 export const EXPIRY_ACTIONS = ["RETURN_SUPPLIER", "PRIORITIZE_SALE", "DISCOUNT", "DISPOSE"] as const;
-export type ExpiryAction = (typeof EXPIRY_ACTIONS)[number];
+type ExpiryAction = (typeof EXPIRY_ACTIONS)[number];
 
 /** Mốc chia nhóm theo số ngày còn lại. */
-export const BUCKETS = [
+const BUCKETS = [
   { key: "EXPIRED", label: "Đã hết hạn", maxDays: -1 },
   { key: "D30", label: "Còn dưới 30 ngày", maxDays: 30 },
   { key: "D60", label: "Còn 31 – 60 ngày", maxDays: 60 },
@@ -25,7 +25,7 @@ export const BUCKETS = [
 
 export type BucketKey = (typeof BUCKETS)[number]["key"];
 
-export type ExpiryPlanView = {
+type ExpiryPlanView = {
   id: string;
   action: ExpiryAction;
   status: string;
@@ -142,7 +142,7 @@ export async function listExpiring(storeId: string, auth: AuthContext, query: Ex
   return { items: filtered, summary: summarize(rows, showCost) };
 }
 
-export function summarize(rows: ExpiryRow[], showCost: boolean) {
+function summarize(rows: ExpiryRow[], showCost: boolean) {
   const byBucket = Object.fromEntries(
     BUCKETS.map((bucket) => {
       const items = rows.filter((row) => row.bucket === bucket.key);

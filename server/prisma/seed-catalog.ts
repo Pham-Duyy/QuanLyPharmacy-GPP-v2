@@ -3,7 +3,7 @@
  * Đây là dữ liệu demo, không phải danh mục thật của nhà thuốc.
  */
 
-export type SeedUnit = {
+type SeedUnit = {
   name: string;
   conversionToBase: number;
   isSellable: boolean;
@@ -12,7 +12,7 @@ export type SeedUnit = {
   barcode?: string;
 };
 
-export type SeedBatch = {
+type SeedBatch = {
   batchNumber: string;
   expiryDate: string;
   manufactureDate?: string;

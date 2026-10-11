@@ -6,7 +6,7 @@ import { hashPassword } from "../lib/password.js";
 import { ADDITIONAL_PERMISSIONS, PERMISSIONS, ROLES } from "../config/permissions.js";
 import { assertTestDatabaseName } from "./test-database.js";
 
-export const app: Express = createApp();
+const app: Express = createApp();
 export const api = () => request(app);
 
 let databaseChecked = false;

@@ -28,7 +28,7 @@ function divRound(numerator: bigint, denominator: bigint): bigint {
 }
 
 /** "5.00" → "5%", "8.00" → "8%", "0.00" → "0%". Định dạng cần kiểm lại với sandbox MISA. */
-export function vatRateName(percent: number): string {
+function vatRateName(percent: number): string {
   return `${Number(percent.toFixed(2))}%`;
 }
 

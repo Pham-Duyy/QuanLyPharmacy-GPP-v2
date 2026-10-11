@@ -6,9 +6,9 @@ import {
   type DocumentPrintSettings,
 } from "./document-print.schema.js";
 
-export const DOCUMENT_PRINT_KEY = "documentPrintSettings";
+const DOCUMENT_PRINT_KEY = "documentPrintSettings";
 
-export function defaultDocumentSettings(): DocumentPrintSettings {
+function defaultDocumentSettings(): DocumentPrintSettings {
   return Object.fromEntries(
     DOCUMENT_TYPES.map((type) => [
       type,

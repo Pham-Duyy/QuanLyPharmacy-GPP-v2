@@ -1,6 +1,7 @@
 import { Prisma } from "../../generated/prisma/client.js";
 import { prisma } from "../../db/prisma.js";
 import { AppError } from "../../lib/app-error.js";
+import { num } from "../../lib/numbers.js";
 import { markIdempotentResource } from "../../lib/idempotency-context.js";
 import { codeDay, nextDocumentCode } from "../../lib/document-code.js";
 import { lockGoodsReceipts, lockSupplierPayment } from "../../lib/locks.js";
@@ -17,9 +18,7 @@ type Tx = Prisma.TransactionClient;
  * nhầm thì hủy có lý do chứ không xóa, để đối chiếu sổ sách về sau.
  */
 
-const num = (value: bigint | null | undefined) => Number(value ?? 0n);
-
-export type ReceiptDebt = {
+type ReceiptDebt = {
   goodsReceiptId: string;
   code: string;
   receivedAt: Date;

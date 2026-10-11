@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const PAPER_SIZES = ["K80", "K58", "A5"] as const;
+const PAPER_SIZES = ["K80", "K58", "A5"] as const;
 export type PaperSize = (typeof PAPER_SIZES)[number];
 
 export const DEFAULT_INVOICE_TITLE = "HÓA ĐƠN BÁN HÀNG";

@@ -1,4 +1,5 @@
 import { prisma } from "../db/prisma.js";
+import { vnDay } from "./dates.js";
 
 /**
  * Giá trị mặc định khi cài đặt chưa có trong CSDL. Phải khớp với
@@ -42,6 +43,5 @@ export async function getSetting<K extends SettingKey>(
 
 /** Ngày làm việc hiện tại theo giờ Việt Nam, dùng cho cột `date` của chứng từ. */
 export function businessDateNow(at: Date = new Date()): Date {
-  const day = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Ho_Chi_Minh" }).format(at);
-  return new Date(`${day}T00:00:00.000Z`);
+  return new Date(`${vnDay(at)}T00:00:00.000Z`);
 }

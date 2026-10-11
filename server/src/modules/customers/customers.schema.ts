@@ -71,4 +71,3 @@ export const anonymizeCustomerSchema = z.object({
 export type CreateCustomerInput = z.infer<typeof createCustomerSchema>;
 export type PatchCustomerInput = z.infer<typeof patchCustomerSchema>;
 export type PatchHealthProfileInput = z.infer<typeof patchHealthProfileSchema>;
-export type AnonymizeCustomerInput = z.infer<typeof anonymizeCustomerSchema>;

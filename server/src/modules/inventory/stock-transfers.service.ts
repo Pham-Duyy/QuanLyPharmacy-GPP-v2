@@ -1,6 +1,7 @@
 import { Prisma } from "../../generated/prisma/client.js";
 import { prisma } from "../../db/prisma.js";
 import { AppError } from "../../lib/app-error.js";
+import { num } from "../../lib/numbers.js";
 import { codeDay, nextDocumentCode } from "../../lib/document-code.js";
 import { markIdempotentResource } from "../../lib/idempotency-context.js";
 import { lockStockTransfer } from "../../lib/locks.js";
@@ -28,7 +29,7 @@ type Tx = Prisma.TransactionClient;
  * biệt (quy định chuyển giao giữa các cơ sở bán lẻ chưa được đối chiếu).
  */
 
-export type TransferLineInput = { batchId: string; unitId: string; quantity: number };
+type TransferLineInput = { batchId: string; unitId: string; quantity: number };
 export type CreateTransferInput = {
   toStoreId: string;
   note: string | null;
@@ -40,8 +41,6 @@ export type ReceiveLineInput = {
   passed: boolean;
   rejectReason?: string | null | undefined;
 };
-
-const num = (value: bigint | null | undefined) => Number(value ?? 0n);
 
 function lineValue(unitCost: Prisma.Decimal | null, baseQuantity: number): bigint {
   if (unitCost === null) return 0n;
