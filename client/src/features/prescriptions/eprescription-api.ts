@@ -4,6 +4,14 @@ import type { Envelope } from "../../api/types.js";
 /** Mã đơn thuốc điện tử 14 ký tự (QĐ 808 mục VII.1): xxxxxyyyyyyy-c|n|h|y. */
 export const ERX_CODE = /^[0-9a-z]{12}-[cnhy]$/i;
 
+/**
+ * Mã đơn trong nội dung vừa quét bằng camera: mã vạch in đúng mã, còn mã QR
+ * có thể là đường dẫn hay đoạn chữ có chứa mã. Không thấy thì trả null.
+ */
+export function findErxCode(text: string): string | null {
+  return /(?:^|[^0-9a-z])([0-9a-z]{12}-[cnhy])(?![0-9a-z])/i.exec(text.trim())?.[1] ?? null;
+}
+
 export type ImportResult = { prescriptionId: string; created: boolean; unmatched: number };
 
 /** Lấy đơn từ Hệ thống đơn thuốc quốc gia thành đơn thuốc nháp (contract §12.1). */

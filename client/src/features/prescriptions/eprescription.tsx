@@ -5,7 +5,13 @@ import { useState } from "react";
 import { getErrorMessage, http } from "../../api/http.js";
 import type { Envelope, Paged, PrescriptionItem, ProductListItem } from "../../api/types.js";
 import { useDebounced } from "../../ui/useDebounced.js";
-import { ERX_CODE, importEPrescription, type ImportResult } from "./eprescription-api.js";
+import { CameraScanButton } from "../scanning/CameraScan.js";
+import {
+  ERX_CODE,
+  findErxCode,
+  importEPrescription,
+  type ImportResult,
+} from "./eprescription-api.js";
 
 /** Hộp nhập (hoặc quét) mã đơn thuốc điện tử rồi lấy đơn về. */
 export function EPrescriptionImportModal({
@@ -21,7 +27,7 @@ export function EPrescriptionImportModal({
   const [code, setCode] = useState("");
   const valid = ERX_CODE.test(code.trim());
   const run = useMutation({
-    mutationFn: () => importEPrescription(code),
+    mutationFn: (value: string) => importEPrescription(value),
     onSuccess: (result) => {
       void message.success(
         result.created
@@ -45,7 +51,7 @@ export function EPrescriptionImportModal({
       cancelText="Hủy"
       okButtonProps={{ disabled: !valid, icon: <CloudDownloadOutlined /> }}
       confirmLoading={run.isPending}
-      onOk={() => run.mutate()}
+      onOk={() => run.mutate(code)}
       destroyOnHidden
     >
       <Input
@@ -57,7 +63,19 @@ export function EPrescriptionImportModal({
         value={code}
         status={code && !valid ? "warning" : undefined}
         onChange={(event) => setCode(event.target.value)}
-        onPressEnter={() => valid && run.mutate()}
+        onPressEnter={() => valid && run.mutate(code)}
+        suffix={
+          <CameraScanButton
+            type="text"
+            title="Quét mã đơn bằng camera"
+            accept={findErxCode}
+            wrongCodeMessage="Mã vừa đọc không phải mã đơn thuốc điện tử (14 ký tự, đuôi -c, -n, -h hoặc -y)."
+            onDetected={(value) => {
+              setCode(value);
+              run.mutate(value);
+            }}
+          />
+        }
       />
       <Typography.Text type="secondary" style={{ display: "block", marginTop: 8, fontSize: 12.5 }}>
         Mã 14 ký tự in trên đơn, đuôi -c (thường), -n (gây nghiện), -h (hướng thần) hoặc -y (y học

@@ -11,7 +11,7 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Button, Empty, Input, Result, Select, Skeleton, Switch, Tooltip } from "antd";
 import type { InputRef } from "antd";
 import { useState } from "react";
-import type { RefObject } from "react";
+import type { ReactNode, RefObject } from "react";
 import { getErrorMessage, http } from "../../../api/http.js";
 import type { CategoryItem, Envelope, Paged, ProductListItem } from "../../../api/types.js";
 import { useDebounced } from "../../../ui/useDebounced.js";
@@ -46,6 +46,8 @@ type Props = {
   /** Enter khi chưa chọn dòng nào: tra mã vạch/tên chính xác (máy quét gõ nhanh rồi Enter). */
   onScanEnter: () => void;
   onAdd: (productId: string, unitId: string | undefined) => void;
+  /** Nút quét bằng camera đặt cuối ô tìm, cho quầy không có máy quét cầm tay. */
+  cameraButton?: ReactNode;
 };
 
 function defaultUnitId(item: ProductListItem): string | undefined {
@@ -53,7 +55,14 @@ function defaultUnitId(item: ProductListItem): string | undefined {
 }
 
 /** Danh mục bên trái màn Bán thuốc: tìm/quét, lọc, chọn đơn vị và thêm vào đơn. */
-export function PosCatalog({ term, onTermChange, searchRef, onScanEnter, onAdd }: Props) {
+export function PosCatalog({
+  term,
+  onTermChange,
+  searchRef,
+  onScanEnter,
+  onAdd,
+  cameraButton,
+}: Props) {
   const { storeId } = useAuth();
   const [tab, setTab] = useState<Tab>("ALL");
   const [categoryId, setCategoryId] = useState<string>();
@@ -319,6 +328,7 @@ export function PosCatalog({ term, onTermChange, searchRef, onScanEnter, onAdd }
         size="large"
         className="pos-search"
         prefix={<BarcodeOutlined />}
+        suffix={cameraButton}
         placeholder="Quét mã hoặc tìm tên thuốc, hoạt chất..."
         aria-label="Quét mã hoặc tìm thuốc"
         value={term}

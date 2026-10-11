@@ -64,7 +64,9 @@ import {
   useCustomerLoyalty,
   useLoyaltySettings,
 } from "../loyalty/loyalty-api.js";
-import { ERX_CODE, importEPrescription } from "../prescriptions/eprescription-api.js";
+import { ERX_CODE, findErxCode, importEPrescription } from "../prescriptions/eprescription-api.js";
+import { CameraScanButton } from "../scanning/CameraScan.js";
+import { productCodeFromScan } from "../scanning/scan-codes.js";
 import { ProductThumb } from "../catalog/products/ProductThumb.js";
 import { printDocument, printInvoice, printUrl } from "../printing/printing.js";
 import { cashShiftKeys } from "./cash-shift-api.js";
@@ -591,7 +593,7 @@ export function SalePage() {
    * Enter, nên tra thẳng API với chuỗi hiện tại thay vì dựa vào danh sách.
    */
   async function handleScanEnter(code = term) {
-    const value = code.trim();
+    const value = productCodeFromScan(code);
     if (!value) return;
     try {
       const items = (
@@ -893,6 +895,14 @@ export function SalePage() {
           searchRef={searchRef}
           onScanEnter={() => void handleScanEnter()}
           onAdd={(productId, unitId) => void addProduct(productId, { unitId })}
+          cameraButton={
+            <CameraScanButton
+              type="text"
+              title="Quét mã hộp thuốc bằng camera"
+              accept={(raw) => productCodeFromScan(raw) || null}
+              onDetected={(code) => void handleScanEnter(code)}
+            />
+          }
         />
 
         <section className="pos-panel pos-checkout-panel" aria-label="Đơn bán hiện tại">
@@ -1035,42 +1045,57 @@ export function SalePage() {
                 ) : null}
               </>
             ) : can("prescription.read") ? (
-              <AutoComplete
-                className="pos-field-input"
-                value={prescriptionSearch}
-                onChange={setPrescriptionSearch}
-                filterOption={(input, option) =>
-                  typeof option?.label === "string" &&
-                  option.label.toLowerCase().includes(input.toLowerCase())
-                }
-                options={[
-                  // Gõ hoặc quét đúng mã đơn điện tử: lấy đơn từ hệ thống quốc gia ngay tại quầy.
-                  ...(ERX_CODE.test(prescriptionSearch.trim())
-                    ? [{ value: ERX_OPTION, label: `Lấy đơn điện tử ${prescriptionSearch.trim()}` }]
-                    : []),
-                  ...(verifiedPrescriptions.data ?? []).map((item) => ({
-                    value: item.id,
-                    label: `${item.code} — ${item.customer?.fullName ?? item.patientName ?? "Khách lẻ"}`,
-                  })),
-                ]}
-                notFoundContent={
-                  verifiedPrescriptions.data?.length === 0 ? "Chưa có đơn thuốc đã xác nhận" : null
-                }
-                onSelect={async (id) => {
-                  if (id === ERX_OPTION) {
-                    await loadEPrescription(prescriptionSearch.trim());
-                    return;
+              <div className="pos-attach-row">
+                <AutoComplete
+                  className="pos-field-input"
+                  value={prescriptionSearch}
+                  onChange={setPrescriptionSearch}
+                  filterOption={(input, option) =>
+                    typeof option?.label === "string" &&
+                    option.label.toLowerCase().includes(input.toLowerCase())
                   }
-                  await attachPrescription(id);
-                }}
-              >
-                <Input
-                  prefix={<FileProtectOutlined />}
-                  placeholder="Đơn thuốc: chọn đơn đã xác nhận, hoặc quét mã đơn điện tử"
-                  allowClear
-                  aria-label="Chọn đơn thuốc"
+                  options={[
+                    // Gõ hoặc quét đúng mã đơn điện tử: lấy đơn từ hệ thống quốc gia ngay tại quầy.
+                    ...(ERX_CODE.test(prescriptionSearch.trim())
+                      ? [
+                          {
+                            value: ERX_OPTION,
+                            label: `Lấy đơn điện tử ${prescriptionSearch.trim()}`,
+                          },
+                        ]
+                      : []),
+                    ...(verifiedPrescriptions.data ?? []).map((item) => ({
+                      value: item.id,
+                      label: `${item.code} — ${item.customer?.fullName ?? item.patientName ?? "Khách lẻ"}`,
+                    })),
+                  ]}
+                  notFoundContent={
+                    verifiedPrescriptions.data?.length === 0
+                      ? "Chưa có đơn thuốc đã xác nhận"
+                      : null
+                  }
+                  onSelect={async (id) => {
+                    if (id === ERX_OPTION) {
+                      await loadEPrescription(prescriptionSearch.trim());
+                      return;
+                    }
+                    await attachPrescription(id);
+                  }}
+                >
+                  <Input
+                    prefix={<FileProtectOutlined />}
+                    placeholder="Đơn thuốc: chọn đơn đã xác nhận, hoặc quét mã đơn điện tử"
+                    allowClear
+                    aria-label="Chọn đơn thuốc"
+                  />
+                </AutoComplete>
+                <CameraScanButton
+                  title="Quét mã đơn thuốc điện tử bằng camera"
+                  accept={findErxCode}
+                  wrongCodeMessage="Mã vừa đọc không phải mã đơn thuốc điện tử (14 ký tự, đuôi -c, -n, -h hoặc -y)."
+                  onDetected={(code) => void loadEPrescription(code)}
                 />
-              </AutoComplete>
+              </div>
             ) : null}
           </div>
 
