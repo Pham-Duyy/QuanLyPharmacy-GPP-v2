@@ -4,6 +4,7 @@ import { AppError } from "../../lib/app-error.js";
 import { markIdempotentResource } from "../../lib/idempotency-context.js";
 import { codeDay, nextDocumentCode } from "../../lib/document-code.js";
 import { resolveLines } from "./goods-receipts.service.js";
+import { placeBatch } from "./shelf-location.js";
 import type { OpeningBalanceInput } from "./opening-balance.schema.js";
 
 type Tx = Prisma.TransactionClient;
@@ -112,6 +113,12 @@ export async function createOpeningBalance(
           balanceAfter = created.quantityOnHand;
         }
 
+        await placeBatch(tx, {
+          storeId,
+          batchId,
+          productId: line.productId,
+          requested: input.lines[line.lineNo - 1]?.shelfLocation,
+        });
         await tx.goodsReceiptLine.update({ where: { id: line.id }, data: { batchId } });
 
         await tx.stockMovement.create({

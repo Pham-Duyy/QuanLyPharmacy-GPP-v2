@@ -1,4 +1,5 @@
 import { Prisma } from "../../generated/prisma/client.js";
+import { prisma } from "../../db/prisma.js";
 import { AppError } from "../../lib/app-error.js";
 
 type Tx = Prisma.TransactionClient;
@@ -158,4 +159,30 @@ export function sumByProduct(batches: SellableBatch[]): Map<string, number> {
     total.set(batch.productId, (total.get(batch.productId) ?? 0) + batch.quantityOnHand);
   }
   return total;
+}
+
+/**
+ * Vị trí lô sẽ bán trước của từng thuốc (cùng điều kiện và thứ tự FEFO như lúc
+ * xuất hàng), để quầy biết lấy hàng ở tủ–kệ–ngăn nào. Lô chưa ghi vị trí thì
+ * không có trong kết quả.
+ */
+export async function firstPickLocations(
+  storeId: string,
+  productIds: string[],
+  minRemainingDays: number,
+): Promise<Map<string, string>> {
+  if (productIds.length === 0) return new Map();
+  const rows = await prisma.$queryRaw<Array<{ product_id: string; shelf_location: string | null }>>(
+    Prisma.sql`
+      SELECT DISTINCT ON (product_id) product_id::text, shelf_location
+      FROM batches
+      WHERE ${sellableWhere(storeId, productIds, minRemainingDays)}
+      ORDER BY product_id, expiry_date, id
+    `,
+  );
+  return new Map(
+    rows
+      .filter((row) => row.shelf_location !== null)
+      .map((row) => [row.product_id, row.shelf_location!]),
+  );
 }

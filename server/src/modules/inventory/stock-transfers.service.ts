@@ -8,6 +8,7 @@ import { lockStockTransfer } from "../../lib/locks.js";
 import { businessDateNow } from "../../lib/settings.js";
 import type { AuthContext } from "../auth/auth.context.js";
 import { addToBatch, insertBatchIfAbsent, readBatchByNumber } from "./batch-value.js";
+import { placeBatch } from "./shelf-location.js";
 
 type Tx = Prisma.TransactionClient;
 
@@ -490,6 +491,9 @@ export async function receive(
             destinationBatchId = updated.id;
             balanceAfter = updated.quantityOnHand;
           }
+
+          // Hàng nhận về xếp cạnh hàng cũ cùng thuốc ở cửa hàng nhận.
+          await placeBatch(tx, { storeId, batchId: destinationBatchId, productId: line.productId });
 
           await tx.stockMovement.create({
             data: {

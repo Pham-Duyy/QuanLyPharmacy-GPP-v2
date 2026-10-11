@@ -55,6 +55,8 @@ const confirmLineSchema = z
     lineId: z.uuid("lineId không hợp lệ"),
     passed: z.boolean(),
     rejectReason: z.string().trim().max(500).nullish(),
+    /** Tủ–kệ–ngăn xếp lô này; bỏ trống thì lấy vị trí gần nhất của cùng thuốc. */
+    shelfLocation: z.string().max(60, "Vị trí tối đa 30 ký tự").nullish(),
   })
   .refine((line) => line.passed || Boolean(line.rejectReason), {
     message: "Dòng không đạt kiểm nhập phải ghi lý do",

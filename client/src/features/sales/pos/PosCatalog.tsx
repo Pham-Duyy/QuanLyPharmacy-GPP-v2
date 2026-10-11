@@ -2,6 +2,7 @@ import {
   ArrowDownOutlined,
   ArrowUpOutlined,
   BarcodeOutlined,
+  EnvironmentOutlined,
   LeftOutlined,
   PlusOutlined,
   RightOutlined,
@@ -238,6 +239,11 @@ export function PosCatalog({ term, onTermChange, searchRef, onScanEnter, onAdd }
                   <span className="muted">
                     {[item.code, ingredients].filter(Boolean).join(" · ")}
                   </span>
+                  {item.shelfLocation ? (
+                    <span className="pos-shelf">
+                      <EnvironmentOutlined /> {item.shelfLocation}
+                    </span>
+                  ) : null}
                 </div>
               </div>
               <div className="pos-row-unit">

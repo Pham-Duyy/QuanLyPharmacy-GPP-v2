@@ -27,6 +27,7 @@ type StockLine = {
   batchNumber: string;
   manufactureDate: string | null;
   expiryDate: string;
+  shelfLocation: string | null;
 };
 
 const day = (value: Date) => value.toISOString().slice(0, 10);
@@ -80,6 +81,9 @@ async function planStockLines(
       ? r.read("manufactureDate", () => asDate(v["manufactureDate"], "Ngày sản xuất"))
       : null;
     const expiryDate = r.read("expiryDate", () => asDate(v["expiryDate"], "Hạn dùng"));
+    const shelfLocation = columns.some((column) => column.key === "shelfLocation")
+      ? r.read("shelfLocation", () => asText(v["shelfLocation"], 30, "Vị trí kệ"))
+      : null;
 
     r.require("productCode", code);
     r.require("unit", unitName);
@@ -151,13 +155,18 @@ async function planStockLines(
         batchNumber,
         manufactureDate: manufactureDate ? day(manufactureDate) : null,
         expiryDate: day(expiryDate),
+        shelfLocation: shelfLocation ?? null,
       },
     });
   }
   return { rows: planned, issues, notes: [] as string[] };
 }
 
-const STOCK_COLUMNS = (options: { withManufacture: boolean; costLabel: string }): ColumnDef[] => [
+const STOCK_COLUMNS = (options: {
+  withManufacture: boolean;
+  costLabel: string;
+  withShelf?: boolean;
+}): ColumnDef[] => [
   {
     key: "productCode",
     header: "Mã sản phẩm",
@@ -207,9 +216,23 @@ const STOCK_COLUMNS = (options: { withManufacture: boolean; costLabel: string })
     width: 14,
     note: "dd/mm/yyyy, phải sau hôm nay.",
   },
+  ...(options.withShelf
+    ? [
+        {
+          key: "shelfLocation",
+          header: "Vị trí kệ",
+          width: 12,
+          note: "Không bắt buộc, ví dụ A-02-03 (tủ A, kệ 2, ngăn 3).",
+        },
+      ]
+    : []),
 ];
 
-const OPENING_BALANCE_COLUMNS = STOCK_COLUMNS({ withManufacture: false, costLabel: "Giá vốn" });
+const OPENING_BALANCE_COLUMNS = STOCK_COLUMNS({
+  withManufacture: false,
+  costLabel: "Giá vốn",
+  withShelf: true,
+});
 const RECEIPT_LINE_COLUMNS = STOCK_COLUMNS({ withManufacture: true, costLabel: "Đơn giá nhập" });
 
 export const openingBalanceImport: ImportDefinition<StockLine> = {
@@ -233,6 +256,7 @@ export const openingBalanceImport: ImportDefinition<StockLine> = {
       unitCost: 82000,
       batchNumber: "PA260901",
       expiryDate: "01/09/2028",
+      shelfLocation: "A-02-03",
     },
   ],
   plan: (rows, ctx) =>
@@ -251,6 +275,7 @@ export const openingBalanceImport: ImportDefinition<StockLine> = {
         batchNumber: data.batchNumber,
         expiryDate: new Date(`${data.expiryDate}T00:00:00.000Z`),
         unitCost: data.unitCost,
+        shelfLocation: data.shelfLocation,
       })),
     });
     return { created: plan.rows.length, updated: 0, documentId: id };

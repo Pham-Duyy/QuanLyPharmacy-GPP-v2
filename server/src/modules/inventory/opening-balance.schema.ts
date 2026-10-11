@@ -9,6 +9,8 @@ const lineSchema = z.object({
     .date()
     .refine((value) => value.getTime() > Date.now(), "Hạn dùng phải sau hôm nay"),
   unitCost: z.coerce.number().int().min(0, "Giá vốn không được âm"),
+  /** Tủ–kệ–ngăn; bỏ trống thì lấy vị trí gần nhất của cùng thuốc. */
+  shelfLocation: z.string().max(60, "Vị trí tối đa 30 ký tự").nullish(),
 });
 
 export const openingBalanceSchema = z.object({

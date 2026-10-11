@@ -173,6 +173,8 @@ export type ProductListItem = {
   currentPrice: CurrentPrice | null;
   /** `null` khi chưa chọn cửa hàng; đã chọn cửa hàng mà chưa có lô thì là 0. */
   stock: StockSummary | null;
+  /** Tủ–kệ–ngăn của lô sẽ bán trước tại cửa hàng đang chọn. */
+  shelfLocation: string | null;
   isBelowMinStock: boolean;
   primaryImage: ProductImage | null;
 };
@@ -197,6 +199,8 @@ export type ProductDetail = {
   units: ProductUnit[];
   ingredients: Array<{ ingredientId: string; name: string; strengthText: string | null }>;
   stock: StockSummary | null;
+  /** Tủ–kệ–ngăn của lô sẽ bán trước tại cửa hàng đang chọn. */
+  shelfLocation?: string | null;
   images: ProductImage[];
 };
 

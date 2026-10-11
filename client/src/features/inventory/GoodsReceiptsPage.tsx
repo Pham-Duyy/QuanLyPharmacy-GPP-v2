@@ -59,6 +59,8 @@ import { PageHeader } from "../../ui/PageHeader.js";
 import { useDebounced } from "../../ui/useDebounced.js";
 import { useAuth } from "../auth/auth-context.js";
 import { printDocument, printUrl } from "../printing/printing.js";
+import { ShelfLocationInput } from "./ShelfLocationInput.js";
+import { useShelfHints } from "./shelf-location-api.js";
 import { PrintPreviewModal } from "../printing/PrintPreviewModal.js";
 import { ReceiptFormModal } from "./ReceiptFormModal.js";
 
@@ -1144,7 +1146,8 @@ function ReceiptLinesModal({
   );
 }
 
-type InspectionResult = { passed: boolean; rejectReason: string };
+/** `shelfLocation` chưa gõ (undefined) thì dùng vị trí gần nhất của cùng thuốc. */
+type InspectionResult = { passed: boolean; rejectReason: string; shelfLocation?: string };
 
 /**
  * Kiểm nhập cảm quan trước khi xác nhận (thực hành GPP): mỗi dòng phải được
@@ -1167,6 +1170,12 @@ function InspectionModal({
 }) {
   const { message } = App.useApp();
   const [results, setResults] = useState<Record<string, InspectionResult>>({});
+  const hints = useShelfHints(
+    receipt.lines.map((line) => line.productId),
+    open,
+  );
+  const shelfOf = (line: GoodsReceiptDetail["lines"][number]) =>
+    results[line.id]?.shelfLocation ?? hints.data?.byProduct[line.productId] ?? "";
 
   // Nạp lại form mỗi lần mở, ngay trong lượt render (không qua effect nên không vẽ thêm một lượt).
   const [wasOpen, setWasOpen] = useState(false);
@@ -1190,6 +1199,7 @@ function InspectionModal({
             lineId: line.id,
             passed: results[line.id]?.passed ?? true,
             rejectReason: results[line.id]?.passed ? null : results[line.id]?.rejectReason,
+            shelfLocation: shelfOf(line) || null,
           })),
         },
         { headers: { "Idempotency-Key": getIdempotencyKey() } },
@@ -1269,6 +1279,17 @@ function InspectionModal({
                   ]}
                 />
               </div>
+              <ShelfLocationInput
+                size="small"
+                value={shelfOf(line)}
+                locations={hints.data?.locations ?? []}
+                onChange={(value) =>
+                  setResults((current) => ({
+                    ...current,
+                    [line.id]: { ...result, shelfLocation: value },
+                  }))
+                }
+              />
               {!result.passed ? (
                 <Input.TextArea
                   rows={2}

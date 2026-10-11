@@ -473,7 +473,7 @@ Sản phẩm gồm cả thuốc và hàng không phải thuốc. Trường chín
 
 | Method | Endpoint | Mô tả | Quyền |
 |---|---|---|---|
-| GET | `/products` | Lọc `categoryId`, `productType`, `drugClass` (nhiều giá trị cách nhau dấu phẩy, ví dụ `RX,CONTROLLED`), `isActive`; tìm theo tên, hoạt chất, mã, mã vạch. Mỗi dòng có `defaultUnit`, `baseUnit`, `currentPrice`, `stock` (theo `X-Store-Id`; đã chọn cửa hàng mà chưa có lô thì là 0, không chọn cửa hàng thì `null`), `isBelowMinStock` (tồn bán được < tồn tối thiểu), `primaryImage`, `saleUnits` (đơn vị bán được kèm giá hiện hành, `salePrice: null` là chưa đặt giá). `inStock=true` chỉ lấy sản phẩm còn tồn bán được tại cửa hàng đang chọn | `catalog.read` |
+| GET | `/products` | Lọc `categoryId`, `productType`, `drugClass` (nhiều giá trị cách nhau dấu phẩy, ví dụ `RX,CONTROLLED`), `isActive`; tìm theo tên, hoạt chất, mã, mã vạch. Mỗi dòng có `defaultUnit`, `baseUnit`, `currentPrice`, `stock` (theo `X-Store-Id`; đã chọn cửa hàng mà chưa có lô thì là 0, không chọn cửa hàng thì `null`), `isBelowMinStock` (tồn bán được < tồn tối thiểu), `shelfLocation` (vị trí của lô sẽ bán trước theo FEFO tại cửa hàng đang chọn; chưa ghi vị trí thì `null`), `primaryImage`, `saleUnits` (đơn vị bán được kèm giá hiện hành, `salePrice: null` là chưa đặt giá). `inStock=true` chỉ lấy sản phẩm còn tồn bán được tại cửa hàng đang chọn | `catalog.read` |
 | GET | `/products/{id}` | Chi tiết, đơn vị, giá hiện hành, tồn tổng hợp, `images` (ảnh chính đứng đầu) | `catalog.read` |
 | POST | `/products` | Tạo sản phẩm kèm đơn vị cơ bản | `catalog.manage` |
 | PATCH | `/products/{id}` | Sửa (whitelist trường, có `version`) | `catalog.manage` |
@@ -595,17 +595,19 @@ Trường chính: `name`, `taxCode`, `licenseNumber` (giấy chứng nhận đ�
 | `quantityOnHand` | object | `{ baseQuantity, baseUnit }` |
 | `unitCost` | decimal string | Giá vốn trên đơn vị nhỏ nhất; chỉ trả khi có `stock.cost.read` |
 | `sourceType`, `sourceId` | | Phiếu nhập hoặc tồn đầu kỳ đã tạo lô |
+| `shelfLocation` | string | null | Vị trí tủ–kệ–ngăn, gõ tự do (ví dụ `A-02-03`), máy chủ viết hoa và bỏ khoảng trắng thừa, tối đa 30 ký tự |
 
 | Method | Endpoint | Mô tả | Quyền |
 |---|---|---|---|
-| GET | `/batches` | Lọc `productId`, `status`, `expiresBefore`, `sellable`, `includeEmpty` (mặc định `false`) | `stock.read` |
-| GET | `/batches/{id}` | Chi tiết lô và tồn | `stock.read` |
-| PATCH | `/batches/{id}` | Chỉ sửa `note`, `shelfLocation` (vị trí kệ) | `batch.quarantine` |
-| POST | `/batches/{id}/quarantine` | `AVAILABLE` → `QUARANTINED`; bắt buộc `reason` | `batch.quarantine` |
-| POST | `/batches/{id}/release` | `QUARANTINED` → `AVAILABLE`; bắt buộc `reason` | `batch.quarantine` |
-| POST | `/batches/{id}/corrections` | Sửa `batchNumber`, `expiryDate`, `manufactureDate` do nhập sai; bắt buộc `reason` | `stock.adjust.approve` |
+| GET | `/inventory/batches` | Danh sách lô của cửa hàng: lọc `status`, tìm theo số lô / tên thuốc, sắp xếp theo hạn dùng | `stock.read` |
+| GET | `/inventory/batches/locations` | Gợi ý khi nhập vị trí: `{ locations, byProduct }` — các vị trí cửa hàng đang dùng (dùng nhiều đứng trước) và vị trí gần nhất của từng thuốc trong `productIds` (cách nhau dấu phẩy) | `stock.read` |
+| PATCH | `/inventory/batches/{id}/location` | Dời lô sang vị trí khác: `shelfLocation` (`null` là bỏ vị trí); ghi audit `BATCH_LOCATION_UPDATE` | `stock.adjust.create` |
+| POST | `/inventory/batches/{id}/quarantine` | `AVAILABLE` → `QUARANTINED`; bắt buộc `reason` | `batch.quarantine` |
+| POST | `/inventory/batches/{id}/release` | `QUARANTINED` → `AVAILABLE`; bắt buộc `reason` | `batch.quarantine` |
+| POST | `/inventory/batches/{id}/corrections` | **Chưa làm.** Sửa `batchNumber`, `expiryDate`, `manufactureDate` do nhập sai; bắt buộc `reason` | `stock.adjust.approve` |
 
 - **Không có `POST /batches`.** Lô chỉ sinh ra khi xác nhận phiếu nhập (§9) hoặc nhập tồn đầu kỳ (§10.4). **[Đã chốt – P3]**
+- **Vị trí của lô mới:** kiểm nhập phiếu nhập và nhập tồn đầu kỳ nhận `shelfLocation` cho từng dòng; bỏ trống (và mọi lô nhận từ chuyển hàng) thì lấy vị trí gần nhất của cùng thuốc trong cửa hàng. Quầy bán hiện vị trí của lô sẽ bán trước (`shelfLocation` ở `GET /products` và `GET /products/{id}`).
 - Nhập sai số lô hoặc hạn dùng là sai **thông tin**, còn hàng vẫn là hàng đó; vì vậy sửa trên chính lô, không di chuyển tồn. Mọi hóa đơn đã xuất từ lô tự động mang thông tin đã sửa. Audit log lưu giá trị trước và sau. Nếu số lô mới trùng một lô khác của cùng sản phẩm, trả `409` và xử lý thủ công. **[Đã chốt – P3]**
 
 ---
@@ -621,7 +623,7 @@ Phiếu nhập ghi nhận hàng **thực nhận** từ nhà cung cấp. Đơn đ
 | GET | `/goods-receipts/{id}` | Chi tiết, các dòng, lô đã tạo hoặc liên kết kèm trạng thái hiện tại của lô; liên hệ nhà cung cấp; người lập, người xác nhận, người hủy. `complianceWarnings[]`: hồ sơ GPP còn thiếu (nhà cung cấp chưa có số giấy chứng nhận đủ điều kiện kinh doanh dược, thuốc `DRUG` chưa có số đăng ký) — chỉ cảnh báo, không chặn kiểm nhập (GPP Phụ lục I mục III.1) | `goods_receipt.read` |
 | POST | `/goods-receipts` | Tạo phiếu `DRAFT`; cần `Idempotency-Key` | `goods_receipt.create` |
 | PATCH | `/goods-receipts/{id}` | Sửa khi còn `DRAFT`; cần `version` | `goods_receipt.create` |
-| POST | `/goods-receipts/{id}/confirm` | Kiểm nhập và xác nhận; cần `Idempotency-Key` | `goods_receipt.confirm` |
+| POST | `/goods-receipts/{id}/confirm` | Kiểm nhập và xác nhận: `lines[{ lineId, passed, rejectReason?, shelfLocation? }]`; cần `Idempotency-Key` | `goods_receipt.confirm` |
 | POST | `/goods-receipts/{id}/cancel` | Hủy phiếu `DRAFT`; bắt buộc `reason` | `goods_receipt.confirm` |
 | GET | `/goods-receipts/{id}/print` | HTML phiếu nhập kho theo mẫu in của cửa hàng (xem §21 Cài đặt – Mẫu in phiếu) | `goods_receipt.read` |
 
@@ -834,7 +836,7 @@ Thẻ kho **chỉ thêm, không sửa, không xóa**. Tồn của một lô luô
 
 | Method | Endpoint | Mô tả | Quyền |
 |---|---|---|---|
-| POST | `/inventory/opening-balances` | Nhập tồn hiện có khi bắt đầu dùng hệ thống; cần `Idempotency-Key` | `stock.opening_balance` |
+| POST | `/inventory/opening-balances` | Nhập tồn hiện có khi bắt đầu dùng hệ thống; mỗi dòng có thể kèm `shelfLocation`; cần `Idempotency-Key` | `stock.opening_balance` |
 
 - Mỗi dòng: `productId`, `unitId`, `quantity`, `batchNumber`, `expiryDate`, `unitCost`.
 - Tạo lô `AVAILABLE` và dòng thẻ kho loại `OPENING_BALANCE` trong một transaction.
@@ -1520,7 +1522,7 @@ Loại nhập:
 | `products` | `catalog.manage` | Không | Khớp theo mã; mã mới thì tạo mới. Không đổi được loại hàng, phân loại thuốc, đơn vị cơ bản hay quy đổi đã có. Nhóm hàng và hoạt chất chưa có thì tự tạo. Giá khác giá hiện hành cần `price.manage` và tạo phiên bản giá mới; giá giữ nguyên thì bỏ qua |
 | `suppliers` | `catalog.manage` | Không | Khớp theo mã số thuế, không có thì theo tên (không dấu) |
 | `customers` | `customer.manage` | Không | Khớp theo Mã KH, không có thì theo số điện thoại. Không nhập hồ sơ sức khỏe |
-| `opening-balance` | `stock.opening_balance` | Có | Cả tệp tạo một phiếu tồn đầu kỳ (§10.4); chặn lô đã có trong kho |
+| `opening-balance` | `stock.opening_balance` | Có | Cả tệp tạo một phiếu tồn đầu kỳ (§10.4); chặn lô đã có trong kho; cột "Vị trí kệ" không bắt buộc |
 | `stock-count` | `stock.adjust.create` | Có | Ghi số đếm vào đợt kiểm kê đang mở (§10.7); ô số đếm để trống là chưa đếm, không phải đếm được 0 |
 | `receipt-lines` | `goods_receipt.create` | Có | Chỉ `preview`: trả thêm `lines[]` đã khớp sản phẩm và đơn vị để đổ vào phiếu nhập nháp |
 

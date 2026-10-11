@@ -3902,3 +3902,18 @@
   display: block;
   color: var(--c-ink-500);
 }
+
+/* Vị trí tủ–kệ–ngăn của lô sẽ bán trước, ở danh mục và giỏ hàng quầy bán. */
+.pos-shelf {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  width: fit-content;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: var(--c-bg);
+  color: var(--c-ink-700);
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
