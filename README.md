@@ -121,6 +121,8 @@ Vite chuyển tiếp mọi request `/api` sang backend ở cổng 3000, nên kh�
 
 Chạy đủ bộ cần ba việc: `docker compose up -d` cho CSDL, `npm run dev` trong `server/`, và `npm run dev` trong `client/`.
 
+Quét mã: máy quét cầm tay (kiểu bàn phím) dùng được ở mọi máy. Nút camera (quét mã hộp thuốc, mã đơn thuốc điện tử) chỉ bật khi mở phần mềm bằng `https` hoặc `localhost`, vì trình duyệt chặn camera trên `http` thường; máy khác trong mạng nội bộ muốn dùng camera thì phải phục vụ giao diện qua https. Bộ đọc mã (ZXing, tệp `.wasm` khoảng 1 MB) đóng gói cùng giao diện và chỉ tải khi bấm nút camera.
+
 Tài khoản mặc định sau khi seed: `admin` / `Admin@12345`. Lần đăng nhập đầu phải đổi mật khẩu mới dùng được phần mềm (máy chủ chặn mọi thao tác khác khi tài khoản còn mật khẩu tạm).
 
 ## Kiểm thử và chất lượng mã
