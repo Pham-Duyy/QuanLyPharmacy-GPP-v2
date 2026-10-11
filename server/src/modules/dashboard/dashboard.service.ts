@@ -1,34 +1,16 @@
 import { Prisma } from "../../generated/prisma/client.js";
 import { prisma } from "../../db/prisma.js";
+import { addDays } from "../../lib/dates.js";
+import { num } from "../../lib/numbers.js";
+import { businessDateNow } from "../../lib/settings.js";
 import { getInventoryOverview } from "../inventory/inventory.service.js";
 import type { AuthContext } from "../auth/auth.context.js";
 
 type DailyPoint = { date: string; revenue: number; invoiceCount: number };
 
-function vietnamBusinessDate(now = new Date()): Date {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Ho_Chi_Minh",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(now);
-  const part = (type: string) => Number(parts.find((item) => item.type === type)?.value);
-  return new Date(Date.UTC(part("year"), part("month") - 1, part("day")));
-}
-
-function addDays(date: Date, days: number): Date {
-  const result = new Date(date);
-  result.setUTCDate(result.getUTCDate() + days);
-  return result;
-}
-
 function percentageChange(current: number, previous: number): number | null {
   if (previous === 0) return null;
   return Math.round(((current - previous) / previous) * 1000) / 10;
-}
-
-function asNumber(value: bigint | null | undefined): number {
-  return Number(value ?? 0n);
 }
 
 type CategoryStockRow = { category_name: string; quantity: number; product_count: number };
@@ -38,7 +20,7 @@ type CategoryStockRow = { category_name: string; quantity: number; product_count
  * Mỗi phần dữ liệu được trả về độc lập theo quyền của người dùng hiện tại.
  */
 export async function getDashboard(storeId: string, auth: AuthContext, days: 7 | 30) {
-  const today = vietnamBusinessDate();
+  const today = businessDateNow();
   const yesterday = addDays(today, -1);
   const rangeStart = addDays(today, -(days - 1));
   const nextDay = addDays(today, 1);
@@ -215,12 +197,12 @@ async function getSalesDashboard(
     const data = dailyByDate.get(date.toISOString().slice(0, 10));
     return {
       date: date.toISOString().slice(0, 10),
-      revenue: asNumber(data?._sum.totalAmount),
+      revenue: num(data?._sum.totalAmount),
       invoiceCount: data?._count ?? 0,
     };
   });
-  const todayRevenue = asNumber(todaySummary._sum.totalAmount);
-  const yesterdayRevenue = asNumber(yesterdaySummary._sum.totalAmount);
+  const todayRevenue = num(todaySummary._sum.totalAmount);
+  const yesterdayRevenue = num(yesterdaySummary._sum.totalAmount);
 
   return {
     today: {
@@ -236,7 +218,7 @@ async function getSalesDashboard(
       productId: item.productId,
       productName: productNames.get(item.productId) ?? "Sản phẩm đã xóa",
       quantity: item._sum.baseQuantity ?? 0,
-      revenue: asNumber(item._sum.lineTotal),
+      revenue: num(item._sum.lineTotal),
     })),
   };
 }

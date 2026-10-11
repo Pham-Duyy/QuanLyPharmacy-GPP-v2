@@ -39,4 +39,3 @@ export const adjustPointsSchema = z.object({
 });
 
 export type LoyaltySettings = z.infer<typeof loyaltySettingsSchema>;
-export type AdjustPointsInput = z.infer<typeof adjustPointsSchema>;

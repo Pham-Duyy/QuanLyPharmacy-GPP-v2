@@ -46,7 +46,7 @@ const discountSchema = z
  * Thông tin người mua thuốc kiểm soát đặc biệt. Bắt buộc khi giỏ hàng có
  * thuốc gây nghiện, hướng thần hoặc tiền chất.
  */
-export const controlledBuyerSchema = z.object({
+const controlledBuyerSchema = z.object({
   buyerName: z.string().trim().min(1, "Thiếu họ tên người mua").max(200),
   buyerIdNumber: z.string().trim().min(6, "Số giấy tờ tùy thân quá ngắn").max(30),
   buyerAddress: z.string().trim().min(1, "Thiếu địa chỉ người mua").max(300),
@@ -87,5 +87,4 @@ export const voidInvoiceSchema = z.object({
   reason: z.string().trim().min(1, "Phải ghi lý do hủy hóa đơn").max(500),
 });
 
-export type SafetyCheckInput = z.infer<typeof safetyCheckSchema>;
 export type CreateInvoiceInput = z.infer<typeof createInvoiceSchema>;

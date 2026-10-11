@@ -2,11 +2,11 @@ import type { AuthContext } from "../auth/auth.context.js";
 import { CellError, type ColumnDef, type RawRow } from "./workbook.js";
 
 export type ImportIssue = { row: number; column?: string; message: string };
-export type ImportAction = "create" | "update";
+type ImportAction = "create" | "update";
 
 export type PlannedRow<T> = { row: number; action: ImportAction; label: string; data: T };
 
-export type ImportPlan<T> = {
+type ImportPlan<T> = {
   rows: PlannedRow<T>[];
   issues: ImportIssue[];
   /** Việc hệ thống sẽ tự làm thêm (tạo nhóm hàng mới, tạo hoạt chất mới…) để người dùng biết trước. */
@@ -19,7 +19,7 @@ export type ImportContext = {
   requestId: string | null;
 };
 
-export type ImportResult = { created: number; updated: number; documentId?: string };
+type ImportResult = { created: number; updated: number; documentId?: string };
 
 export type ImportDefinition<T> = {
   type: string;

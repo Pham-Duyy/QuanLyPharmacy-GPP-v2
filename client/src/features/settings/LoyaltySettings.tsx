@@ -1,6 +1,6 @@
 import { SaveOutlined, UndoOutlined } from "@ant-design/icons";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Alert, App, Button, Card, Form, InputNumber, Result, Skeleton, Switch, Tag } from "antd";
+import { Alert, App, Button, Card, Form, InputNumber, Switch, Tag } from "antd";
 import { useState } from "react";
 import { getErrorMessage, http } from "../../api/http.js";
 import { formatDateTime } from "../../ui/format.js";
@@ -12,33 +12,17 @@ import {
   type LoyaltySettings as Settings,
 } from "../loyalty/loyalty-api.js";
 import { useUnsavedGuard } from "./settings-shared.js";
+import { SettingsGate } from "./settings-ui.js";
 
 /** Cài đặt → Khách hàng → Tích điểm khách thân thiết. */
 export function LoyaltySettings() {
   const query = useLoyaltySettings();
 
-  if (query.isLoading) {
-    return (
-      <Card>
-        <Skeleton active paragraph={{ rows: 8 }} />
-      </Card>
-    );
-  }
-
-  if (query.isError || !query.data) {
-    return (
-      <Card>
-        <Result
-          status="error"
-          title="Không tải được cài đặt tích điểm"
-          subTitle={getErrorMessage(query.error, "Kiểm tra kết nối rồi thử lại.")}
-          extra={<Button onClick={() => void query.refetch()}>Thử lại</Button>}
-        />
-      </Card>
-    );
-  }
-
-  return <LoyaltyForm key={query.data.updatedAt ?? "default"} state={query.data} />;
+  return (
+    <SettingsGate query={query} rows={8} errorTitle="Không tải được cài đặt tích điểm">
+      {(data) => <LoyaltyForm key={data.updatedAt ?? "default"} state={data} />}
+    </SettingsGate>
+  );
 }
 
 function LoyaltyForm({ state }: { state: EffectiveLoyaltySettings }) {

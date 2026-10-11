@@ -28,8 +28,9 @@ import {
   Table,
   Tag,
 } from "antd";
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { getErrorMessage, http } from "../../api/http.js";
+import { useSubmitKey } from "../../api/submit-key.js";
 import { formatVnd, type Envelope } from "../../api/types.js";
 import { formatDate, formatDateTime, formatNumber } from "../../ui/format.js";
 import { PageHeader } from "../../ui/PageHeader.js";
@@ -150,7 +151,7 @@ export function StockTransfersPage() {
   const [receiveForm] = Form.useForm<{ note?: string }>();
   const [cancelForm] = Form.useForm<{ reason: string }>();
   // Cùng nội dung thì giữ nguyên khóa: bấm lại sau lỗi mạng không tạo phiếu thứ hai.
-  const createAttempt = useRef<{ signature: string; key: string } | null>(null);
+  const submitKey = useSubmitKey();
 
   const list = useQuery({
     queryKey: ["stock-transfers", storeId, direction, statusFilter],
@@ -212,16 +213,10 @@ export function StockTransfersPage() {
           quantity: line.quantity,
         })),
       };
-      const signature = JSON.stringify(body);
-      if (createAttempt.current?.signature !== signature) {
-        createAttempt.current = { signature, key: crypto.randomUUID() };
-      }
-      return http.post<Envelope<TransferDetail>>("/stock-transfers", body, {
-        headers: { "Idempotency-Key": createAttempt.current.key },
-      });
+      return http.post<Envelope<TransferDetail>>("/stock-transfers", body, { headers: submitKey.headers(body) });
     },
     onSuccess: async (response) => {
-      createAttempt.current = null;
+      submitKey.done();
       void message.success(
         `Đã lập phiếu ${response.data.data.code}. Tồn kho chưa trừ cho tới khi xác nhận xuất.`,
       );

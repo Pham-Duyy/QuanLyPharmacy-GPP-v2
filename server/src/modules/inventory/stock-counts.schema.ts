@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const SCOPE_TYPES = ["ALL", "CATEGORY", "SHELF"] as const;
+const SCOPE_TYPES = ["ALL", "CATEGORY", "SHELF"] as const;
 
 export const openCountSchema = z
   .object({
@@ -47,11 +47,4 @@ export const closeCountSchema = z.object({
 
 export const listCountsSchema = z.object({
   status: z.enum(["COUNTING", "CLOSED", "CANCELLED"]).optional(),
-});
-
-export const countLinesQuerySchema = z.object({
-  /** Lọc để đếm cho nhanh: chưa đếm, đã đếm, chỉ dòng lệch. */
-  filter: z.enum(["ALL", "PENDING", "COUNTED", "DIFF"]).default("ALL"),
-  q: z.string().trim().max(100).optional(),
-  shelf: z.string().trim().max(100).optional(),
 });

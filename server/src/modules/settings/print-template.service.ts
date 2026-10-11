@@ -10,7 +10,7 @@ import {
   type PrintTemplate,
 } from "./print-template.schema.js";
 
-export const PRINT_TEMPLATE_KEY = "invoicePrintTemplate";
+const PRINT_TEMPLATE_KEY = "invoicePrintTemplate";
 
 const DATA_URL_PATTERN = /^data:(image\/png|image\/jpeg);base64,([A-Za-z0-9+/]+={0,2})$/;
 

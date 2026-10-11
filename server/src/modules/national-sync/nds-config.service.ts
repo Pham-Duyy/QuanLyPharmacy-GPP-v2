@@ -27,10 +27,10 @@ export type NdsConfigView = {
   updatedAt: string;
 };
 
-export type StoreConfigRow = Awaited<ReturnType<typeof readStoreConfig>>;
+type StoreConfigRow = Awaited<ReturnType<typeof readStoreConfig>>;
 
 /** Cửa hàng chưa từng cấu hình thì trả cấu hình mặc định (tắt), chưa ghi CSDL. */
-export async function readStoreConfig(storeId: string) {
+async function readStoreConfig(storeId: string) {
   const existing = await prisma.nationalSyncStoreConfig.findUnique({ where: { storeId } });
   return (
     existing ?? {

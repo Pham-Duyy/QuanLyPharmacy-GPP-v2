@@ -7,7 +7,7 @@ import type { PageQuery } from "../../lib/pagination.js";
  * (hệ thống chưa có chương trình tích điểm). Quy tắc cố định, hiển thị rõ
  * trên giao diện để người dùng hiểu vì sao khách thuộc nhóm nào.
  */
-export const SEGMENT_RULES = {
+const SEGMENT_RULES = {
   loyalMinOrders: 5,
   loyalWindowDays: 180,
   newWithinDays: 30,

@@ -6,7 +6,7 @@ import { AppError } from "./app-error.js";
  * Nhờ vậy ràng buộc đặt ở CSDL vẫn trả về lỗi có nghĩa cho người dùng,
  * thay vì 500.
  */
-export function toAppError(error: unknown, context: { conflictMessage?: string } = {}): unknown {
+function toAppError(error: unknown, context: { conflictMessage?: string } = {}): unknown {
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
     if (error.code === "P2002") {
       const target = Array.isArray(error.meta?.["target"])

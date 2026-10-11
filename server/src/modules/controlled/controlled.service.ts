@@ -29,7 +29,7 @@ const RELATIONSHIP_LABEL: Record<string, string> = {
   OTHER: "Khác",
 };
 
-export type LedgerEntry = {
+type LedgerEntry = {
   occurredAt: Date;
   documentCode: string;
   documentType: string;

@@ -22,6 +22,3 @@ export const patchStoreSchema = z.object({
   licenseNumber: z.string().trim().max(100).nullish(),
   version: z.coerce.number().int().positive("Thiếu version"),
 });
-
-export type CreateStoreInput = z.infer<typeof createStoreSchema>;
-export type PatchStoreInput = z.infer<typeof patchStoreSchema>;

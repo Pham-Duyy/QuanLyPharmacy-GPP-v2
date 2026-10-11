@@ -75,7 +75,7 @@ export function longDate(value: Date | string): string {
 }
 
 /** Chỉ nhận data URL ảnh PNG/JPEG đã được kiểm tra khi lưu; mọi thứ khác bị bỏ qua. */
-export function safeLogo(logo: string | null): string | null {
+function safeLogo(logo: string | null): string | null {
   return logo && /^data:image\/(png|jpeg);base64,[A-Za-z0-9+/]+={0,2}$/.test(logo) ? logo : null;
 }
 

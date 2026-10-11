@@ -28,9 +28,10 @@ import {
   Typography,
 } from "antd";
 import dayjs from "dayjs";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { Link } from "react-router";
 import { getErrorMessage, http } from "../../api/http.js";
+import { useSubmitKey } from "../../api/submit-key.js";
 import type { Envelope, Paged, ProductListItem } from "../../api/types.js";
 import { formatDate, formatDateTime, formatNumber } from "../../ui/format.js";
 import { useDebounced } from "../../ui/useDebounced.js";
@@ -163,7 +164,7 @@ export function RecallsPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showAffectedSales, setShowAffectedSales] = useState(false);
   const [form] = Form.useForm<RecallFormValues>();
-  const createAttempt = useRef<{ signature: string; key: string } | null>(null);
+  const submitKey = useSubmitKey();
 
   const recalls = useQuery({
     queryKey: ["recalls", status],
@@ -211,16 +212,10 @@ export function RecallsPage() {
         reason: values.reason || null,
         items: values.items,
       };
-      const signature = JSON.stringify(body);
-      if (createAttempt.current?.signature !== signature) {
-        createAttempt.current = { signature, key: crypto.randomUUID() };
-      }
-      return http.post<Envelope<RecallDetail>>("/recalls", body, {
-        headers: { "Idempotency-Key": createAttempt.current.key },
-      });
+      return http.post<Envelope<RecallDetail>>("/recalls", body, { headers: submitKey.headers(body) });
     },
     onSuccess: async (response) => {
-      createAttempt.current = null;
+      submitKey.done();
       void message.success("Đã tạo thông báo thu hồi và khóa các lô khớp");
       setCreating(false);
       form.resetFields();

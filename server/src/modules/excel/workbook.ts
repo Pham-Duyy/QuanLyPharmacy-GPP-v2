@@ -2,7 +2,7 @@ import ExcelJS from "exceljs";
 import { AppError } from "../../lib/app-error.js";
 
 /** Kiểu dữ liệu một cột: quyết định định dạng khi xuất và cách đọc khi nhập. */
-export type CellKind = "text" | "int" | "money" | "percent" | "date" | "datetime";
+type CellKind = "text" | "int" | "money" | "percent" | "date" | "datetime";
 
 export type ColumnDef = {
   key: string;
@@ -95,7 +95,7 @@ function styleFor(kind: CellKind | undefined): Partial<ExcelJS.Style> {
 }
 
 /** Bỏ dấu, dấu "*", khoảng trắng thừa để khớp tiêu đề cột do người dùng gõ lại. */
-export function normalizeHeader(value: string): string {
+function normalizeHeader(value: string): string {
   return value
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")

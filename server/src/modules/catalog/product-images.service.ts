@@ -11,8 +11,8 @@ export const PRODUCT_IMAGE_SCOPE = "product-image";
 /** Ảnh gốc: giao diện đã thu nhỏ trước khi gửi, 5 MB là trần an toàn cho ảnh chụp điện thoại. */
 export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 /** Ảnh thu nhỏ dùng cho danh sách. */
-export const MAX_THUMB_BYTES = 512 * 1024;
-export const MAX_IMAGES_PER_PRODUCT = 8;
+const MAX_THUMB_BYTES = 512 * 1024;
+const MAX_IMAGES_PER_PRODUCT = 8;
 
 type ImageRow = {
   id: string;
@@ -27,7 +27,7 @@ function signedPath(id: string, variant: "full" | "thumb"): string {
   return `/api/v1/product-images/${id}?v=${variant}&expires=${expires}&sig=${sig}`;
 }
 
-export function toImageView(image: ImageRow) {
+function toImageView(image: ImageRow) {
   return {
     id: image.id,
     isPrimary: image.isPrimary,

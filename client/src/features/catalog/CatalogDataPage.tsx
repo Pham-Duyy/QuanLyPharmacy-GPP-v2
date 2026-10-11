@@ -110,6 +110,17 @@ function CategoriesTab() {
   );
 }
 
+/** Đưa bản ghi vừa lưu vào trang danh sách đang hiển thị ngay, không phụ thuộc nhịp tải lại cache. */
+function withSaved<T extends { id: string }>(old: Paged<T> | undefined, saved: T): Paged<T> | undefined {
+  if (!old) return old;
+  const exists = old.items.some((item) => item.id === saved.id);
+  return {
+    ...old,
+    items: exists ? old.items.map((item) => (item.id === saved.id ? saved : item)) : [saved, ...old.items],
+    pagination: { ...old.pagination, total: old.pagination.total + (exists ? 0 : 1) },
+  };
+}
+
 function CategoryModal({ category, open, listQueryKey, onClose }: { category: CategoryItem | null; open: boolean; listQueryKey: readonly unknown[]; onClose: () => void }) {
   const { message } = App.useApp();
   const [form] = Form.useForm<CategoryForm>();
@@ -122,16 +133,7 @@ function CategoryModal({ category, open, listQueryKey, onClose }: { category: Ca
       return response.data.data;
     },
     onSuccess: async (saved) => {
-      // Hiển thị ngay dữ liệu server vừa trả về; không phụ thuộc vào nhịp tải lại cache.
-      queryClient.setQueryData<Paged<CategoryItem>>(listQueryKey, (old) => {
-        if (!old) return old;
-        const exists = old.items.some((item) => item.id === saved.id);
-        return {
-          ...old,
-          items: exists ? old.items.map((item) => (item.id === saved.id ? saved : item)) : [saved, ...old.items],
-          pagination: { ...old.pagination, total: old.pagination.total + (exists ? 0 : 1) },
-        };
-      });
+      queryClient.setQueryData<Paged<CategoryItem>>(listQueryKey, (old) => withSaved(old, saved));
       void message.success(category ? "Đã lưu nhóm hàng" : "Đã thêm nhóm hàng");
       await queryClient.invalidateQueries({ queryKey: ["product-categories"] });
       onClose();
@@ -222,15 +224,7 @@ function IngredientModal({ ingredient, open, listQueryKey, onClose }: { ingredie
       return response.data.data;
     },
     onSuccess: async (saved) => {
-      queryClient.setQueryData<Paged<ActiveIngredientItem>>(listQueryKey, (old) => {
-        if (!old) return old;
-        const exists = old.items.some((item) => item.id === saved.id);
-        return {
-          ...old,
-          items: exists ? old.items.map((item) => (item.id === saved.id ? saved : item)) : [saved, ...old.items],
-          pagination: { ...old.pagination, total: old.pagination.total + (exists ? 0 : 1) },
-        };
-      });
+      queryClient.setQueryData<Paged<ActiveIngredientItem>>(listQueryKey, (old) => withSaved(old, saved));
       void message.success(ingredient ? "Đã lưu hoạt chất" : "Đã thêm hoạt chất");
       await queryClient.invalidateQueries({ queryKey: ["active-ingredients"] });
       onClose();

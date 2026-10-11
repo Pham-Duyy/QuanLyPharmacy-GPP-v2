@@ -1,5 +1,6 @@
 import { prisma } from "../../db/prisma.js";
 import { AppError } from "../../lib/app-error.js";
+import { nextAttemptAt } from "../../lib/retry.js";
 import { activeClient } from "./erx-config.service.js";
 import { ErxError, type DispensePayload, type DispensedItem } from "./erx-client.js";
 
@@ -11,10 +12,6 @@ import { ErxError, type DispensePayload, type DispensedItem } from "./erx-client
  * tạo việc, rồi gửi với thử lại giãn dần. Hệ thống quốc gia sập không làm chậm
  * hay chặn quầy bán, và không mất việc gửi khi máy chủ khởi động lại.
  */
-
-const BACKOFF_MINUTES = [1, 5, 15, 60, 6 * 60, 24 * 60];
-const nextAttempt = (attempts: number) =>
-  new Date(Date.now() + BACKOFF_MINUTES[Math.min(attempts, BACKOFF_MINUTES.length - 1)]! * 60_000);
 
 /** Tạo việc cho hóa đơn bán theo đơn điện tử chưa có việc; đánh dấu hóa đơn đã gửi rồi mới hủy. */
 export async function scanInvoices(
@@ -68,7 +65,7 @@ export function invoiceRef(code: string): string {
 const round2 = (value: number) => Math.round(value * 100) / 100;
 
 /** Dựng dữ liệu báo bán từ hóa đơn và đơn thuốc đã lưu. `null` khi không còn gì để báo. */
-export async function buildPayload(
+async function buildPayload(
   jobId: string,
 ): Promise<{ payload: DispensePayload } | { skip: string } | { error: string }> {
   const job = await prisma.ePrescriptionDispenseJob.findUniqueOrThrow({
@@ -240,7 +237,7 @@ export async function drainQueue(limit = 25, storeId?: string): Promise<DrainRes
               status: "FAILED",
               attempts: { increment: 1 },
               lastError: message,
-              nextAttemptAt: nextAttempt(job.attempts + 1),
+              nextAttemptAt: nextAttemptAt(job.attempts + 1),
             }
           : { status: "REJECTED", attempts: { increment: 1 }, lastError: message },
       });

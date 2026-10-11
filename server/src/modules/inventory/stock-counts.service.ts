@@ -441,7 +441,7 @@ function toHeader(count: CountHeaderSource) {
   };
 }
 
-export function summarize(lines: CountLineView[], showCost: boolean) {
+function summarize(lines: CountLineView[], showCost: boolean) {
   const counted = lines.filter((line) => line.countedBaseQuantity !== null);
   const differences = counted.filter((line) => (line.differenceBaseQuantity ?? 0) !== 0);
   const surplus = differences.filter((line) => line.differenceBaseQuantity! > 0);

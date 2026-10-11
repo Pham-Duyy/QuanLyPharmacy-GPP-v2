@@ -14,7 +14,7 @@ import type { AuthContext } from "../auth/auth.context.js";
  */
 
 export const REPORT_KINDS = ["COMPLAINT", "ADR"] as const;
-export type ReportKind = (typeof REPORT_KINDS)[number];
+type ReportKind = (typeof REPORT_KINDS)[number];
 
 export type CreateReportInput = {
   kind: ReportKind;

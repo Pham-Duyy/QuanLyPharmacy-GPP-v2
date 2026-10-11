@@ -3,6 +3,7 @@ import { prisma } from "../../db/prisma.js";
 import { AppError } from "../../lib/app-error.js";
 import { markIdempotentResource } from "../../lib/idempotency-context.js";
 import { codeDay, nextDocumentCode } from "../../lib/document-code.js";
+import { resolveLines } from "./goods-receipts.service.js";
 import type { OpeningBalanceInput } from "./opening-balance.schema.js";
 
 type Tx = Prisma.TransactionClient;
@@ -40,40 +41,7 @@ export async function createOpeningBalance(
         );
       }
 
-      const productIds = [...new Set(input.lines.map((line) => line.productId))];
-      const units = await tx.productUnit.findMany({
-        where: { id: { in: input.lines.map((line) => line.unitId) } },
-        include: { product: { select: { id: true, isActive: true } } },
-      });
-      const unitById = new Map(units.map((unit) => [unit.id, unit]));
-
-      const products = await tx.product.findMany({ where: { id: { in: productIds } } });
-      if (products.some((product) => !product.isActive)) {
-        throw AppError.validation("Không nhập được tồn đầu kỳ cho sản phẩm đã ngừng kinh doanh");
-      }
-
-      const lines = input.lines.map((line, index) => {
-        const unit = unitById.get(line.unitId);
-        if (!unit || unit.product.id !== line.productId) {
-          throw new AppError(
-            422,
-            "UNIT_NOT_IN_PRODUCT",
-            `Dòng ${index + 1}: đơn vị tính không thuộc sản phẩm đã chọn`,
-          );
-        }
-
-        return {
-          lineNo: index + 1,
-          productId: line.productId,
-          productUnitId: line.unitId,
-          quantity: line.quantity,
-          baseQuantity: line.quantity * unit.conversionToBase,
-          unitCost: BigInt(line.unitCost),
-          lineCost: BigInt(line.unitCost) * BigInt(line.quantity),
-          batchNumber: line.batchNumber,
-          expiryDate: line.expiryDate,
-        };
-      });
+      const lines = await resolveLines(tx, input.lines);
 
       const totalCost = lines.reduce((sum, line) => sum + line.lineCost, 0n);
       const now = new Date();

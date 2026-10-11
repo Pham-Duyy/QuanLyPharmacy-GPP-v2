@@ -22,7 +22,7 @@ export type EInvoiceConfigView = {
   updatedAt: string;
 };
 
-export async function readStoreConfig(storeId: string) {
+async function readStoreConfig(storeId: string) {
   const existing = await prisma.eInvoiceStoreConfig.findUnique({ where: { storeId } });
   return (
     existing ?? {

@@ -10,7 +10,7 @@ import { buildSuggestions } from "../inventory/purchase-suggestions.service.js";
 import { CUSTOMER_COLUMNS, SUPPLIER_COLUMNS } from "./import-partners.js";
 import type { ColumnDef, SheetSpec } from "./workbook.js";
 
-export type ExportContext = { auth: AuthContext; storeId: string | null; from: Date; to: Date };
+type ExportContext = { auth: AuthContext; storeId: string | null; from: Date; to: Date };
 
 export type ExportDefinition = {
   type: string;

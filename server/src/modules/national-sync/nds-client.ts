@@ -20,7 +20,7 @@ import {
  *      thật phải hỏi lại ở API xem trạng thái.
  */
 
-export const NDS_ENDPOINTS = {
+const NDS_ENDPOINTS = {
   SANDBOX: "https://api-sandbox.csdlduoc.com.vn/v2",
   PRODUCTION: "https://api.csdlduoc.com.vn/v2",
 } as const;

@@ -45,7 +45,7 @@ export type LabelOptions = {
   autoPrint: boolean;
 };
 
-export type LabelWarning = { productName: string; message: string };
+type LabelWarning = { productName: string; message: string };
 
 type PreparedLabel = {
   productName: string;

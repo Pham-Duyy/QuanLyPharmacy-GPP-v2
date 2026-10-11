@@ -8,6 +8,7 @@ import { businessDateNow, getSetting } from "../../lib/settings.js";
 import type { AuthContext } from "../auth/auth.context.js";
 import { addToBatch } from "../inventory/batch-value.js";
 import * as loyalty from "../loyalty/loyalty.service.js";
+import { applyDispensed } from "./invoices.service.js";
 import type { CreateReturnInput } from "./returns.schema.js";
 
 type Tx = Prisma.TransactionClient;
@@ -372,27 +373,7 @@ async function reduceDispensed(
     const itemId = invoiceLines.find((item) => item.id === line.invoiceLineId)?.prescriptionItemId;
     if (itemId) byItem.set(itemId, (byItem.get(itemId) ?? 0) + line.baseQuantity);
   }
-  if (byItem.size === 0) return;
-
-  for (const [itemId, quantity] of byItem) {
-    await tx.prescriptionItem.update({
-      where: { id: itemId },
-      data: { dispensedBaseQuantity: { decrement: quantity } },
-    });
-  }
-
-  const items = await tx.prescriptionItem.findMany({ where: { prescriptionId } });
-  const anyDispensed = items.some((item) => item.dispensedBaseQuantity > 0);
-  const allDispensed = items.every(
-    (item) => item.dispensedBaseQuantity >= (item.baseQuantity ?? item.quantity),
-  );
-
-  await tx.prescription.update({
-    where: { id: prescriptionId },
-    data: {
-      status: allDispensed ? "DISPENSED" : anyDispensed ? "PARTIALLY_DISPENSED" : "VERIFIED",
-    },
-  });
+  await applyDispensed(tx, prescriptionId, byItem, -1);
 }
 
 export async function getDetail(storeId: string, returnId: string) {

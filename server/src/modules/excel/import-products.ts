@@ -3,7 +3,7 @@ import { getCurrentPrices } from "../catalog/products.service.js";
 import { COMMIT_TIMEOUT_MS, RowReader, fold, headerMap, type ImportDefinition, type ImportIssue, type PlannedRow } from "./import-kit.js";
 import { asChoice, asInt, asNumber, asText, type ColumnDef } from "./workbook.js";
 
-export const PRODUCT_TYPE_CHOICES = {
+const PRODUCT_TYPE_CHOICES = {
   Thuốc: "DRUG",
   TPCN: "SUPPLEMENT",
   "Thực phẩm chức năng": "SUPPLEMENT",
@@ -22,7 +22,7 @@ export const PRODUCT_TYPE_LABEL: Record<string, string> = {
   OTHER: "Khác",
 };
 
-export const DRUG_CLASS_CHOICES = {
+const DRUG_CLASS_CHOICES = {
   "Kê đơn": "RX",
   "Không kê đơn": "OTC",
   "Kiểm soát đặc biệt": "CONTROLLED",

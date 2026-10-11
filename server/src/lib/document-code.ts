@@ -1,12 +1,11 @@
 import { Prisma } from "../generated/prisma/client.js";
+import { vnDay } from "./dates.js";
 
 type Tx = Prisma.TransactionClient;
 
 /** Ngày làm việc dạng YYYYMMDD theo giờ Việt Nam, dùng trong mã chứng từ. */
 export function codeDay(at: Date = new Date()): string {
-  return new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Ho_Chi_Minh" })
-    .format(at)
-    .replace(/-/g, "");
+  return vnDay(at).replace(/-/g, "");
 }
 
 /**

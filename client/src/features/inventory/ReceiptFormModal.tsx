@@ -19,6 +19,7 @@ import type { RefSelectProps } from "antd";
 import dayjs from "dayjs";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getErrorMessage, http } from "../../api/http.js";
+import { useSubmitKey } from "../../api/submit-key.js";
 import {
   formatVnd,
   type Envelope,
@@ -157,7 +158,7 @@ export function ReceiptFormModal({
   const [addingSupplier, setAddingSupplier] = useState(false);
   const [importing, setImporting] = useState(false);
   const [loadingPrefill, setLoadingPrefill] = useState(false);
-  const createAttempt = useRef({ signature: "", key: "" });
+  const submitKey = useSubmitKey();
   const productTerm = useDebounced(productSearch.trim(), 250);
   const store = me?.stores.find((item) => item.id === storeId);
 
@@ -455,12 +456,11 @@ export function ReceiptFormModal({
         const response = await http.patch<Envelope<GoodsReceiptDetail>>(`/goods-receipts/${receipt.id}`, { ...body, version: receipt.version });
         return { id: response.data.data.id, options };
       }
-      const signature = JSON.stringify(body);
-      if (createAttempt.current.signature !== signature) createAttempt.current = { signature, key: crypto.randomUUID() };
-      const response = await http.post<Envelope<GoodsReceiptDetail>>("/goods-receipts", body, { headers: { "Idempotency-Key": createAttempt.current.key } });
+      const response = await http.post<Envelope<GoodsReceiptDetail>>("/goods-receipts", body, { headers: submitKey.headers(body) });
       return { id: response.data.data.id, options };
     },
     onSuccess: async ({ id, options }) => {
+      submitKey.done();
       void message.success(options.inspect ? "Đã lưu nháp — tiếp tục kiểm nhận hàng" : receipt ? "Đã lưu phiếu nháp" : "Đã tạo phiếu nháp");
       await onSaved(id, options);
     },

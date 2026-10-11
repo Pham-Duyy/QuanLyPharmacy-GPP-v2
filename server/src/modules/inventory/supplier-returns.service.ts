@@ -1,6 +1,7 @@
 import { Prisma } from "../../generated/prisma/client.js";
 import { prisma } from "../../db/prisma.js";
 import { AppError } from "../../lib/app-error.js";
+import { num } from "../../lib/numbers.js";
 import { markIdempotentResource } from "../../lib/idempotency-context.js";
 import { codeDay, nextDocumentCode } from "../../lib/document-code.js";
 import { lockGoodsReceipts, lockSupplierReturn } from "../../lib/locks.js";
@@ -19,9 +20,7 @@ type Tx = Prisma.TransactionClient;
  */
 
 export const SETTLEMENTS = ["DEDUCT_DEBT", "REFUND", "REPLACEMENT"] as const;
-export type Settlement = (typeof SETTLEMENTS)[number];
-
-const num = (value: bigint | null | undefined) => Number(value ?? 0n);
+type Settlement = (typeof SETTLEMENTS)[number];
 
 async function nextReturnCode(tx: Tx, storeId: string, storeCode: string): Promise<string> {
   return nextDocumentCode(tx, storeId, `TNCC-${storeCode}-${codeDay()}-`);

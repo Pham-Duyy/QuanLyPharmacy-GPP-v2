@@ -95,7 +95,7 @@ const MOVEMENT_TYPES = [
   "TRANSFER_IN",
   "TRANSFER_CANCEL",
 ] as const;
-export type MovementType = (typeof MOVEMENT_TYPES)[number];
+type MovementType = (typeof MOVEMENT_TYPES)[number];
 
 export type StockLedgerQuery = {
   batchId?: string;

@@ -18,7 +18,7 @@ import type { PrintTemplate } from "../settings/print-template.schema.js";
  * đường cắt giữa các nhãn. Chỉ in dòng đã ghi cách dùng.
  */
 
-export type UsageLabel = {
+type UsageLabel = {
   productName: string;
   dosageForm: string | null;
   strength: string | null;

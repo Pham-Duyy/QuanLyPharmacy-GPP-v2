@@ -13,7 +13,7 @@ import type { UserListItem } from "../../api/types.js";
 import { foldText } from "../../app/fold-text.js";
 import { useRoles, useStaffList, useStores } from "./staff-api.js";
 import { CHAIN_SCOPE } from "./staff-scope.js";
-import { AccountStatus, PersonCell, StaffNote, StaffStat } from "./staff-ui.js";
+import { AccountStatus, PersonCell, StaffStat } from "./staff-ui.js";
 import { StaffProfile } from "./StaffProfile.js";
 
 type Filters = { search: string; scope: string; role: string; status: "all" | "active" | "locked" };
@@ -230,10 +230,6 @@ export function StaffList({
             {rows.length ? `Hiển thị ${start}–${end} của ${rows.length} nhân viên` : null}
           </span>
         </div>
-        <StaffNote>
-          Chức danh, mã nhân viên và tình trạng làm việc chưa có trong dữ liệu hệ thống; phần này
-          hiện chỉ có ở Bản xem trước nhân sự.
-        </StaffNote>
       </>
     );
   }

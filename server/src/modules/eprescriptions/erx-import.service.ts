@@ -1,6 +1,7 @@
 import { Prisma } from "../../generated/prisma/client.js";
 import { prisma } from "../../db/prisma.js";
 import { AppError } from "../../lib/app-error.js";
+import { addDays } from "../../lib/dates.js";
 import { codeDay, nextDocumentCode } from "../../lib/document-code.js";
 import { businessDateNow, getSetting } from "../../lib/settings.js";
 import type { AuthContext } from "../auth/auth.context.js";
@@ -23,7 +24,7 @@ import {
  */
 
 /** Ngày kê: tài liệu không nêu định dạng — nhận YYYY-MM-DD… hoặc DD/MM/YYYY…, không đọc được thì lấy hôm nay. */
-export function parsePrescribedDate(value: unknown): Date {
+function parsePrescribedDate(value: unknown): Date {
   const text = typeof value === "string" ? value.trim() : "";
   const iso = /^(\d{4})-(\d{2})-(\d{2})/.exec(text);
   if (iso) return new Date(`${iso[1]}-${iso[2]}-${iso[3]}T00:00:00.000Z`);
@@ -34,7 +35,7 @@ export function parsePrescribedDate(value: unknown): Date {
 }
 
 /** Chẩn đoán có thể là chuỗi hoặc danh sách { ma_chan_doan, ten_chan_doan, ket_luan }. */
-export function diagnosisText(value: unknown): string | null {
+function diagnosisText(value: unknown): string | null {
   if (typeof value === "string") return value.trim() || null;
   if (Array.isArray(value)) {
     const parts = value
@@ -51,7 +52,6 @@ export function diagnosisText(value: unknown): string | null {
   return null;
 }
 
-const addDays = (date: Date, days: number) => new Date(date.getTime() + days * 86_400_000);
 const sameName = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
 
 type ProductForMatch = {
