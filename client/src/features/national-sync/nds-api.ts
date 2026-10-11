@@ -121,13 +121,15 @@ export async function fetchMapping(params: { state?: string; search?: string }):
   ).data.data;
 }
 
-export async function autoMatch(): Promise<{
+type AutoMatchResult = {
   scanned: number;
   matchedByRegistration: number;
   matchedByName: number;
   unmatched: number;
-}> {
-  return (await http.post<Envelope<any>>(`${BASE}/auto-match`, {})).data.data;
+};
+
+export async function autoMatch(): Promise<AutoMatchResult> {
+  return (await http.post<Envelope<AutoMatchResult>>(`${BASE}/auto-match`, {})).data.data;
 }
 
 export async function searchDrugs(search: string): Promise<NationalDrug[]> {
@@ -173,23 +175,24 @@ export async function scanDocuments(): Promise<{ created: number }> {
   return (await http.post<Envelope<{ created: number }>>(`${BASE}/scan`, {})).data.data;
 }
 
-export async function drainNow(): Promise<{
+type DrainResult = {
   sent: { sent: number; blocked: number; failed: number; rejected: number };
   polled: { checked: number; completed: number; rejected: number };
-}> {
-  return (await http.post<Envelope<any>>(`${BASE}/drain`, {})).data.data;
+};
+
+export async function drainNow(): Promise<DrainResult> {
+  return (await http.post<Envelope<DrainResult>>(`${BASE}/drain`, {})).data.data;
 }
 
 export async function retryJob(jobId: string): Promise<void> {
   await http.post(`${BASE}/jobs/${jobId}/retry`, {});
 }
 
-export async function submitOpeningStock(): Promise<{
-  referenceNumber: string;
-  transactionId: string | null;
-  items: number;
-}> {
-  return (await http.post<Envelope<any>>(`${BASE}/opening-stock-taking`, {})).data.data;
+type OpeningStockResult = { referenceNumber: string; transactionId: string | null; items: number };
+
+export async function submitOpeningStock(): Promise<OpeningStockResult> {
+  return (await http.post<Envelope<OpeningStockResult>>(`${BASE}/opening-stock-taking`, {})).data
+    .data;
 }
 
 /** Nhãn tiếng Việt cho trạng thái hàng đợi. */
