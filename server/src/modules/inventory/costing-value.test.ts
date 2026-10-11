@@ -1,7 +1,14 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { prisma } from "../../db/prisma.js";
-import { api, authHeaders, login, seedFixture, truncateAll, type Fixture } from "../../test/helpers.js";
+import {
+  api,
+  authHeaders,
+  login,
+  seedFixture,
+  truncateAll,
+  type Fixture,
+} from "../../test/helpers.js";
 
 /**
  * Bảo toàn **số lượng và giá trị** tồn kho: mỗi lần hàng vào hay ra kho, giá
@@ -20,7 +27,9 @@ const h = (token = adminToken) => authHeaders(token, fixture.storeId);
 const idem = () => ({ "Idempotency-Key": randomUUID() });
 
 function dayKey(days = 0): string {
-  const vnToday = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Ho_Chi_Minh" }).format(new Date());
+  const vnToday = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Ho_Chi_Minh" }).format(
+    new Date(),
+  );
   const date = new Date(`${vnToday}T00:00:00.000Z`);
   date.setUTCDate(date.getUTCDate() + days);
   return date.toISOString().slice(0, 10);
@@ -64,8 +73,7 @@ const sell = (quantity: number) =>
     .set({ ...h(), ...idem() })
     .send({ lines: [{ productId, unitId, quantity }] });
 
-const batchOf = (batchNumber: string) =>
-  prisma.batch.findFirstOrThrow({ where: { batchNumber } });
+const batchOf = (batchNumber: string) => prisma.batch.findFirstOrThrow({ where: { batchNumber } });
 
 /** Giá trị tồn của một lô = tồn × giá vốn bình quân. */
 async function stockValue(batchNumber: string): Promise<number> {
@@ -73,7 +81,11 @@ async function stockValue(batchNumber: string): Promise<number> {
   return batch.quantityOnHand * Number(batch.unitCost ?? 0);
 }
 
-const returnLines = (invoice: { id: string; lines: Array<{ id: string }> }, quantity: number, disposition = "RESTOCK") =>
+const returnLines = (
+  invoice: { id: string; lines: Array<{ id: string }> },
+  quantity: number,
+  disposition = "RESTOCK",
+) =>
   api()
     .post(`/api/v1/invoices/${invoice.id}/returns`)
     .set({ ...h(pharmacistToken), ...idem() })
@@ -221,7 +233,9 @@ describe("Hoàn hàng về kho", () => {
     await receive({ quantity: 100, unitCost: 1000, batchNumber: "UNK" });
     const sale = (await sell(10).expect(201)).body.data;
     // Dữ liệu cũ: dòng phân bổ không có giá vốn chụp sẵn.
-    await prisma.invoiceAllocation.updateMany({ data: { unitCost: null, unitCostSource: "UNKNOWN" } });
+    await prisma.invoiceAllocation.updateMany({
+      data: { unitCost: null, unitCostSource: "UNKNOWN" },
+    });
     await receive({ quantity: 100, unitCost: 3000, batchNumber: "UNK" });
 
     const before = await batchOf("UNK");
@@ -250,7 +264,12 @@ describe("Báo cáo với giá vốn cũ và giá vốn không xác định", ()
     await prisma.invoiceAllocation.updateMany({ data: { unitCostSource: "ESTIMATED" } });
 
     const before = await report();
-    expect(before.costQuality).toMatchObject({ totalLines: 1, estimatedLines: 1, unknownLines: 0, exact: false });
+    expect(before.costQuality).toMatchObject({
+      totalLines: 1,
+      estimatedLines: 1,
+      unknownLines: 0,
+      exact: false,
+    });
     expect(Math.round(before.kpis.grossProfit)).toBe(20_000);
 
     await receive({ quantity: 100, unitCost: 3000, batchNumber: "EST" });
@@ -264,7 +283,9 @@ describe("Báo cáo với giá vốn cũ và giá vốn không xác định", ()
   it("hóa đơn không xác định được giá vốn thì báo cáo nói rõ, không mượn giá vốn lô", async () => {
     await receive({ quantity: 100, unitCost: 1000, batchNumber: "NUL" });
     await sell(10).expect(201);
-    await prisma.invoiceAllocation.updateMany({ data: { unitCost: null, unitCostSource: "UNKNOWN" } });
+    await prisma.invoiceAllocation.updateMany({
+      data: { unitCost: null, unitCostSource: "UNKNOWN" },
+    });
 
     const data = await report();
     expect(data.costQuality).toMatchObject({ totalLines: 1, unknownLines: 1, exact: false });

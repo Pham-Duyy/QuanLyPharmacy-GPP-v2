@@ -10,7 +10,21 @@ import {
   WarningOutlined,
 } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { App, Button, Card, Empty, Form, Input, Modal, Segmented, Skeleton, Table, Tabs, Tag, Typography } from "antd";
+import {
+  App,
+  Button,
+  Card,
+  Empty,
+  Form,
+  Input,
+  Modal,
+  Segmented,
+  Skeleton,
+  Table,
+  Tabs,
+  Tag,
+  Typography,
+} from "antd";
 import { useState } from "react";
 import { useNavigate } from "react-router";
 import { getErrorMessage, http } from "../../api/http.js";
@@ -82,14 +96,19 @@ export function BatchesPage() {
   // Cùng queryKey với Tổng quan và chuông thông báo: số đếm do máy chủ tính trên toàn bộ lô.
   const dashboard = useQuery({
     queryKey: ["dashboard", storeId, 7],
-    queryFn: async () => (await http.get<Envelope<DashboardData>>("/dashboard", { params: { days: 7 } })).data.data,
+    queryFn: async () =>
+      (await http.get<Envelope<DashboardData>>("/dashboard", { params: { days: 7 } })).data.data,
     enabled: Boolean(storeId),
     staleTime: 60_000,
   });
   const quarantined = useQuery({
     queryKey: ["inventory-batches", "count-quarantined"],
     queryFn: async () =>
-      (await http.get<Envelope<Paged<BatchListItem>>>("/inventory/batches", { params: { status: "QUARANTINED", page: 1, limit: 1 } })).data.data.pagination.total,
+      (
+        await http.get<Envelope<Paged<BatchListItem>>>("/inventory/batches", {
+          params: { status: "QUARANTINED", page: 1, limit: 1 },
+        })
+      ).data.data.pagination.total,
   });
   const counts = dashboard.data?.inventory.counts;
 
@@ -105,7 +124,11 @@ export function BatchesPage() {
                 Nhập tồn đầu kỳ
               </Button>
             ) : null}
-            <ExcelExportButton type="inventory" label="Xuất tồn theo lô" tooltip="Tồn từng lô theo hạn dùng, dùng khi kiểm kê" />
+            <ExcelExportButton
+              type="inventory"
+              label="Xuất tồn theo lô"
+              tooltip="Tồn từng lô theo hạn dùng, dùng khi kiểm kê"
+            />
             <Button icon={<BellOutlined />} onClick={() => void navigate("/canh-bao")}>
               Xem cảnh báo
             </Button>
@@ -125,10 +148,38 @@ export function BatchesPage() {
       ) : null}
 
       <StatGrid>
-        <StatCard tone="orange" icon={<WarningOutlined />} label="Lô sắp hết hạn" value={formatNumber(counts?.expiring)} loading={dashboard.isLoading} hint="Trong 90 ngày tới" />
-        <StatCard tone="red" icon={<StopOutlined />} label="Lô đã hết hạn" value={formatNumber(counts?.expired)} loading={dashboard.isLoading} hint="Không bán được, cần xử lý" />
-        <StatCard tone="purple" icon={<ExclamationCircleOutlined />} label="Dưới tồn tối thiểu" value={formatNumber(counts?.lowStock)} loading={dashboard.isLoading} hint="Mặt hàng nên đặt thêm" />
-        <StatCard tone="slate" icon={<LockOutlined />} label="Lô đang biệt trữ" value={formatNumber(quarantined.data)} loading={quarantined.isLoading} hint="Đang bị chặn bán" />
+        <StatCard
+          tone="orange"
+          icon={<WarningOutlined />}
+          label="Lô sắp hết hạn"
+          value={formatNumber(counts?.expiring)}
+          loading={dashboard.isLoading}
+          hint="Trong 90 ngày tới"
+        />
+        <StatCard
+          tone="red"
+          icon={<StopOutlined />}
+          label="Lô đã hết hạn"
+          value={formatNumber(counts?.expired)}
+          loading={dashboard.isLoading}
+          hint="Không bán được, cần xử lý"
+        />
+        <StatCard
+          tone="purple"
+          icon={<ExclamationCircleOutlined />}
+          label="Dưới tồn tối thiểu"
+          value={formatNumber(counts?.lowStock)}
+          loading={dashboard.isLoading}
+          hint="Mặt hàng nên đặt thêm"
+        />
+        <StatCard
+          tone="slate"
+          icon={<LockOutlined />}
+          label="Lô đang biệt trữ"
+          value={formatNumber(quarantined.data)}
+          loading={quarantined.isLoading}
+          hint="Đang bị chặn bán"
+        />
       </StatGrid>
 
       {/* Chưa chọn lô thì bảng chiếm hết chiều ngang; chọn lô mới mở cột chi tiết. */}
@@ -136,14 +187,22 @@ export function BatchesPage() {
         <Card>
           <Tabs
             items={[
-              { key: "batches", label: "Theo lô", children: <BatchesTab selectedId={selected?.id ?? null} onSelect={setSelected} /> },
+              {
+                key: "batches",
+                label: "Theo lô",
+                children: <BatchesTab selectedId={selected?.id ?? null} onSelect={setSelected} />,
+              },
               { key: "overview", label: "Theo sản phẩm", children: <OverviewTab /> },
             ]}
           />
         </Card>
         {selected ? (
           <aside className="split-aside">
-            <BatchPanel batch={selected} onChanged={setSelected} onClose={() => setSelected(null)} />
+            <BatchPanel
+              batch={selected}
+              onChanged={setSelected}
+              onClose={() => setSelected(null)}
+            />
           </aside>
         ) : null}
       </div>
@@ -151,7 +210,15 @@ export function BatchesPage() {
   );
 }
 
-function BatchPanel({ batch, onChanged, onClose }: { batch: BatchListItem; onChanged: (batch: BatchListItem) => void; onClose: () => void }) {
+function BatchPanel({
+  batch,
+  onChanged,
+  onClose,
+}: {
+  batch: BatchListItem;
+  onChanged: (batch: BatchListItem) => void;
+  onClose: () => void;
+}) {
   const { can } = useAuth();
   const { message } = App.useApp();
   const queryClient = useQueryClient();
@@ -161,23 +228,37 @@ function BatchPanel({ batch, onChanged, onClose }: { batch: BatchListItem; onCha
 
   const ledger = useQuery({
     queryKey: ["stock-ledger", batch.id],
-    queryFn: async () => (await http.get<Envelope<StockLedgerPage>>("/inventory/transactions", { params: { batchId: batch.id, limit: 50 } })).data.data,
+    queryFn: async () =>
+      (
+        await http.get<Envelope<StockLedgerPage>>("/inventory/transactions", {
+          params: { batchId: batch.id, limit: 50 },
+        })
+      ).data.data,
   });
 
   const action = useMutation({
     mutationFn: async (reason: string) =>
-      http.post(`/inventory/batches/${batch.id}/${isAvailable ? "quarantine" : "release"}`, { reason, version: batch.version }, { headers: { "Idempotency-Key": crypto.randomUUID() } }),
+      http.post(
+        `/inventory/batches/${batch.id}/${isAvailable ? "quarantine" : "release"}`,
+        { reason, version: batch.version },
+        { headers: { "Idempotency-Key": crypto.randomUUID() } },
+      ),
     onSuccess: async () => {
-      void message.success(isAvailable ? "Đã biệt trữ lô, lô bị chặn bán ngay" : "Đã mở biệt trữ, lô bán được trở lại");
+      void message.success(
+        isAvailable ? "Đã biệt trữ lô, lô bị chặn bán ngay" : "Đã mở biệt trữ, lô bán được trở lại",
+      );
       setChanging(false);
       // Tải lại đúng lô đang mở để có trạng thái và version mới, thao tác tiếp không bị báo xung đột.
-      const fresh = await http.get<Envelope<Paged<BatchListItem>>>("/inventory/batches", { params: { search: batch.batchNumber, page: 1, limit: 20 } });
+      const fresh = await http.get<Envelope<Paged<BatchListItem>>>("/inventory/batches", {
+        params: { search: batch.batchNumber, page: 1, limit: 20 },
+      });
       const updated = fresh.data.data.items.find((item) => item.id === batch.id);
       if (updated) onChanged(updated);
       await queryClient.invalidateQueries({ queryKey: ["inventory-batches"] });
       await queryClient.invalidateQueries({ queryKey: ["dashboard"] });
     },
-    onError: (error) => void message.error(getErrorMessage(error, "Không cập nhật được trạng thái lô")),
+    onError: (error) =>
+      void message.error(getErrorMessage(error, "Không cập nhật được trạng thái lô")),
   });
 
   return (
@@ -197,7 +278,8 @@ function BatchPanel({ batch, onChanged, onClose }: { batch: BatchListItem; onCha
         <div>
           <h3 className="detail-title">{batch.productName}</h3>
           <span className="detail-sub">
-            {batch.productCode} · <Tag color={STATUS[batch.status].color}>{STATUS[batch.status].label}</Tag>
+            {batch.productCode} ·{" "}
+            <Tag color={STATUS[batch.status].color}>{STATUS[batch.status].label}</Tag>
           </span>
         </div>
         <dl className="kv-list">
@@ -238,11 +320,20 @@ function BatchPanel({ batch, onChanged, onClose }: { batch: BatchListItem; onCha
         </dl>
 
         {can("batch.quarantine") && batch.status !== "RECALLED" ? (
-          <Button block danger={isAvailable} icon={isAvailable ? <LockOutlined /> : <UnlockOutlined />} onClick={() => setChanging(true)}>
+          <Button
+            block
+            danger={isAvailable}
+            icon={isAvailable ? <LockOutlined /> : <UnlockOutlined />}
+            onClick={() => setChanging(true)}
+          >
             {isAvailable ? "Biệt trữ lô này" : "Mở biệt trữ"}
           </Button>
         ) : null}
-        {batch.status === "RECALLED" ? <Typography.Text type="secondary">Lô thu hồi chỉ được xử lý qua thông báo thu hồi.</Typography.Text> : null}
+        {batch.status === "RECALLED" ? (
+          <Typography.Text type="secondary">
+            Lô thu hồi chỉ được xử lý qua thông báo thu hồi.
+          </Typography.Text>
+        ) : null}
 
         <div className="ledger">
           <div className="ledger-head">
@@ -256,12 +347,17 @@ function BatchPanel({ batch, onChanged, onClose }: { batch: BatchListItem; onCha
             <ol className="ledger-list">
               {ledger.data!.items.map((row: StockLedgerEntry) => (
                 <li key={row.id}>
-                  <span className={row.baseQuantity >= 0 ? "ledger-dot in" : "ledger-dot out"} aria-hidden />
+                  <span
+                    className={row.baseQuantity >= 0 ? "ledger-dot in" : "ledger-dot out"}
+                    aria-hidden
+                  />
                   <div className="ledger-body">
                     <div className="ledger-row">
                       <strong>{MOVEMENT_LABEL[row.type] ?? row.type}</strong>
                       <span className={row.baseQuantity >= 0 ? "ledger-qty in" : "ledger-qty out"}>
-                        {row.baseQuantity > 0 ? `+${formatNumber(row.baseQuantity)}` : formatNumber(row.baseQuantity)}
+                        {row.baseQuantity > 0
+                          ? `+${formatNumber(row.baseQuantity)}`
+                          : formatNumber(row.baseQuantity)}
                       </span>
                     </div>
                     <div className="ledger-row ledger-meta">
@@ -276,16 +372,30 @@ function BatchPanel({ batch, onChanged, onClose }: { batch: BatchListItem; onCha
               ))}
             </ol>
           )}
-          {ledger.data?.nextCursor ? <p className="section-note">Chỉ hiển thị 50 biến động gần nhất.</p> : null}
+          {ledger.data?.nextCursor ? (
+            <p className="section-note">Chỉ hiển thị 50 biến động gần nhất.</p>
+          ) : null}
         </div>
       </div>
 
-      <BatchStatusModal open={changing} isQuarantine={isAvailable} loading={action.isPending} onClose={() => setChanging(false)} onSubmit={(reason) => action.mutate(reason)} />
+      <BatchStatusModal
+        open={changing}
+        isQuarantine={isAvailable}
+        loading={action.isPending}
+        onClose={() => setChanging(false)}
+        onSubmit={(reason) => action.mutate(reason)}
+      />
     </Card>
   );
 }
 
-function BatchesTab({ selectedId, onSelect }: { selectedId: string | null; onSelect: (batch: BatchListItem) => void }) {
+function BatchesTab({
+  selectedId,
+  onSelect,
+}: {
+  selectedId: string | null;
+  onSelect: (batch: BatchListItem) => void;
+}) {
   const { can } = useAuth();
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<BatchListItem["status"] | "ALL">("ALL");
@@ -298,7 +408,12 @@ function BatchesTab({ selectedId, onSelect }: { selectedId: string | null; onSel
     queryFn: async () =>
       (
         await http.get<Envelope<Paged<BatchListItem>>>("/inventory/batches", {
-          params: { search: term || undefined, status: status === "ALL" ? undefined : status, page, limit: 20 },
+          params: {
+            search: term || undefined,
+            status: status === "ALL" ? undefined : status,
+            page,
+            limit: 20,
+          },
         })
       ).data.data,
     placeholderData: (previous) => previous,
@@ -338,7 +453,11 @@ function BatchesTab({ selectedId, onSelect }: { selectedId: string | null; onSel
         scroll={{ x: 680 }}
         onRow={(item) => ({ onClick: () => onSelect(item), style: { cursor: "pointer" } })}
         rowClassName={(item) => (item.id === selectedId ? "row-selected" : "")}
-        locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Không có lô phù hợp" /> }}
+        locale={{
+          emptyText: (
+            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Không có lô phù hợp" />
+          ),
+        }}
         pagination={{
           current: page,
           pageSize: batches.data?.pagination.limit ?? 20,
@@ -360,7 +479,12 @@ function BatchesTab({ selectedId, onSelect }: { selectedId: string | null; onSel
               </div>
             ),
           },
-          { title: "Hạn dùng", key: "expiry", width: 130, render: (_: unknown, item: BatchListItem) => <ExpiryCell value={item.expiryDate} /> },
+          {
+            title: "Hạn dùng",
+            key: "expiry",
+            width: 130,
+            render: (_: unknown, item: BatchListItem) => <ExpiryCell value={item.expiryDate} />,
+          },
           {
             title: "Tồn",
             key: "qty",
@@ -373,9 +497,24 @@ function BatchesTab({ selectedId, onSelect }: { selectedId: string | null; onSel
             ),
           },
           ...(showCost
-            ? [{ title: "Giá vốn", key: "cost", width: 110, align: "right" as const, render: (_: unknown, item: BatchListItem) => formatVnd(item.unitCost ?? null) }]
+            ? [
+                {
+                  title: "Giá vốn",
+                  key: "cost",
+                  width: 110,
+                  align: "right" as const,
+                  render: (_: unknown, item: BatchListItem) => formatVnd(item.unitCost ?? null),
+                },
+              ]
             : []),
-          { title: "Trạng thái", key: "status", width: 120, render: (_: unknown, item: BatchListItem) => <Tag color={STATUS[item.status].color}>{STATUS[item.status].label}</Tag> },
+          {
+            title: "Trạng thái",
+            key: "status",
+            width: 120,
+            render: (_: unknown, item: BatchListItem) => (
+              <Tag color={STATUS[item.status].color}>{STATUS[item.status].label}</Tag>
+            ),
+          },
         ]}
       />
     </>
@@ -412,11 +551,27 @@ function BatchStatusModal({
       destroyOnHidden
     >
       <Typography.Paragraph type="secondary">
-        {isQuarantine ? "Lô này sẽ bị chặn bán ngay tại cửa hàng đang chọn, tồn kho giữ nguyên." : "Lô này sẽ được phép bán trở lại. Chỉ thực hiện sau khi đã kiểm tra chất lượng."}
+        {isQuarantine
+          ? "Lô này sẽ bị chặn bán ngay tại cửa hàng đang chọn, tồn kho giữ nguyên."
+          : "Lô này sẽ được phép bán trở lại. Chỉ thực hiện sau khi đã kiểm tra chất lượng."}
       </Typography.Paragraph>
       <Form form={form} layout="vertical">
-        <Form.Item name="reason" label="Lý do" rules={[{ required: true, whitespace: true, min: 3, message: "Nhập lý do tối thiểu 3 ký tự" }]}>
-          <Input.TextArea rows={3} placeholder={isQuarantine ? "Ví dụ: Bao bì rách, chờ kiểm tra" : "Ví dụ: Đã kiểm tra, hàng đạt yêu cầu"} autoFocus />
+        <Form.Item
+          name="reason"
+          label="Lý do"
+          rules={[
+            { required: true, whitespace: true, min: 3, message: "Nhập lý do tối thiểu 3 ký tự" },
+          ]}
+        >
+          <Input.TextArea
+            rows={3}
+            placeholder={
+              isQuarantine
+                ? "Ví dụ: Bao bì rách, chờ kiểm tra"
+                : "Ví dụ: Đã kiểm tra, hàng đạt yêu cầu"
+            }
+            autoFocus
+          />
         </Form.Item>
       </Form>
     </Modal>
@@ -435,7 +590,12 @@ function OverviewTab() {
     queryFn: async () =>
       (
         await http.get<Envelope<Paged<InventoryOverviewItem>>>("/inventory", {
-          params: { search: term || undefined, belowMinStock: belowMinOnly ? "true" : undefined, page, limit: 20 },
+          params: {
+            search: term || undefined,
+            belowMinStock: belowMinOnly ? "true" : undefined,
+            page,
+            limit: 20,
+          },
         })
       ).data.data,
     placeholderData: (previous) => previous,
@@ -471,7 +631,11 @@ function OverviewTab() {
         loading={overview.isFetching}
         dataSource={overview.data?.items ?? []}
         scroll={{ x: 640 }}
-        locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Không có sản phẩm phù hợp" /> }}
+        locale={{
+          emptyText: (
+            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Không có sản phẩm phù hợp" />
+          ),
+        }}
         pagination={{
           current: page,
           pageSize: overview.data?.pagination.limit ?? 20,
@@ -502,15 +666,36 @@ function OverviewTab() {
               const low = item.stock.sellable < item.minStockBaseQuantity;
               return (
                 <div className="cell-main cell-right">
-                  <strong className={low ? "text-danger" : undefined}>{formatNumber(item.stock.sellable)}</strong>
+                  <strong className={low ? "text-danger" : undefined}>
+                    {formatNumber(item.stock.sellable)}
+                  </strong>
                   <span>tối thiểu {formatNumber(item.minStockBaseQuantity)}</span>
                 </div>
               );
             },
           },
-          { title: "Biệt trữ", key: "quarantined", width: 90, align: "right", render: (_: unknown, item: InventoryOverviewItem) => formatNumber(item.stock.quarantined) },
-          { title: "Thu hồi", key: "recalled", width: 90, align: "right", render: (_: unknown, item: InventoryOverviewItem) => formatNumber(item.stock.recalled) },
-          { title: "Hết hạn", key: "expired", width: 90, align: "right", render: (_: unknown, item: InventoryOverviewItem) => formatNumber(item.stock.expired) },
+          {
+            title: "Biệt trữ",
+            key: "quarantined",
+            width: 90,
+            align: "right",
+            render: (_: unknown, item: InventoryOverviewItem) =>
+              formatNumber(item.stock.quarantined),
+          },
+          {
+            title: "Thu hồi",
+            key: "recalled",
+            width: 90,
+            align: "right",
+            render: (_: unknown, item: InventoryOverviewItem) => formatNumber(item.stock.recalled),
+          },
+          {
+            title: "Hết hạn",
+            key: "expired",
+            width: 90,
+            align: "right",
+            render: (_: unknown, item: InventoryOverviewItem) => formatNumber(item.stock.expired),
+          },
         ]}
       />
     </>

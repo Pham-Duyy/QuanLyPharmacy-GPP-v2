@@ -18,7 +18,8 @@ const RELATIONSHIPS = [
   { value: "OTHER", label: "Khác" },
 ];
 
-const labelOf = (value: string) => RELATIONSHIPS.find((item) => item.value === value)?.label ?? value;
+const labelOf = (value: string) =>
+  RELATIONSHIPS.find((item) => item.value === value)?.label ?? value;
 
 /**
  * Bán thuốc gây nghiện, hướng thần, tiền chất phải ghi người mua vào sổ theo
@@ -43,7 +44,9 @@ export function ControlledBuyerCard({
         type={value ? "success" : "warning"}
         showIcon
         icon={value ? <CheckCircleFilled /> : <SafetyCertificateOutlined />}
-        title={value ? "Đã ghi thông tin người mua" : "Thuốc kiểm soát đặc biệt: bắt buộc ghi người mua"}
+        title={
+          value ? "Đã ghi thông tin người mua" : "Thuốc kiểm soát đặc biệt: bắt buộc ghi người mua"
+        }
         description={
           value ? (
             <span>
@@ -53,12 +56,19 @@ export function ControlledBuyerCard({
             </span>
           ) : (
             <span>
-              Giỏ hàng có {productNames.join(", ")}. Theo quy định về thuốc gây nghiện, hướng thần và tiền chất, phải ghi họ tên, số giấy tờ tùy thân và địa chỉ người mua vào sổ theo dõi.
+              Giỏ hàng có {productNames.join(", ")}. Theo quy định về thuốc gây nghiện, hướng thần
+              và tiền chất, phải ghi họ tên, số giấy tờ tùy thân và địa chỉ người mua vào sổ theo
+              dõi.
             </span>
           )
         }
         action={
-          <Button size="small" type={value ? "default" : "primary"} icon={value ? <EditOutlined /> : undefined} onClick={() => setEditing(true)}>
+          <Button
+            size="small"
+            type={value ? "default" : "primary"}
+            icon={value ? <EditOutlined /> : undefined}
+            onClick={() => setEditing(true)}
+          >
             {value ? "Sửa" : "Ghi thông tin"}
           </Button>
         }
@@ -79,11 +89,20 @@ export function ControlledBuyerCard({
           layout="vertical"
           initialValues={value ?? { relationship: "SELF" }}
           onFinish={(values) => {
-            onChange({ ...values, buyerName: values.buyerName.trim(), buyerIdNumber: values.buyerIdNumber.trim(), buyerAddress: values.buyerAddress.trim() });
+            onChange({
+              ...values,
+              buyerName: values.buyerName.trim(),
+              buyerIdNumber: values.buyerIdNumber.trim(),
+              buyerAddress: values.buyerAddress.trim(),
+            });
             setEditing(false);
           }}
         >
-          <Form.Item name="buyerName" label="Họ tên người mua" rules={[{ required: true, message: "Nhập họ tên như trên giấy tờ tùy thân" }]}>
+          <Form.Item
+            name="buyerName"
+            label="Họ tên người mua"
+            rules={[{ required: true, message: "Nhập họ tên như trên giấy tờ tùy thân" }]}
+          >
             <Input autoFocus placeholder="Nguyễn Văn A" maxLength={200} />
           </Form.Item>
           <Form.Item
@@ -97,17 +116,29 @@ export function ControlledBuyerCard({
           >
             <Input placeholder="079123456789" maxLength={30} />
           </Form.Item>
-          <Form.Item name="buyerAddress" label="Địa chỉ" rules={[{ required: true, message: "Nhập địa chỉ người mua" }]}>
+          <Form.Item
+            name="buyerAddress"
+            label="Địa chỉ"
+            rules={[{ required: true, message: "Nhập địa chỉ người mua" }]}
+          >
             <Input placeholder="12 Lý Thường Kiệt, Quận 10, TP.HCM" maxLength={300} />
           </Form.Item>
           <Form.Item name="buyerPhone" label="Điện thoại">
             <Input placeholder="0901234567" maxLength={20} />
           </Form.Item>
-          <Form.Item name="relationship" label="Quan hệ với người bệnh" rules={[{ required: true }]}>
+          <Form.Item
+            name="relationship"
+            label="Quan hệ với người bệnh"
+            rules={[{ required: true }]}
+          >
             <Select options={RELATIONSHIPS} />
           </Form.Item>
           {relationship === "OTHER" ? (
-            <Form.Item name="relationshipNote" label="Ghi rõ quan hệ" rules={[{ required: true, message: "Ghi rõ quan hệ với người bệnh" }]}>
+            <Form.Item
+              name="relationshipNote"
+              label="Ghi rõ quan hệ"
+              rules={[{ required: true, message: "Ghi rõ quan hệ với người bệnh" }]}
+            >
               <Input maxLength={200} />
             </Form.Item>
           ) : null}

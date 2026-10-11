@@ -24,7 +24,9 @@ export function readDrafts(storeId: string | null): SaleDraft[] {
   try {
     const raw = window.localStorage.getItem(key(storeId));
     const parsed: unknown = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? (parsed as SaleDraft[]).filter((item) => item && Array.isArray(item.lines)) : [];
+    return Array.isArray(parsed)
+      ? (parsed as SaleDraft[]).filter((item) => item && Array.isArray(item.lines))
+      : [];
   } catch {
     return [];
   }

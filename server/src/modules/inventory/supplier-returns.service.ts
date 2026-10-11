@@ -35,29 +35,59 @@ export type ReturnInput = {
 };
 
 /** Lô còn tồn kèm nhà cung cấp đã mang lô đó về, để chọn khi lập phiếu trả. */
-export async function listReturnable(storeId: string, query: { supplierId?: string | undefined; search?: string | undefined }) {
+export async function listReturnable(
+  storeId: string,
+  query: { supplierId?: string | undefined; search?: string | undefined },
+) {
   const batches = await prisma.batch.findMany({
     where: {
       storeId,
       quantityOnHand: { gt: 0 },
       ...(query.search
-        ? { OR: [{ batchNumber: { contains: query.search, mode: "insensitive" } }, { product: { name: { contains: query.search, mode: "insensitive" } } }, { product: { code: { contains: query.search, mode: "insensitive" } } }] }
+        ? {
+            OR: [
+              { batchNumber: { contains: query.search, mode: "insensitive" } },
+              { product: { name: { contains: query.search, mode: "insensitive" } } },
+              { product: { code: { contains: query.search, mode: "insensitive" } } },
+            ],
+          }
         : {}),
     },
     orderBy: [{ expiryDate: "asc" }],
     take: 300,
     include: {
-      product: { select: { id: true, code: true, name: true, units: { where: { isActive: true }, select: { id: true, name: true, conversionToBase: true }, orderBy: { conversionToBase: "asc" } } } },
+      product: {
+        select: {
+          id: true,
+          code: true,
+          name: true,
+          units: {
+            where: { isActive: true },
+            select: { id: true, name: true, conversionToBase: true },
+            orderBy: { conversionToBase: "asc" },
+          },
+        },
+      },
     },
   });
 
   const sources = await prisma.goodsReceiptLine.findMany({
-    where: { batchId: { in: batches.map((batch) => batch.id) }, goodsReceipt: { status: "CONFIRMED" } },
-    select: { batchId: true, goodsReceiptId: true, goodsReceipt: { select: { code: true, receivedAt: true, supplier: { select: { id: true, name: true } } } } },
+    where: {
+      batchId: { in: batches.map((batch) => batch.id) },
+      goodsReceipt: { status: "CONFIRMED" },
+    },
+    select: {
+      batchId: true,
+      goodsReceiptId: true,
+      goodsReceipt: {
+        select: { code: true, receivedAt: true, supplier: { select: { id: true, name: true } } },
+      },
+    },
     orderBy: { goodsReceipt: { receivedAt: "desc" } },
   });
   const sourceByBatch = new Map<string, (typeof sources)[number]>();
-  for (const line of sources) if (line.batchId && !sourceByBatch.has(line.batchId)) sourceByBatch.set(line.batchId, line);
+  for (const line of sources)
+    if (line.batchId && !sourceByBatch.has(line.batchId)) sourceByBatch.set(line.batchId, line);
 
   return batches
     .map((batch) => {
@@ -80,7 +110,11 @@ export async function listReturnable(storeId: string, query: { supplierId?: stri
     .filter((item) => (query.supplierId ? item.supplier?.id === query.supplierId : true));
 }
 
-export async function createDraft(storeId: string, auth: AuthContext, input: ReturnInput): Promise<string> {
+export async function createDraft(
+  storeId: string,
+  auth: AuthContext,
+  input: ReturnInput,
+): Promise<string> {
   const store = await prisma.store.findUniqueOrThrow({ where: { id: storeId } });
   const supplier = await prisma.supplier.findUnique({ where: { id: input.supplierId } });
   if (!supplier) throw AppError.notFound("Không tìm thấy nhà cung cấp");
@@ -88,29 +122,52 @@ export async function createDraft(storeId: string, auth: AuthContext, input: Ret
   return prisma.$transaction(async (tx) => {
     const batches = await tx.batch.findMany({
       where: { id: { in: input.lines.map((line) => line.batchId) }, storeId },
-      include: { product: { select: { units: { where: { isActive: true }, select: { id: true, productId: true, conversionToBase: true } } } } },
+      include: {
+        product: {
+          select: {
+            units: {
+              where: { isActive: true },
+              select: { id: true, productId: true, conversionToBase: true },
+            },
+          },
+        },
+      },
     });
     const byId = new Map(batches.map((batch) => [batch.id, batch]));
 
     // Lô này về từ phiếu nhập nào: dùng để trừ đúng khoản công nợ khi tất toán.
     const sources = await tx.goodsReceiptLine.findMany({
-      where: { batchId: { in: input.lines.map((line) => line.batchId) }, goodsReceipt: { status: "CONFIRMED", supplierId: input.supplierId } },
+      where: {
+        batchId: { in: input.lines.map((line) => line.batchId) },
+        goodsReceipt: { status: "CONFIRMED", supplierId: input.supplierId },
+      },
       select: { batchId: true, goodsReceiptId: true },
       orderBy: { goodsReceipt: { receivedAt: "desc" } },
     });
     const receiptByBatch = new Map<string, string>();
-    for (const line of sources) if (line.batchId && !receiptByBatch.has(line.batchId)) receiptByBatch.set(line.batchId, line.goodsReceiptId);
+    for (const line of sources)
+      if (line.batchId && !receiptByBatch.has(line.batchId))
+        receiptByBatch.set(line.batchId, line.goodsReceiptId);
 
     const lines = input.lines.map((line, index) => {
       const batch = byId.get(line.batchId);
-      if (!batch) throw AppError.notFound(`Dòng ${index + 1}: không tìm thấy lô trong kho cửa hàng`);
+      if (!batch)
+        throw AppError.notFound(`Dòng ${index + 1}: không tìm thấy lô trong kho cửa hàng`);
       const unit = batch.product.units.find((item) => item.id === line.unitId);
       if (!unit || unit.productId !== batch.productId) {
-        throw new AppError(422, "UNIT_NOT_IN_PRODUCT", `Dòng ${index + 1}: đơn vị không thuộc sản phẩm của lô`);
+        throw new AppError(
+          422,
+          "UNIT_NOT_IN_PRODUCT",
+          `Dòng ${index + 1}: đơn vị không thuộc sản phẩm của lô`,
+        );
       }
       const baseQuantity = line.quantity * unit.conversionToBase;
       if (baseQuantity > batch.quantityOnHand) {
-        throw new AppError(409, "INSUFFICIENT_STOCK", `Dòng ${index + 1}: lô chỉ còn ${batch.quantityOnHand}, không trả ${baseQuantity} được`);
+        throw new AppError(
+          409,
+          "INSUFFICIENT_STOCK",
+          `Dòng ${index + 1}: lô chỉ còn ${batch.quantityOnHand}, không trả ${baseQuantity} được`,
+        );
       }
       const unitCost = batch.unitCost === null ? 0 : Math.round(Number(batch.unitCost));
       return {
@@ -146,17 +203,28 @@ export async function createDraft(storeId: string, auth: AuthContext, input: Ret
 }
 
 /** Xác nhận: trừ tồn từng lô và ghi thẻ kho. Đây là lúc hàng rời khỏi kho. */
-export async function confirmReturn(storeId: string, returnId: string, auth: AuthContext): Promise<void> {
+export async function confirmReturn(
+  storeId: string,
+  returnId: string,
+  auth: AuthContext,
+): Promise<void> {
   await prisma.$transaction(async (tx) => {
     await lockSupplierReturn(tx, storeId, returnId);
-    const existing = await tx.supplierReturn.findFirst({ where: { id: returnId, storeId }, include: { lines: true } });
+    const existing = await tx.supplierReturn.findFirst({
+      where: { id: returnId, storeId },
+      include: { lines: true },
+    });
     if (!existing) throw AppError.notFound("Không tìm thấy phiếu trả hàng");
 
     // Trả hàng trừ thẳng vào công nợ thì phải khóa đúng những phiếu nhập đó,
     // để một lần thanh toán đang chạy song song không tính trên số nợ cũ.
     if (existing.settlement === "DEDUCT_DEBT") {
       const receiptIds = [
-        ...new Set(existing.lines.map((line) => line.goodsReceiptId).filter((id): id is string => Boolean(id))),
+        ...new Set(
+          existing.lines
+            .map((line) => line.goodsReceiptId)
+            .filter((id): id is string => Boolean(id)),
+        ),
       ];
       await lockGoodsReceipts(tx, storeId, receiptIds);
       await assertDeductible(tx, storeId, returnId, existing.lines, receiptIds);
@@ -164,17 +232,34 @@ export async function confirmReturn(storeId: string, returnId: string, auth: Aut
 
     const moved = await tx.supplierReturn.updateMany({
       where: { id: returnId, storeId, status: "DRAFT" },
-      data: { status: "CONFIRMED", confirmedBy: auth.userId, confirmedAt: new Date(), version: { increment: 1 } },
+      data: {
+        status: "CONFIRMED",
+        confirmedBy: auth.userId,
+        confirmedAt: new Date(),
+        version: { increment: 1 },
+      },
     });
-    if (moved.count === 0) throw new AppError(409, "INVALID_STATE", `Phiếu đang ở trạng thái ${existing.status}, không xác nhận lại được`);
+    if (moved.count === 0)
+      throw new AppError(
+        409,
+        "INVALID_STATE",
+        `Phiếu đang ở trạng thái ${existing.status}, không xác nhận lại được`,
+      );
 
     for (const line of existing.lines) {
       // Đọc lại tồn ngay trước khi trừ: từ lúc lập nháp tới giờ có thể đã bán bớt.
       const batch = await tx.batch.findUniqueOrThrow({ where: { id: line.batchId } });
       if (batch.quantityOnHand < line.baseQuantity) {
-        throw new AppError(409, "INSUFFICIENT_STOCK", `Lô ${batch.batchNumber} chỉ còn ${batch.quantityOnHand}, không trả ${line.baseQuantity} được`);
+        throw new AppError(
+          409,
+          "INSUFFICIENT_STOCK",
+          `Lô ${batch.batchNumber} chỉ còn ${batch.quantityOnHand}, không trả ${line.baseQuantity} được`,
+        );
       }
-      const updated = await tx.batch.update({ where: { id: line.batchId }, data: { quantityOnHand: { decrement: line.baseQuantity } } });
+      const updated = await tx.batch.update({
+        where: { id: line.batchId },
+        data: { quantityOnHand: { decrement: line.baseQuantity } },
+      });
       await tx.stockMovement.create({
         data: {
           storeId,
@@ -199,7 +284,12 @@ export async function confirmReturn(storeId: string, returnId: string, auth: Aut
         action: "SUPPLIER_RETURN_CONFIRM",
         resourceType: "supplier_return",
         resourceId: returnId,
-        after: { code: existing.code, lines: existing.lines.length, totalValue: num(existing.totalValue), settlement: existing.settlement },
+        after: {
+          code: existing.code,
+          lines: existing.lines.length,
+          totalValue: num(existing.totalValue),
+          settlement: existing.settlement,
+        },
       },
     });
   });
@@ -224,7 +314,10 @@ async function assertDeductible(
   const creditByReceipt = new Map<string, number>();
   for (const line of lines) {
     if (!line.goodsReceiptId) continue;
-    creditByReceipt.set(line.goodsReceiptId, (creditByReceipt.get(line.goodsReceiptId) ?? 0) + num(line.lineValue));
+    creditByReceipt.set(
+      line.goodsReceiptId,
+      (creditByReceipt.get(line.goodsReceiptId) ?? 0) + num(line.lineValue),
+    );
   }
   if (creditByReceipt.size === 0) return;
 
@@ -233,7 +326,9 @@ async function assertDeductible(
     include: {
       paymentAllocations: { where: { payment: { status: "ACTIVE" } }, select: { amount: true } },
       supplierReturnLines: {
-        where: { supplierReturn: { status: "CONFIRMED", settlement: "DEDUCT_DEBT", id: { not: returnId } } },
+        where: {
+          supplierReturn: { status: "CONFIRMED", settlement: "DEDUCT_DEBT", id: { not: returnId } },
+        },
         select: { lineValue: true },
       },
     },
@@ -243,7 +338,10 @@ async function assertDeductible(
     const credit = creditByReceipt.get(receipt.id) ?? 0;
     if (credit === 0) continue;
     const paid = receipt.paymentAllocations.reduce((sum, item) => sum + num(item.amount), 0);
-    const credited = receipt.supplierReturnLines.reduce((sum, item) => sum + num(item.lineValue), 0);
+    const credited = receipt.supplierReturnLines.reduce(
+      (sum, item) => sum + num(item.lineValue),
+      0,
+    );
     const remaining = num(receipt.totalCost) - paid - credited;
     if (credit > remaining) {
       throw new AppError(
@@ -255,7 +353,12 @@ async function assertDeductible(
   }
 }
 
-export async function cancelReturn(storeId: string, returnId: string, auth: AuthContext, reason: string): Promise<void> {
+export async function cancelReturn(
+  storeId: string,
+  returnId: string,
+  auth: AuthContext,
+  reason: string,
+): Promise<void> {
   await prisma.$transaction(async (tx) => {
     // Khóa và kiểm tra trong transaction: trước đây phiếu vừa được xác nhận
     // (đã trừ tồn) vẫn có thể bị lệnh hủy chạy song song ghi đè thành CANCELLED.
@@ -263,16 +366,33 @@ export async function cancelReturn(storeId: string, returnId: string, auth: Auth
     const existing = await tx.supplierReturn.findFirst({ where: { id: returnId, storeId } });
     if (!existing) throw AppError.notFound("Không tìm thấy phiếu trả hàng");
     if (existing.status !== "DRAFT") {
-      throw AppError.invalidState("Chỉ hủy được phiếu còn nháp. Phiếu đã xác nhận thì lập phiếu nhập bù nếu nhà cung cấp trả hàng lại.");
+      throw AppError.invalidState(
+        "Chỉ hủy được phiếu còn nháp. Phiếu đã xác nhận thì lập phiếu nhập bù nếu nhà cung cấp trả hàng lại.",
+      );
     }
 
     const moved = await tx.supplierReturn.updateMany({
       where: { id: returnId, storeId, status: "DRAFT" },
-      data: { status: "CANCELLED", cancelledBy: auth.userId, cancelledAt: new Date(), cancelReason: reason, version: { increment: 1 } },
+      data: {
+        status: "CANCELLED",
+        cancelledBy: auth.userId,
+        cancelledAt: new Date(),
+        cancelReason: reason,
+        version: { increment: 1 },
+      },
     });
-    if (moved.count === 0) throw AppError.invalidState("Phiếu vừa đổi trạng thái, không hủy được nữa");
+    if (moved.count === 0)
+      throw AppError.invalidState("Phiếu vừa đổi trạng thái, không hủy được nữa");
     await tx.auditLog.create({
-      data: { storeId, actorId: auth.userId, action: "SUPPLIER_RETURN_CANCEL", resourceType: "supplier_return", resourceId: returnId, reason, before: { code: existing.code } },
+      data: {
+        storeId,
+        actorId: auth.userId,
+        action: "SUPPLIER_RETURN_CANCEL",
+        resourceType: "supplier_return",
+        resourceId: returnId,
+        reason,
+        before: { code: existing.code },
+      },
     });
   });
 }
@@ -358,9 +478,16 @@ function toView(row: ReturnRow) {
   };
 }
 
-export async function list(storeId: string, query: { status?: string | undefined; supplierId?: string | undefined }) {
+export async function list(
+  storeId: string,
+  query: { status?: string | undefined; supplierId?: string | undefined },
+) {
   const rows = await prisma.supplierReturn.findMany({
-    where: { storeId, ...(query.status ? { status: query.status } : {}), ...(query.supplierId ? { supplierId: query.supplierId } : {}) },
+    where: {
+      storeId,
+      ...(query.status ? { status: query.status } : {}),
+      ...(query.supplierId ? { supplierId: query.supplierId } : {}),
+    },
     orderBy: { returnedAt: "desc" },
     take: 100,
     include: {

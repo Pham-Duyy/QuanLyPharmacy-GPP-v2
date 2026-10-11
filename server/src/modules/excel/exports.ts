@@ -29,10 +29,20 @@ export type ExportDefinition = {
   file?(ctx: ExportContext): Promise<{ buffer: Buffer; rows: number }>;
 };
 
-const num = (value: bigint | number | null | undefined) => (value === null || value === undefined ? null : Number(value));
+const num = (value: bigint | number | null | undefined) =>
+  value === null || value === undefined ? null : Number(value);
 const GENDER: Record<string, string> = { MALE: "Nam", FEMALE: "Nữ", OTHER: "Khác" };
-const PAYMENT: Record<string, string> = { CASH: "Tiền mặt", BANK_TRANSFER: "Chuyển khoản", CARD: "Thẻ" };
-const BATCH_STATUS: Record<string, string> = { AVAILABLE: "Bán được", QUARANTINED: "Biệt trữ", RECALLED: "Thu hồi", DISPOSED: "Đã hủy" };
+const PAYMENT: Record<string, string> = {
+  CASH: "Tiền mặt",
+  BANK_TRANSFER: "Chuyển khoản",
+  CARD: "Thẻ",
+};
+const BATCH_STATUS: Record<string, string> = {
+  AVAILABLE: "Bán được",
+  QUARANTINED: "Biệt trữ",
+  RECALLED: "Thu hồi",
+  DISPOSED: "Đã hủy",
+};
 const PURCHASE_REASON: Record<string, string> = {
   OUT_OF_STOCK: "Đã hết hàng",
   BELOW_MIN: "Dưới tồn tối thiểu",
@@ -40,7 +50,11 @@ const PURCHASE_REASON: Record<string, string> = {
   REFILL: "Bổ sung cho kỳ tới",
   OK: "Đang đủ hàng",
 };
-const RECEIPT_STATUS: Record<string, string> = { DRAFT: "Nháp", CONFIRMED: "Đã nhập kho", CANCELLED: "Đã hủy" };
+const RECEIPT_STATUS: Record<string, string> = {
+  DRAFT: "Nháp",
+  CONFIRMED: "Đã nhập kho",
+  CANCELLED: "Đã hủy",
+};
 
 /**
  * Excel không có múi giờ và exceljs ghi Date theo UTC: dời thời điểm sang
@@ -54,7 +68,8 @@ function vnStart(date: Date): Date {
 }
 
 function requireStore(ctx: ExportContext): string {
-  if (!ctx.storeId) throw new AppError(400, "STORE_REQUIRED", "Chọn cửa hàng trước khi xuất dữ liệu này");
+  if (!ctx.storeId)
+    throw new AppError(400, "STORE_REQUIRED", "Chọn cửa hàng trước khi xuất dữ liệu này");
   return ctx.storeId;
 }
 
@@ -70,15 +85,36 @@ export const productsExport: ExportDefinition = {
       include: {
         category: { select: { name: true } },
         ingredients: { include: { ingredient: { select: { name: true } } } },
-        units: { where: { isActive: true }, include: { barcodes: true }, orderBy: { conversionToBase: "asc" } },
+        units: {
+          where: { isActive: true },
+          include: { barcodes: true },
+          orderBy: { conversionToBase: "asc" },
+        },
       },
     });
     const unitIds = products.flatMap((product) => product.units.map((unit) => unit.id));
     const [prices, stock] = await Promise.all([
       getCurrentPrices(unitIds, null),
-      ctx.storeId ? getStockSummary(products.map((product) => product.id), ctx.storeId) : Promise.resolve(new Map<string, { sellable: number }>()),
+      ctx.storeId
+        ? getStockSummary(
+            products.map((product) => product.id),
+            ctx.storeId,
+          )
+        : Promise.resolve(new Map<string, { sellable: number }>()),
     ]);
-    const columns: ColumnDef[] = [...PRODUCT_COLUMNS, ...(ctx.storeId ? [{ key: "stock", header: "Tồn bán được (cửa hàng đang chọn)", kind: "int" as const, width: 16 }] : [])];
+    const columns: ColumnDef[] = [
+      ...PRODUCT_COLUMNS,
+      ...(ctx.storeId
+        ? [
+            {
+              key: "stock",
+              header: "Tồn bán được (cửa hàng đang chọn)",
+              kind: "int" as const,
+              width: 16,
+            },
+          ]
+        : []),
+    ];
 
     return [
       {
@@ -133,7 +169,10 @@ export const suppliersExport: ExportDefinition = {
       {
         name: "Nhà cung cấp",
         columns: SUPPLIER_COLUMNS,
-        rows: suppliers.map((item) => ({ ...item, status: item.isActive ? "Đang giao dịch" : "Ngừng giao dịch" })),
+        rows: suppliers.map((item) => ({
+          ...item,
+          status: item.isActive ? "Đang giao dịch" : "Ngừng giao dịch",
+        })),
       },
     ];
   },
@@ -148,12 +187,22 @@ export const customersExport: ExportDefinition = {
   dated: false,
   audited: true,
   async build() {
-    const customers = await prisma.customer.findMany({ where: { isAnonymized: false }, orderBy: { code: "asc" } });
+    const customers = await prisma.customer.findMany({
+      where: { isAnonymized: false },
+      orderBy: { code: "asc" },
+    });
     return [
       {
         name: "Khách hàng",
-        columns: [...CUSTOMER_COLUMNS, { key: "createdAt", header: "Ngày tạo", kind: "date", width: 12 }],
-        rows: customers.map((item) => ({ ...item, gender: item.gender ? GENDER[item.gender] : null, createdAt: vnTime(item.createdAt) })),
+        columns: [
+          ...CUSTOMER_COLUMNS,
+          { key: "createdAt", header: "Ngày tạo", kind: "date", width: 12 },
+        ],
+        rows: customers.map((item) => ({
+          ...item,
+          gender: item.gender ? GENDER[item.gender] : null,
+          createdAt: vnTime(item.createdAt),
+        })),
       },
     ];
   },
@@ -172,7 +221,14 @@ export const inventoryExport: ExportDefinition = {
     const batches = await prisma.batch.findMany({
       where: { storeId, quantityOnHand: { gt: 0 } },
       orderBy: [{ expiryDate: "asc" }],
-      include: { product: { include: { category: { select: { name: true } }, units: { where: { conversionToBase: 1 }, select: { name: true } } } } },
+      include: {
+        product: {
+          include: {
+            category: { select: { name: true } },
+            units: { where: { conversionToBase: 1 }, select: { name: true } },
+          },
+        },
+      },
     });
     const columns: ColumnDef[] = [
       { key: "code", header: "Mã sản phẩm", width: 14 },
@@ -188,7 +244,12 @@ export const inventoryExport: ExportDefinition = {
       { key: "shelf", header: "Vị trí kệ", width: 12 },
       ...(showCost
         ? [
-            { key: "unitCost", header: "Giá vốn / đơn vị cơ bản", kind: "money" as const, width: 16 },
+            {
+              key: "unitCost",
+              header: "Giá vốn / đơn vị cơ bản",
+              kind: "money" as const,
+              width: 16,
+            },
             { key: "value", header: "Giá trị tồn", kind: "money" as const, width: 16 },
           ]
         : []),
@@ -209,7 +270,10 @@ export const inventoryExport: ExportDefinition = {
             daysLeft: Math.round((batch.expiryDate.getTime() - today.getTime()) / 86_400_000),
             quantity: batch.quantityOnHand,
             unit: batch.product.units[0]?.name ?? "",
-            status: batch.expiryDate.getTime() <= today.getTime() ? "Hết hạn" : (BATCH_STATUS[batch.status] ?? batch.status),
+            status:
+              batch.expiryDate.getTime() <= today.getTime()
+                ? "Hết hạn"
+                : (BATCH_STATUS[batch.status] ?? batch.status),
             shelf: batch.shelfLocation,
             unitCost: cost === null ? null : Math.round(cost),
             value: cost === null ? null : Math.round(cost * batch.quantityOnHand),
@@ -233,7 +297,8 @@ export const stockCountExport: ExportDefinition = {
   async build(ctx) {
     const storeId = requireStore(ctx);
     const count = await prisma.stockCount.findFirst({ where: { storeId, status: "COUNTING" } });
-    if (!count) throw new AppError(409, "INVALID_STATE", "Cửa hàng chưa có đợt kiểm kê nào đang mở");
+    if (!count)
+      throw new AppError(409, "INVALID_STATE", "Cửa hàng chưa có đợt kiểm kê nào đang mở");
 
     const lines = await prisma.stockCountLine.findMany({
       where: { stockCountId: count.id },
@@ -291,7 +356,12 @@ export const invoicesExport: ExportDefinition = {
         prescription: { select: { code: true } },
         lines: {
           orderBy: { lineNo: "asc" },
-          include: { product: { select: { code: true } }, allocations: { include: { batch: { select: { batchNumber: true, expiryDate: true } } } } },
+          include: {
+            product: { select: { code: true } },
+            allocations: {
+              include: { batch: { select: { batchNumber: true, expiryDate: true } } },
+            },
+          },
         },
       },
     });
@@ -389,7 +459,13 @@ export const rxSalesExport: ExportDefinition = {
       },
       orderBy: [{ invoice: { soldAt: "asc" } }, { lineNo: "asc" }],
       include: {
-        product: { select: { code: true, drugClass: true, ingredients: { include: { ingredient: { select: { name: true } } } } } },
+        product: {
+          select: {
+            code: true,
+            drugClass: true,
+            ingredients: { include: { ingredient: { select: { name: true } } } },
+          },
+        },
         allocations: { include: { batch: { select: { batchNumber: true, expiryDate: true } } } },
         invoice: {
           select: {
@@ -398,7 +474,17 @@ export const rxSalesExport: ExportDefinition = {
             customer: { select: { fullName: true, birthYear: true } },
             seller: { select: { fullName: true } },
             pharmacist: { select: { fullName: true } },
-            prescription: { select: { code: true, externalCode: true, prescriberName: true, facilityName: true, prescribedDate: true, diagnosisText: true, patientName: true } },
+            prescription: {
+              select: {
+                code: true,
+                externalCode: true,
+                prescriberName: true,
+                facilityName: true,
+                prescribedDate: true,
+                diagnosisText: true,
+                patientName: true,
+              },
+            },
           },
         },
       },
@@ -433,7 +519,8 @@ export const rxSalesExport: ExportDefinition = {
             soldAt: vnTime(line.invoice.soldAt),
             invoice: line.invoice.code,
             // Đơn điện tử thường không gắn hồ sơ khách: lấy tên người bệnh ghi trên đơn.
-            patient: line.invoice.customer?.fullName ?? line.invoice.prescription?.patientName ?? null,
+            patient:
+              line.invoice.customer?.fullName ?? line.invoice.prescription?.patientName ?? null,
             birthYear: line.invoice.customer?.birthYear ?? null,
             prescription: rx?.code ?? "(không có đơn)",
             externalCode: rx?.externalCode ?? null,
@@ -448,7 +535,11 @@ export const rxSalesExport: ExportDefinition = {
             quantity: line.quantity,
             unit: line.unitName,
             batches: line.allocations.map((item) => item.batch.batchNumber).join(", "),
-            expiry: line.allocations.map((item) => item.batch.expiryDate.toISOString().slice(0, 10).split("-").reverse().join("/")).join(", "),
+            expiry: line.allocations
+              .map((item) =>
+                item.batch.expiryDate.toISOString().slice(0, 10).split("-").reverse().join("/"),
+              )
+              .join(", "),
             dispenser: line.invoice.pharmacist?.fullName ?? line.invoice.seller.fullName,
           };
         }),
@@ -473,9 +564,16 @@ export const purchaseOrderExport: ExportDefinition = {
   dated: false,
   async build(ctx) {
     const storeId = requireStore(ctx);
-    const items = await buildSuggestions(storeId, { windowDays: 30, coverDays: 30, leadTimeDays: 7, onlyNeeded: true });
+    const items = await buildSuggestions(storeId, {
+      windowDays: 30,
+      coverDays: 30,
+      leadTimeDays: 7,
+      onlyNeeded: true,
+    });
     const sorted = [...items].sort(
-      (a, b) => (a.lastSupplier?.name ?? "zzz").localeCompare(b.lastSupplier?.name ?? "zzz", "vi") || a.name.localeCompare(b.name, "vi"),
+      (a, b) =>
+        (a.lastSupplier?.name ?? "zzz").localeCompare(b.lastSupplier?.name ?? "zzz", "vi") ||
+        a.name.localeCompare(b.name, "vi"),
     );
 
     return [
@@ -574,7 +672,11 @@ export const controlledLedgerExport: ExportDefinition = {
           { key: "handledBy", header: "Người thực hiện", width: 20 },
         ],
         rows: ledger.flatMap((product) =>
-          product.entries.map((entry) => ({ ...entry, productName: product.name, occurredAt: vnTime(entry.occurredAt) })),
+          product.entries.map((entry) => ({
+            ...entry,
+            productName: product.name,
+            occurredAt: vnTime(entry.occurredAt),
+          })),
         ),
       },
     ];
@@ -590,13 +692,25 @@ export const goodsReceiptsExport: ExportDefinition = {
   async build(ctx) {
     const storeId = requireStore(ctx);
     const receipts = await prisma.goodsReceipt.findMany({
-      where: { storeId, receivedAt: { gte: vnStart(ctx.from), lt: vnStart(new Date(ctx.to.getTime() + 86_400_000)) } },
+      where: {
+        storeId,
+        receivedAt: {
+          gte: vnStart(ctx.from),
+          lt: vnStart(new Date(ctx.to.getTime() + 86_400_000)),
+        },
+      },
       orderBy: { receivedAt: "asc" },
       include: {
         supplier: { select: { name: true, taxCode: true } },
         createdByUser: { select: { fullName: true } },
         confirmedByUser: { select: { fullName: true } },
-        lines: { orderBy: { lineNo: "asc" }, include: { product: { select: { code: true, name: true } }, productUnit: { select: { name: true } } } },
+        lines: {
+          orderBy: { lineNo: "asc" },
+          include: {
+            product: { select: { code: true, name: true } },
+            productUnit: { select: { name: true } },
+          },
+        },
       },
     });
     return [

@@ -10,29 +10,169 @@
 export type BarcodeKind = "EAN13" | "EAN8" | "CODE128";
 
 // Bảng mã EAN: L (lẻ), G (chẵn) cho nửa trái, R cho nửa phải.
-const L = ["0001101", "0011001", "0010011", "0111101", "0100011", "0110001", "0101111", "0111011", "0110111", "0001011"];
-const G = ["0100111", "0110011", "0011011", "0100001", "0011101", "0111001", "0000101", "0010001", "0001001", "0010111"];
-const R = ["1110010", "1100110", "1101100", "1000010", "1011100", "1001110", "1010000", "1000100", "1001000", "1110100"];
+const L = [
+  "0001101",
+  "0011001",
+  "0010011",
+  "0111101",
+  "0100011",
+  "0110001",
+  "0101111",
+  "0111011",
+  "0110111",
+  "0001011",
+];
+const G = [
+  "0100111",
+  "0110011",
+  "0011011",
+  "0100001",
+  "0011101",
+  "0111001",
+  "0000101",
+  "0010001",
+  "0001001",
+  "0010111",
+];
+const R = [
+  "1110010",
+  "1100110",
+  "1101100",
+  "1000010",
+  "1011100",
+  "1001110",
+  "1010000",
+  "1000100",
+  "1001000",
+  "1110100",
+];
 
 /** Kiểu đan L/G của 6 chữ số nửa trái, quyết định bởi chữ số đầu tiên. */
-const PARITY = ["LLLLLL", "LLGLGG", "LLGGLG", "LLGGGL", "LGLLGG", "LGGLLG", "LGGGLL", "LGLGLG", "LGLGGL", "LGGLGL"];
+const PARITY = [
+  "LLLLLL",
+  "LLGLGG",
+  "LLGGLG",
+  "LLGGGL",
+  "LGLLGG",
+  "LGGLLG",
+  "LGGGLL",
+  "LGLGLG",
+  "LGLGGL",
+  "LGGLGL",
+];
 
 /**
  * Bảng độ rộng vạch/khoảng trắng của Code128 (107 ký tự). Mỗi chuỗi là độ
  * rộng lần lượt vạch–trắng–vạch–trắng–vạch–trắng.
  */
 const CODE128 = [
-  "212222", "222122", "222221", "121223", "121322", "131222", "122213", "122312", "132212", "221213",
-  "221312", "231212", "112232", "122132", "122231", "113222", "123122", "123221", "223211", "221132",
-  "221231", "213212", "223112", "312131", "311222", "321122", "321221", "312212", "322112", "322211",
-  "212123", "212321", "232121", "111323", "131123", "131321", "112313", "132113", "132311", "211313",
-  "231113", "231311", "112133", "112331", "132131", "113123", "113321", "133121", "313121", "211331",
-  "231131", "213113", "213311", "213131", "311123", "311321", "331121", "312113", "312311", "332111",
-  "314111", "221411", "431111", "111224", "111422", "121124", "121421", "141122", "141221", "112214",
-  "112412", "122114", "122411", "142112", "142211", "241211", "221114", "413111", "241112", "134111",
-  "111242", "121142", "121241", "114212", "124112", "124211", "411212", "421112", "421211", "212141",
-  "214121", "412121", "111143", "111341", "131141", "114113", "114311", "411113", "411311", "113141",
-  "114131", "311141", "411131", "211412", "211214", "211232", "2331112",
+  "212222",
+  "222122",
+  "222221",
+  "121223",
+  "121322",
+  "131222",
+  "122213",
+  "122312",
+  "132212",
+  "221213",
+  "221312",
+  "231212",
+  "112232",
+  "122132",
+  "122231",
+  "113222",
+  "123122",
+  "123221",
+  "223211",
+  "221132",
+  "221231",
+  "213212",
+  "223112",
+  "312131",
+  "311222",
+  "321122",
+  "321221",
+  "312212",
+  "322112",
+  "322211",
+  "212123",
+  "212321",
+  "232121",
+  "111323",
+  "131123",
+  "131321",
+  "112313",
+  "132113",
+  "132311",
+  "211313",
+  "231113",
+  "231311",
+  "112133",
+  "112331",
+  "132131",
+  "113123",
+  "113321",
+  "133121",
+  "313121",
+  "211331",
+  "231131",
+  "213113",
+  "213311",
+  "213131",
+  "311123",
+  "311321",
+  "331121",
+  "312113",
+  "312311",
+  "332111",
+  "314111",
+  "221411",
+  "431111",
+  "111224",
+  "111422",
+  "121124",
+  "121421",
+  "141122",
+  "141221",
+  "112214",
+  "112412",
+  "122114",
+  "122411",
+  "142112",
+  "142211",
+  "241211",
+  "221114",
+  "413111",
+  "241112",
+  "134111",
+  "111242",
+  "121142",
+  "121241",
+  "114212",
+  "124112",
+  "124211",
+  "411212",
+  "421112",
+  "421211",
+  "212141",
+  "214121",
+  "412121",
+  "111143",
+  "111341",
+  "131141",
+  "114113",
+  "114311",
+  "411113",
+  "411311",
+  "113141",
+  "114131",
+  "311141",
+  "411131",
+  "211412",
+  "211214",
+  "211232",
+  "2331112",
 ];
 const CODE128_START_B = 104;
 const CODE128_STOP = 106;
@@ -40,7 +180,10 @@ const CODE128_STOP = 106;
 /** Số kiểm của mã EAN: nhân xen kẽ 1 và 3 từ phải sang trái. */
 export function eanCheckDigit(digitsWithoutCheck: string): number {
   const digits = [...digitsWithoutCheck].map(Number);
-  const sum = digits.reduceRight((total, digit, index) => total + digit * ((digits.length - index) % 2 === 1 ? 3 : 1), 0);
+  const sum = digits.reduceRight(
+    (total, digit, index) => total + digit * ((digits.length - index) % 2 === 1 ? 3 : 1),
+    0,
+  );
   return (10 - (sum % 10)) % 10;
 }
 
@@ -93,7 +236,8 @@ function encodeCode128(value: string): string {
     }
     codes.push(code);
   }
-  const checksum = codes.reduce((total, code, index) => total + code * (index === 0 ? 1 : index), 0) % 103;
+  const checksum =
+    codes.reduce((total, code, index) => total + code * (index === 0 ? 1 : index), 0) % 103;
   codes.push(checksum, CODE128_STOP);
 
   return codes
@@ -108,11 +252,13 @@ function encodeCode128(value: string): string {
 /** Chuỗi bit của mã vạch: "1" là vạch đen, "0" là khoảng trắng. */
 export function encodeBars(value: string, kind: BarcodeKind = detectKind(value)): string {
   if (kind === "EAN13") {
-    if (!/^\d{13}$/.test(value) || !isValidEan(value)) throw new Error(`"${value}" không phải mã EAN-13 hợp lệ`);
+    if (!/^\d{13}$/.test(value) || !isValidEan(value))
+      throw new Error(`"${value}" không phải mã EAN-13 hợp lệ`);
     return encodeEan13(value);
   }
   if (kind === "EAN8") {
-    if (!/^\d{8}$/.test(value) || !isValidEan(value)) throw new Error(`"${value}" không phải mã EAN-8 hợp lệ`);
+    if (!/^\d{8}$/.test(value) || !isValidEan(value))
+      throw new Error(`"${value}" không phải mã EAN-8 hợp lệ`);
     return encodeEan8(value);
   }
   return encodeCode128(value);
@@ -129,7 +275,10 @@ export type BarcodeOptions = {
  * Vẽ mã vạch thành SVG theo đơn vị mm để in ra đúng kích thước thật, không
  * phụ thuộc DPI của máy in.
  */
-export function barcodeSvg(value: string, options: BarcodeOptions = {}): { svg: string; kind: BarcodeKind; widthMm: number } {
+export function barcodeSvg(
+  value: string,
+  options: BarcodeOptions = {},
+): { svg: string; kind: BarcodeKind; widthMm: number } {
   const kind = detectKind(value);
   const bars = encodeBars(value, kind);
   const moduleMm = options.moduleMm ?? 0.33;
@@ -145,7 +294,9 @@ export function barcodeSvg(value: string, options: BarcodeOptions = {}): { svg: 
     }
     let run = 0;
     while (index + run < bars.length && bars[index + run] === "1") run++;
-    rects.push(`<rect x="${(index * moduleMm).toFixed(3)}" y="0" width="${(run * moduleMm).toFixed(3)}" height="${heightMm}" />`);
+    rects.push(
+      `<rect x="${(index * moduleMm).toFixed(3)}" y="0" width="${(run * moduleMm).toFixed(3)}" height="${heightMm}" />`,
+    );
     index += run;
   }
 

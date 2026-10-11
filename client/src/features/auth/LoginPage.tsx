@@ -16,9 +16,21 @@ type LoginForm = { username: string; password: string };
 
 /** Chỉ liệt kê tính năng đã có thật trong hệ thống. */
 const HIGHLIGHTS = [
-  { icon: <SafetyCertificateOutlined />, title: "Bán đúng quy định", text: "Kiểm tra đơn thuốc, trùng hoạt chất và dị ứng trước khi thanh toán." },
-  { icon: <ExperimentOutlined />, title: "Kiểm soát theo lô", text: "Xuất lô theo FEFO, biệt trữ và truy vết thu hồi đến từng hóa đơn." },
-  { icon: <AuditOutlined />, title: "Sẵn sàng thanh tra GPP", text: "Sổ nhiệt độ – độ ẩm, thẻ kho và nhật ký thao tác đầy đủ." },
+  {
+    icon: <SafetyCertificateOutlined />,
+    title: "Bán đúng quy định",
+    text: "Kiểm tra đơn thuốc, trùng hoạt chất và dị ứng trước khi thanh toán.",
+  },
+  {
+    icon: <ExperimentOutlined />,
+    title: "Kiểm soát theo lô",
+    text: "Xuất lô theo FEFO, biệt trữ và truy vết thu hồi đến từng hóa đơn.",
+  },
+  {
+    icon: <AuditOutlined />,
+    title: "Sẵn sàng thanh tra GPP",
+    text: "Sổ nhiệt độ – độ ẩm, thẻ kho và nhật ký thao tác đầy đủ.",
+  },
 ];
 
 export function LoginPage() {
@@ -84,21 +96,52 @@ export function LoginPage() {
 
           {error ? <Alert type="error" title={error} showIcon className="login-error" /> : null}
 
-          <Form<LoginForm> layout="vertical" onFinish={handleSubmit} disabled={submitting} requiredMark={false} size="large">
-            <Form.Item label="Tên đăng nhập" name="username" rules={[{ required: true, message: "Nhập tên đăng nhập" }]}>
-              <Input prefix={<UserOutlined />} placeholder="Ví dụ: duocsi01" autoFocus autoComplete="username" />
+          <Form<LoginForm>
+            layout="vertical"
+            onFinish={handleSubmit}
+            disabled={submitting}
+            requiredMark={false}
+            size="large"
+          >
+            <Form.Item
+              label="Tên đăng nhập"
+              name="username"
+              rules={[{ required: true, message: "Nhập tên đăng nhập" }]}
+            >
+              <Input
+                prefix={<UserOutlined />}
+                placeholder="Ví dụ: duocsi01"
+                autoFocus
+                autoComplete="username"
+              />
             </Form.Item>
 
-            <Form.Item label="Mật khẩu" name="password" rules={[{ required: true, message: "Nhập mật khẩu" }]}>
-              <Input.Password prefix={<LockOutlined />} placeholder="Mật khẩu" autoComplete="current-password" />
+            <Form.Item
+              label="Mật khẩu"
+              name="password"
+              rules={[{ required: true, message: "Nhập mật khẩu" }]}
+            >
+              <Input.Password
+                prefix={<LockOutlined />}
+                placeholder="Mật khẩu"
+                autoComplete="current-password"
+              />
             </Form.Item>
 
-            <Button type="primary" htmlType="submit" block loading={submitting} className="login-submit">
+            <Button
+              type="primary"
+              htmlType="submit"
+              block
+              loading={submitting}
+              className="login-submit"
+            >
               Đăng nhập
             </Button>
           </Form>
 
-          <p className="login-help">Quên mật khẩu? Liên hệ quản lý nhà thuốc để được đặt lại mật khẩu tạm.</p>
+          <p className="login-help">
+            Quên mật khẩu? Liên hệ quản lý nhà thuốc để được đặt lại mật khẩu tạm.
+          </p>
         </div>
       </main>
     </div>

@@ -21,7 +21,11 @@ const printSchema = z.object({
         productId: z.uuid("productId không hợp lệ"),
         unitId: z.uuid("unitId không hợp lệ").nullish(),
         batchId: z.uuid("batchId không hợp lệ").nullish(),
-        quantity: z.coerce.number().int().min(1, "Số tem phải lớn hơn 0").max(500, "Mỗi mặt hàng tối đa 500 tem"),
+        quantity: z.coerce
+          .number()
+          .int()
+          .min(1, "Số tem phải lớn hơn 0")
+          .max(500, "Mỗi mặt hàng tối đa 500 tem"),
       }),
     )
     .min(1, "Chưa chọn mặt hàng nào để in tem")
@@ -32,7 +36,13 @@ const printSchema = z.object({
 labelsRouter.get("/labels/sizes", requirePermission("catalog.read"), (_req, res) => {
   sendData(
     res,
-    Object.entries(SIZES).map(([value, spec]) => ({ value, label: spec.label, width: spec.width, height: spec.height, sheet: spec.columns !== null })),
+    Object.entries(SIZES).map(([value, spec]) => ({
+      value,
+      label: spec.label,
+      width: spec.width,
+      height: spec.height,
+      sheet: spec.columns !== null,
+    })),
   );
 });
 
@@ -42,17 +52,13 @@ labelsRouter.get("/labels/sizes", requirePermission("catalog.read"), (_req, res)
  */
 labelsRouter.post("/labels/print", requirePermission("catalog.read"), async (req, res) => {
   const input = parseOrThrow(printSchema, req.body);
-  const result = await renderLabels(
-    req.auth!.storeId!,
-    input.items,
-    {
-      size: input.size,
-      showPrice: input.showPrice,
-      showBatch: input.showBatch,
-      showStoreName: input.showStoreName,
-      autoPrint: req.query["autoprint"] !== "0",
-    },
-  );
+  const result = await renderLabels(req.auth!.storeId!, input.items, {
+    size: input.size,
+    showPrice: input.showPrice,
+    showBatch: input.showBatch,
+    showStoreName: input.showStoreName,
+    autoPrint: req.query["autoprint"] !== "0",
+  });
 
   res
     .set("X-Label-Count", String(result.labelCount))

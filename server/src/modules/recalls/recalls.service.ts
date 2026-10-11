@@ -237,7 +237,11 @@ export async function getAffectedSales(recallId: string, auth: AuthContext) {
     contact: (() => {
       const contact = contactByInvoice.get(allocation.invoiceLine.invoice.id);
       return contact
-        ? { contactedAt: contact.contactedAt, contactedByName: contact.contactedByUser.fullName, note: contact.note }
+        ? {
+            contactedAt: contact.contactedAt,
+            contactedByName: contact.contactedByUser.fullName,
+            note: contact.note,
+          }
         : null;
     })(),
   }));
@@ -247,7 +251,12 @@ export async function getAffectedSales(recallId: string, auth: AuthContext) {
  * Ghi đã liên hệ khách mua lô bị thu hồi (GPP III.4c: thông báo thu hồi cho
  * khách mua thuốc kê đơn). Ghi lại lần nữa thì cập nhật ghi chú và người, giờ.
  */
-export async function markContacted(recallId: string, invoiceId: string, auth: AuthContext, note: string | null): Promise<void> {
+export async function markContacted(
+  recallId: string,
+  invoiceId: string,
+  auth: AuthContext,
+  note: string | null,
+): Promise<void> {
   const sold = await prisma.invoiceAllocation.findFirst({
     where: { batch: { recallId }, invoiceLine: { invoiceId } },
     select: { id: true },
@@ -261,17 +270,33 @@ export async function markContacted(recallId: string, invoiceId: string, auth: A
       update: { contactedBy: auth.userId, contactedAt: new Date(), note },
     });
     await tx.auditLog.create({
-      data: { actorId: auth.userId, action: "RECALL_CUSTOMER_CONTACTED", resourceType: "recall", resourceId: recallId, after: { invoiceId, note } },
+      data: {
+        actorId: auth.userId,
+        action: "RECALL_CUSTOMER_CONTACTED",
+        resourceType: "recall",
+        resourceId: recallId,
+        after: { invoiceId, note },
+      },
     });
   });
 }
 
 /** Bỏ đánh dấu khi bấm nhầm. */
-export async function unmarkContacted(recallId: string, invoiceId: string, auth: AuthContext): Promise<void> {
+export async function unmarkContacted(
+  recallId: string,
+  invoiceId: string,
+  auth: AuthContext,
+): Promise<void> {
   const removed = await prisma.recallContact.deleteMany({ where: { recallId, invoiceId } });
   if (removed.count === 0) throw AppError.notFound("Hóa đơn này chưa được đánh dấu đã liên hệ");
   await prisma.auditLog.create({
-    data: { actorId: auth.userId, action: "RECALL_CUSTOMER_CONTACT_REMOVED", resourceType: "recall", resourceId: recallId, before: { invoiceId } },
+    data: {
+      actorId: auth.userId,
+      action: "RECALL_CUSTOMER_CONTACT_REMOVED",
+      resourceType: "recall",
+      resourceId: recallId,
+      before: { invoiceId },
+    },
   });
 }
 

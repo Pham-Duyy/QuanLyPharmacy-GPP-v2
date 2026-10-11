@@ -19,9 +19,13 @@ export function Donut({
   emptyText?: string;
 }) {
   const total = slices.reduce((sum, slice) => sum + slice.value, 0);
-  if (slices.length === 0 || total <= 0) return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={emptyText} />;
+  if (slices.length === 0 || total <= 0)
+    return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={emptyText} />;
 
-  const ends = slices.reduce<number[]>((acc, slice) => [...acc, (acc.at(-1) ?? 0) + slice.value], []);
+  const ends = slices.reduce<number[]>(
+    (acc, slice) => [...acc, (acc.at(-1) ?? 0) + slice.value],
+    [],
+  );
   const stops = slices.map((slice, index) => {
     const start = ((ends[index - 1] ?? 0) / total) * 360;
     const end = (ends[index]! / total) * 360;
@@ -30,7 +34,12 @@ export function Donut({
 
   return (
     <div className="donut-wrap">
-      <div className="donut-chart" style={{ background: `conic-gradient(${stops.join(", ")})` }} role="img" aria-label={centerLabel}>
+      <div
+        className="donut-chart"
+        style={{ background: `conic-gradient(${stops.join(", ")})` }}
+        role="img"
+        aria-label={centerLabel}
+      >
         <div className="donut-center">
           <span>{centerLabel}</span>
           <strong>{formatTotal(total)}</strong>
@@ -43,7 +52,9 @@ export function Donut({
             <span className="donut-legend-label" title={slice.label}>
               {slice.label}
             </span>
-            <span className="donut-legend-value">{Math.round((slice.value / total) * 1000) / 10}%</span>
+            <span className="donut-legend-value">
+              {Math.round((slice.value / total) * 1000) / 10}%
+            </span>
           </div>
         ))}
       </div>
@@ -53,8 +64,17 @@ export function Donut({
 
 export type BarPoint = { key: string; label: string; value: number; tooltip: ReactNode };
 
-export function BarTrend({ points, variant = "revenue", emptyText }: { points: BarPoint[]; variant?: "revenue" | "profit"; emptyText: string }) {
-  if (points.every((point) => point.value === 0)) return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={emptyText} />;
+export function BarTrend({
+  points,
+  variant = "revenue",
+  emptyText,
+}: {
+  points: BarPoint[];
+  variant?: "revenue" | "profit";
+  emptyText: string;
+}) {
+  if (points.every((point) => point.value === 0))
+    return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={emptyText} />;
   const maximum = Math.max(...points.map((point) => point.value), 1);
   // Kỳ dài thì nhãn ngày dày đặc, chỉ in cách quãng cho dễ đọc.
   const labelEvery = points.length > 16 ? Math.ceil(points.length / 10) : 1;
@@ -67,7 +87,9 @@ export function BarTrend({ points, variant = "revenue", emptyText }: { points: B
             <div className="revenue-bar-wrap">
               <div
                 className={variant === "profit" ? "revenue-bar profit" : "revenue-bar"}
-                style={{ height: `${Math.max((Math.max(point.value, 0) / maximum) * 100, point.value > 0 ? 3 : 0)}%` }}
+                style={{
+                  height: `${Math.max((Math.max(point.value, 0) / maximum) * 100, point.value > 0 ? 3 : 0)}%`,
+                }}
               />
             </div>
             <span>{index % labelEvery === 0 ? point.label : " "}</span>

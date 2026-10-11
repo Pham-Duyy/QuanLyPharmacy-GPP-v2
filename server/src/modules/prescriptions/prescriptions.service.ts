@@ -128,9 +128,14 @@ export async function updateDraft(
     // phẩm qua /eprescriptions/.../match — sửa cả danh sách sẽ mất mã thuốc
     // trên đơn, không báo bán lại được.
     if (input.items || input.externalCode !== undefined) {
-      const source = await tx.prescription.findUnique({ where: { id: prescriptionId }, select: { source: true } });
+      const source = await tx.prescription.findUnique({
+        where: { id: prescriptionId },
+        select: { source: true },
+      });
       if (source?.source === "NATIONAL") {
-        throw AppError.invalidState("Đơn thuốc điện tử không sửa danh sách thuốc hay mã đơn; chỉ chọn sản phẩm cho dòng chưa khớp");
+        throw AppError.invalidState(
+          "Đơn thuốc điện tử không sửa danh sách thuốc hay mã đơn; chỉ chọn sản phẩm cho dòng chưa khớp",
+        );
       }
     }
     const items = input.items ? await resolveItems(tx, input.items) : null;

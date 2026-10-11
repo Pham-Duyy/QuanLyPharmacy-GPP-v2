@@ -37,7 +37,12 @@ function receiptAmounts(goodsAmount: bigint, discount: number, vat: number) {
   if (discountAmount > goodsAmount) {
     throw AppError.validation("Chiết khấu phiếu không được lớn hơn tổng tiền hàng");
   }
-  return { goodsAmount, discountAmount, vatAmount, totalCost: goodsAmount - discountAmount + vatAmount };
+  return {
+    goodsAmount,
+    discountAmount,
+    vatAmount,
+    totalCost: goodsAmount - discountAmount + vatAmount,
+  };
 }
 
 /**
@@ -251,7 +256,11 @@ export async function confirm(
         const received = businessDateNow(receipt.receivedAt);
         await tx.goodsReceipt.update({
           where: { id: receiptId },
-          data: { paymentDueDate: new Date(received.getTime() + receipt.supplier.paymentTermDays * 86_400_000) },
+          data: {
+            paymentDueDate: new Date(
+              received.getTime() + receipt.supplier.paymentTermDays * 86_400_000,
+            ),
+          },
         });
       }
 
@@ -284,7 +293,8 @@ export async function confirm(
       // Hai phiếu nhập cùng chạm nhiều lô phải khóa theo cùng một thứ tự,
       // nếu không sẽ khóa chéo nhau (deadlock).
       const ordered = [...lines].sort(
-        (a, b) => a.productId.localeCompare(b.productId) || a.batchNumber.localeCompare(b.batchNumber),
+        (a, b) =>
+          a.productId.localeCompare(b.productId) || a.batchNumber.localeCompare(b.batchNumber),
       );
 
       for (const line of ordered) {
@@ -386,7 +396,15 @@ export async function confirm(
           throw AppError.invalidState(`Không khóa được lô ${line.batchNumber} để nhập hàng`);
         }
 
-        await afterBatchWrite(tx, { storeId, userId, receiptId, line, result, batchId, balanceAfter });
+        await afterBatchWrite(tx, {
+          storeId,
+          userId,
+          receiptId,
+          line,
+          result,
+          batchId,
+          balanceAfter,
+        });
       }
     },
     { timeout: 20_000 },
@@ -472,14 +490,25 @@ export async function getDetail(storeId: string, receiptId: string) {
   const receipt = await prisma.goodsReceipt.findFirst({
     where: { id: receiptId, storeId },
     include: {
-      supplier: { select: { id: true, name: true, phone: true, address: true, taxCode: true, licenseNumber: true } },
+      supplier: {
+        select: {
+          id: true,
+          name: true,
+          phone: true,
+          address: true,
+          taxCode: true,
+          licenseNumber: true,
+        },
+      },
       createdByUser: { select: { id: true, fullName: true } },
       confirmedByUser: { select: { id: true, fullName: true } },
       cancelledByUser: { select: { id: true, fullName: true } },
       lines: {
         orderBy: { lineNo: "asc" },
         include: {
-          product: { select: { code: true, name: true, productType: true, registrationNumber: true } },
+          product: {
+            select: { code: true, name: true, productType: true, registrationNumber: true },
+          },
           productUnit: { select: { name: true, conversionToBase: true } },
           batch: { select: { status: true } },
         },
@@ -501,7 +530,9 @@ export async function getDetail(storeId: string, receiptId: string) {
   const unregistered = [
     ...new Set(
       receipt.lines
-        .filter((line) => line.product.productType === "DRUG" && !line.product.registrationNumber?.trim())
+        .filter(
+          (line) => line.product.productType === "DRUG" && !line.product.registrationNumber?.trim(),
+        )
         .map((line) => line.product.name),
     ),
   ];
@@ -585,7 +616,8 @@ export async function getSummary(storeId: string, now = new Date()) {
     confirmedBetween(previousMonthStart, thisMonthStart),
   ]);
 
-  const changePercent = (value: number, base: number) => (base === 0 ? null : Math.round(((value - base) / base) * 1000) / 10);
+  const changePercent = (value: number, base: number) =>
+    base === 0 ? null : Math.round(((value - base) / base) * 1000) / 10;
   const currentValue = Number(current._sum.totalCost ?? 0n);
   const previousValue = Number(previous._sum.totalCost ?? 0n);
 

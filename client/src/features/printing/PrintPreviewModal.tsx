@@ -50,7 +50,14 @@ export function PrintPreviewModal({ url, title, onClose }: Props) {
         <Button key="close" onClick={onClose}>
           Đóng
         </Button>,
-        <Button key="print" type="primary" icon={<PrinterOutlined />} disabled={!page.data} loading={printing} onClick={() => void print()}>
+        <Button
+          key="print"
+          type="primary"
+          icon={<PrinterOutlined />}
+          disabled={!page.data}
+          loading={printing}
+          onClick={() => void print()}
+        >
           In
         </Button>,
       ]}
@@ -59,7 +66,12 @@ export function PrintPreviewModal({ url, title, onClose }: Props) {
         <Alert type="error" showIcon title={getErrorMessage(page.error, "Không tải được bản in")} />
       ) : (
         <div className="invoice-preview-body">
-          <PrintPaper html={page.data?.html} paperSize={paper} loading={page.isFetching} title={title} />
+          <PrintPaper
+            html={page.data?.html}
+            paperSize={paper}
+            loading={page.isFetching}
+            title={title}
+          />
         </div>
       )}
     </Modal>

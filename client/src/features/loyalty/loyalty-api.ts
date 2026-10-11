@@ -76,6 +76,8 @@ export function maxRedeemablePoints(
   eligibleSubtotal: number,
   available: number,
 ): number {
-  const cap = Math.floor((eligibleSubtotal * settings.maxRedeemPercent) / 100 / settings.pointValue);
+  const cap = Math.floor(
+    (eligibleSubtotal * settings.maxRedeemPercent) / 100 / settings.pointValue,
+  );
   return Math.max(0, Math.min(cap, available));
 }

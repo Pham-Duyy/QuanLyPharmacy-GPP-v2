@@ -34,18 +34,40 @@ function useChangePassword(onChanged: () => void) {
   });
 }
 
-function PasswordFields({ form, change, children }: { form: FormInstance<FormValues>; change: ReturnType<typeof useChangePassword>; children?: ReactNode }) {
+function PasswordFields({
+  form,
+  change,
+  children,
+}: {
+  form: FormInstance<FormValues>;
+  change: ReturnType<typeof useChangePassword>;
+  children?: ReactNode;
+}) {
   return (
-    <Form<FormValues> form={form} layout="vertical" requiredMark={false} onFinish={(values) => change.mutate(values)}>
+    <Form<FormValues>
+      form={form}
+      layout="vertical"
+      requiredMark={false}
+      onFinish={(values) => change.mutate(values)}
+    >
       {change.isError ? (
         <div className="form-error" role="alert">
           {getErrorMessage(change.error, "Không đổi được mật khẩu")}
         </div>
       ) : null}
-      <Form.Item label="Mật khẩu hiện tại" name="currentPassword" rules={[{ required: true, message: "Nhập mật khẩu hiện tại" }]}>
+      <Form.Item
+        label="Mật khẩu hiện tại"
+        name="currentPassword"
+        rules={[{ required: true, message: "Nhập mật khẩu hiện tại" }]}
+      >
         <Input.Password prefix={<LockOutlined />} autoComplete="current-password" autoFocus />
       </Form.Item>
-      <Form.Item label="Mật khẩu mới" name="newPassword" rules={NEW_PASSWORD_RULES} extra="Ít nhất 10 ký tự, có cả chữ và số.">
+      <Form.Item
+        label="Mật khẩu mới"
+        name="newPassword"
+        rules={NEW_PASSWORD_RULES}
+        extra="Ít nhất 10 ký tự, có cả chữ và số."
+      >
         <Input.Password prefix={<LockOutlined />} autoComplete="new-password" />
       </Form.Item>
       <Form.Item
@@ -116,14 +138,28 @@ export function PasswordChangeGate() {
         </div>
         <h1>Đổi mật khẩu</h1>
         <p className="login-subtitle">
-          {me ? `Chào ${me.user.fullName}. ` : null}Bạn đang dùng mật khẩu tạm, hãy đặt mật khẩu riêng để bắt đầu làm việc.
+          {me ? `Chào ${me.user.fullName}. ` : null}Bạn đang dùng mật khẩu tạm, hãy đặt mật khẩu
+          riêng để bắt đầu làm việc.
         </p>
         <PasswordFields form={form} change={change}>
-          <Button type="primary" htmlType="submit" size="large" block className="login-submit" loading={change.isPending}>
+          <Button
+            type="primary"
+            htmlType="submit"
+            size="large"
+            block
+            className="login-submit"
+            loading={change.isPending}
+          >
             Đổi mật khẩu
           </Button>
         </PasswordFields>
-        <Button type="link" block icon={<LogoutOutlined />} className="password-gate-logout" onClick={() => void logout()}>
+        <Button
+          type="link"
+          block
+          icon={<LogoutOutlined />}
+          className="password-gate-logout"
+          onClick={() => void logout()}
+        >
           Đăng xuất
         </Button>
       </div>

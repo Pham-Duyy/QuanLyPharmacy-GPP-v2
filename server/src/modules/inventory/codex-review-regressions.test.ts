@@ -1,7 +1,14 @@
 ﻿import { randomUUID } from "node:crypto";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { prisma } from "../../db/prisma.js";
-import { api, authHeaders, login, seedFixture, truncateAll, type Fixture } from "../../test/helpers.js";
+import {
+  api,
+  authHeaders,
+  login,
+  seedFixture,
+  truncateAll,
+  type Fixture,
+} from "../../test/helpers.js";
 
 /**
  * Giá vốn: nhập thêm cùng một lô với giá khác thì lô tính lại **bình quân
@@ -19,7 +26,9 @@ const h = (token = adminToken) => authHeaders(token, fixture.storeId);
 const idem = () => ({ "Idempotency-Key": randomUUID() });
 
 function dayKey(days = 0): string {
-  const vnToday = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Ho_Chi_Minh" }).format(new Date());
+  const vnToday = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Ho_Chi_Minh" }).format(
+    new Date(),
+  );
   const date = new Date(`${vnToday}T00:00:00.000Z`);
   date.setUTCDate(date.getUTCDate() + days);
   return date.toISOString().slice(0, 10);
@@ -56,7 +65,12 @@ async function receive(options: {
   await api()
     .post(`/api/v1/goods-receipts/${created.body.data.id}/confirm`)
     .set({ ...h(pharmacistToken), ...idem() })
-    .send({ lines: created.body.data.lines.map((line: { id: string }) => ({ lineId: line.id, passed: true })) })
+    .send({
+      lines: created.body.data.lines.map((line: { id: string }) => ({
+        lineId: line.id,
+        passed: true,
+      })),
+    })
     .expect(200);
 }
 
@@ -99,7 +113,12 @@ beforeEach(async () => {
   productId = product.id;
   unitId = product.units[0]!.id;
   await prisma.productPrice.create({
-    data: { productUnitId: unitId, salePrice: 3000n, vatRatePercent: 5, effectiveFrom: new Date(`${dayKey(-2)}T00:00:00.000Z`) },
+    data: {
+      productUnitId: unitId,
+      salePrice: 3000n,
+      vatRatePercent: 5,
+      effectiveFrom: new Date(`${dayKey(-2)}T00:00:00.000Z`),
+    },
   });
   supplierId = (await prisma.supplier.create({ data: { name: "Dược Minh Tâm" } })).id;
 });
@@ -119,9 +138,14 @@ describe("Independent review regressions", () => {
     await receive({ quantity: 100, unitCost: 1000, batchNumber: "AUDIT" });
     const sale = await sell(10).expect(201);
     await receive({ quantity: 100, unitCost: 3000, batchNumber: "AUDIT" });
-    await api().post(`/api/v1/invoices/${sale.body.data.id}/returns`)
+    await api()
+      .post(`/api/v1/invoices/${sale.body.data.id}/returns`)
       .set({ ...h(pharmacistToken), ...idem() })
-      .send({ disposition: "RESTOCK", refundMethod: "CASH", lines: [{ invoiceLineId: sale.body.data.lines[0].id, unitId, quantity: 4 }] })
+      .send({
+        disposition: "RESTOCK",
+        refundMethod: "CASH",
+        lines: [{ invoiceLineId: sale.body.data.lines[0].id, unitId, quantity: 4 }],
+      })
       .expect(201);
     expect(await costOf("AUDIT")).toBeCloseTo((90 * 1000 + 100 * 3000 + 4 * 1000) / 194, 3);
   });
@@ -139,32 +163,61 @@ describe("Independent review regressions", () => {
 it("concurrent receipts preserve weighted inventory value", async () => {
   await receive({ quantity: 100, unitCost: 1000, batchNumber: "RACE" });
   async function draft(cost: number) {
-    const response = await api().post("/api/v1/goods-receipts")
+    const response = await api()
+      .post("/api/v1/goods-receipts")
       .set({ ...h(pharmacistToken), ...idem() })
-      .send({ supplierId, lines: [{ productId, unitId, quantity: 100, unitCost: cost, batchNumber: "RACE", expiryDate: dayKey(400) }] }).expect(201);
+      .send({
+        supplierId,
+        lines: [
+          {
+            productId,
+            unitId,
+            quantity: 100,
+            unitCost: cost,
+            batchNumber: "RACE",
+            expiryDate: dayKey(400),
+          },
+        ],
+      })
+      .expect(201);
     return response.body.data;
   }
   const drafts = [await draft(2000), await draft(4000)];
   let release!: () => void;
   let locked!: () => void;
-  const gate = new Promise<void>((resolve) => { release = resolve; });
-  const ready = new Promise<void>((resolve) => { locked = resolve; });
-  const holder = prisma.$transaction(async (tx) => {
-    await tx.$queryRaw`SELECT id FROM batches WHERE batch_number = 'RACE' FOR UPDATE`;
-    locked();
-    await gate;
-  }, { timeout: 15000 });
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const ready = new Promise<void>((resolve) => {
+    locked = resolve;
+  });
+  const holder = prisma.$transaction(
+    async (tx) => {
+      await tx.$queryRaw`SELECT id FROM batches WHERE batch_number = 'RACE' FOR UPDATE`;
+      locked();
+      await gate;
+    },
+    { timeout: 15000 },
+  );
   await ready;
-  const pending = Promise.all(drafts.map((item) => api()
-    .post(`/api/v1/goods-receipts/${item.id}/confirm`)
-    .set({ ...h(pharmacistToken), ...idem() })
-    .send({ lines: item.lines.map((line: { id: string }) => ({ lineId: line.id, passed: true })) })
-    .then((result) => result)));
+  const pending = Promise.all(
+    drafts.map((item) =>
+      api()
+        .post(`/api/v1/goods-receipts/${item.id}/confirm`)
+        .set({ ...h(pharmacistToken), ...idem() })
+        .send({
+          lines: item.lines.map((line: { id: string }) => ({ lineId: line.id, passed: true })),
+        })
+        .then((result) => result),
+    ),
+  );
   let waiters = 0;
   try {
     const deadline = Date.now() + 7000;
     while (Date.now() < deadline) {
-      const rows = await prisma.$queryRaw<Array<{ n: number }>>`SELECT count(*)::int AS n FROM pg_stat_activity WHERE datname=current_database() AND wait_event_type='Lock' AND query ILIKE '%UPDATE%batches%'`;
+      const rows = await prisma.$queryRaw<
+        Array<{ n: number }>
+      >`SELECT count(*)::int AS n FROM pg_stat_activity WHERE datname=current_database() AND wait_event_type='Lock' AND query ILIKE '%UPDATE%batches%'`;
       waiters = rows[0]?.n ?? 0;
       if (waiters >= 2) break;
       await new Promise((resolve) => setTimeout(resolve, 25));

@@ -19,9 +19,21 @@ export function ProductThumb({ src, alt, size = 56, className = "" }: Props) {
   return (
     <span className={`product-thumb ${className}`} style={{ width: size, height: size }}>
       {showImage ? (
-        <img src={src!} alt={alt} loading="lazy" decoding="async" width={size} height={size} onError={() => setFailedSrc(src ?? null)} />
+        <img
+          src={src!}
+          alt={alt}
+          loading="lazy"
+          decoding="async"
+          width={size}
+          height={size}
+          onError={() => setFailedSrc(src ?? null)}
+        />
       ) : (
-        <span className="product-thumb-empty" role="img" aria-label={src ? `Không tải được ảnh ${alt}` : `${alt} chưa có ảnh`}>
+        <span
+          className="product-thumb-empty"
+          role="img"
+          aria-label={src ? `Không tải được ảnh ${alt}` : `${alt} chưa có ảnh`}
+        >
           <MedicineBoxOutlined />
         </span>
       )}

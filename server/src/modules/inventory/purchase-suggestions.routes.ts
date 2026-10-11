@@ -26,8 +26,20 @@ const querySchema = z.object({
  * GET /api/v1/purchase-suggestions: hôm nay cần gọi hàng gì, bao nhiêu.
  * Chỉ đọc và tính toán, không tạo chứng từ nào.
  */
-purchaseSuggestionsRouter.get("/purchase-suggestions", requirePermission("stock.read"), async (req, res) => {
-  const query = parseOrThrow(querySchema, req.query);
-  const items = await service.buildSuggestions(req.auth!.storeId!, query);
-  sendData(res, { items, summary: service.summarize(items), settings: { windowDays: query.windowDays, coverDays: query.coverDays, leadTimeDays: query.leadTimeDays } });
-});
+purchaseSuggestionsRouter.get(
+  "/purchase-suggestions",
+  requirePermission("stock.read"),
+  async (req, res) => {
+    const query = parseOrThrow(querySchema, req.query);
+    const items = await service.buildSuggestions(req.auth!.storeId!, query);
+    sendData(res, {
+      items,
+      summary: service.summarize(items),
+      settings: {
+        windowDays: query.windowDays,
+        coverDays: query.coverDays,
+        leadTimeDays: query.leadTimeDays,
+      },
+    });
+  },
+);

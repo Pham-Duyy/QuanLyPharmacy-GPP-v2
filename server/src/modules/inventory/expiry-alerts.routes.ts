@@ -39,25 +39,43 @@ expiryAlertsRouter.get("/expiry-alerts", requirePermission("stock.read"), async 
 });
 
 /** POST /api/v1/expiry-alerts/plans: lập hoặc sửa kế hoạch xử lý cho một lô. */
-expiryAlertsRouter.post("/expiry-alerts/plans", requirePermission("stock.adjust.create"), async (req, res) => {
-  const input = parseOrThrow(planSchema, req.body);
-  const id = await service.savePlan(req.auth!.storeId!, req.auth!, {
-    batchId: input.batchId,
-    action: input.action,
-    dueDate: input.dueDate ?? null,
-    note: input.note ?? null,
-  });
-  sendData(res, { id }, 201);
-});
+expiryAlertsRouter.post(
+  "/expiry-alerts/plans",
+  requirePermission("stock.adjust.create"),
+  async (req, res) => {
+    const input = parseOrThrow(planSchema, req.body);
+    const id = await service.savePlan(req.auth!.storeId!, req.auth!, {
+      batchId: input.batchId,
+      action: input.action,
+      dueDate: input.dueDate ?? null,
+      note: input.note ?? null,
+    });
+    sendData(res, { id }, 201);
+  },
+);
 
 /** POST /api/v1/expiry-alerts/plans/{id}/close: đánh dấu đã xong hoặc bỏ kế hoạch. */
-expiryAlertsRouter.post("/expiry-alerts/plans/:id/close", requirePermission("stock.adjust.create"), async (req, res) => {
-  const input = parseOrThrow(closeSchema, req.body ?? {});
-  await service.closePlan(req.auth!.storeId!, String(req.params.id), req.auth!, input.status, input.outcome ?? null);
-  sendData(res, { ok: true });
-});
+expiryAlertsRouter.post(
+  "/expiry-alerts/plans/:id/close",
+  requirePermission("stock.adjust.create"),
+  async (req, res) => {
+    const input = parseOrThrow(closeSchema, req.body ?? {});
+    await service.closePlan(
+      req.auth!.storeId!,
+      String(req.params.id),
+      req.auth!,
+      input.status,
+      input.outcome ?? null,
+    );
+    sendData(res, { ok: true });
+  },
+);
 
 /** GET /api/v1/expiry-alerts/batches/{batchId}/plans: lịch sử xử lý của một lô. */
-expiryAlertsRouter.get("/expiry-alerts/batches/:batchId/plans", requirePermission("stock.read"), async (req, res) => {
-  sendData(res, await service.planHistory(req.auth!.storeId!, String(req.params.batchId)));
-});
+expiryAlertsRouter.get(
+  "/expiry-alerts/batches/:batchId/plans",
+  requirePermission("stock.read"),
+  async (req, res) => {
+    sendData(res, await service.planHistory(req.auth!.storeId!, String(req.params.batchId)));
+  },
+);

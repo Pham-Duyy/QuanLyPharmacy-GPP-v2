@@ -1,6 +1,25 @@
-import { InboxOutlined, SearchOutlined, SettingOutlined, ShoppingOutlined } from "@ant-design/icons";
+import {
+  InboxOutlined,
+  SearchOutlined,
+  SettingOutlined,
+  ShoppingOutlined,
+} from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
-import { Alert, Button, Card, Empty, Input, InputNumber, Popover, Segmented, Select, Skeleton, Table, Tag, Tooltip } from "antd";
+import {
+  Alert,
+  Button,
+  Card,
+  Empty,
+  Input,
+  InputNumber,
+  Popover,
+  Segmented,
+  Select,
+  Skeleton,
+  Table,
+  Tag,
+  Tooltip,
+} from "antd";
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import { getErrorMessage, http } from "../../api/http.js";
@@ -38,7 +57,16 @@ type Suggestion = {
 
 type SuggestionResponse = {
   items: Suggestion[];
-  summary: { total: number; outOfStock: number; belowMin: number; runningOut: number; refill: number; estimatedCost: number; suppliers: number; withoutSupplier: number };
+  summary: {
+    total: number;
+    outOfStock: number;
+    belowMin: number;
+    runningOut: number;
+    refill: number;
+    estimatedCost: number;
+    suppliers: number;
+    withoutSupplier: number;
+  };
   settings: { windowDays: number; coverDays: number; leadTimeDays: number };
 };
 
@@ -62,32 +90,55 @@ export function PurchaseSuggestionsPage() {
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [ordering, setOrdering] = useState(false);
 
-  const params = { windowDays, coverDays, leadTimeDays, onlyNeeded: true, search: search.trim() || undefined };
+  const params = {
+    windowDays,
+    coverDays,
+    leadTimeDays,
+    onlyNeeded: true,
+    search: search.trim() || undefined,
+  };
   const data = useQuery({
     queryKey: ["purchase-suggestions", params],
-    queryFn: async () => (await http.get<Envelope<SuggestionResponse>>("/purchase-suggestions", { params })).data.data,
+    queryFn: async () =>
+      (await http.get<Envelope<SuggestionResponse>>("/purchase-suggestions", { params })).data.data,
   });
 
   const items = useMemo(() => data.data?.items ?? [], [data.data]);
   const suppliers = useMemo(() => {
     const map = new Map<string, string>();
-    for (const item of items) if (item.lastSupplier) map.set(item.lastSupplier.id, item.lastSupplier.name);
+    for (const item of items)
+      if (item.lastSupplier) map.set(item.lastSupplier.id, item.lastSupplier.name);
     return [...map].map(([id, name]) => ({ value: id, label: name }));
   }, [items]);
 
-  const visible = supplierFilter ? items.filter((item) => item.lastSupplier?.id === supplierFilter) : items;
-  const quantityOf = (item: Suggestion) => quantities[item.productId] ?? item.suggestedOrderQuantity;
+  const visible = supplierFilter
+    ? items.filter((item) => item.lastSupplier?.id === supplierFilter)
+    : items;
+  const quantityOf = (item: Suggestion) =>
+    quantities[item.productId] ?? item.suggestedOrderQuantity;
 
   const chosen = items.filter((item) => selected.includes(item.productId));
   const chosenSuppliers = [...new Set(chosen.map((item) => item.lastSupplier?.id ?? "none"))];
-  const chosenCost = chosen.reduce((sum, item) => sum + (item.lastUnitCost ?? 0) * quantityOf(item), 0);
+  const chosenCost = chosen.reduce(
+    (sum, item) => sum + (item.lastUnitCost ?? 0) * quantityOf(item),
+    0,
+  );
   // Một phiếu nhập chỉ của một nhà cung cấp, nên phải chọn trong cùng một NCC.
-  const canCreateReceipt = can("goods_receipt.create") && chosen.length > 0 && chosenSuppliers.length === 1 && chosenSuppliers[0] !== "none";
+  const canCreateReceipt =
+    can("goods_receipt.create") &&
+    chosen.length > 0 &&
+    chosenSuppliers.length === 1 &&
+    chosenSuppliers[0] !== "none";
 
   const prefill = canCreateReceipt
     ? {
         supplierId: chosen[0]!.lastSupplier!.id,
-        lines: chosen.map((item) => ({ productId: item.productId, unitName: item.orderUnit.name, quantity: quantityOf(item), unitCost: item.lastUnitCost ?? 0 })),
+        lines: chosen.map((item) => ({
+          productId: item.productId,
+          unitName: item.orderUnit.name,
+          quantity: quantityOf(item),
+          unitCost: item.lastUnitCost ?? 0,
+        })),
       }
     : null;
 
@@ -145,7 +196,11 @@ export function PurchaseSuggestionsPage() {
           <span className="cell-title">
             {formatNumber(value)} {row.baseUnitName}/ngày
           </span>
-          <span className="cell-sub">{row.daysOfStock === null ? `${windowDays} ngày qua chưa bán` : `Còn đủ ${formatNumber(row.daysOfStock)} ngày`}</span>
+          <span className="cell-sub">
+            {row.daysOfStock === null
+              ? `${windowDays} ngày qua chưa bán`
+              : `Còn đủ ${formatNumber(row.daysOfStock)} ngày`}
+          </span>
         </div>
       ),
     },
@@ -160,7 +215,9 @@ export function PurchaseSuggestionsPage() {
             max={100000}
             className="count-input"
             value={quantityOf(row)}
-            onChange={(value) => setQuantities((current) => ({ ...current, [row.productId]: Number(value ?? 0) }))}
+            onChange={(value) =>
+              setQuantities((current) => ({ ...current, [row.productId]: Number(value ?? 0) }))
+            }
           />
           <span className="cell-sub">{row.orderUnit.name}</span>
         </div>
@@ -175,8 +232,12 @@ export function PurchaseSuggestionsPage() {
           <div className="cell-main">
             <span className="cell-title">{row.lastSupplier.name}</span>
             <span className="cell-sub">
-              {row.lastUnitCost === null ? "Chưa có giá nhập" : `${formatVnd(row.lastUnitCost)} / ${row.orderUnit.name}`}
-              {row.lastUnitCost !== null ? ` · tạm tính ${formatVnd(row.lastUnitCost * quantityOf(row))}` : ""}
+              {row.lastUnitCost === null
+                ? "Chưa có giá nhập"
+                : `${formatVnd(row.lastUnitCost)} / ${row.orderUnit.name}`}
+              {row.lastUnitCost !== null
+                ? ` · tạm tính ${formatVnd(row.lastUnitCost * quantityOf(row))}`
+                : ""}
             </span>
           </div>
         ) : (
@@ -203,24 +264,58 @@ export function PurchaseSuggestionsPage() {
                 <div className="purchase-settings">
                   <label>
                     Lấy dữ liệu bán của (ngày)
-                    <InputNumber min={7} max={365} value={windowDays} onChange={(value) => setWindowDays(Number(value ?? 30))} />
+                    <InputNumber
+                      min={7}
+                      max={365}
+                      value={windowDays}
+                      onChange={(value) => setWindowDays(Number(value ?? 30))}
+                    />
                   </label>
                   <label>
                     Muốn đủ hàng bán trong (ngày)
-                    <InputNumber min={1} max={180} value={coverDays} onChange={(value) => setCoverDays(Number(value ?? 30))} />
+                    <InputNumber
+                      min={1}
+                      max={180}
+                      value={coverDays}
+                      onChange={(value) => setCoverDays(Number(value ?? 30))}
+                    />
                   </label>
                   <label>
                     Thời gian chờ hàng về (ngày)
-                    <InputNumber min={0} max={90} value={leadTimeDays} onChange={(value) => setLeadTimeDays(Number(value ?? 7))} />
+                    <InputNumber
+                      min={0}
+                      max={90}
+                      value={leadTimeDays}
+                      onChange={(value) => setLeadTimeDays(Number(value ?? 7))}
+                    />
                   </label>
                 </div>
               }
             >
               <Button icon={<SettingOutlined />}>Cách tính</Button>
             </Popover>
-            <ExcelExportButton type="purchase-order" label="Xuất đơn đặt hàng" tooltip="Xuất danh sách cần đặt, xếp theo nhà cung cấp để gọi hàng" />
-            <Tooltip title={chosen.length === 0 ? "Chọn các dòng cần đặt trước" : chosenSuppliers.length > 1 ? "Mỗi phiếu nhập chỉ của một nhà cung cấp — chọn lại cho cùng một nhà cung cấp" : chosenSuppliers[0] === "none" ? "Mặt hàng chưa có lịch sử nhập, lập phiếu nhập thủ công và chọn nhà cung cấp" : undefined}>
-              <Button type="primary" icon={<InboxOutlined />} disabled={!canCreateReceipt} onClick={() => setOrdering(true)}>
+            <ExcelExportButton
+              type="purchase-order"
+              label="Xuất đơn đặt hàng"
+              tooltip="Xuất danh sách cần đặt, xếp theo nhà cung cấp để gọi hàng"
+            />
+            <Tooltip
+              title={
+                chosen.length === 0
+                  ? "Chọn các dòng cần đặt trước"
+                  : chosenSuppliers.length > 1
+                    ? "Mỗi phiếu nhập chỉ của một nhà cung cấp — chọn lại cho cùng một nhà cung cấp"
+                    : chosenSuppliers[0] === "none"
+                      ? "Mặt hàng chưa có lịch sử nhập, lập phiếu nhập thủ công và chọn nhà cung cấp"
+                      : undefined
+              }
+            >
+              <Button
+                type="primary"
+                icon={<InboxOutlined />}
+                disabled={!canCreateReceipt}
+                onClick={() => setOrdering(true)}
+              >
                 Lập phiếu nhập {chosen.length > 0 ? `(${chosen.length})` : ""}
               </Button>
             </Tooltip>
@@ -228,20 +323,59 @@ export function PurchaseSuggestionsPage() {
         }
       />
 
-      {data.isError ? <Alert type="error" showIcon title="Không tính được đề xuất đặt hàng" description={getErrorMessage(data.error)} /> : null}
+      {data.isError ? (
+        <Alert
+          type="error"
+          showIcon
+          title="Không tính được đề xuất đặt hàng"
+          description={getErrorMessage(data.error)}
+        />
+      ) : null}
 
       <Card>
         {/* Một dòng tóm tắt thay cho hàng ô số liệu. */}
         {summary && summary.total > 0 ? (
           <p className="section-note" style={{ marginTop: 0 }}>
             <b>{formatNumber(summary.total)}</b> mặt hàng cần đặt
-            {summary.outOfStock > 0 ? <> (<b>{formatNumber(summary.outOfStock)}</b> đã hết hàng)</> : null} · tạm tính <b>{formatVnd(summary.estimatedCost)}</b> · {formatNumber(summary.suppliers)} nhà cung cấp
+            {summary.outOfStock > 0 ? (
+              <>
+                {" "}
+                (<b>{formatNumber(summary.outOfStock)}</b> đã hết hàng)
+              </>
+            ) : null}{" "}
+            · tạm tính <b>{formatVnd(summary.estimatedCost)}</b> · {formatNumber(summary.suppliers)}{" "}
+            nhà cung cấp
           </p>
         ) : null}
         <div className="count-toolbar">
-          <Input allowClear prefix={<SearchOutlined />} placeholder="Tìm tên thuốc hoặc mã" className="count-search" value={search} onChange={(event) => setSearch(event.target.value)} />
-          <Select allowClear placeholder="Mọi nhà cung cấp" className="controlled-select" style={{ maxWidth: 280 }} value={supplierFilter} onChange={setSupplierFilter} options={suppliers} />
-          {chosen.length > 0 ? <Segmented options={[{ value: "sel", label: `Đang chọn ${chosen.length} dòng · ${formatVnd(chosenCost)}` }]} value="sel" /> : null}
+          <Input
+            allowClear
+            prefix={<SearchOutlined />}
+            placeholder="Tìm tên thuốc hoặc mã"
+            className="count-search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
+          <Select
+            allowClear
+            placeholder="Mọi nhà cung cấp"
+            className="controlled-select"
+            style={{ maxWidth: 280 }}
+            value={supplierFilter}
+            onChange={setSupplierFilter}
+            options={suppliers}
+          />
+          {chosen.length > 0 ? (
+            <Segmented
+              options={[
+                {
+                  value: "sel",
+                  label: `Đang chọn ${chosen.length} dòng · ${formatVnd(chosenCost)}`,
+                },
+              ]}
+              value="sel"
+            />
+          ) : null}
         </div>
 
         {data.isLoading ? (
@@ -259,7 +393,11 @@ export function PurchaseSuggestionsPage() {
               onChange: (keys) => setSelected(keys as string[]),
               getCheckboxProps: (row) => ({ disabled: quantityOf(row) <= 0 }),
             }}
-            locale={{ emptyText: <Empty description="Không có mặt hàng nào cần đặt theo cách tính hiện tại" /> }}
+            locale={{
+              emptyText: (
+                <Empty description="Không có mặt hàng nào cần đặt theo cách tính hiện tại" />
+              ),
+            }}
           />
         )}
       </Card>

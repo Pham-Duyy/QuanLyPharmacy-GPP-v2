@@ -119,12 +119,19 @@ export async function buildLedger(query: LedgerQuery): Promise<LedgerProduct[]> 
     prisma.stockMovement.findMany({
       where: { storeId, productId: { in: productIds }, occurredAt: { gte: start, lt: end } },
       orderBy: [{ occurredAt: "asc" }, { id: "asc" }],
-      include: { batch: { select: { batchNumber: true, expiryDate: true } }, user: { select: { fullName: true } } },
+      include: {
+        batch: { select: { batchNumber: true, expiryDate: true } },
+        user: { select: { fullName: true } },
+      },
     }),
   ]);
 
-  const documents = await loadDocuments(movements.map((movement) => ({ sourceType: movement.sourceType, sourceId: movement.sourceId })));
-  const openingByProduct = new Map(before.map((row) => [row.productId, row._sum.baseQuantity ?? 0]));
+  const documents = await loadDocuments(
+    movements.map((movement) => ({ sourceType: movement.sourceType, sourceId: movement.sourceId })),
+  );
+  const openingByProduct = new Map(
+    before.map((row) => [row.productId, row._sum.baseQuantity ?? 0]),
+  );
 
   return products.map((product) => {
     const opening = openingByProduct.get(product.id) ?? 0;
@@ -190,7 +197,9 @@ type DocumentInfo = {
 };
 
 /** Lấy một lượt thông tin chứng từ gốc của các bút toán, tránh N+1 truy vấn. */
-async function loadDocuments(sources: Array<{ sourceType: string; sourceId: string }>): Promise<Map<string, DocumentInfo>> {
+async function loadDocuments(
+  sources: Array<{ sourceType: string; sourceId: string }>,
+): Promise<Map<string, DocumentInfo>> {
   const byType = new Map<string, Set<string>>();
   for (const source of sources) {
     const bucket = byType.get(source.sourceType) ?? new Set<string>();
@@ -216,7 +225,10 @@ async function loadDocuments(sources: Array<{ sourceType: string; sourceId: stri
         buyerName: invoice.controlledSale?.buyerName ?? null,
         buyerIdNumber: invoice.controlledSale?.buyerIdNumber ?? null,
         buyerAddress: invoice.controlledSale?.buyerAddress ?? null,
-        relationship: invoice.controlledSale ? (RELATIONSHIP_LABEL[invoice.controlledSale.relationship] ?? invoice.controlledSale.relationship) : null,
+        relationship: invoice.controlledSale
+          ? (RELATIONSHIP_LABEL[invoice.controlledSale.relationship] ??
+            invoice.controlledSale.relationship)
+          : null,
         prescriptionCode: invoice.prescription?.code ?? null,
         prescriberName: invoice.prescription?.prescriberName ?? null,
         facilityName: invoice.prescription?.facilityName ?? null,
@@ -226,11 +238,15 @@ async function loadDocuments(sources: Array<{ sourceType: string; sourceId: stri
 
   const receiptIds = [...(byType.get("GOODS_RECEIPT") ?? [])];
   if (receiptIds.length > 0) {
-    const receipts = await prisma.goodsReceipt.findMany({ where: { id: { in: receiptIds } }, include: { supplier: { select: { name: true } } } });
+    const receipts = await prisma.goodsReceipt.findMany({
+      where: { id: { in: receiptIds } },
+      include: { supplier: { select: { name: true } } },
+    });
     for (const receipt of receipts) {
       result.set(`GOODS_RECEIPT:${receipt.id}`, {
         code: receipt.code,
-        partyName: receipt.supplier?.name ?? (receipt.type === "OPENING_BALANCE" ? "Tồn đầu kỳ" : null),
+        partyName:
+          receipt.supplier?.name ?? (receipt.type === "OPENING_BALANCE" ? "Tồn đầu kỳ" : null),
         buyerName: null,
         buyerIdNumber: null,
         buyerAddress: null,
@@ -244,7 +260,10 @@ async function loadDocuments(sources: Array<{ sourceType: string; sourceId: stri
 
   const returnIds = [...(byType.get("RETURN") ?? [])];
   if (returnIds.length > 0) {
-    const returns = await prisma.return.findMany({ where: { id: { in: returnIds } }, include: { invoice: { select: { code: true, customer: { select: { fullName: true } } } } } });
+    const returns = await prisma.return.findMany({
+      where: { id: { in: returnIds } },
+      include: { invoice: { select: { code: true, customer: { select: { fullName: true } } } } },
+    });
     for (const item of returns) {
       result.set(`RETURN:${item.id}`, {
         code: item.code,
@@ -262,7 +281,10 @@ async function loadDocuments(sources: Array<{ sourceType: string; sourceId: stri
 
   const adjustmentIds = [...(byType.get("STOCK_ADJUSTMENT") ?? [])];
   if (adjustmentIds.length > 0) {
-    const adjustments = await prisma.stockAdjustment.findMany({ where: { id: { in: adjustmentIds } }, include: { approvedByUser: { select: { fullName: true } } } });
+    const adjustments = await prisma.stockAdjustment.findMany({
+      where: { id: { in: adjustmentIds } },
+      include: { approvedByUser: { select: { fullName: true } } },
+    });
     for (const adjustment of adjustments) {
       result.set(`STOCK_ADJUSTMENT:${adjustment.id}`, {
         code: adjustment.code,
@@ -285,6 +307,10 @@ async function loadDocuments(sources: Array<{ sourceType: string; sourceId: stri
 export function reconcile(ledger: LedgerProduct[], periodEndsToday: boolean) {
   return ledger
     .filter((product) => periodEndsToday && product.closingBalance !== product.stockOnHand)
-    .map((product) => ({ productId: product.productId, name: product.name, closingBalance: product.closingBalance, stockOnHand: product.stockOnHand }));
+    .map((product) => ({
+      productId: product.productId,
+      name: product.name,
+      closingBalance: product.closingBalance,
+      stockOnHand: product.stockOnHand,
+    }));
 }
-

@@ -1,4 +1,15 @@
-import { BarcodeOutlined, CameraOutlined, CloseOutlined, DatabaseOutlined, DollarOutlined, EditOutlined, ExclamationCircleFilled, MoreOutlined, PlusOutlined, WarningFilled } from "@ant-design/icons";
+import {
+  BarcodeOutlined,
+  CameraOutlined,
+  CloseOutlined,
+  DatabaseOutlined,
+  DollarOutlined,
+  EditOutlined,
+  ExclamationCircleFilled,
+  MoreOutlined,
+  PlusOutlined,
+  WarningFilled,
+} from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { App, Button, Dropdown, Image, Result, Skeleton, Tag, Tooltip } from "antd";
 import { useState } from "react";
@@ -30,7 +41,8 @@ export function ProductDetailPanel({ id, onClose }: Props) {
   // Khóa theo cửa hàng: đổi cửa hàng thì không hiện tồn của cửa hàng cũ trong lúc tải.
   const product = useQuery({
     queryKey: [PRODUCT_DETAIL_QUERY, storeId, id],
-    queryFn: async ({ signal }) => (await http.get<Envelope<ProductDetail>>(`/products/${id}`, { signal })).data.data,
+    queryFn: async ({ signal }) =>
+      (await http.get<Envelope<ProductDetail>>(`/products/${id}`, { signal })).data.data,
   });
   const item = product.data;
   const storeName = me?.stores.find((store) => store.id === storeId)?.name;
@@ -44,7 +56,8 @@ export function ProductDetailPanel({ id, onClose }: Props) {
   }
 
   const toggleActive = useMutation({
-    mutationFn: (active: boolean) => http.post(`/products/${id}/${active ? "activate" : "deactivate"}`),
+    mutationFn: (active: boolean) =>
+      http.post(`/products/${id}/${active ? "activate" : "deactivate"}`),
     onSuccess: async (_data, active) => {
       void message.success(active ? "Đã cho kinh doanh lại" : "Đã ngừng kinh doanh sản phẩm");
       await refresh();
@@ -55,7 +68,12 @@ export function ProductDetailPanel({ id, onClose }: Props) {
   const header = (
     <div className="pd-head">
       <h2>Chi tiết sản phẩm</h2>
-      <Button type="text" icon={<CloseOutlined />} aria-label="Đóng chi tiết sản phẩm" onClick={onClose} />
+      <Button
+        type="text"
+        icon={<CloseOutlined />}
+        aria-label="Đóng chi tiết sản phẩm"
+        onClick={onClose}
+      />
     </div>
   );
 
@@ -63,7 +81,12 @@ export function ProductDetailPanel({ id, onClose }: Props) {
     return (
       <section className="pd-panel" aria-label="Chi tiết sản phẩm">
         {header}
-        <Result status="warning" title="Không tải được sản phẩm" subTitle={getErrorMessage(product.error, "Kiểm tra kết nối rồi thử lại.")} extra={<Button onClick={() => void product.refetch()}>Thử lại</Button>} />
+        <Result
+          status="warning"
+          title="Không tải được sản phẩm"
+          subTitle={getErrorMessage(product.error, "Kiểm tra kết nối rồi thử lại.")}
+          extra={<Button onClick={() => void product.refetch()}>Thử lại</Button>}
+        />
       </section>
     );
   }
@@ -87,9 +110,12 @@ export function ProductDetailPanel({ id, onClose }: Props) {
   const extras = images.slice(1, 4);
   const hiddenCount = images.length - 1 - extras.length;
   const sellable = item.stock?.sellable ?? null;
-  const belowMin = sellable !== null && item.minStockBaseQuantity > 0 && sellable < item.minStockBaseQuantity;
+  const belowMin =
+    sellable !== null && item.minStockBaseQuantity > 0 && sellable < item.minStockBaseQuantity;
   const held = item.stock ? item.stock.quarantined + item.stock.recalled : 0;
-  const ingredients = item.ingredients.map((ingredient) => [ingredient.name, ingredient.strengthText].filter(Boolean).join(" ")).join(", ");
+  const ingredients = item.ingredients
+    .map((ingredient) => [ingredient.name, ingredient.strengthText].filter(Boolean).join(" "))
+    .join(", ");
   const facts: Array<[string, string | null | undefined]> = [
     ["Nhóm hàng", item.category.name],
     ["Hoạt chất", ingredients || null],
@@ -107,20 +133,50 @@ export function ProductDetailPanel({ id, onClose }: Props) {
       {header}
       <div className="pd-body">
         <div className={extras.length > 0 || canManage ? "pd-gallery" : "pd-gallery is-single"}>
-          <button type="button" className="pd-main-image" onClick={() => primary && setPreviewIndex(0)} disabled={!primary} aria-label={primary ? `Phóng to ảnh ${item.name}` : `${item.name} chưa có ảnh`}>
-            {primary ? <img src={primary.url} alt={item.name} onError={(event) => (event.currentTarget.src = IMAGE_FALLBACK)} /> : <ProductThumb src={null} alt={item.name} size={120} className="pd-empty-image" />}
+          <button
+            type="button"
+            className="pd-main-image"
+            onClick={() => primary && setPreviewIndex(0)}
+            disabled={!primary}
+            aria-label={primary ? `Phóng to ảnh ${item.name}` : `${item.name} chưa có ảnh`}
+          >
+            {primary ? (
+              <img
+                src={primary.url}
+                alt={item.name}
+                onError={(event) => (event.currentTarget.src = IMAGE_FALLBACK)}
+              />
+            ) : (
+              <ProductThumb src={null} alt={item.name} size={120} className="pd-empty-image" />
+            )}
             {!primary ? <span className="pd-no-image">Chưa có ảnh</span> : null}
           </button>
           {extras.length > 0 || canManage ? (
             <div className="pd-side-images">
               {extras.map((image, index) => (
-                <button key={image.id} type="button" className="pd-side-image" onClick={() => setPreviewIndex(index + 1)} aria-label={`Phóng to ảnh ${index + 2}`}>
-                  <ProductThumb src={image.thumbUrl} alt={`${item.name} — ảnh ${index + 2}`} size={72} />
-                  {index === extras.length - 1 && hiddenCount > 0 ? <span className="pd-more-images">+{hiddenCount}</span> : null}
+                <button
+                  key={image.id}
+                  type="button"
+                  className="pd-side-image"
+                  onClick={() => setPreviewIndex(index + 1)}
+                  aria-label={`Phóng to ảnh ${index + 2}`}
+                >
+                  <ProductThumb
+                    src={image.thumbUrl}
+                    alt={`${item.name} — ảnh ${index + 2}`}
+                    size={72}
+                  />
+                  {index === extras.length - 1 && hiddenCount > 0 ? (
+                    <span className="pd-more-images">+{hiddenCount}</span>
+                  ) : null}
                 </button>
               ))}
               {canManage ? (
-                <Button className="pd-manage-images" icon={<CameraOutlined />} onClick={() => setManagingImages(true)}>
+                <Button
+                  className="pd-manage-images"
+                  icon={<CameraOutlined />}
+                  onClick={() => setManagingImages(true)}
+                >
                   Quản lý ảnh
                 </Button>
               ) : null}
@@ -130,7 +186,12 @@ export function ProductDetailPanel({ id, onClose }: Props) {
         {images.length > 0 ? (
           <Image.PreviewGroup
             items={images.map((image) => image.url)}
-            preview={{ open: previewIndex !== null, current: previewIndex ?? 0, onOpenChange: (open) => !open && setPreviewIndex(null), onChange: (current) => setPreviewIndex(current) }}
+            preview={{
+              open: previewIndex !== null,
+              current: previewIndex ?? 0,
+              onOpenChange: (open) => !open && setPreviewIndex(null),
+              onChange: (current) => setPreviewIndex(current),
+            }}
           />
         ) : null}
 
@@ -174,19 +235,28 @@ export function ProductDetailPanel({ id, onClose }: Props) {
             <ExclamationCircleFilled aria-hidden className="pd-min-icon" />
             <div>
               <span>Tồn tối thiểu</span>
-              <strong>{item.minStockBaseQuantity > 0 ? stockText(item.minStockBaseQuantity, baseName) : "Chưa đặt"}</strong>
+              <strong>
+                {item.minStockBaseQuantity > 0
+                  ? stockText(item.minStockBaseQuantity, baseName)
+                  : "Chưa đặt"}
+              </strong>
               <small>Áp dụng mọi cửa hàng</small>
             </div>
           </div>
         </div>
         {held > 0 ? (
           <p className="pd-held">
-            <WarningFilled /> {stockText(held, baseName)} đang biệt trữ hoặc thu hồi, không tính vào tồn bán được.
+            <WarningFilled /> {stockText(held, baseName)} đang biệt trữ hoặc thu hồi, không tính vào
+            tồn bán được.
           </p>
         ) : null}
 
         <div className="pd-actions">
-          <Button block icon={<BarcodeOutlined />} onClick={() => void navigate(`/in-tem?sanpham=${item.id}`)}>
+          <Button
+            block
+            icon={<BarcodeOutlined />}
+            onClick={() => void navigate(`/in-tem?sanpham=${item.id}`)}
+          >
             In tem mã vạch
           </Button>
         </div>
@@ -200,11 +270,19 @@ export function ProductDetailPanel({ id, onClose }: Props) {
               trigger={["click"]}
               placement="bottomRight"
               menu={{
-                items: [item.isActive ? { key: "deactivate", danger: true, label: "Ngừng kinh doanh" } : { key: "activate", label: "Cho kinh doanh lại" }],
+                items: [
+                  item.isActive
+                    ? { key: "deactivate", danger: true, label: "Ngừng kinh doanh" }
+                    : { key: "activate", label: "Cho kinh doanh lại" },
+                ],
                 onClick: ({ key }) => toggleActive.mutate(key === "activate"),
               }}
             >
-              <Button icon={<MoreOutlined />} aria-label="Thao tác khác" loading={toggleActive.isPending} />
+              <Button
+                icon={<MoreOutlined />}
+                aria-label="Thao tác khác"
+                loading={toggleActive.isPending}
+              />
             </Dropdown>
           </div>
         ) : null}
@@ -214,7 +292,12 @@ export function ProductDetailPanel({ id, onClose }: Props) {
         <div className="pd-units-head">
           <h3>Đơn vị & giá bán</h3>
           {canManage ? (
-            <Button type="link" size="small" icon={<PlusOutlined />} onClick={() => setEditingUnit(null)}>
+            <Button
+              type="link"
+              size="small"
+              icon={<PlusOutlined />}
+              onClick={() => setEditingUnit(null)}
+            >
               Thêm đơn vị
             </Button>
           ) : null}
@@ -231,9 +314,14 @@ export function ProductDetailPanel({ id, onClose }: Props) {
                     {unit.isSellable === false ? <Tag>Không bán</Tag> : null}
                     {unit.isActive === false ? <Tag>Ngừng dùng</Tag> : null}
                   </div>
-                  <span>{unit.conversionToBase === 1 ? "Đơn vị cơ bản" : `1 ${unit.name.toLowerCase()} = ${formatNumber(unit.conversionToBase)} ${baseName.toLowerCase()}`}</span>
+                  <span>
+                    {unit.conversionToBase === 1
+                      ? "Đơn vị cơ bản"
+                      : `1 ${unit.name.toLowerCase()} = ${formatNumber(unit.conversionToBase)} ${baseName.toLowerCase()}`}
+                  </span>
                   <span className={unit.barcodes?.length ? "mono" : "muted"}>
-                    <BarcodeOutlined aria-hidden /> {unit.barcodes?.length ? unit.barcodes.join(", ") : "Chưa có mã vạch"}
+                    <BarcodeOutlined aria-hidden />{" "}
+                    {unit.barcodes?.length ? unit.barcodes.join(", ") : "Chưa có mã vạch"}
                   </span>
                 </div>
                 <div className="pd-unit-side">
@@ -242,12 +330,24 @@ export function ProductDetailPanel({ id, onClose }: Props) {
                   <span className="pd-unit-actions">
                     {canManage ? (
                       <Tooltip title="Sửa đơn vị">
-                        <Button size="small" type="text" icon={<EditOutlined />} aria-label={`Sửa đơn vị ${unit.name}`} onClick={() => setEditingUnit(unit)} />
+                        <Button
+                          size="small"
+                          type="text"
+                          icon={<EditOutlined />}
+                          aria-label={`Sửa đơn vị ${unit.name}`}
+                          onClick={() => setEditingUnit(unit)}
+                        />
                       </Tooltip>
                     ) : null}
                     {can("price.manage") ? (
                       <Tooltip title="Đặt giá">
-                        <Button size="small" type="text" icon={<DollarOutlined />} aria-label={`Đặt giá cho ${unit.name}`} onClick={() => setPricingUnit(unit)} />
+                        <Button
+                          size="small"
+                          type="text"
+                          icon={<DollarOutlined />}
+                          aria-label={`Đặt giá cho ${unit.name}`}
+                          onClick={() => setPricingUnit(unit)}
+                        />
                       </Tooltip>
                     ) : null}
                   </span>
@@ -258,10 +358,36 @@ export function ProductDetailPanel({ id, onClose }: Props) {
         </ul>
       </div>
 
-      <ProductEditModal product={item} open={editingProduct} onClose={() => setEditingProduct(false)} onSaved={refresh} />
-      <UnitModal productId={item.id} baseUnitName={baseName} unit={editingUnit ?? null} open={editingUnit !== undefined} onClose={() => setEditingUnit(undefined)} onSaved={refresh} />
-      {pricingUnit ? <PriceModal productId={item.id} unit={pricingUnit} onClose={() => setPricingUnit(null)} onSaved={refresh} /> : null}
-      <ProductImagesModal productId={item.id} productName={item.name} images={images} open={managingImages} onClose={() => setManagingImages(false)} onChanged={refresh} />
+      <ProductEditModal
+        product={item}
+        open={editingProduct}
+        onClose={() => setEditingProduct(false)}
+        onSaved={refresh}
+      />
+      <UnitModal
+        productId={item.id}
+        baseUnitName={baseName}
+        unit={editingUnit ?? null}
+        open={editingUnit !== undefined}
+        onClose={() => setEditingUnit(undefined)}
+        onSaved={refresh}
+      />
+      {pricingUnit ? (
+        <PriceModal
+          productId={item.id}
+          unit={pricingUnit}
+          onClose={() => setPricingUnit(null)}
+          onSaved={refresh}
+        />
+      ) : null}
+      <ProductImagesModal
+        productId={item.id}
+        productName={item.name}
+        images={images}
+        open={managingImages}
+        onClose={() => setManagingImages(false)}
+        onChanged={refresh}
+      />
     </section>
   );
 }

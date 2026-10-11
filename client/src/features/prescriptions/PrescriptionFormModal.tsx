@@ -4,12 +4,7 @@ import { App, AutoComplete, Button, DatePicker, Input, Modal, Space, Table } fro
 import dayjs, { type Dayjs } from "dayjs";
 import { useState } from "react";
 import { getErrorMessage, http } from "../../api/http.js";
-import type {
-  Envelope,
-  Paged,
-  PrescriptionDetail,
-  ProductListItem,
-} from "../../api/types.js";
+import type { Envelope, Paged, PrescriptionDetail, ProductListItem } from "../../api/types.js";
 
 type Row = {
   key: string;
@@ -213,7 +208,10 @@ export function PrescriptionFormModal({
           }))}
           onSelect={(productId) => void addMatchedRow(productId)}
         >
-          <Input.Search placeholder="Tìm sản phẩm trong danh mục để thêm một dòng đã khớp sẵn" allowClear />
+          <Input.Search
+            placeholder="Tìm sản phẩm trong danh mục để thêm một dòng đã khớp sẵn"
+            allowClear
+          />
         </AutoComplete>
 
         <Table
@@ -233,7 +231,9 @@ export function PrescriptionFormModal({
                     onChange={(event) => updateRow(row.key, { drugNameText: event.target.value })}
                   />
                   {row.productId ? (
-                    <span style={{ color: "#0a7657", fontSize: 12 }}>Đã khớp sản phẩm trong danh mục</span>
+                    <span style={{ color: "#0a7657", fontSize: 12 }}>
+                      Đã khớp sản phẩm trong danh mục
+                    </span>
                   ) : (
                     <span style={{ color: "#999", fontSize: 12 }}>Chưa khớp sản phẩm</span>
                   )}

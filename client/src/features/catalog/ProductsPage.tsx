@@ -1,6 +1,28 @@
-import { AppstoreOutlined, FilterOutlined, MedicineBoxOutlined, PlusOutlined, SearchOutlined, UnorderedListOutlined, WarningFilled } from "@ant-design/icons";
+import {
+  AppstoreOutlined,
+  FilterOutlined,
+  MedicineBoxOutlined,
+  PlusOutlined,
+  SearchOutlined,
+  UnorderedListOutlined,
+  WarningFilled,
+} from "@ant-design/icons";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Badge, Button, Drawer, Empty, Grid, Input, Pagination, Popover, Result, Select, Skeleton, Switch, Tooltip } from "antd";
+import {
+  Badge,
+  Button,
+  Drawer,
+  Empty,
+  Grid,
+  Input,
+  Pagination,
+  Popover,
+  Result,
+  Select,
+  Skeleton,
+  Switch,
+  Tooltip,
+} from "antd";
 import { useState } from "react";
 import type { ReactNode } from "react";
 import { useSearchParams } from "react-router";
@@ -59,7 +81,11 @@ function readView(): View {
 function PriceCell({ item }: { item: ProductListItem }) {
   const text = priceText(item.currentPrice?.salePrice, item.defaultUnit?.name);
   if (!item.defaultUnit) return <span className="muted">Chưa có đơn vị bán</span>;
-  return text ? <span className="price-text">{text}</span> : <span className="muted">Chưa đặt giá</span>;
+  return text ? (
+    <span className="price-text">{text}</span>
+  ) : (
+    <span className="muted">Chưa đặt giá</span>
+  );
 }
 
 function StockCell({ item }: { item: ProductListItem }) {
@@ -67,7 +93,9 @@ function StockCell({ item }: { item: ProductListItem }) {
   const quantity = item.stock.sellable;
   return (
     <span className="stock-cell">
-      <strong className={quantity === 0 || item.isBelowMinStock ? "is-warning" : undefined}>{stockText(quantity, item.baseUnit?.name)}</strong>
+      <strong className={quantity === 0 || item.isBelowMinStock ? "is-warning" : undefined}>
+        {stockText(quantity, item.baseUnit?.name)}
+      </strong>
       {quantity === 0 ? (
         <span className="stock-flag">
           <WarningFilled aria-hidden /> Hết hàng
@@ -127,7 +155,9 @@ export function ProductsPage() {
 
   const categories = useQuery({
     queryKey: ["product-categories"],
-    queryFn: async () => (await http.get<Envelope<Paged<CategoryItem>>>("/categories", { params: { limit: 100 } })).data.data.items,
+    queryFn: async () =>
+      (await http.get<Envelope<Paged<CategoryItem>>>("/categories", { params: { limit: 100 } }))
+        .data.data.items,
     staleTime: 5 * 60_000,
   });
 
@@ -153,7 +183,8 @@ export function ProductsPage() {
       ).data.data,
     // Giữ kết quả cũ khi đổi trang/bộ lọc cho mượt, nhưng KHÔNG giữ qua khi đổi cửa hàng
     // để không hiện tồn của cửa hàng cũ.
-    placeholderData: (previous, previousQuery) => (previousQuery?.queryKey[1] === storeId ? keepPreviousData(previous) : undefined),
+    placeholderData: (previous, previousQuery) =>
+      previousQuery?.queryKey[1] === storeId ? keepPreviousData(previous) : undefined,
   });
 
   const filterCount = (categoryId ? 1 : 0) + (sort !== "name" ? 1 : 0);
@@ -222,7 +253,14 @@ export function ProductsPage() {
 
   let body: ReactNode;
   if (products.isError && !products.data) {
-    body = <Result status="warning" title="Không tải được danh mục" subTitle={getErrorMessage(products.error, "Kiểm tra kết nối rồi thử lại.")} extra={<Button onClick={() => void products.refetch()}>Thử lại</Button>} />;
+    body = (
+      <Result
+        status="warning"
+        title="Không tải được danh mục"
+        subTitle={getErrorMessage(products.error, "Kiểm tra kết nối rồi thử lại.")}
+        extra={<Button onClick={() => void products.refetch()}>Thử lại</Button>}
+      />
+    );
   } else if (products.isPending) {
     body = (
       <div className="product-skeleton" aria-busy="true" aria-label="Đang tải danh mục">
@@ -236,11 +274,19 @@ export function ProductsPage() {
     );
   } else if (items.length === 0) {
     body = hasFilters ? (
-      <Empty className="product-empty" image={Empty.PRESENTED_IMAGE_SIMPLE} description="Không tìm thấy sản phẩm phù hợp">
+      <Empty
+        className="product-empty"
+        image={Empty.PRESENTED_IMAGE_SIMPLE}
+        description="Không tìm thấy sản phẩm phù hợp"
+      >
         <Button onClick={resetFilters}>Xóa bộ lọc</Button>
       </Empty>
     ) : (
-      <Empty className="product-empty" image={Empty.PRESENTED_IMAGE_SIMPLE} description="Danh mục chưa có sản phẩm">
+      <Empty
+        className="product-empty"
+        image={Empty.PRESENTED_IMAGE_SIMPLE}
+        description="Danh mục chưa có sản phẩm"
+      >
         {can("catalog.manage") ? (
           <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreating(true)}>
             Thêm sản phẩm đầu tiên
@@ -253,8 +299,18 @@ export function ProductsPage() {
       <ul className="product-grid">
         {items.map((item) => (
           <li key={item.id}>
-            <button type="button" className={item.id === selectedId ? "product-card is-selected" : "product-card"} aria-pressed={item.id === selectedId} onClick={() => select(item.id)}>
-              <ProductThumb src={item.primaryImage?.thumbUrl} alt={item.name} size={120} className="product-card-image" />
+            <button
+              type="button"
+              className={item.id === selectedId ? "product-card is-selected" : "product-card"}
+              aria-pressed={item.id === selectedId}
+              onClick={() => select(item.id)}
+            >
+              <ProductThumb
+                src={item.primaryImage?.thumbUrl}
+                alt={item.name}
+                size={120}
+                className="product-card-image"
+              />
               <span className="product-card-name">{item.name}</span>
               <span className="product-card-code mono">{item.code}</span>
               <ClassBadge productType={item.productType} drugClass={item.drugClass} />
@@ -272,7 +328,14 @@ export function ProductsPage() {
       <ul className="product-cards">
         {items.map((item) => (
           <li key={item.id}>
-            <button type="button" className={item.id === selectedId ? "product-row-card is-selected" : "product-row-card"} aria-pressed={item.id === selectedId} onClick={() => select(item.id)}>
+            <button
+              type="button"
+              className={
+                item.id === selectedId ? "product-row-card is-selected" : "product-row-card"
+              }
+              aria-pressed={item.id === selectedId}
+              onClick={() => select(item.id)}
+            >
               <ProductThumb src={item.primaryImage?.thumbUrl} alt={item.name} size={64} />
               <span className="product-row-card-main">
                 <strong>{item.name}</strong>
@@ -308,7 +371,9 @@ export function ProductsPage() {
             key={item.id}
             type="button"
             role="row"
-            className={item.id === selectedId ? "product-table-row is-selected" : "product-table-row"}
+            className={
+              item.id === selectedId ? "product-table-row is-selected" : "product-table-row"
+            }
             aria-current={item.id === selectedId ? "true" : undefined}
             onClick={() => select(item.id)}
           >
@@ -337,7 +402,9 @@ export function ProductsPage() {
     );
   }
 
-  const detail = selectedId ? <ProductDetailPanel key={selectedId} id={selectedId} onClose={() => select(null)} /> : null;
+  const detail = selectedId ? (
+    <ProductDetailPanel key={selectedId} id={selectedId} onClose={() => select(null)} />
+  ) : null;
 
   return (
     <div>
@@ -349,7 +416,11 @@ export function ProductsPage() {
           <>
             {/* Công cụ làm hàng loạt trên danh mục; từng sản phẩm thì có nút riêng trong khung chi tiết. */}
             <PageToolsMenu paths={["/anh-san-pham", "/in-tem", "/danh-muc"]} />
-            <ExcelMenuButton onImport={can("catalog.manage") ? () => setImporting(true) : undefined} exportType="products" exportLabel="Xuất danh mục ra Excel" />
+            <ExcelMenuButton
+              onImport={can("catalog.manage") ? () => setImporting(true) : undefined}
+              exportType="products"
+              exportLabel="Xuất danh mục ra Excel"
+            />
             {can("catalog.manage") ? (
               <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreating(true)}>
                 Thêm sản phẩm
@@ -384,7 +455,14 @@ export function ProductsPage() {
               }}
             />
             <div className="products-toolbar-actions">
-              <Popover open={filterOpen} onOpenChange={setFilterOpen} trigger="click" placement="bottomRight" content={filterPanel} title="Bộ lọc">
+              <Popover
+                open={filterOpen}
+                onOpenChange={setFilterOpen}
+                trigger="click"
+                placement="bottomRight"
+                content={filterPanel}
+                title="Bộ lọc"
+              >
                 <Badge count={filterCount} size="small">
                   <Button size="large" icon={<FilterOutlined />}>
                     Bộ lọc
@@ -393,10 +471,24 @@ export function ProductsPage() {
               </Popover>
               <div className="view-switch" role="group" aria-label="Chế độ hiển thị">
                 <Tooltip title="Dạng danh sách">
-                  <Button size="large" type={view === "list" ? "primary" : "default"} icon={<UnorderedListOutlined />} aria-label="Dạng danh sách" aria-pressed={view === "list"} onClick={() => setView("list")} />
+                  <Button
+                    size="large"
+                    type={view === "list" ? "primary" : "default"}
+                    icon={<UnorderedListOutlined />}
+                    aria-label="Dạng danh sách"
+                    aria-pressed={view === "list"}
+                    onClick={() => setView("list")}
+                  />
                 </Tooltip>
                 <Tooltip title="Dạng lưới">
-                  <Button size="large" type={view === "grid" ? "primary" : "default"} icon={<AppstoreOutlined />} aria-label="Dạng lưới" aria-pressed={view === "grid"} onClick={() => setView("grid")} />
+                  <Button
+                    size="large"
+                    type={view === "grid" ? "primary" : "default"}
+                    icon={<AppstoreOutlined />}
+                    aria-label="Dạng lưới"
+                    aria-pressed={view === "grid"}
+                    onClick={() => setView("grid")}
+                  />
                 </Tooltip>
               </div>
               <label className="active-switch">
@@ -430,14 +522,27 @@ export function ProductsPage() {
             ))}
           </div>
 
-          <div className={products.isFetching && products.data ? "products-body is-refreshing" : "products-body"}>{body}</div>
+          <div
+            className={
+              products.isFetching && products.data ? "products-body is-refreshing" : "products-body"
+            }
+          >
+            {body}
+          </div>
 
           {total > 0 ? (
             <div className="products-footer">
               <span className="muted">
                 Hiển thị {from} – {to} / {total} sản phẩm
               </span>
-              <Pagination size={compact ? "small" : "middle"} current={page} pageSize={PAGE_SIZE} total={total} showSizeChanger={false} onChange={setPage} />
+              <Pagination
+                size={compact ? "small" : "middle"}
+                current={page}
+                pageSize={PAGE_SIZE}
+                total={total}
+                showSizeChanger={false}
+                onChange={setPage}
+              />
             </div>
           ) : null}
         </section>
@@ -446,7 +551,16 @@ export function ProductsPage() {
       </div>
 
       {!wide ? (
-        <Drawer open={Boolean(detail)} onClose={() => select(null)} placement="right" size={compact ? "100%" : 460} closable={false} rootClassName="product-drawer" styles={{ body: { padding: 0 } }} destroyOnHidden>
+        <Drawer
+          open={Boolean(detail)}
+          onClose={() => select(null)}
+          placement="right"
+          size={compact ? "100%" : 460}
+          closable={false}
+          rootClassName="product-drawer"
+          styles={{ body: { padding: 0 } }}
+          destroyOnHidden
+        >
           {detail}
         </Drawer>
       ) : null}

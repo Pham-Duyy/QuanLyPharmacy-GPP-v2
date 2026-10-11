@@ -184,9 +184,7 @@ export async function createInvoice(
       });
       const discountAmount = staffDiscount + loyaltyDiscount;
       if (discountAmount > subtotal) {
-        throw AppError.validation(
-          "Giảm giá cộng với tiền đổi điểm lớn hơn giá trị hóa đơn",
-        );
+        throw AppError.validation("Giảm giá cộng với tiền đổi điểm lớn hơn giá trị hóa đơn");
       }
 
       // Phân bổ tiền giảm về từng dòng để VAT từng dòng vẫn tính đúng.
@@ -483,7 +481,9 @@ async function checkPrescription(
   if (!prescription) throw AppError.notFound("Không tìm thấy đơn thuốc");
 
   const remainingOf = (item: (typeof prescription.items)[number]) =>
-    (item.baseQuantity ?? item.quantity) - item.dispensedBaseQuantity - (dispensed.get(item.id) ?? 0);
+    (item.baseQuantity ?? item.quantity) -
+    item.dispensedBaseQuantity -
+    (dispensed.get(item.id) ?? 0);
 
   for (const line of rxLines) {
     const wanted = input.lines[line.index]?.prescriptionItemId;

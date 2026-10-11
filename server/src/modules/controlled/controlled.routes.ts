@@ -10,7 +10,13 @@ import { requireStore, storeContext } from "../../middlewares/store-context.js";
 import * as service from "./controlled.service.js";
 
 export const controlledRouter = Router();
-controlledRouter.use("/controlled-drugs", authenticate, storeContext, requireStore, requirePermission("controlled.read"));
+controlledRouter.use(
+  "/controlled-drugs",
+  authenticate,
+  storeContext,
+  requireStore,
+  requirePermission("controlled.read"),
+);
 
 const daySchema = z
   .string()
@@ -37,10 +43,17 @@ controlledRouter.get("/controlled-drugs/ledger", async (req, res) => {
   const today = businessDateNow();
   const to = query.to ?? today;
   const from = query.from ?? new Date(to.getTime() - 29 * 86_400_000);
-  if (from.getTime() > to.getTime()) throw AppError.validation("Từ ngày phải trước hoặc bằng đến ngày");
-  if ((to.getTime() - from.getTime()) / 86_400_000 > 366) throw AppError.validation("Chỉ xem tối đa 366 ngày mỗi lần");
+  if (from.getTime() > to.getTime())
+    throw AppError.validation("Từ ngày phải trước hoặc bằng đến ngày");
+  if ((to.getTime() - from.getTime()) / 86_400_000 > 366)
+    throw AppError.validation("Chỉ xem tối đa 366 ngày mỗi lần");
 
-  const ledger = await service.buildLedger({ storeId: req.auth!.storeId!, from, to, productId: query.productId });
+  const ledger = await service.buildLedger({
+    storeId: req.auth!.storeId!,
+    from,
+    to,
+    productId: query.productId,
+  });
   sendData(res, {
     from,
     to,

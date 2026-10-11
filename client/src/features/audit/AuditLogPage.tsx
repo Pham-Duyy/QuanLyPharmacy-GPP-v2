@@ -78,7 +78,11 @@ export function AuditLogPage() {
   const list = useQuery({
     queryKey: ["audit-logs", action, resourceType, currentCursor],
     queryFn: async () =>
-      (await http.get<Envelope<AuditLogPage>>("/audit-logs", { params: { action, resourceType, cursor: currentCursor, limit: 30 } })).data.data,
+      (
+        await http.get<Envelope<AuditLogPage>>("/audit-logs", {
+          params: { action, resourceType, cursor: currentCursor, limit: 30 },
+        })
+      ).data.data,
     placeholderData: (previous) => previous,
   });
 
@@ -121,7 +125,18 @@ export function AuditLogPage() {
             onRow={(row) => ({ onClick: () => setDetail(row), style: { cursor: "pointer" } })}
             rowClassName={(row) => (row.id === detail?.id ? "row-selected" : "")}
             pagination={false}
-            locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={list.isError ? getErrorMessage(list.error, "Không tải được nhật ký") : "Chưa có bản ghi"} /> }}
+            locale={{
+              emptyText: (
+                <Empty
+                  image={Empty.PRESENTED_IMAGE_SIMPLE}
+                  description={
+                    list.isError
+                      ? getErrorMessage(list.error, "Không tải được nhật ký")
+                      : "Chưa có bản ghi"
+                  }
+                />
+              ),
+            }}
             columns={[
               {
                 title: "Hành động",
@@ -129,13 +144,21 @@ export function AuditLogPage() {
                 render: (_: unknown, row: AuditLogItem) => (
                   <div className="cell-main">
                     <strong>
-                      <Tag color={actionTone(row.action)}>{ACTION_LABEL[row.action] ?? row.action}</Tag>
+                      <Tag color={actionTone(row.action)}>
+                        {ACTION_LABEL[row.action] ?? row.action}
+                      </Tag>
                     </strong>
                     <span>{formatDateTime(row.occurredAt)}</span>
                   </div>
                 ),
               },
-              { title: "Người thực hiện", key: "actor", width: 170, ellipsis: true, render: (_: unknown, row: AuditLogItem) => row.actorName ?? "Hệ thống" },
+              {
+                title: "Người thực hiện",
+                key: "actor",
+                width: 170,
+                ellipsis: true,
+                render: (_: unknown, row: AuditLogItem) => row.actorName ?? "Hệ thống",
+              },
               {
                 title: "Đối tượng",
                 key: "resource",
@@ -143,30 +166,59 @@ export function AuditLogPage() {
                 render: (_: unknown, row: AuditLogItem) => (
                   <div className="cell-main">
                     <strong>{RESOURCE_LABEL[row.resourceType] ?? row.resourceType}</strong>
-                    {row.resourceId ? <span className="mono" title={row.resourceId}>#{row.resourceId.slice(0, 8)}</span> : null}
+                    {row.resourceId ? (
+                      <span className="mono" title={row.resourceId}>
+                        #{row.resourceId.slice(0, 8)}
+                      </span>
+                    ) : null}
                   </div>
                 ),
               },
             ]}
           />
           <div className="cursor-pager">
-            <Button icon={<LeftOutlined />} disabled={cursors.length === 0} onClick={() => setCursors((current) => current.slice(0, -1))}>
+            <Button
+              icon={<LeftOutlined />}
+              disabled={cursors.length === 0}
+              onClick={() => setCursors((current) => current.slice(0, -1))}
+            >
               Trang trước
             </Button>
             <span>Trang {cursors.length + 1}</span>
-            <Button disabled={!list.data?.nextCursor} onClick={() => list.data?.nextCursor && setCursors((current) => [...current, list.data!.nextCursor!])}>
+            <Button
+              disabled={!list.data?.nextCursor}
+              onClick={() =>
+                list.data?.nextCursor &&
+                setCursors((current) => [...current, list.data!.nextCursor!])
+              }
+            >
               Trang tiếp <RightOutlined />
             </Button>
           </div>
         </Card>
         <aside className="split-aside">
-          <Card title="Chi tiết bản ghi" extra={detail ? <Button type="text" size="small" onClick={() => setDetail(null)}>Đóng</Button> : null}>
+          <Card
+            title="Chi tiết bản ghi"
+            extra={
+              detail ? (
+                <Button type="text" size="small" onClick={() => setDetail(null)}>
+                  Đóng
+                </Button>
+              ) : null
+            }
+          >
             {!detail ? (
-              <PanelEmpty icon={<FileSearchOutlined />} title="Chưa chọn bản ghi" description="Bấm vào một dòng để xem dữ liệu trước và sau khi thay đổi." />
+              <PanelEmpty
+                icon={<FileSearchOutlined />}
+                title="Chưa chọn bản ghi"
+                description="Bấm vào một dòng để xem dữ liệu trước và sau khi thay đổi."
+              />
             ) : (
               <div className="detail-stack">
                 <div>
-                  <Tag color={actionTone(detail.action)}>{ACTION_LABEL[detail.action] ?? detail.action}</Tag>
+                  <Tag color={actionTone(detail.action)}>
+                    {ACTION_LABEL[detail.action] ?? detail.action}
+                  </Tag>
                   <div className="detail-sub mono" style={{ marginTop: 6 }}>
                     {detail.action}
                   </div>
@@ -184,7 +236,9 @@ export function AuditLogPage() {
                     <dt>Đối tượng</dt>
                     <dd>
                       {RESOURCE_LABEL[detail.resourceType] ?? detail.resourceType}
-                      {detail.resourceId ? <div className="mono text-secondary">{detail.resourceId}</div> : null}
+                      {detail.resourceId ? (
+                        <div className="mono text-secondary">{detail.resourceId}</div>
+                      ) : null}
                     </dd>
                   </div>
                   <div>
@@ -198,11 +252,15 @@ export function AuditLogPage() {
                 </dl>
                 <div className="field">
                   <span>Trước khi đổi</span>
-                  <pre className="json-block">{detail.before ? JSON.stringify(detail.before, null, 2) : "—"}</pre>
+                  <pre className="json-block">
+                    {detail.before ? JSON.stringify(detail.before, null, 2) : "—"}
+                  </pre>
                 </div>
                 <div className="field">
                   <span>Sau khi đổi</span>
-                  <pre className="json-block">{detail.after ? JSON.stringify(detail.after, null, 2) : "—"}</pre>
+                  <pre className="json-block">
+                    {detail.after ? JSON.stringify(detail.after, null, 2) : "—"}
+                  </pre>
                 </div>
               </div>
             )}

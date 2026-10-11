@@ -2,7 +2,14 @@ import { useTestRole } from "../../test/helpers.js";
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { prisma } from "../../db/prisma.js";
-import { api, authHeaders, login, seedFixture, truncateAll, type Fixture } from "../../test/helpers.js";
+import {
+  api,
+  authHeaders,
+  login,
+  seedFixture,
+  truncateAll,
+  type Fixture,
+} from "../../test/helpers.js";
 
 let fixture: Fixture;
 let adminToken: string;
@@ -35,22 +42,47 @@ async function makeProduct(code: string, name: string, categoryIdValue: string) 
   });
   const pill = created.units.find((unit) => unit.name === "Viên")!;
   await prisma.productPrice.create({
-    data: { productUnitId: pill.id, salePrice: 1000n, vatRatePercent: 5, effectiveFrom: new Date(Date.now() - 86_400_000) },
+    data: {
+      productUnitId: pill.id,
+      salePrice: 1000n,
+      vatRatePercent: 5,
+      effectiveFrom: new Date(Date.now() - 86_400_000),
+    },
   });
-  return { id: created.id, pillId: pill.id, boxId: created.units.find((unit) => unit.name === "Hộp")!.id };
+  return {
+    id: created.id,
+    pillId: pill.id,
+    boxId: created.units.find((unit) => unit.name === "Hộp")!.id,
+  };
 }
 
-async function makeBatch(productId: string, batchNumber: string, quantity: number, shelf?: string, unitCost = 800) {
+async function makeBatch(
+  productId: string,
+  batchNumber: string,
+  quantity: number,
+  shelf?: string,
+  unitCost = 800,
+) {
   const expiryDate = new Date();
   expiryDate.setUTCFullYear(expiryDate.getUTCFullYear() + 1);
   const batch = await prisma.batch.create({
-    data: { storeId: fixture.storeId, productId, batchNumber, expiryDate, quantityOnHand: quantity, shelfLocation: shelf ?? null, unitCost },
+    data: {
+      storeId: fixture.storeId,
+      productId,
+      batchNumber,
+      expiryDate,
+      quantityOnHand: quantity,
+      shelfLocation: shelf ?? null,
+      unitCost,
+    },
   });
   return batch.id;
 }
 
-const open = (body: Record<string, unknown> = {}, token = pharmacistToken) => api().post("/api/v1/stock-counts").set(h(token)).send(body);
-const detail = async (id: string, token = pharmacistToken) => (await api().get(`/api/v1/stock-counts/${id}`).set(h(token)).expect(200)).body.data;
+const open = (body: Record<string, unknown> = {}, token = pharmacistToken) =>
+  api().post("/api/v1/stock-counts").set(h(token)).send(body);
+const detail = async (id: string, token = pharmacistToken) =>
+  (await api().get(`/api/v1/stock-counts/${id}`).set(h(token)).expect(200)).body.data;
 const saveCounts = (id: string, entries: unknown[], token = pharmacistToken) =>
   api().patch(`/api/v1/stock-counts/${id}/counts`).set(h(token)).send({ entries });
 const close = (id: string, body: Record<string, unknown> = {}, token = pharmacistToken) =>
@@ -66,7 +98,8 @@ function sell(productId: string, unitId: string, quantity: number) {
 }
 
 type LineView = Record<string, unknown> & { id: string; batchNumber: string };
-const lineOf = (data: { lines: LineView[] }, batchNumber: string): LineView => data.lines.find((line) => line.batchNumber === batchNumber)!;
+const lineOf = (data: { lines: LineView[] }, batchNumber: string): LineView =>
+  data.lines.find((line) => line.batchNumber === batchNumber)!;
 
 beforeEach(async () => {
   await truncateAll();
@@ -98,22 +131,46 @@ describe("Mở đợt kiểm kê", () => {
     expect(count.code).toMatch(/^KK-NT01-\d{8}-0001$/);
     expect(count.status).toBe("COUNTING");
     // Lô hết tồn không đưa vào danh sách đếm sẵn.
-    expect(lines.map((line: { batchNumber: string }) => line.batchNumber)).toEqual(["L1", "L2", "V1"]);
-    expect(lines[0]).toMatchObject({ lineNo: 1, shelfLocation: "Kệ A1", systemBaseQuantityAtOpen: 100, countedBaseQuantity: null });
-    expect(summary).toMatchObject({ totalLines: 3, countedLines: 0, pendingLines: 3, differenceLines: 0 });
+    expect(lines.map((line: { batchNumber: string }) => line.batchNumber)).toEqual([
+      "L1",
+      "L2",
+      "V1",
+    ]);
+    expect(lines[0]).toMatchObject({
+      lineNo: 1,
+      shelfLocation: "Kệ A1",
+      systemBaseQuantityAtOpen: 100,
+      countedBaseQuantity: null,
+    });
+    expect(summary).toMatchObject({
+      totalLines: 3,
+      countedLines: 0,
+      pendingLines: 3,
+      differenceLines: 0,
+    });
   });
 
   it("kiểm kê theo nhóm hàng hoặc theo kệ chỉ lấy đúng phạm vi", async () => {
     await makeBatch(product.id, "L1", 100, "Kệ A1");
     await makeBatch(vitamin.id, "V1", 20, "Kệ C1");
 
-    const byCategory = await open({ scopeType: "CATEGORY", scopeValue: otherCategoryId }).expect(201);
+    const byCategory = await open({ scopeType: "CATEGORY", scopeValue: otherCategoryId }).expect(
+      201,
+    );
     expect(byCategory.body.data.count.scopeLabel).toBe("Vitamin");
-    expect(byCategory.body.data.lines.map((line: { batchNumber: string }) => line.batchNumber)).toEqual(["V1"]);
-    await api().post(`/api/v1/stock-counts/${byCategory.body.data.count.id}/cancel`).set(h(pharmacistToken)).send({}).expect(200);
+    expect(
+      byCategory.body.data.lines.map((line: { batchNumber: string }) => line.batchNumber),
+    ).toEqual(["V1"]);
+    await api()
+      .post(`/api/v1/stock-counts/${byCategory.body.data.count.id}/cancel`)
+      .set(h(pharmacistToken))
+      .send({})
+      .expect(200);
 
     const byShelf = await open({ scopeType: "SHELF", scopeValue: "kệ a1" }).expect(201);
-    expect(byShelf.body.data.lines.map((line: { batchNumber: string }) => line.batchNumber)).toEqual(["L1"]);
+    expect(
+      byShelf.body.data.lines.map((line: { batchNumber: string }) => line.batchNumber),
+    ).toEqual(["L1"]);
   });
 
   it("chặn hai đợt song song, phạm vi rỗng và thiếu phạm vi", async () => {
@@ -123,8 +180,13 @@ describe("Mở đợt kiểm kê", () => {
     expect(second.body.error.message).toContain("chưa chốt");
 
     // Hủy đợt đang mở để kiểm tra tiếp trường hợp phạm vi không có hàng.
-    const openId = (await api().get("/api/v1/stock-counts").set(h(pharmacistToken)).expect(200)).body.data.open.id;
-    await api().post(`/api/v1/stock-counts/${openId}/cancel`).set(h(pharmacistToken)).send({}).expect(200);
+    const openId = (await api().get("/api/v1/stock-counts").set(h(pharmacistToken)).expect(200))
+      .body.data.open.id;
+    await api()
+      .post(`/api/v1/stock-counts/${openId}/cancel`)
+      .set(h(pharmacistToken))
+      .send({})
+      .expect(200);
 
     const empty = await api()
       .post("/api/v1/stock-counts")
@@ -151,18 +213,38 @@ describe("Ghi số đếm", () => {
     const id = (await open().expect(201)).body.data.count.id;
     const line = lineOf(await detail(id), "L1");
 
-    const saved = await saveCounts(id, [{ lineId: line.id, unitId: product.boxId, quantity: 9 }]).expect(200);
+    const saved = await saveCounts(id, [
+      { lineId: line.id, unitId: product.boxId, quantity: 9 },
+    ]).expect(200);
     const afterCount = lineOf(saved.body.data, "L1");
-    expect(afterCount).toMatchObject({ countedQuantity: 9, countedBaseQuantity: 90, systemBaseQuantityAtCount: 100, differenceBaseQuantity: -10 });
+    expect(afterCount).toMatchObject({
+      countedQuantity: 9,
+      countedBaseQuantity: 90,
+      systemBaseQuantityAtCount: 100,
+      differenceBaseQuantity: -10,
+    });
     expect(afterCount.countedByName).toBe("Dược sĩ");
-    expect(saved.body.data.summary).toMatchObject({ countedLines: 1, pendingLines: 0, differenceLines: 1, shortageBaseQuantity: 10 });
+    expect(saved.body.data.summary).toMatchObject({
+      countedLines: 1,
+      pendingLines: 0,
+      differenceLines: 1,
+      shortageBaseQuantity: 10,
+    });
 
-    const fixed = await saveCounts(id, [{ lineId: line.id, unitId: product.pillId, quantity: 100 }]).expect(200);
-    expect(lineOf(fixed.body.data, "L1")).toMatchObject({ countedBaseQuantity: 100, differenceBaseQuantity: 0 });
+    const fixed = await saveCounts(id, [
+      { lineId: line.id, unitId: product.pillId, quantity: 100 },
+    ]).expect(200);
+    expect(lineOf(fixed.body.data, "L1")).toMatchObject({
+      countedBaseQuantity: 100,
+      differenceBaseQuantity: 0,
+    });
     expect(fixed.body.data.summary.differenceLines).toBe(0);
 
     const cleared = await saveCounts(id, [{ lineId: line.id, clear: true }]).expect(200);
-    expect(lineOf(cleared.body.data, "L1")).toMatchObject({ countedBaseQuantity: null, systemBaseQuantityAtCount: null });
+    expect(lineOf(cleared.body.data, "L1")).toMatchObject({
+      countedBaseQuantity: null,
+      systemBaseQuantityAtCount: null,
+    });
     expect(cleared.body.data.summary.pendingLines).toBe(1);
   });
 
@@ -170,7 +252,9 @@ describe("Ghi số đếm", () => {
     await makeBatch(product.id, "L1", 100);
     const id = (await open().expect(201)).body.data.count.id;
     const line = lineOf(await detail(id), "L1");
-    const response = await saveCounts(id, [{ lineId: line.id, unitId: vitamin.boxId, quantity: 1 }]).expect(422);
+    const response = await saveCounts(id, [
+      { lineId: line.id, unitId: vitamin.boxId, quantity: 1 },
+    ]).expect(422);
     expect(response.body.error.code).toBe("UNIT_NOT_IN_PRODUCT");
   });
 
@@ -179,11 +263,17 @@ describe("Ghi số đếm", () => {
     const extraBatchId = await makeBatch(product.id, "L9", 0);
     const id = (await open().expect(201)).body.data.count.id;
 
-    const added = await api().post(`/api/v1/stock-counts/${id}/lines`).set(h(pharmacistToken)).send({ batchId: extraBatchId }).expect(201);
+    const added = await api()
+      .post(`/api/v1/stock-counts/${id}/lines`)
+      .set(h(pharmacistToken))
+      .send({ batchId: extraBatchId })
+      .expect(201);
     const line = lineOf(added.body.data, "L9");
     expect(line).toMatchObject({ systemBaseQuantityAtOpen: 0, countedBaseQuantity: null });
 
-    const saved = await saveCounts(id, [{ lineId: line.id, unitId: product.pillId, quantity: 6 }]).expect(200);
+    const saved = await saveCounts(id, [
+      { lineId: line.id, unitId: product.pillId, quantity: 6 },
+    ]).expect(200);
     expect(lineOf(saved.body.data, "L9")).toMatchObject({ differenceBaseQuantity: 6 });
   });
 
@@ -222,18 +312,29 @@ describe("Chốt đợt kiểm kê", () => {
     expect(adjustment.status).toBe("DRAFT");
     expect(adjustment.reason).toContain("Chênh lệch kiểm kê KK-NT01");
     expect(adjustment.lines).toHaveLength(1);
-    expect(adjustment.lines[0]).toMatchObject({ reasonCode: "COUNT_DIFFERENCE", countedQuantity: 95, systemBaseQuantityAtCount: 100 });
-    expect(closed.body.data.count.adjustment).toMatchObject({ code: adjustment.code, status: "DRAFT" });
+    expect(adjustment.lines[0]).toMatchObject({
+      reasonCode: "COUNT_DIFFERENCE",
+      countedQuantity: 95,
+      systemBaseQuantityAtCount: 100,
+    });
+    expect(closed.body.data.count.adjustment).toMatchObject({
+      code: adjustment.code,
+      status: "DRAFT",
+    });
     expect(await prisma.auditLog.count({ where: { action: "STOCK_COUNT_CLOSE" } })).toBe(1);
 
     // Chốt rồi thì không ghi thêm số đếm được.
-    await saveCounts(id, [{ lineId: lineOf(data, "L1").id, unitId: product.pillId, quantity: 1 }]).expect(409);
+    await saveCounts(id, [
+      { lineId: lineOf(data, "L1").id, unitId: product.pillId, quantity: 1 },
+    ]).expect(409);
   });
 
   it("đếm khớp hết thì không tạo phiếu điều chỉnh nào", async () => {
     await makeBatch(product.id, "L1", 100);
     const id = (await open().expect(201)).body.data.count.id;
-    await saveCounts(id, [{ lineId: lineOf(await detail(id), "L1").id, unitId: product.pillId, quantity: 100 }]).expect(200);
+    await saveCounts(id, [
+      { lineId: lineOf(await detail(id), "L1").id, unitId: product.pillId, quantity: 100 },
+    ]).expect(200);
 
     const closed = await close(id).expect(200);
     expect(closed.body.data.adjustmentId).toBeNull();
@@ -244,7 +345,9 @@ describe("Chốt đợt kiểm kê", () => {
     await makeBatch(product.id, "L1", 100);
     await makeBatch(product.id, "L2", 50);
     const id = (await open().expect(201)).body.data.count.id;
-    await saveCounts(id, [{ lineId: lineOf(await detail(id), "L1").id, unitId: product.pillId, quantity: 100 }]).expect(200);
+    await saveCounts(id, [
+      { lineId: lineOf(await detail(id), "L1").id, unitId: product.pillId, quantity: 100 },
+    ]).expect(200);
 
     await close(id).expect(200);
     expect(await prisma.stockAdjustment.count()).toBe(0);
@@ -264,7 +367,9 @@ describe("Chốt đợt kiểm kê", () => {
     const id = (await open().expect(201)).body.data.count.id;
 
     // Đếm đúng 100 viên, khớp tồn hệ thống lúc đếm.
-    await saveCounts(id, [{ lineId: lineOf(await detail(id), "L1").id, unitId: product.pillId, quantity: 100 }]).expect(200);
+    await saveCounts(id, [
+      { lineId: lineOf(await detail(id), "L1").id, unitId: product.pillId, quantity: 100 },
+    ]).expect(200);
     // Bán 10 viên sau khi đếm xong mặt hàng này.
     await sell(product.id, product.pillId, 10);
 
@@ -280,7 +385,9 @@ describe("Chốt đợt kiểm kê", () => {
     const id = (await open().expect(201)).body.data.count.id;
 
     // Đếm thấy 95 trong khi hệ thống ghi 100 — thiếu 5.
-    await saveCounts(id, [{ lineId: lineOf(await detail(id), "L1").id, unitId: product.pillId, quantity: 95 }]).expect(200);
+    await saveCounts(id, [
+      { lineId: lineOf(await detail(id), "L1").id, unitId: product.pillId, quantity: 95 },
+    ]).expect(200);
     // Sau khi đếm, bán tiếp 10 viên.
     await sell(product.id, product.pillId, 10);
     const closed = await close(id).expect(200);
@@ -303,11 +410,19 @@ describe("Chốt đợt kiểm kê", () => {
   it("hủy đợt không đụng tới tồn và cho phép mở đợt mới", async () => {
     await makeBatch(product.id, "L1", 100);
     const id = (await open().expect(201)).body.data.count.id;
-    await saveCounts(id, [{ lineId: lineOf(await detail(id), "L1").id, unitId: product.pillId, quantity: 10 }]).expect(200);
+    await saveCounts(id, [
+      { lineId: lineOf(await detail(id), "L1").id, unitId: product.pillId, quantity: 10 },
+    ]).expect(200);
 
-    const cancelled = await api().post(`/api/v1/stock-counts/${id}/cancel`).set(h(pharmacistToken)).send({ reason: "Đếm nhầm kệ" }).expect(200);
+    const cancelled = await api()
+      .post(`/api/v1/stock-counts/${id}/cancel`)
+      .set(h(pharmacistToken))
+      .send({ reason: "Đếm nhầm kệ" })
+      .expect(200);
     expect(cancelled.body.data.count.status).toBe("CANCELLED");
-    expect((await prisma.batch.findFirstOrThrow({ where: { batchNumber: "L1" } })).quantityOnHand).toBe(100);
+    expect(
+      (await prisma.batch.findFirstOrThrow({ where: { batchNumber: "L1" } })).quantityOnHand,
+    ).toBe(100);
     expect(await prisma.stockAdjustment.count()).toBe(0);
     expect(await prisma.auditLog.count({ where: { action: "STOCK_COUNT_CANCEL" } })).toBe(1);
 
@@ -318,19 +433,32 @@ describe("Chốt đợt kiểm kê", () => {
     await makeBatch(product.id, "L1", 100);
     await makeBatch(product.id, "L2", 50);
     const id = (await open().expect(201)).body.data.count.id;
-    await saveCounts(id, [{ lineId: lineOf(await detail(id), "L1").id, unitId: product.pillId, quantity: 90 }]).expect(200);
+    await saveCounts(id, [
+      { lineId: lineOf(await detail(id), "L1").id, unitId: product.pillId, quantity: 90 },
+    ]).expect(200);
 
-    const list = (await api().get("/api/v1/stock-counts").set(h(pharmacistToken)).expect(200)).body.data;
+    const list = (await api().get("/api/v1/stock-counts").set(h(pharmacistToken)).expect(200)).body
+      .data;
     expect(list.open).toMatchObject({ id });
-    expect(list.items[0]).toMatchObject({ totalLines: 2, countedLines: 1, differenceLines: 1, createdByName: "Dược sĩ" });
+    expect(list.items[0]).toMatchObject({
+      totalLines: 2,
+      countedLines: 1,
+      differenceLines: 1,
+      createdByName: "Dược sĩ",
+    });
 
-    const onlyClosed = (await api().get("/api/v1/stock-counts?status=CLOSED").set(h(pharmacistToken)).expect(200)).body.data;
+    const onlyClosed = (
+      await api().get("/api/v1/stock-counts?status=CLOSED").set(h(pharmacistToken)).expect(200)
+    ).body.data;
     expect(onlyClosed.items).toEqual([]);
   });
 
   it("không thấy đợt kiểm kê của cửa hàng khác", async () => {
     await makeBatch(product.id, "L1", 100);
     const id = (await open().expect(201)).body.data.count.id;
-    await api().get(`/api/v1/stock-counts/${id}`).set(authHeaders(adminToken, fixture.otherStoreId)).expect(404);
+    await api()
+      .get(`/api/v1/stock-counts/${id}`)
+      .set(authHeaders(adminToken, fixture.otherStoreId))
+      .expect(404);
   });
 });

@@ -58,7 +58,13 @@ afterAll(async () => {
 
 describe("Kiểm kê", () => {
   it("đếm bằng hộp, chênh lệch tính theo đơn vị nhỏ nhất và chỉ sinh một phiếu điều chỉnh", async () => {
-    await makeBatch(stage, { product: para, batchNumber: "KK-1", quantity: 500, unitCost: 1000, expiryInDays: 120 });
+    await makeBatch(stage, {
+      product: para,
+      batchNumber: "KK-1",
+      quantity: 500,
+      unitCost: 1000,
+      expiryInDays: 120,
+    });
 
     const opened = await openCount().expect(201);
     const countId = opened.body.data.count.id as string;
@@ -84,7 +90,13 @@ describe("Kiểm kê", () => {
   });
 
   it("bán hàng xen giữa lúc đếm và lúc duyệt: áp chênh lệch, không ghi đè giao dịch bán", async () => {
-    await makeBatch(stage, { product: para, batchNumber: "KK-2", quantity: 500, unitCost: 1000, expiryInDays: 120 });
+    await makeBatch(stage, {
+      product: para,
+      batchNumber: "KK-2",
+      quantity: 500,
+      unitCost: 1000,
+      expiryInDays: 120,
+    });
 
     const opened = await openCount().expect(201);
     const countId = opened.body.data.count.id as string;
@@ -115,7 +127,13 @@ describe("Kiểm kê", () => {
   });
 
   it("dòng chưa đếm không bị coi là đếm được 0", async () => {
-    await makeBatch(stage, { product: para, batchNumber: "KK-3", quantity: 100, unitCost: 1000, expiryInDays: 120 });
+    await makeBatch(stage, {
+      product: para,
+      batchNumber: "KK-3",
+      quantity: 100,
+      unitCost: 1000,
+      expiryInDays: 120,
+    });
     const other = await makeProduct(stage, {
       code: "TH0002",
       name: "Vitamin C 1000mg",
@@ -123,7 +141,13 @@ describe("Kiểm kê", () => {
       drugClass: null,
       units: [["Viên", 1, 5000]],
     });
-    await makeBatch(stage, { product: other, batchNumber: "KK-4", quantity: 80, unitCost: 2000, expiryInDays: 200 });
+    await makeBatch(stage, {
+      product: other,
+      batchNumber: "KK-4",
+      quantity: 80,
+      unitCost: 2000,
+      expiryInDays: 200,
+    });
 
     const opened = await openCount().expect(201);
     const countId = opened.body.data.count.id as string;
@@ -131,7 +155,9 @@ describe("Kiểm kê", () => {
     const target = lines.find((item) => item.batchNumber === "KK-3")!;
 
     // Chỉ đếm một lô, lô còn lại bỏ trống.
-    await saveCounts(countId, [{ lineId: target.id, unitId: para.units["Viên"]!, quantity: 95 }]).expect(200);
+    await saveCounts(countId, [
+      { lineId: target.id, unitId: para.units["Viên"]!, quantity: 95 },
+    ]).expect(200);
     const closed = await closeCount(countId).expect(200);
 
     const adjustment = await prisma.stockAdjustment.findFirstOrThrow({ include: { lines: true } });
@@ -144,7 +170,13 @@ describe("Kiểm kê", () => {
   });
 
   it("người lập phiếu không tự duyệt được", async () => {
-    await makeBatch(stage, { product: para, batchNumber: "KK-5", quantity: 100, unitCost: 1000, expiryInDays: 120 });
+    await makeBatch(stage, {
+      product: para,
+      batchNumber: "KK-5",
+      quantity: 100,
+      unitCost: 1000,
+      expiryInDays: 120,
+    });
     const opened = await openCount().expect(201);
     const countId = opened.body.data.count.id as string;
     await saveCounts(countId, [
@@ -162,16 +194,27 @@ describe("Kiểm kê", () => {
   });
 
   it("đợt đã chốt hoặc đã hủy thì không ghi thêm số đếm", async () => {
-    await makeBatch(stage, { product: para, batchNumber: "KK-6", quantity: 100, unitCost: 1000, expiryInDays: 120 });
+    await makeBatch(stage, {
+      product: para,
+      batchNumber: "KK-6",
+      quantity: 100,
+      unitCost: 1000,
+      expiryInDays: 120,
+    });
     const opened = await openCount().expect(201);
     const countId = opened.body.data.count.id as string;
     const lineId = opened.body.data.lines[0].id as string;
     await saveCounts(countId, [{ lineId, unitId: para.units["Viên"]!, quantity: 100 }]).expect(200);
     await closeCount(countId).expect(200);
 
-    const late = await saveCounts(countId, [{ lineId, unitId: para.units["Viên"]!, quantity: 50 }]).expect(409);
+    const late = await saveCounts(countId, [
+      { lineId, unitId: para.units["Viên"]!, quantity: 50 },
+    ]).expect(409);
     expect(late.body.error.message).toContain("đã chốt");
-    expect((await prisma.stockCountLine.findUniqueOrThrow({ where: { id: lineId } })).countedBaseQuantity).toBe(100);
+    expect(
+      (await prisma.stockCountLine.findUniqueOrThrow({ where: { id: lineId } }))
+        .countedBaseQuantity,
+    ).toBe(100);
 
     // Đợt mới: hủy rồi thì cũng không ghi được nữa.
     const second = await openCount().expect(201);

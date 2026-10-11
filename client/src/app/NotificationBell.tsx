@@ -21,7 +21,8 @@ export function NotificationBell() {
 
   const dashboard = useQuery({
     queryKey: ["dashboard", storeId, 7],
-    queryFn: async () => (await http.get<Envelope<DashboardData>>("/dashboard", { params: { days: 7 } })).data.data,
+    queryFn: async () =>
+      (await http.get<Envelope<DashboardData>>("/dashboard", { params: { days: 7 } })).data.data,
     enabled,
     staleTime: 60_000,
     refetchInterval: 5 * 60_000,
@@ -33,7 +34,9 @@ export function NotificationBell() {
     <div className="notif-panel">
       <div className="notif-panel-head">
         <strong>Thông báo</strong>
-        <span>{items.length > 0 ? `${items.length} mục cần chú ý` : "Cập nhật theo dữ liệu kho"}</span>
+        <span>
+          {items.length > 0 ? `${items.length} mục cần chú ý` : "Cập nhật theo dữ liệu kho"}
+        </span>
       </div>
       {dashboard.isLoading ? (
         <div className="notif-panel-empty">
@@ -70,8 +73,19 @@ export function NotificationBell() {
   if (!enabled) return null;
 
   return (
-    <Popover content={content} trigger="click" placement="bottomRight" open={open} onOpenChange={setOpen} arrow={false}>
-      <Button type="text" className="header-icon-btn" aria-label={urgent > 0 ? `${urgent} thông báo cần xử lý` : "Thông báo"}>
+    <Popover
+      content={content}
+      trigger="click"
+      placement="bottomRight"
+      open={open}
+      onOpenChange={setOpen}
+      arrow={false}
+    >
+      <Button
+        type="text"
+        className="header-icon-btn"
+        aria-label={urgent > 0 ? `${urgent} thông báo cần xử lý` : "Thông báo"}
+      >
         <Badge count={urgent} size="small" offset={[2, -2]}>
           <BellOutlined />
         </Badge>

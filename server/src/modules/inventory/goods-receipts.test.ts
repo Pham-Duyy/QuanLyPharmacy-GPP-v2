@@ -572,14 +572,45 @@ describe("Danh sách, tổng hợp và chi tiết cho màn Nhập hàng", () => 
 
   it("tổng hợp phiếu nháp, số phiếu và giá trị đã kiểm nhập trong tháng so với tháng trước", async () => {
     await createDraft().expect(201);
-    await confirmDraft(draftBody({ lines: [{ productId, unitId, quantity: 20, unitCost: 82000, batchNumber: "L-THANG-NAY", expiryDate: "2027-01-09" }] }));
-    const lastMonthId = await confirmDraft(draftBody({ lines: [{ productId, unitId, quantity: 10, unitCost: 82000, batchNumber: "L-THANG-TRUOC", expiryDate: "2027-01-09" }] }));
+    await confirmDraft(
+      draftBody({
+        lines: [
+          {
+            productId,
+            unitId,
+            quantity: 20,
+            unitCost: 82000,
+            batchNumber: "L-THANG-NAY",
+            expiryDate: "2027-01-09",
+          },
+        ],
+      }),
+    );
+    const lastMonthId = await confirmDraft(
+      draftBody({
+        lines: [
+          {
+            productId,
+            unitId,
+            quantity: 10,
+            unitCost: 82000,
+            batchNumber: "L-THANG-TRUOC",
+            expiryDate: "2027-01-09",
+          },
+        ],
+      }),
+    );
 
     // Đặt ngày nhận của một phiếu về 5 ngày trước ngày đầu tháng hiện tại theo giờ Việt Nam.
-    const vnToday = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Ho_Chi_Minh" }).format(new Date());
+    const vnToday = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Ho_Chi_Minh" }).format(
+      new Date(),
+    );
     const [year, month] = vnToday.split("-").map(Number) as [number, number];
     const lastMonthDay = new Date(Date.UTC(year, month - 1, 1) - 7 * 3600_000 - 5 * 86_400_000);
-    await prisma.goodsReceipt.update({ where: { id: lastMonthId }, data: { receivedAt: lastMonthDay } });
+    await prisma.goodsReceipt.update({
+      where: { id: lastMonthId },
+      data: { receivedAt: lastMonthDay },
+    });
 
     const response = await api()
       .get("/api/v1/goods-receipts/summary")
@@ -597,7 +628,21 @@ describe("Danh sách, tổng hợp và chi tiết cho màn Nhập hàng", () => 
 
   it("tìm theo một phần tên nhà cung cấp hoặc mã phiếu, sắp xếp theo tổng tiền", async () => {
     const other = await prisma.supplier.create({ data: { name: "Công ty Dược phẩm Hậu Giang" } });
-    const small = await createDraft(draftBody({ supplierId: other.id, lines: [{ productId, unitId, quantity: 1, unitCost: 1000, batchNumber: "L-NHO", expiryDate: "2027-01-09" }] })).expect(201);
+    const small = await createDraft(
+      draftBody({
+        supplierId: other.id,
+        lines: [
+          {
+            productId,
+            unitId,
+            quantity: 1,
+            unitCost: 1000,
+            batchNumber: "L-NHO",
+            expiryDate: "2027-01-09",
+          },
+        ],
+      }),
+    ).expect(201);
     const big = await createDraft().expect(201);
 
     const bySupplier = await api()
@@ -605,25 +650,35 @@ describe("Danh sách, tổng hợp và chi tiết cho màn Nhập hàng", () => 
       .query({ search: "hậu giang" })
       .set(authHeaders(token, fixture.storeId))
       .expect(200);
-    expect(bySupplier.body.data.items.map((item: { id: string }) => item.id)).toEqual([small.body.data.id]);
+    expect(bySupplier.body.data.items.map((item: { id: string }) => item.id)).toEqual([
+      small.body.data.id,
+    ]);
 
     const byCode = await api()
       .get("/api/v1/goods-receipts")
       .query({ search: big.body.data.code.slice(-6) })
       .set(authHeaders(token, fixture.storeId))
       .expect(200);
-    expect(byCode.body.data.items.map((item: { id: string }) => item.id)).toEqual([big.body.data.id]);
+    expect(byCode.body.data.items.map((item: { id: string }) => item.id)).toEqual([
+      big.body.data.id,
+    ]);
 
     const sorted = await api()
       .get("/api/v1/goods-receipts")
       .query({ sortBy: "totalCost", order: "desc" })
       .set(authHeaders(token, fixture.storeId))
       .expect(200);
-    expect(sorted.body.data.items.map((item: { id: string }) => item.id)).toEqual([big.body.data.id, small.body.data.id]);
+    expect(sorted.body.data.items.map((item: { id: string }) => item.id)).toEqual([
+      big.body.data.id,
+      small.body.data.id,
+    ]);
   });
 
   it("chi tiết có liên hệ nhà cung cấp, người lập, người xác nhận và trạng thái lô", async () => {
-    await prisma.supplier.update({ where: { id: supplierId }, data: { phone: "02473001234", address: "Cầu Giấy, Hà Nội" } });
+    await prisma.supplier.update({
+      where: { id: supplierId },
+      data: { phone: "02473001234", address: "Cầu Giấy, Hà Nội" },
+    });
     const id = await confirmDraft();
 
     const response = await api()
@@ -631,7 +686,10 @@ describe("Danh sách, tổng hợp và chi tiết cho màn Nhập hàng", () => 
       .set(authHeaders(token, fixture.storeId))
       .expect(200);
 
-    expect(response.body.data.supplier).toMatchObject({ phone: "02473001234", address: "Cầu Giấy, Hà Nội" });
+    expect(response.body.data.supplier).toMatchObject({
+      phone: "02473001234",
+      address: "Cầu Giấy, Hà Nội",
+    });
     expect(response.body.data.createdBy.fullName).toBeTruthy();
     expect(response.body.data.confirmedBy.fullName).toBeTruthy();
     expect(response.body.data.lines[0].batchStatus).toBe("AVAILABLE");
@@ -641,8 +699,15 @@ describe("Danh sách, tổng hợp và chi tiết cho màn Nhập hàng", () => 
 describe("Chiết khấu phiếu và thuế theo hóa đơn", () => {
   it("tổng giá trị = tiền hàng − chiết khấu + thuế và phân bổ vào giá vốn lô", async () => {
     // 20 hộp × 82.000 = 1.640.000; trừ chiết khấu 140.000, cộng thuế 60.000 → 1.560.000
-    const draft = await createDraft(draftBody({ discountAmount: 140_000, vatAmount: 60_000 })).expect(201);
-    expect(draft.body.data).toMatchObject({ goodsAmount: 1_640_000, discountAmount: 140_000, vatAmount: 60_000, totalCost: 1_560_000 });
+    const draft = await createDraft(
+      draftBody({ discountAmount: 140_000, vatAmount: 60_000 }),
+    ).expect(201);
+    expect(draft.body.data).toMatchObject({
+      goodsAmount: 1_640_000,
+      discountAmount: 140_000,
+      vatAmount: 60_000,
+      totalCost: 1_560_000,
+    });
 
     await api()
       .post(`/api/v1/goods-receipts/${draft.body.data.id}/confirm`)
@@ -668,7 +733,12 @@ describe("Chiết khấu phiếu và thuế theo hóa đơn", () => {
       .send({ version: draft.body.data.version, discountAmount: 40_000 })
       .expect(200);
 
-    expect(response.body.data).toMatchObject({ goodsAmount: 1_640_000, discountAmount: 40_000, vatAmount: 0, totalCost: 1_600_000 });
+    expect(response.body.data).toMatchObject({
+      goodsAmount: 1_640_000,
+      discountAmount: 40_000,
+      vatAmount: 0,
+      totalCost: 1_600_000,
+    });
     expect(response.body.data.lines).toHaveLength(1);
   });
 });
@@ -678,7 +748,17 @@ describe("Kiểm tra ngày sản xuất và hạn dùng", () => {
     const soon = new Date(Date.now() + 20 * 86_400_000).toISOString().slice(0, 10);
     const response = await createDraft(
       draftBody({
-        lines: [{ productId, unitId, quantity: 1, unitCost: 1000, batchNumber: "L-NGAN", manufactureDate: new Date().toISOString().slice(0, 10), expiryDate: soon }],
+        lines: [
+          {
+            productId,
+            unitId,
+            quantity: 1,
+            unitCost: 1000,
+            batchNumber: "L-NGAN",
+            manufactureDate: new Date().toISOString().slice(0, 10),
+            expiryDate: soon,
+          },
+        ],
       }),
     ).expect(422);
     expect(response.body.error.code).toBe("VALIDATION_ERROR");
@@ -688,7 +768,17 @@ describe("Kiểm tra ngày sản xuất và hạn dùng", () => {
     const future = new Date(Date.now() + 5 * 86_400_000).toISOString().slice(0, 10);
     await createDraft(
       draftBody({
-        lines: [{ productId, unitId, quantity: 1, unitCost: 1000, batchNumber: "L-TL", manufactureDate: future, expiryDate: "2028-01-01" }],
+        lines: [
+          {
+            productId,
+            unitId,
+            quantity: 1,
+            unitCost: 1000,
+            batchNumber: "L-TL",
+            manufactureDate: future,
+            expiryDate: "2028-01-01",
+          },
+        ],
       }),
     ).expect(422);
   });
@@ -696,7 +786,17 @@ describe("Kiểm tra ngày sản xuất và hạn dùng", () => {
   it("chấp nhận NSX và HSD hợp lý", async () => {
     await createDraft(
       draftBody({
-        lines: [{ productId, unitId, quantity: 1, unitCost: 1000, batchNumber: "L-OK", manufactureDate: "2026-01-01", expiryDate: "2028-01-01" }],
+        lines: [
+          {
+            productId,
+            unitId,
+            quantity: 1,
+            unitCost: 1000,
+            batchNumber: "L-OK",
+            manufactureDate: "2026-01-01",
+            expiryDate: "2028-01-01",
+          },
+        ],
       }),
     ).expect(201);
   });

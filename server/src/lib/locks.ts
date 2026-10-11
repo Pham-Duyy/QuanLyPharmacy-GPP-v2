@@ -69,7 +69,11 @@ export async function lockStockTransfer(tx: Tx, transferId: string): Promise<voi
 }
 
 /** Khóa phiếu chi nhà cung cấp trước khi hủy. */
-export async function lockSupplierPayment(tx: Tx, storeId: string, paymentId: string): Promise<void> {
+export async function lockSupplierPayment(
+  tx: Tx,
+  storeId: string,
+  paymentId: string,
+): Promise<void> {
   const rows = await tx.$queryRaw<Array<{ id: string }>>(Prisma.sql`
     SELECT id::text FROM supplier_payments
     WHERE id = ${paymentId}::uuid AND store_id = ${storeId}::uuid
@@ -82,7 +86,11 @@ export async function lockSupplierPayment(tx: Tx, storeId: string, paymentId: st
  * Khóa các phiếu nhập sắp được phân bổ tiền trả, theo thứ tự id cố định để
  * hai lần thanh toán song song không khóa chéo nhau.
  */
-export async function lockGoodsReceipts(tx: Tx, storeId: string, receiptIds: string[]): Promise<void> {
+export async function lockGoodsReceipts(
+  tx: Tx,
+  storeId: string,
+  receiptIds: string[],
+): Promise<void> {
   if (receiptIds.length === 0) return;
   await tx.$queryRaw(Prisma.sql`
     SELECT id FROM goods_receipts

@@ -12,7 +12,12 @@ import type { AuthContext } from "../auth/auth.context.js";
  * trách nhiệm cùng ngày hẹn.
  */
 
-export const EXPIRY_ACTIONS = ["RETURN_SUPPLIER", "PRIORITIZE_SALE", "DISCOUNT", "DISPOSE"] as const;
+export const EXPIRY_ACTIONS = [
+  "RETURN_SUPPLIER",
+  "PRIORITIZE_SALE",
+  "DISCOUNT",
+  "DISPOSE",
+] as const;
 type ExpiryAction = (typeof EXPIRY_ACTIONS)[number];
 
 /** Mốc chia nhóm theo số ngày còn lại. */
@@ -60,7 +65,11 @@ export type ExpiryRow = {
   plan: ExpiryPlanView | null;
 };
 
-export type ExpiryQuery = { horizonDays: number; bucket?: BucketKey | undefined; onlyWithoutPlan: boolean };
+export type ExpiryQuery = {
+  horizonDays: number;
+  bucket?: BucketKey | undefined;
+  onlyWithoutPlan: boolean;
+};
 
 function bucketOf(daysLeft: number): BucketKey {
   if (daysLeft < 0) return "EXPIRED";
@@ -79,11 +88,19 @@ export async function listExpiring(storeId: string, auth: AuthContext, query: Ex
     orderBy: [{ expiryDate: "asc" }],
     include: {
       product: {
-        select: { id: true, code: true, name: true, units: { where: { conversionToBase: 1 }, select: { name: true } } },
+        select: {
+          id: true,
+          code: true,
+          name: true,
+          units: { where: { conversionToBase: 1 }, select: { name: true } },
+        },
       },
       expiryPlans: {
         where: { status: "PLANNED" },
-        include: { createdByUser: { select: { fullName: true } }, resolvedByUser: { select: { fullName: true } } },
+        include: {
+          createdByUser: { select: { fullName: true } },
+          resolvedByUser: { select: { fullName: true } },
+        },
       },
     },
   });
@@ -91,13 +108,19 @@ export async function listExpiring(storeId: string, auth: AuthContext, query: Ex
   // Nhà cung cấp của lô, để biết gọi ai khi muốn trả hàng.
   const receiptLines = await prisma.goodsReceiptLine.findMany({
     where: { batchId: { in: batches.map((batch) => batch.id) } },
-    select: { batchId: true, goodsReceipt: { select: { receivedAt: true, supplier: { select: { id: true, name: true } } } } },
+    select: {
+      batchId: true,
+      goodsReceipt: {
+        select: { receivedAt: true, supplier: { select: { id: true, name: true } } },
+      },
+    },
     orderBy: { goodsReceipt: { receivedAt: "desc" } },
   });
   const supplierByBatch = new Map<string, { id: string; name: string }>();
   for (const line of receiptLines) {
     const supplier = line.goodsReceipt.supplier;
-    if (supplier && line.batchId && !supplierByBatch.has(line.batchId)) supplierByBatch.set(line.batchId, supplier);
+    if (supplier && line.batchId && !supplierByBatch.has(line.batchId))
+      supplierByBatch.set(line.batchId, supplier);
   }
 
   const rows: ExpiryRow[] = batches.map((batch) => {
@@ -117,7 +140,8 @@ export async function listExpiring(storeId: string, auth: AuthContext, query: Ex
       baseUnitName: batch.product.units[0]?.name ?? "",
       shelfLocation: batch.shelfLocation,
       batchStatus: batch.status,
-      stockValue: showCost && unitCost !== null ? Math.round(unitCost * batch.quantityOnHand) : null,
+      stockValue:
+        showCost && unitCost !== null ? Math.round(unitCost * batch.quantityOnHand) : null,
       lastSupplier: supplierByBatch.get(batch.id) ?? null,
       plan: plan
         ? {
@@ -138,7 +162,11 @@ export async function listExpiring(storeId: string, auth: AuthContext, query: Ex
     };
   });
 
-  const filtered = rows.filter((row) => (query.bucket ? row.bucket === query.bucket : true) && (query.onlyWithoutPlan ? !row.plan : true));
+  const filtered = rows.filter(
+    (row) =>
+      (query.bucket ? row.bucket === query.bucket : true) &&
+      (query.onlyWithoutPlan ? !row.plan : true),
+  );
   return { items: filtered, summary: summarize(rows, showCost) };
 }
 
@@ -168,21 +196,38 @@ function summarize(rows: ExpiryRow[], showCost: boolean) {
   };
 }
 
-export type PlanInput = { batchId: string; action: ExpiryAction; dueDate?: Date | null; note?: string | null };
+export type PlanInput = {
+  batchId: string;
+  action: ExpiryAction;
+  dueDate?: Date | null;
+  note?: string | null;
+};
 
 /** Lập kế hoạch xử lý cho một lô. Lô đang có kế hoạch mở thì cập nhật kế hoạch đó. */
-export async function savePlan(storeId: string, auth: AuthContext, input: PlanInput): Promise<string> {
+export async function savePlan(
+  storeId: string,
+  auth: AuthContext,
+  input: PlanInput,
+): Promise<string> {
   const batch = await prisma.batch.findFirst({ where: { id: input.batchId, storeId } });
   if (!batch) throw AppError.notFound("Không tìm thấy lô trong kho cửa hàng này");
 
   const existing = await prisma.batch
-    .findFirst({ where: { id: input.batchId }, select: { expiryPlans: { where: { status: "PLANNED" }, select: { id: true } } } })
+    .findFirst({
+      where: { id: input.batchId },
+      select: { expiryPlans: { where: { status: "PLANNED" }, select: { id: true } } },
+    })
     .then((row) => row?.expiryPlans[0]);
 
   const plan = existing
     ? await prisma.batchExpiryPlan.update({
         where: { id: existing.id },
-        data: { action: input.action, dueDate: input.dueDate ?? null, note: input.note ?? null, version: { increment: 1 } },
+        data: {
+          action: input.action,
+          dueDate: input.dueDate ?? null,
+          note: input.note ?? null,
+          version: { increment: 1 },
+        },
       })
     : await prisma.batchExpiryPlan.create({
         data: {
@@ -202,21 +247,41 @@ export async function savePlan(storeId: string, auth: AuthContext, input: PlanIn
       action: existing ? "EXPIRY_PLAN_UPDATE" : "EXPIRY_PLAN_CREATE",
       resourceType: "batch_expiry_plan",
       resourceId: plan.id,
-      after: { batchNumber: batch.batchNumber, action: input.action, dueDate: input.dueDate ?? null, note: input.note ?? null },
+      after: {
+        batchNumber: batch.batchNumber,
+        action: input.action,
+        dueDate: input.dueDate ?? null,
+        note: input.note ?? null,
+      },
     },
   });
   return plan.id;
 }
 
-export async function closePlan(storeId: string, planId: string, auth: AuthContext, status: "DONE" | "CANCELLED", outcome: string | null): Promise<void> {
-  const plan = await prisma.batchExpiryPlan.findFirst({ where: { id: planId, storeId }, include: { batch: { select: { batchNumber: true } } } });
+export async function closePlan(
+  storeId: string,
+  planId: string,
+  auth: AuthContext,
+  status: "DONE" | "CANCELLED",
+  outcome: string | null,
+): Promise<void> {
+  const plan = await prisma.batchExpiryPlan.findFirst({
+    where: { id: planId, storeId },
+    include: { batch: { select: { batchNumber: true } } },
+  });
   if (!plan) throw AppError.notFound("Không tìm thấy kế hoạch xử lý");
   if (plan.status !== "PLANNED") throw AppError.invalidState("Kế hoạch này đã đóng rồi");
 
   await prisma.$transaction(async (tx) => {
     await tx.batchExpiryPlan.update({
       where: { id: planId },
-      data: { status, outcome, resolvedBy: auth.userId, resolvedAt: new Date(), version: { increment: 1 } },
+      data: {
+        status,
+        outcome,
+        resolvedBy: auth.userId,
+        resolvedAt: new Date(),
+        version: { increment: 1 },
+      },
     });
     await tx.auditLog.create({
       data: {
@@ -236,6 +301,9 @@ export async function planHistory(storeId: string, batchId: string) {
   return prisma.batchExpiryPlan.findMany({
     where: { storeId, batchId },
     orderBy: { createdAt: "desc" },
-    include: { createdByUser: { select: { fullName: true } }, resolvedByUser: { select: { fullName: true } } },
+    include: {
+      createdByUser: { select: { fullName: true } },
+      resolvedByUser: { select: { fullName: true } },
+    },
   });
 }

@@ -1,6 +1,30 @@
-import { CreditCardOutlined, DollarOutlined, HistoryOutlined, SettingOutlined, StopOutlined, WarningFilled } from "@ant-design/icons";
+import {
+  CreditCardOutlined,
+  DollarOutlined,
+  HistoryOutlined,
+  SettingOutlined,
+  StopOutlined,
+  WarningFilled,
+} from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, App, Button, Card, Checkbox, DatePicker, Empty, Form, Input, InputNumber, Modal, Radio, Skeleton, Table, Tag, Tooltip } from "antd";
+import {
+  Alert,
+  App,
+  Button,
+  Card,
+  Checkbox,
+  DatePicker,
+  Empty,
+  Form,
+  Input,
+  InputNumber,
+  Modal,
+  Radio,
+  Skeleton,
+  Table,
+  Tag,
+  Tooltip,
+} from "antd";
 import dayjs from "dayjs";
 import { useMemo, useState } from "react";
 import { getErrorMessage, http } from "../../api/http.js";
@@ -38,7 +62,13 @@ type SupplierDebt = {
 
 type DebtResponse = {
   items: SupplierDebt[];
-  summary: { suppliers: number; outstanding: number; overdueAmount: number; dueSoonAmount: number; overdueSuppliers: number };
+  summary: {
+    suppliers: number;
+    outstanding: number;
+    overdueAmount: number;
+    dueSoonAmount: number;
+    overdueSuppliers: number;
+  };
 };
 
 type Payment = {
@@ -73,7 +103,12 @@ export function SupplierDebtsPage() {
 
   const debts = useQuery({
     queryKey: ["supplier-debts"],
-    queryFn: async () => (await http.get<Envelope<DebtResponse>>("/supplier-debts", { params: { onlyOutstanding: true, dueSoonDays: 7 } })).data.data,
+    queryFn: async () =>
+      (
+        await http.get<Envelope<DebtResponse>>("/supplier-debts", {
+          params: { onlyOutstanding: true, dueSoonDays: 7 },
+        })
+      ).data.data,
   });
 
   const payments = useQuery({
@@ -85,7 +120,12 @@ export function SupplierDebtsPage() {
   // Bấm lại sau khi mạng chập chờn không ghi thêm phiếu chi thứ hai.
   const paymentKey = useSubmitKey();
   const createPayment = useMutation({
-    mutationFn: async (values: { paidAt: dayjs.Dayjs; method: "CASH" | "BANK_TRANSFER"; reference?: string; note?: string }) => {
+    mutationFn: async (values: {
+      paidAt: dayjs.Dayjs;
+      method: "CASH" | "BANK_TRANSFER";
+      reference?: string;
+      note?: string;
+    }) => {
       const body = {
         supplierId: paying!.supplierId,
         paidAt: values.paidAt.format("YYYY-MM-DD"),
@@ -106,13 +146,17 @@ export function SupplierDebtsPage() {
       await queryClient.invalidateQueries({ queryKey: ["supplier-debts"] });
       await queryClient.invalidateQueries({ queryKey: ["supplier-payments"] });
     },
-    onError: (error) => void message.error(getErrorMessage(error, "Không ghi nhận được thanh toán"), 8),
+    onError: (error) =>
+      void message.error(getErrorMessage(error, "Không ghi nhận được thanh toán"), 8),
   });
 
   const saveTerm = useMutation({
-    mutationFn: async (days: number) => http.put(`/supplier-debts/${term!.supplierId}/term`, { paymentTermDays: days }),
+    mutationFn: async (days: number) =>
+      http.put(`/supplier-debts/${term!.supplierId}/term`, { paymentTermDays: days }),
     onSuccess: async () => {
-      void message.success("Đã đổi kỳ hạn thanh toán. Kỳ hạn mới áp dụng cho các phiếu nhập kiểm nhập sau này.");
+      void message.success(
+        "Đã đổi kỳ hạn thanh toán. Kỳ hạn mới áp dụng cho các phiếu nhập kiểm nhập sau này.",
+      );
       setTerm(null);
       await queryClient.invalidateQueries({ queryKey: ["supplier-debts"] });
     },
@@ -120,7 +164,8 @@ export function SupplierDebtsPage() {
   });
 
   const voidPayment = useMutation({
-    mutationFn: async (input: { id: string; reason: string }) => http.post(`/supplier-payments/${input.id}/void`, { reason: input.reason }),
+    mutationFn: async (input: { id: string; reason: string }) =>
+      http.post(`/supplier-payments/${input.id}/void`, { reason: input.reason }),
     onSuccess: async () => {
       setVoiding(null);
       void message.success("Đã hủy phiếu chi, công nợ được tính lại");
@@ -130,8 +175,10 @@ export function SupplierDebtsPage() {
     onError: (error) => void message.error(getErrorMessage(error, "Không hủy được phiếu chi")),
   });
 
-
-  const chosenTotal = useMemo(() => Object.values(selected).reduce((sum, amount) => sum + amount, 0), [selected]);
+  const chosenTotal = useMemo(
+    () => Object.values(selected).reduce((sum, amount) => sum + amount, 0),
+    [selected],
+  );
   const summary = debts.data?.summary;
 
   const columns = [
@@ -142,7 +189,8 @@ export function SupplierDebtsPage() {
         <div className="cell-main">
           <span className="cell-title">{name}</span>
           <span className="cell-sub">
-            {row.phone ? `${row.phone} · ` : ""}Kỳ hạn {formatNumber(row.paymentTermDays)} ngày · {formatNumber(row.receipts.length)} phiếu còn nợ
+            {row.phone ? `${row.phone} · ` : ""}Kỳ hạn {formatNumber(row.paymentTermDays)} ngày ·{" "}
+            {formatNumber(row.receipts.length)} phiếu còn nợ
           </span>
         </div>
       ),
@@ -163,7 +211,9 @@ export function SupplierDebtsPage() {
         value > 0 ? (
           <div className="cell-main" style={{ alignItems: "flex-end" }}>
             <span className="count-diff-minus">{formatVnd(value)}</span>
-            <span className="cell-sub">Hạn sớm nhất {row.oldestDueDate ? formatDate(row.oldestDueDate) : "—"}</span>
+            <span className="cell-sub">
+              Hạn sớm nhất {row.oldestDueDate ? formatDate(row.oldestDueDate) : "—"}
+            </span>
           </div>
         ) : (
           <span className="cell-sub">—</span>
@@ -174,7 +224,8 @@ export function SupplierDebtsPage() {
       dataIndex: "dueSoonAmount",
       width: 170,
       align: "right" as const,
-      render: (value: number) => (value > 0 ? formatVnd(value) : <span className="cell-sub">—</span>),
+      render: (value: number) =>
+        value > 0 ? formatVnd(value) : <span className="cell-sub">—</span>,
     },
     {
       title: "",
@@ -190,7 +241,12 @@ export function SupplierDebtsPage() {
               onClick={() => {
                 setPaying(row);
                 setSelected({});
-                form.setFieldsValue({ paidAt: dayjs(), method: "BANK_TRANSFER", reference: "", note: "" });
+                form.setFieldsValue({
+                  paidAt: dayjs(),
+                  method: "BANK_TRANSFER",
+                  reference: "",
+                  note: "",
+                });
               }}
             >
               Trả tiền
@@ -222,7 +278,14 @@ export function SupplierDebtsPage() {
         }
       />
 
-      {debts.isError ? <Alert type="error" showIcon title="Không đọc được công nợ" description={getErrorMessage(debts.error)} /> : null}
+      {debts.isError ? (
+        <Alert
+          type="error"
+          showIcon
+          title="Không đọc được công nợ"
+          description={getErrorMessage(debts.error)}
+        />
+      ) : null}
 
       {summary ? (
         <>
@@ -276,8 +339,22 @@ export function SupplierDebtsPage() {
                   dataSource={row.receipts}
                   pagination={false}
                   columns={[
-                    { title: "Phiếu nhập", dataIndex: "code", render: (code: string, item: ReceiptDebt) => <span>{code}{item.supplierInvoiceNumber ? ` · HĐ ${item.supplierInvoiceNumber}` : ""}</span> },
-                    { title: "Ngày nhận", dataIndex: "receivedAt", width: 120, render: (value: string) => formatDate(value) },
+                    {
+                      title: "Phiếu nhập",
+                      dataIndex: "code",
+                      render: (code: string, item: ReceiptDebt) => (
+                        <span>
+                          {code}
+                          {item.supplierInvoiceNumber ? ` · HĐ ${item.supplierInvoiceNumber}` : ""}
+                        </span>
+                      ),
+                    },
+                    {
+                      title: "Ngày nhận",
+                      dataIndex: "receivedAt",
+                      width: 120,
+                      render: (value: string) => formatDate(value),
+                    },
                     {
                       title: "Hạn trả",
                       dataIndex: "dueDate",
@@ -286,15 +363,35 @@ export function SupplierDebtsPage() {
                         value ? (
                           <span className={item.overdueDays > 0 ? "count-diff-minus" : undefined}>
                             {formatDate(value)}
-                            {item.overdueDays > 0 ? ` · quá ${formatNumber(item.overdueDays)} ngày` : ""}
+                            {item.overdueDays > 0
+                              ? ` · quá ${formatNumber(item.overdueDays)} ngày`
+                              : ""}
                           </span>
                         ) : (
                           <span className="cell-sub">—</span>
                         ),
                     },
-                    { title: "Giá trị phiếu", dataIndex: "totalCost", width: 130, align: "right", render: (value: number) => formatVnd(value) },
-                    { title: "Đã trả", dataIndex: "paidAmount", width: 120, align: "right", render: (value: number) => formatVnd(value) },
-                    { title: "Còn nợ", dataIndex: "outstanding", width: 130, align: "right", render: (value: number) => <b>{formatVnd(value)}</b> },
+                    {
+                      title: "Giá trị phiếu",
+                      dataIndex: "totalCost",
+                      width: 130,
+                      align: "right",
+                      render: (value: number) => formatVnd(value),
+                    },
+                    {
+                      title: "Đã trả",
+                      dataIndex: "paidAmount",
+                      width: 120,
+                      align: "right",
+                      render: (value: number) => formatVnd(value),
+                    },
+                    {
+                      title: "Còn nợ",
+                      dataIndex: "outstanding",
+                      width: 130,
+                      align: "right",
+                      render: (value: number) => <b>{formatVnd(value)}</b>,
+                    },
                   ]}
                 />
               ),
@@ -356,7 +453,13 @@ export function SupplierDebtsPage() {
                     </div>
                   ),
                 },
-                { title: "Còn nợ", dataIndex: "outstanding", width: 130, align: "right", render: (value: number) => formatVnd(value) },
+                {
+                  title: "Còn nợ",
+                  dataIndex: "outstanding",
+                  width: 130,
+                  align: "right",
+                  render: (value: number) => formatVnd(value),
+                },
                 {
                   title: "Số tiền trả",
                   dataIndex: "goodsReceiptId",
@@ -384,7 +487,10 @@ export function SupplierDebtsPage() {
               ]}
             />
 
-            <div className="purchase-settings" style={{ flexDirection: "row", flexWrap: "wrap", gap: 16 }}>
+            <div
+              className="purchase-settings"
+              style={{ flexDirection: "row", flexWrap: "wrap", gap: 16 }}
+            >
               <Form.Item name="paidAt" label="Ngày trả" rules={[{ required: true }]}>
                 <DatePicker format="DD/MM/YYYY" />
               </Form.Item>
@@ -421,7 +527,13 @@ export function SupplierDebtsPage() {
         {term ? (
           <div className="supplier-term">
             <p>Số ngày được nợ tính từ ngày nhận hàng. Để 0 nghĩa là trả ngay khi nhận hàng.</p>
-            <InputNumber min={0} max={365} value={termDays} onChange={(value) => setTermDays(Number(value ?? 0))} style={{ width: 160 }} />
+            <InputNumber
+              min={0}
+              max={365}
+              value={termDays}
+              onChange={(value) => setTermDays(Number(value ?? 0))}
+              style={{ width: 160 }}
+            />
             <Alert
               className="count-banner"
               style={{ marginTop: 12 }}
@@ -446,18 +558,36 @@ export function SupplierDebtsPage() {
         destroyOnHidden
       >
         {voiding ? (
-          <Form form={voidForm} layout="vertical" onFinish={(values: { reason: string }) => voidPayment.mutate({ id: voiding.id, reason: values.reason })}>
+          <Form
+            form={voidForm}
+            layout="vertical"
+            onFinish={(values: { reason: string }) =>
+              voidPayment.mutate({ id: voiding.id, reason: values.reason })
+            }
+          >
             <p>
-              {formatVnd(voiding.amount)} trả cho {voiding.supplier.name}. Hủy phiếu thì khoản nợ tương ứng quay lại. Phiếu vẫn nằm trong lịch sử để đối chiếu sổ sách.
+              {formatVnd(voiding.amount)} trả cho {voiding.supplier.name}. Hủy phiếu thì khoản nợ
+              tương ứng quay lại. Phiếu vẫn nằm trong lịch sử để đối chiếu sổ sách.
             </p>
-            <Form.Item name="reason" label="Lý do hủy" rules={[{ required: true, message: "Phải ghi lý do hủy phiếu chi" }]}>
+            <Form.Item
+              name="reason"
+              label="Lý do hủy"
+              rules={[{ required: true, message: "Phải ghi lý do hủy phiếu chi" }]}
+            >
               <Input.TextArea rows={2} maxLength={500} placeholder="Ví dụ: ghi nhầm nhà cung cấp" />
             </Form.Item>
           </Form>
         ) : null}
       </Modal>
 
-      <Modal title="Lịch sử thanh toán nhà cung cấp" open={showPayments} onCancel={() => setShowPayments(false)} footer={null} width={900} destroyOnHidden>
+      <Modal
+        title="Lịch sử thanh toán nhà cung cấp"
+        open={showPayments}
+        onCancel={() => setShowPayments(false)}
+        footer={null}
+        width={900}
+        destroyOnHidden
+      >
         {payments.isLoading ? <Skeleton active /> : null}
         {payments.data ? (
           <Table
@@ -474,32 +604,54 @@ export function SupplierDebtsPage() {
                   <div className="cell-main">
                     <span className="cell-title">{code}</span>
                     <span className="cell-sub">
-                      {formatDate(row.paidAt)} · {row.method === "CASH" ? "Tiền mặt" : "Chuyển khoản"}
+                      {formatDate(row.paidAt)} ·{" "}
+                      {row.method === "CASH" ? "Tiền mặt" : "Chuyển khoản"}
                       {row.reference ? ` · ${row.reference}` : ""} · {row.createdByName}
                     </span>
                   </div>
                 ),
               },
-              { title: "Nhà cung cấp", dataIndex: "supplier", render: (supplier: Payment["supplier"]) => supplier.name },
+              {
+                title: "Nhà cung cấp",
+                dataIndex: "supplier",
+                render: (supplier: Payment["supplier"]) => supplier.name,
+              },
               {
                 title: "Phiếu nhập",
                 dataIndex: "allocations",
                 render: (allocations: Payment["allocations"]) => (
-                  <span className="cell-sub">{allocations.map((item) => `${item.code} (${formatVnd(item.amount)})`).join(", ")}</span>
+                  <span className="cell-sub">
+                    {allocations
+                      .map((item) => `${item.code} (${formatVnd(item.amount)})`)
+                      .join(", ")}
+                  </span>
                 ),
               },
-              { title: "Số tiền", dataIndex: "amount", width: 130, align: "right", render: (value: number) => <b>{formatVnd(value)}</b> },
+              {
+                title: "Số tiền",
+                dataIndex: "amount",
+                width: 130,
+                align: "right",
+                render: (value: number) => <b>{formatVnd(value)}</b>,
+              },
               {
                 title: "",
                 dataIndex: "status",
                 width: 150,
                 render: (status: Payment["status"], row: Payment) =>
                   status === "VOIDED" ? (
-                    <Tooltip title={`${row.voidReason ?? ""}${row.voidedByName ? ` (${row.voidedByName})` : ""}`}>
+                    <Tooltip
+                      title={`${row.voidReason ?? ""}${row.voidedByName ? ` (${row.voidedByName})` : ""}`}
+                    >
                       <Tag variant="filled">Đã hủy</Tag>
                     </Tooltip>
                   ) : canPay ? (
-                    <Button size="small" danger icon={<StopOutlined />} onClick={() => setVoiding(row)}>
+                    <Button
+                      size="small"
+                      danger
+                      icon={<StopOutlined />}
+                      onClick={() => setVoiding(row)}
+                    >
                       Hủy phiếu
                     </Button>
                   ) : null,

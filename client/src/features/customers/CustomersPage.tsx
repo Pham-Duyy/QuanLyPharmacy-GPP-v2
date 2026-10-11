@@ -1,6 +1,30 @@
-import { DownloadOutlined, FilterOutlined, PlusOutlined, SearchOutlined, ShoppingCartOutlined, TeamOutlined, UserAddOutlined, HistoryOutlined, InfoCircleOutlined } from "@ant-design/icons";
+import {
+  DownloadOutlined,
+  FilterOutlined,
+  PlusOutlined,
+  SearchOutlined,
+  ShoppingCartOutlined,
+  TeamOutlined,
+  UserAddOutlined,
+  HistoryOutlined,
+  InfoCircleOutlined,
+} from "@ant-design/icons";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
-import { App, Badge, Button, Drawer, Empty, Grid, Input, Pagination, Popover, Result, Select, Skeleton, Tooltip } from "antd";
+import {
+  App,
+  Badge,
+  Button,
+  Drawer,
+  Empty,
+  Grid,
+  Input,
+  Pagination,
+  Popover,
+  Result,
+  Select,
+  Skeleton,
+  Tooltip,
+} from "antd";
 import { useState } from "react";
 import type { ReactNode } from "react";
 import { useSearchParams } from "react-router";
@@ -62,14 +86,26 @@ export function CustomersPage() {
 
   const summary = useQuery({
     queryKey: ["customers", "summary"],
-    queryFn: async () => (await http.get<Envelope<CustomerSummary>>("/customers/summary")).data.data,
+    queryFn: async () =>
+      (await http.get<Envelope<CustomerSummary>>("/customers/summary")).data.data,
   });
 
-  const filters = { q: term || undefined, segment: tab === "ALL" ? undefined : tab, sortBy: sort, order: SORTS[sort].order };
+  const filters = {
+    q: term || undefined,
+    segment: tab === "ALL" ? undefined : tab,
+    sortBy: sort,
+    order: SORTS[sort].order,
+  };
   const list = useQuery({
     queryKey: ["customers", "list", filters, page],
     placeholderData: keepPreviousData,
-    queryFn: async ({ signal }) => (await http.get<Envelope<Paged<CustomerListItem>>>("/customers", { signal, params: { ...filters, page, limit: PAGE_SIZE } })).data.data,
+    queryFn: async ({ signal }) =>
+      (
+        await http.get<Envelope<Paged<CustomerListItem>>>("/customers", {
+          signal,
+          params: { ...filters, page, limit: PAGE_SIZE },
+        })
+      ).data.data,
   });
 
   async function refreshAll() {
@@ -79,7 +115,10 @@ export function CustomersPage() {
   async function exportCsv() {
     setExporting(true);
     try {
-      const response = await http.get<Blob>("/customers/export", { params: { q: filters.q, segment: filters.segment }, responseType: "blob" });
+      const response = await http.get<Blob>("/customers/export", {
+        params: { q: filters.q, segment: filters.segment },
+        responseType: "blob",
+      });
       const url = URL.createObjectURL(response.data);
       const link = document.createElement("a");
       link.href = url;
@@ -98,16 +137,68 @@ export function CustomersPage() {
   const counts = summary.data?.segments;
   const tabs: Array<{ key: Tab; label: string; count?: number; hint?: string }> = [
     { key: "ALL", label: "Tất cả", count: summary.data?.total },
-    { key: "LOYAL", label: "Khách thân thiết", count: counts?.LOYAL, hint: rules ? `Từ ${rules.loyalMinOrders} hóa đơn trong ${rules.loyalWindowDays} ngày gần nhất` : undefined },
-    { key: "NEW", label: "Khách mới", count: counts?.NEW, hint: rules ? `Tạo hồ sơ trong ${rules.newWithinDays} ngày gần nhất` : undefined },
-    { key: "DORMANT", label: "Lâu chưa quay lại", count: counts?.DORMANT, hint: rules ? `Lần mua cuối cách hơn ${rules.dormantAfterDays} ngày — nên gọi chăm sóc` : undefined },
+    {
+      key: "LOYAL",
+      label: "Khách thân thiết",
+      count: counts?.LOYAL,
+      hint: rules
+        ? `Từ ${rules.loyalMinOrders} hóa đơn trong ${rules.loyalWindowDays} ngày gần nhất`
+        : undefined,
+    },
+    {
+      key: "NEW",
+      label: "Khách mới",
+      count: counts?.NEW,
+      hint: rules ? `Tạo hồ sơ trong ${rules.newWithinDays} ngày gần nhất` : undefined,
+    },
+    {
+      key: "DORMANT",
+      label: "Lâu chưa quay lại",
+      count: counts?.DORMANT,
+      hint: rules
+        ? `Lần mua cuối cách hơn ${rules.dormantAfterDays} ngày — nên gọi chăm sóc`
+        : undefined,
+    },
   ];
 
-  const stats: Array<{ key: string; label: string; value: number | undefined; icon: ReactNode; tone: string; tab?: Tab }> = [
-    { key: "total", label: "Tổng khách hàng", value: summary.data?.total, icon: <TeamOutlined />, tone: "blue", tab: "ALL" },
-    { key: "new", label: "Khách mới tháng này", value: summary.data?.newThisMonth, icon: <UserAddOutlined />, tone: "teal" },
-    { key: "bought", label: "Đã mua trong 30 ngày", value: summary.data?.purchasedLast30Days, icon: <ShoppingCartOutlined />, tone: "green" },
-    { key: "dormant", label: "Lâu chưa quay lại", value: counts?.DORMANT, icon: <HistoryOutlined />, tone: "orange", tab: "DORMANT" },
+  const stats: Array<{
+    key: string;
+    label: string;
+    value: number | undefined;
+    icon: ReactNode;
+    tone: string;
+    tab?: Tab;
+  }> = [
+    {
+      key: "total",
+      label: "Tổng khách hàng",
+      value: summary.data?.total,
+      icon: <TeamOutlined />,
+      tone: "blue",
+      tab: "ALL",
+    },
+    {
+      key: "new",
+      label: "Khách mới tháng này",
+      value: summary.data?.newThisMonth,
+      icon: <UserAddOutlined />,
+      tone: "teal",
+    },
+    {
+      key: "bought",
+      label: "Đã mua trong 30 ngày",
+      value: summary.data?.purchasedLast30Days,
+      icon: <ShoppingCartOutlined />,
+      tone: "green",
+    },
+    {
+      key: "dormant",
+      label: "Lâu chưa quay lại",
+      value: counts?.DORMANT,
+      icon: <HistoryOutlined />,
+      tone: "orange",
+      tab: "DORMANT",
+    },
   ];
 
   const items = list.data?.items ?? [];
@@ -116,12 +207,23 @@ export function CustomersPage() {
 
   let body: ReactNode;
   if (list.isError && !list.data) {
-    body = <Result status="warning" title="Không tải được danh sách khách hàng" subTitle={getErrorMessage(list.error, "Kiểm tra kết nối rồi thử lại.")} extra={<Button onClick={() => void list.refetch()}>Thử lại</Button>} />;
+    body = (
+      <Result
+        status="warning"
+        title="Không tải được danh sách khách hàng"
+        subTitle={getErrorMessage(list.error, "Kiểm tra kết nối rồi thử lại.")}
+        extra={<Button onClick={() => void list.refetch()}>Thử lại</Button>}
+      />
+    );
   } else if (list.isPending) {
     body = <Skeleton avatar active paragraph={{ rows: 6 }} />;
   } else if (items.length === 0) {
     body = hasFilters ? (
-      <Empty className="product-empty" image={Empty.PRESENTED_IMAGE_SIMPLE} description="Không có khách hàng phù hợp">
+      <Empty
+        className="product-empty"
+        image={Empty.PRESENTED_IMAGE_SIMPLE}
+        description="Không có khách hàng phù hợp"
+      >
         <Button
           onClick={() => {
             setSearch("");
@@ -133,7 +235,11 @@ export function CustomersPage() {
         </Button>
       </Empty>
     ) : (
-      <Empty className="product-empty" image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có khách hàng nào">
+      <Empty
+        className="product-empty"
+        image={Empty.PRESENTED_IMAGE_SIMPLE}
+        description="Chưa có khách hàng nào"
+      >
         {can("customer.manage") ? (
           <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreating(true)}>
             Thêm khách hàng đầu tiên
@@ -174,7 +280,8 @@ export function CustomersPage() {
                 <span className="cust-row-text">
                   <strong>{row.fullName ?? "Khách chưa có tên"}</strong>
                   <span>
-                    <span className="mono muted">{row.code}</span> <span className={`class-badge tone-${segment.tone}`}>{segment.label}</span>
+                    <span className="mono muted">{row.code}</span>{" "}
+                    <span className={`class-badge tone-${segment.tone}`}>{segment.label}</span>
                   </span>
                 </span>
               </span>
@@ -182,11 +289,19 @@ export function CustomersPage() {
                 {row.phone ?? <span className="muted">—</span>}
               </span>
               <span role="cell" className="col-num cust-row-money">
-                {row.orderCount > 0 ? money(row.totalSpent) : <span className="muted">Chưa mua</span>}
+                {row.orderCount > 0 ? (
+                  money(row.totalSpent)
+                ) : (
+                  <span className="muted">Chưa mua</span>
+                )}
                 {row.orderCount > 0 ? <small className="muted">{row.orderCount} đơn</small> : null}
               </span>
               <span role="cell" className="col-num cust-row-date">
-                {row.lastPurchaseAt ? formatDate(row.lastPurchaseAt) : <span className="muted">—</span>}
+                {row.lastPurchaseAt ? (
+                  formatDate(row.lastPurchaseAt)
+                ) : (
+                  <span className="muted">—</span>
+                )}
               </span>
             </button>
           );
@@ -195,7 +310,14 @@ export function CustomersPage() {
     );
   }
 
-  const detail = openId ? <CustomerDetailPanel key={openId} customerId={openId} onClose={() => select(null)} onChanged={refreshAll} /> : null;
+  const detail = openId ? (
+    <CustomerDetailPanel
+      key={openId}
+      customerId={openId}
+      onClose={() => select(null)}
+      onChanged={refreshAll}
+    />
+  ) : null;
 
   return (
     <div>
@@ -206,7 +328,11 @@ export function CustomersPage() {
           <>
             {can("customer.sensitive") ? (
               <Tooltip title="Xuất CSV theo bộ lọc đang xem (có số điện thoại đầy đủ, được ghi nhật ký)">
-                <Button icon={<DownloadOutlined />} loading={exporting} onClick={() => void exportCsv()}>
+                <Button
+                  icon={<DownloadOutlined />}
+                  loading={exporting}
+                  onClick={() => void exportCsv()}
+                >
                   Xuất danh sách
                 </Button>
               </Tooltip>
@@ -242,7 +368,13 @@ export function CustomersPage() {
               </span>
               <span className="cust-stat-text">
                 <span>{stat.label}</span>
-                <strong>{stat.value === undefined ? <Skeleton.Button active size="small" /> : stat.value.toLocaleString("vi-VN")}</strong>
+                <strong>
+                  {stat.value === undefined ? (
+                    <Skeleton.Button active size="small" />
+                  ) : (
+                    stat.value.toLocaleString("vi-VN")
+                  )}
+                </strong>
               </span>
             </>
           );
@@ -298,11 +430,18 @@ export function CustomersPage() {
                         setSort(value);
                         setPage(1);
                       }}
-                      options={Object.entries(SORTS).map(([value, info]) => ({ value, label: info.label }))}
+                      options={Object.entries(SORTS).map(([value, info]) => ({
+                        value,
+                        label: info.label,
+                      }))}
                     />
                   </label>
                   <div className="product-filter-actions">
-                    <Button size="small" disabled={sort === "createdAt"} onClick={() => setSort("createdAt")}>
+                    <Button
+                      size="small"
+                      disabled={sort === "createdAt"}
+                      onClick={() => setSort("createdAt")}
+                    >
                       Đặt lại
                     </Button>
                     <Button size="small" type="primary" onClick={() => setFilterOpen(false)}>
@@ -345,14 +484,28 @@ export function CustomersPage() {
             </p>
           ) : null}
 
-          <div className={list.isFetching && list.data ? "products-body is-refreshing" : "products-body"}>{body}</div>
+          <div
+            className={
+              list.isFetching && list.data ? "products-body is-refreshing" : "products-body"
+            }
+          >
+            {body}
+          </div>
 
           {total > 0 ? (
             <div className="products-footer">
               <span className="muted">
-                Hiển thị {(page - 1) * PAGE_SIZE + 1} – {Math.min(total, page * PAGE_SIZE)} / {total.toLocaleString("vi-VN")} khách hàng
+                Hiển thị {(page - 1) * PAGE_SIZE + 1} – {Math.min(total, page * PAGE_SIZE)} /{" "}
+                {total.toLocaleString("vi-VN")} khách hàng
               </span>
-              <Pagination size={compact ? "small" : "middle"} current={page} pageSize={PAGE_SIZE} total={total} showSizeChanger={false} onChange={setPage} />
+              <Pagination
+                size={compact ? "small" : "middle"}
+                current={page}
+                pageSize={PAGE_SIZE}
+                total={total}
+                showSizeChanger={false}
+                onChange={setPage}
+              />
             </div>
           ) : null}
         </section>
@@ -361,7 +514,16 @@ export function CustomersPage() {
       </div>
 
       {!wide ? (
-        <Drawer open={Boolean(detail)} onClose={() => select(null)} placement="right" size={compact ? "100%" : 520} closable={false} rootClassName="product-drawer" styles={{ body: { padding: 0 } }} destroyOnHidden>
+        <Drawer
+          open={Boolean(detail)}
+          onClose={() => select(null)}
+          placement="right"
+          size={compact ? "100%" : 520}
+          closable={false}
+          rootClassName="product-drawer"
+          styles={{ body: { padding: 0 } }}
+          destroyOnHidden
+        >
           {detail}
         </Drawer>
       ) : null}

@@ -1,9 +1,34 @@
-import { CheckCircleFilled, DownloadOutlined, FileExcelOutlined, InboxOutlined, ReloadOutlined } from "@ant-design/icons";
-import { Alert, App, Button, Modal, Result, Space, Spin, Table, Tabs, Tag, Typography, Upload } from "antd";
+import {
+  CheckCircleFilled,
+  DownloadOutlined,
+  FileExcelOutlined,
+  InboxOutlined,
+  ReloadOutlined,
+} from "@ant-design/icons";
+import {
+  Alert,
+  App,
+  Button,
+  Modal,
+  Result,
+  Space,
+  Spin,
+  Table,
+  Tabs,
+  Tag,
+  Typography,
+  Upload,
+} from "antd";
 import { useState } from "react";
 import { getErrorMessage } from "../../api/http.js";
 import { formatNumber } from "../../ui/format.js";
-import { downloadTemplate, sendImport, type ImportPreview, type ImportResult, type ImportType } from "./excel-api.js";
+import {
+  downloadTemplate,
+  sendImport,
+  type ImportPreview,
+  type ImportResult,
+  type ImportType,
+} from "./excel-api.js";
 
 type Props = {
   type: ImportType;
@@ -78,7 +103,11 @@ export function ExcelImportModal({ type, title, open, onClose, onDone, hint }: P
     }
   }
 
-  const blocked = !preview || preview.missingColumns.length > 0 || preview.issueCount > 0 || preview.validRows === 0;
+  const blocked =
+    !preview ||
+    preview.missingColumns.length > 0 ||
+    preview.issueCount > 0 ||
+    preview.validRows === 0;
 
   const footer = result
     ? [
@@ -90,13 +119,24 @@ export function ExcelImportModal({ type, title, open, onClose, onDone, hint }: P
         </Button>,
       ]
     : [
-        <Button key="template" icon={<DownloadOutlined />} loading={busy === "template"} onClick={() => void template()}>
+        <Button
+          key="template"
+          icon={<DownloadOutlined />}
+          loading={busy === "template"}
+          onClick={() => void template()}
+        >
           Tải tệp mẫu
         </Button>,
         <Button key="cancel" onClick={onClose}>
           Hủy
         </Button>,
-        <Button key="commit" type="primary" disabled={blocked || busy !== null} loading={busy === "commit"} onClick={() => void commit()}>
+        <Button
+          key="commit"
+          type="primary"
+          disabled={blocked || busy !== null}
+          loading={busy === "commit"}
+          onClick={() => void commit()}
+        >
           {preview && !blocked ? `Ghi ${formatNumber(preview.validRows)} dòng` : "Ghi dữ liệu"}
         </Button>,
       ];
@@ -123,12 +163,20 @@ export function ExcelImportModal({ type, title, open, onClose, onDone, hint }: P
         <Result
           status="success"
           title="Đã ghi dữ liệu"
-          subTitle={[result.created ? `Tạo mới ${formatNumber(result.created)}` : null, result.updated ? `cập nhật ${formatNumber(result.updated)}` : null].filter(Boolean).join(", ") + ` · tệp ${result.fileName}`}
+          subTitle={
+            [
+              result.created ? `Tạo mới ${formatNumber(result.created)}` : null,
+              result.updated ? `cập nhật ${formatNumber(result.updated)}` : null,
+            ]
+              .filter(Boolean)
+              .join(", ") + ` · tệp ${result.fileName}`
+          }
         />
       ) : (
         <div className="excel-import">
           <Typography.Paragraph type="secondary" style={{ marginBottom: 12 }}>
-            {hint ?? "Dùng tệp mẫu để đúng tên cột."} Hệ thống kiểm tra toàn bộ tệp trước; còn một lỗi là chưa ghi dòng nào, sửa trong Excel rồi chọn lại tệp.
+            {hint ?? "Dùng tệp mẫu để đúng tên cột."} Hệ thống kiểm tra toàn bộ tệp trước; còn một
+            lỗi là chưa ghi dòng nào, sửa trong Excel rồi chọn lại tệp.
           </Typography.Paragraph>
 
           <Upload.Dragger
@@ -141,8 +189,12 @@ export function ExcelImportModal({ type, title, open, onClose, onDone, hint }: P
               return false;
             }}
           >
-            <p className="ant-upload-drag-icon">{file ? <FileExcelOutlined style={{ color: "#1d6f42" }} /> : <InboxOutlined />}</p>
-            <p className="ant-upload-text">{file ? file.name : "Kéo tệp .xlsx vào đây hoặc bấm để chọn"}</p>
+            <p className="ant-upload-drag-icon">
+              {file ? <FileExcelOutlined style={{ color: "#1d6f42" }} /> : <InboxOutlined />}
+            </p>
+            <p className="ant-upload-text">
+              {file ? file.name : "Kéo tệp .xlsx vào đây hoặc bấm để chọn"}
+            </p>
             <p className="ant-upload-hint">Excel 2007 trở lên, tối đa {MAX_MB} MB, 5.000 dòng</p>
           </Upload.Dragger>
 
@@ -152,7 +204,9 @@ export function ExcelImportModal({ type, title, open, onClose, onDone, hint }: P
             </div>
           ) : null}
           {error ? <Alert type="error" showIcon title={error} style={{ marginTop: 12 }} /> : null}
-          {preview ? <PreviewBody preview={preview} onRetry={() => file && void check(file)} /> : null}
+          {preview ? (
+            <PreviewBody preview={preview} onRetry={() => file && void check(file)} />
+          ) : null}
         </div>
       )}
     </Modal>
@@ -191,9 +245,22 @@ function PreviewBody({ preview, onRetry }: { preview: ImportPreview; onRetry: ()
         <Alert key={note} type="info" showIcon style={{ marginTop: 12 }} title={note} />
       ))}
       {preview.issueCount === 0 && preview.missingColumns.length === 0 && preview.validRows > 0 ? (
-        <Alert type="success" showIcon icon={<CheckCircleFilled />} style={{ marginTop: 12 }} title="Tệp hợp lệ, sẵn sàng ghi" />
+        <Alert
+          type="success"
+          showIcon
+          icon={<CheckCircleFilled />}
+          style={{ marginTop: 12 }}
+          title="Tệp hợp lệ, sẵn sàng ghi"
+        />
       ) : null}
-      {preview.totalRows === 0 && preview.missingColumns.length === 0 ? <Alert type="warning" showIcon style={{ marginTop: 12 }} title="Tệp không có dòng dữ liệu nào" /> : null}
+      {preview.totalRows === 0 && preview.missingColumns.length === 0 ? (
+        <Alert
+          type="warning"
+          showIcon
+          style={{ marginTop: 12 }}
+          title="Tệp không có dòng dữ liệu nào"
+        />
+      ) : null}
 
       <Tabs
         key={`${preview.fileName}-${preview.issueCount}`}
@@ -218,13 +285,19 @@ function PreviewBody({ preview, onRetry }: { preview: ImportPreview; onRetry: ()
                   pagination={preview.issues.length > 8 ? { pageSize: 8, size: "small" } : false}
                   columns={[
                     { title: "Dòng", dataIndex: "row", width: 64 },
-                    { title: "Cột", dataIndex: "column", width: 190, render: (value?: string) => value ?? "—" },
+                    {
+                      title: "Cột",
+                      dataIndex: "column",
+                      width: 190,
+                      render: (value?: string) => value ?? "—",
+                    },
                     { title: "Lỗi", dataIndex: "message" },
                   ]}
                 />
                 {preview.issueCount > preview.issues.length ? (
                   <Typography.Text type="secondary">
-                    Đang hiện {formatNumber(preview.issues.length)}/{formatNumber(preview.issueCount)} lỗi đầu tiên.
+                    Đang hiện {formatNumber(preview.issues.length)}/
+                    {formatNumber(preview.issueCount)} lỗi đầu tiên.
                   </Typography.Text>
                 ) : null}
               </>
@@ -239,7 +312,9 @@ function PreviewBody({ preview, onRetry }: { preview: ImportPreview; onRetry: ()
                 size="small"
                 rowKey="row"
                 dataSource={preview.sample ?? []}
-                pagination={(preview.sample?.length ?? 0) > 8 ? { pageSize: 8, size: "small" } : false}
+                pagination={
+                  (preview.sample?.length ?? 0) > 8 ? { pageSize: 8, size: "small" } : false
+                }
                 columns={[
                   { title: "Dòng", dataIndex: "row", width: 64 },
                   {

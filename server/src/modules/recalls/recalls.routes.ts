@@ -44,10 +44,18 @@ recallsRouter.get("/recalls/:id/affected-sales", async (req, res) => {
 /** POST /api/v1/recalls/{id}/contacts: đánh dấu đã liên hệ khách của một hóa đơn. */
 recallsRouter.post("/recalls/:id/contacts", async (req, res) => {
   const input = parseOrThrow(
-    z.object({ invoiceId: z.uuid("invoiceId không hợp lệ"), note: z.string().trim().max(500).nullish() }),
+    z.object({
+      invoiceId: z.uuid("invoiceId không hợp lệ"),
+      note: z.string().trim().max(500).nullish(),
+    }),
     req.body,
   );
-  await service.markContacted(String(req.params.id), input.invoiceId, req.auth!, input.note || null);
+  await service.markContacted(
+    String(req.params.id),
+    input.invoiceId,
+    req.auth!,
+    input.note || null,
+  );
   sendData(res, { invoiceId: input.invoiceId, contacted: true });
 });
 

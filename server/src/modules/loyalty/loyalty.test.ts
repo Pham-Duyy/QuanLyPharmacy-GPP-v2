@@ -1,7 +1,14 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { prisma } from "../../db/prisma.js";
-import { api, authHeaders, login, seedFixture, truncateAll, type Fixture } from "../../test/helpers.js";
+import {
+  api,
+  authHeaders,
+  login,
+  seedFixture,
+  truncateAll,
+  type Fixture,
+} from "../../test/helpers.js";
 import { summarize } from "./loyalty.service.js";
 
 let fixture: Fixture;
@@ -99,8 +106,9 @@ beforeEach(async () => {
   categoryId = (await prisma.category.create({ data: { name: "Hàng nhà thuốc" } })).id;
   vitamin = await makeProduct("TPCN01", "Vitamin C 1000mg", "SUPPLEMENT", 10_000);
   para = await makeProduct("TH0001", "Paracetamol 500mg", "DRUG", 10_000);
-  customerId = (await prisma.customer.create({ data: { fullName: "Chị Lan", phone: "0900000001" } }))
-    .id;
+  customerId = (
+    await prisma.customer.create({ data: { fullName: "Chị Lan", phone: "0900000001" } })
+  ).id;
 });
 
 afterAll(async () => {
@@ -115,8 +123,16 @@ describe("Cách tính số dư điểm", () => {
   it("tiêu điểm theo lô hết hạn trước, lô hết hạn thì mất điểm", () => {
     const balance = summarize(
       [
-        { points: 100, expiresAt: at("2026-03-01T00:00:00Z"), createdAt: at("2026-01-01T00:00:00Z") },
-        { points: 50, expiresAt: at("2027-01-01T00:00:00Z"), createdAt: at("2026-01-05T00:00:00Z") },
+        {
+          points: 100,
+          expiresAt: at("2026-03-01T00:00:00Z"),
+          createdAt: at("2026-01-01T00:00:00Z"),
+        },
+        {
+          points: 50,
+          expiresAt: at("2027-01-01T00:00:00Z"),
+          createdAt: at("2026-01-05T00:00:00Z"),
+        },
         { points: -60, expiresAt: null, createdAt: at("2026-02-01T00:00:00Z") },
       ],
       at("2026-06-01T00:00:00Z"),
@@ -124,14 +140,27 @@ describe("Cách tính số dư điểm", () => {
 
     // 60 điểm đổi vào lô hết hạn 01/03; 40 điểm còn lại của lô đó mất hạn,
     // chỉ còn nguyên lô 50 điểm hạn 2027.
-    expect(balance).toMatchObject({ available: 50, expired: 40, totalEarned: 150, totalRedeemed: 60 });
+    expect(balance).toMatchObject({
+      available: 50,
+      expired: 40,
+      totalEarned: 150,
+      totalRedeemed: 60,
+    });
   });
 
   it("lô đã hết hạn không gánh cho lần đổi điểm xảy ra sau đó", () => {
     const balance = summarize(
       [
-        { points: 100, expiresAt: at("2026-02-01T00:00:00Z"), createdAt: at("2026-01-01T00:00:00Z") },
-        { points: 30, expiresAt: at("2027-01-01T00:00:00Z"), createdAt: at("2026-01-10T00:00:00Z") },
+        {
+          points: 100,
+          expiresAt: at("2026-02-01T00:00:00Z"),
+          createdAt: at("2026-01-01T00:00:00Z"),
+        },
+        {
+          points: 30,
+          expiresAt: at("2027-01-01T00:00:00Z"),
+          createdAt: at("2026-01-10T00:00:00Z"),
+        },
         { points: -30, expiresAt: null, createdAt: at("2026-05-01T00:00:00Z") },
       ],
       at("2026-06-01T00:00:00Z"),
@@ -145,8 +174,16 @@ describe("Cách tính số dư điểm", () => {
   it("đếm riêng số điểm sắp hết hạn trong 30 ngày", () => {
     const balance = summarize(
       [
-        { points: 20, expiresAt: at("2026-06-20T00:00:00Z"), createdAt: at("2026-01-01T00:00:00Z") },
-        { points: 40, expiresAt: at("2026-12-31T00:00:00Z"), createdAt: at("2026-01-01T00:00:00Z") },
+        {
+          points: 20,
+          expiresAt: at("2026-06-20T00:00:00Z"),
+          createdAt: at("2026-01-01T00:00:00Z"),
+        },
+        {
+          points: 40,
+          expiresAt: at("2026-12-31T00:00:00Z"),
+          createdAt: at("2026-01-01T00:00:00Z"),
+        },
         { points: 5, expiresAt: null, createdAt: at("2026-01-01T00:00:00Z") },
       ],
       at("2026-06-01T00:00:00Z"),
@@ -161,15 +198,21 @@ describe("Cách tính số dư điểm", () => {
 describe("Cài đặt tích điểm", () => {
   it("mặc định là tắt và không tính điểm cho hàng thuốc", async () => {
     const data = (await api().get("/api/v1/loyalty/settings").set(h()).expect(200)).body.data;
-    expect(data).toMatchObject({ isDefault: true, settings: { enabled: false, earnOnDrugs: false } });
+    expect(data).toMatchObject({
+      isDefault: true,
+      settings: { enabled: false, earnOnDrugs: false },
+    });
   });
 
   it("lưu được cài đặt, ghi audit và quầy bán đọc được", async () => {
     await saveSettings({ pointValue: 1000 }).expect(200);
 
-    const forSales = (await api().get("/api/v1/loyalty/settings").set(h(salesToken)).expect(200)).body
-      .data;
-    expect(forSales).toMatchObject({ isDefault: false, settings: { enabled: true, pointValue: 1000 } });
+    const forSales = (await api().get("/api/v1/loyalty/settings").set(h(salesToken)).expect(200))
+      .body.data;
+    expect(forSales).toMatchObject({
+      isDefault: false,
+      settings: { enabled: true, pointValue: 1000 },
+    });
     expect(await prisma.auditLog.count({ where: { action: "SETTING_UPDATE" } })).toBe(1);
   });
 
@@ -230,9 +273,11 @@ describe("Đổi điểm ở quầy", () => {
   it("trừ tiền theo giá trị điểm, lưu lên hóa đơn và trừ đúng số dư", async () => {
     await earnPoints();
 
-    const sale = await sell({ customerId, lines: [line(vitamin, 10)], loyaltyRedeemPoints: 20 }).expect(
-      201,
-    );
+    const sale = await sell({
+      customerId,
+      lines: [line(vitamin, 10)],
+      loyaltyRedeemPoints: 20,
+    }).expect(201);
     // 100.000đ hàng, đổi 20 điểm × 500đ = 10.000đ.
     expect(sale.body.data).toMatchObject({
       subtotal: 100000,
@@ -251,9 +296,11 @@ describe("Đổi điểm ở quầy", () => {
 
     // Hạn mức giảm giá của nhân viên bán hàng là 5%, ở đây giảm 15% bằng
     // điểm của chính khách nên không bị chặn.
-    const sale = await sell({ customerId, lines: [line(vitamin, 10)], loyaltyRedeemPoints: 30 }).expect(
-      201,
-    );
+    const sale = await sell({
+      customerId,
+      lines: [line(vitamin, 10)],
+      loyaltyRedeemPoints: 30,
+    }).expect(201);
     expect(sale.body.data.totalAmount).toBe(85000);
   });
 
@@ -296,9 +343,11 @@ describe("Đổi điểm ở quầy", () => {
   });
 
   it("chưa bật chương trình hoặc chưa chọn khách thì không đổi được", async () => {
-    const off = await sell({ customerId, lines: [line(vitamin, 10)], loyaltyRedeemPoints: 10 }).expect(
-      409,
-    );
+    const off = await sell({
+      customerId,
+      lines: [line(vitamin, 10)],
+      loyaltyRedeemPoints: 10,
+    }).expect(409);
     expect(off.body.error.code).toBe("LOYALTY_DISABLED");
 
     await saveSettings().expect(200);
@@ -326,9 +375,9 @@ describe("Hủy hóa đơn và trả hàng", () => {
     // Trả lại 20 điểm đã đổi, thu lại 9 điểm vừa tích: về đúng 30 điểm ban đầu.
     const data = await loyaltyOf();
     expect(data.balance.available).toBe(30);
-    expect(data.transactions.filter((item: { type: string }) => item.type === "REVERSE")).toHaveLength(
-      2,
-    );
+    expect(
+      data.transactions.filter((item: { type: string }) => item.type === "REVERSE"),
+    ).toHaveLength(2);
     expect(
       (await api().get(`/api/v1/invoices/${sale.body.data.id}`).set(h()).expect(200)).body.data
         .loyaltyPointsEarned,
@@ -340,8 +389,8 @@ describe("Hủy hóa đơn và trả hàng", () => {
     const sale = await sell({ customerId, lines: [line(vitamin, 30)] }).expect(201);
     expect((await loyaltyOf()).balance.available).toBe(30);
 
-    const invoice = (await api().get(`/api/v1/invoices/${sale.body.data.id}`).set(h()).expect(200)).body
-      .data;
+    const invoice = (await api().get(`/api/v1/invoices/${sale.body.data.id}`).set(h()).expect(200))
+      .body.data;
     await api()
       .post(`/api/v1/invoices/${sale.body.data.id}/returns`)
       .set({ ...h(pharmacistToken), ...idem() })
@@ -361,9 +410,11 @@ describe("Hủy hóa đơn và trả hàng", () => {
   it("trả hàng thuốc không đụng tới điểm vì thuốc không được tích", async () => {
     await saveSettings().expect(200);
     const sale = await sell({ customerId, lines: [line(vitamin, 10), line(para, 10)] }).expect(201);
-    const invoice = (await api().get(`/api/v1/invoices/${sale.body.data.id}`).set(h()).expect(200)).body
-      .data;
-    const drugLine = invoice.lines.find((item: { productId: string }) => item.productId === para.id);
+    const invoice = (await api().get(`/api/v1/invoices/${sale.body.data.id}`).set(h()).expect(200))
+      .body.data;
+    const drugLine = invoice.lines.find(
+      (item: { productId: string }) => item.productId === para.id,
+    );
 
     await api()
       .post(`/api/v1/invoices/${sale.body.data.id}/returns`)
@@ -382,10 +433,15 @@ describe("Hủy hóa đơn và trả hàng", () => {
 
 describe("Điều chỉnh điểm bằng tay", () => {
   const adjust = (body: Record<string, unknown>, token = adminToken) =>
-    api().post(`/api/v1/customers/${customerId}/loyalty/adjust`).set({ ...h(token), ...idem() }).send(body);
+    api()
+      .post(`/api/v1/customers/${customerId}/loyalty/adjust`)
+      .set({ ...h(token), ...idem() })
+      .send(body);
 
   it("cộng điểm có lý do và ghi audit", async () => {
-    const result = await adjust({ points: 50, reason: "Bù điểm cho hóa đơn ghi thiếu" }).expect(200);
+    const result = await adjust({ points: 50, reason: "Bù điểm cho hóa đơn ghi thiếu" }).expect(
+      200,
+    );
     expect(result.body.data.available).toBe(50);
     expect(await prisma.auditLog.count({ where: { action: "LOYALTY_ADJUST" } })).toBe(1);
 

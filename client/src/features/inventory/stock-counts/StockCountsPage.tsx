@@ -1,6 +1,19 @@
 import { AuditOutlined, PlusOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, App, Button, Card, Form, Input, Modal, Progress, Select, Skeleton, Table, Tag } from "antd";
+import {
+  Alert,
+  App,
+  Button,
+  Card,
+  Form,
+  Input,
+  Modal,
+  Progress,
+  Select,
+  Skeleton,
+  Table,
+  Tag,
+} from "antd";
 import { useState } from "react";
 import { useSearchParams } from "react-router";
 import { getErrorMessage, http } from "../../../api/http.js";
@@ -29,7 +42,12 @@ export function StockCountsPage() {
   const categories = useQuery({
     queryKey: ["product-categories", categorySearch],
     enabled: creating,
-    queryFn: async () => (await http.get<Envelope<Paged<CategoryItem>>>("/categories", { params: { limit: 100, search: categorySearch || undefined } })).data.data.items,
+    queryFn: async () =>
+      (
+        await http.get<Envelope<Paged<CategoryItem>>>("/categories", {
+          params: { limit: 100, search: categorySearch || undefined },
+        })
+      ).data.data.items,
   });
 
   const create = useMutation({
@@ -40,7 +58,9 @@ export function StockCountsPage() {
       await queryClient.invalidateQueries({ queryKey: ["stock-counts"] });
       queryClient.setQueryData(["stock-count", data.count.id], data);
       select(data.count.id);
-      void message.success(`Đã mở đợt ${data.count.code} với ${formatNumber(data.lines.length)} dòng cần đếm`);
+      void message.success(
+        `Đã mở đợt ${data.count.code} với ${formatNumber(data.lines.length)} dòng cần đếm`,
+      );
     },
     onError: (error) => void message.error(getErrorMessage(error, "Không mở được đợt kiểm kê"), 8),
   });
@@ -67,7 +87,12 @@ export function StockCountsPage() {
         <div className="cell-main">
           <span className="cell-title">{code}</span>
           <span className="cell-sub">
-            {row.scopeType === "ALL" ? "Toàn bộ kho" : row.scopeType === "CATEGORY" ? `Nhóm: ${row.scopeLabel}` : `Kệ: ${row.scopeLabel}`} · {formatDateTime(row.startedAt)} · {row.createdByName}
+            {row.scopeType === "ALL"
+              ? "Toàn bộ kho"
+              : row.scopeType === "CATEGORY"
+                ? `Nhóm: ${row.scopeLabel}`
+                : `Kệ: ${row.scopeLabel}`}{" "}
+            · {formatDateTime(row.startedAt)} · {row.createdByName}
           </span>
         </div>
       ),
@@ -95,7 +120,10 @@ export function StockCountsPage() {
       width: 200,
       render: (counted: number, row: CountListItem) => (
         <div className="cell-main">
-          <Progress percent={row.totalLines === 0 ? 0 : Math.round((counted / row.totalLines) * 100)} size="small" />
+          <Progress
+            percent={row.totalLines === 0 ? 0 : Math.round((counted / row.totalLines) * 100)}
+            size="small"
+          />
           <span className="cell-sub">
             {formatNumber(counted)}/{formatNumber(row.totalLines)} dòng
           </span>
@@ -121,7 +149,11 @@ export function StockCountsPage() {
       dataIndex: "id",
       width: 120,
       render: (id: string, row: CountListItem) => (
-        <Button size="small" type={row.status === "COUNTING" ? "primary" : "default"} onClick={() => select(id)}>
+        <Button
+          size="small"
+          type={row.status === "COUNTING" ? "primary" : "default"}
+          onClick={() => select(id)}
+        >
           {row.status === "COUNTING" ? "Đếm tiếp" : "Xem"}
         </Button>
       ),
@@ -135,7 +167,12 @@ export function StockCountsPage() {
         title="Kiểm kê kho"
         extra={
           can("stock.adjust.create") ? (
-            <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreating(true)} disabled={Boolean(list.data?.open)}>
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => setCreating(true)}
+              disabled={Boolean(list.data?.open)}
+            >
               Mở đợt kiểm kê
             </Button>
           ) : null
@@ -167,8 +204,13 @@ export function StockCountsPage() {
             dataSource={list.data?.items ?? []}
             columns={columns}
             scroll={{ x: 760 }}
-            pagination={(list.data?.items.length ?? 0) > 20 ? { pageSize: 20, size: "small" } : false}
-            locale={{ emptyText: "Chưa có đợt kiểm kê nào. Nhà thuốc nên kiểm kê định kỳ hằng tháng hoặc hằng quý." }}
+            pagination={
+              (list.data?.items.length ?? 0) > 20 ? { pageSize: 20, size: "small" } : false
+            }
+            locale={{
+              emptyText:
+                "Chưa có đợt kiểm kê nào. Nhà thuốc nên kiểm kê định kỳ hằng tháng hoặc hằng quý.",
+            }}
           />
         )}
       </Card>
@@ -183,7 +225,12 @@ export function StockCountsPage() {
         onOk={() => form.submit()}
         destroyOnHidden
       >
-        <Form form={form} layout="vertical" initialValues={{ scopeType: "ALL" }} onFinish={(values) => create.mutate(values)}>
+        <Form
+          form={form}
+          layout="vertical"
+          initialValues={{ scopeType: "ALL" }}
+          onFinish={(values) => create.mutate(values)}
+        >
           <Form.Item name="scopeType" label="Phạm vi kiểm kê">
             <Select
               options={[
@@ -194,7 +241,11 @@ export function StockCountsPage() {
             />
           </Form.Item>
           {scopeType === "CATEGORY" ? (
-            <Form.Item name="scopeValue" label="Nhóm hàng" rules={[{ required: true, message: "Chọn nhóm hàng cần kiểm kê" }]}>
+            <Form.Item
+              name="scopeValue"
+              label="Nhóm hàng"
+              rules={[{ required: true, message: "Chọn nhóm hàng cần kiểm kê" }]}
+            >
               <Select
                 showSearch
                 filterOption={false}
@@ -202,23 +253,31 @@ export function StockCountsPage() {
                 placeholder="Gõ để tìm nhóm hàng"
                 onSearch={setCategorySearch}
                 notFoundContent={categories.isFetching ? "Đang tìm…" : "Không có nhóm hàng khớp"}
-                options={(categories.data ?? []).map((item) => ({ value: item.id, label: item.name }))}
+                options={(categories.data ?? []).map((item) => ({
+                  value: item.id,
+                  label: item.name,
+                }))}
               />
             </Form.Item>
           ) : null}
           {scopeType === "SHELF" ? (
-            <Form.Item name="scopeValue" label="Tên kệ" rules={[{ required: true, message: "Nhập đúng tên kệ như đã ghi trên lô" }]} extra="Gõ đúng tên kệ đang ghi trên lô, ví dụ: Kệ A1.">
+            <Form.Item
+              name="scopeValue"
+              label="Tên kệ"
+              rules={[{ required: true, message: "Nhập đúng tên kệ như đã ghi trên lô" }]}
+              extra="Gõ đúng tên kệ đang ghi trên lô, ví dụ: Kệ A1."
+            >
               <Input placeholder="Kệ A1" />
             </Form.Item>
           ) : null}
-          <Form.Item name="note" label="Ghi chú" extra="Ví dụ: kiểm kê định kỳ quý III, bàn giao ca.">
+          <Form.Item
+            name="note"
+            label="Ghi chú"
+            extra="Ví dụ: kiểm kê định kỳ quý III, bàn giao ca."
+          >
             <Input.TextArea rows={2} maxLength={500} />
           </Form.Item>
-          <Alert
-            type="info"
-            showIcon
-            title="Vẫn bán hàng bình thường trong lúc kiểm kê"
-          />
+          <Alert type="info" showIcon title="Vẫn bán hàng bình thường trong lúc kiểm kê" />
         </Form>
       </Modal>
     </div>

@@ -189,7 +189,10 @@ export async function createReturn(
         const refundAmount =
           divRound(invoiceLine.lineTotal * BigInt(priorBase + baseQuantity), lineBase) -
           divRound(invoiceLine.lineTotal * BigInt(priorBase), lineBase);
-        takenPerLine.set(invoiceLine.id, priorBase + baseQuantity - (returnedPerLine.get(invoiceLine.id) ?? 0));
+        takenPerLine.set(
+          invoiceLine.id,
+          priorBase + baseQuantity - (returnedPerLine.get(invoiceLine.id) ?? 0),
+        );
 
         planned.push({
           lineNo: index + 1,

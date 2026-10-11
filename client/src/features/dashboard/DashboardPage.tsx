@@ -11,7 +11,20 @@ import {
   WarningOutlined,
 } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
-import { Button, Card, Col, Empty, Progress, Result, Row, Segmented, Skeleton, Table, Tag, Typography } from "antd";
+import {
+  Button,
+  Card,
+  Col,
+  Empty,
+  Progress,
+  Result,
+  Row,
+  Segmented,
+  Skeleton,
+  Table,
+  Tag,
+  Typography,
+} from "antd";
 import { useState } from "react";
 import { useNavigate } from "react-router";
 import { http } from "../../api/http.js";
@@ -21,9 +34,14 @@ import { BarTrend, Donut } from "../../ui/charts.js";
 import { StatCard, StatGrid, Trend } from "../../ui/StatCard.js";
 import { useAuth } from "../auth/auth-context.js";
 
-const money = new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND", maximumFractionDigits: 0 });
+const money = new Intl.NumberFormat("vi-VN", {
+  style: "currency",
+  currency: "VND",
+  maximumFractionDigits: 0,
+});
 const number = new Intl.NumberFormat("vi-VN");
-const dateText = (value: string) => new Date(value).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit" });
+const dateText = (value: string) =>
+  new Date(value).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit" });
 
 function greeting(): string {
   const hour = new Date().getHours();
@@ -40,7 +58,8 @@ export function DashboardPage() {
   const [days, setDays] = useState<7 | 30>(7);
   const dashboard = useQuery({
     queryKey: ["dashboard", storeId, days],
-    queryFn: async () => (await http.get<Envelope<DashboardData>>("/dashboard", { params: { days } })).data.data,
+    queryFn: async () =>
+      (await http.get<Envelope<DashboardData>>("/dashboard", { params: { days } })).data.data,
     enabled: Boolean(storeId),
   });
   const data = dashboard.data;
@@ -76,7 +95,10 @@ export function DashboardPage() {
   }
 
   const noAccess = <span className="dashboard-no-access">Không có quyền xem</span>;
-  const updatedAt = new Date(data.generatedAt).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
+  const updatedAt = new Date(data.generatedAt).toLocaleTimeString("vi-VN", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 
   return (
     <div className="dashboard-page">
@@ -105,20 +127,32 @@ export function DashboardPage() {
           icon={<DollarCircleOutlined />}
           label="Doanh thu hôm nay"
           value={data.permissions.sales ? money.format(data.sales.today.revenue) : noAccess}
-          hint={data.permissions.sales ? <Trend value={data.sales.today.revenueChangePercent} suffix="so với hôm qua" /> : null}
+          hint={
+            data.permissions.sales ? (
+              <Trend value={data.sales.today.revenueChangePercent} suffix="so với hôm qua" />
+            ) : null
+          }
         />
         <StatCard
           tone="blue"
           icon={<FileTextOutlined />}
           label="Hóa đơn hôm nay"
           value={data.permissions.sales ? number.format(data.sales.today.invoiceCount) : noAccess}
-          hint={data.permissions.sales ? <Trend value={data.sales.today.invoiceChangePercent} suffix="so với hôm qua" /> : null}
+          hint={
+            data.permissions.sales ? (
+              <Trend value={data.sales.today.invoiceChangePercent} suffix="so với hôm qua" />
+            ) : null
+          }
         />
         <StatCard
           tone="purple"
           icon={<TeamOutlined />}
           label="Khách mới hôm nay"
-          value={data.permissions.sales && data.permissions.customers ? number.format(data.sales.today.newCustomerCount) : noAccess}
+          value={
+            data.permissions.sales && data.permissions.customers
+              ? number.format(data.sales.today.newCustomerCount)
+              : noAccess
+          }
           hint={
             data.permissions.sales && data.permissions.customers ? (
               <Trend value={data.sales.today.newCustomerChangePercent} suffix="so với hôm qua" />
@@ -129,7 +163,9 @@ export function DashboardPage() {
           tone="orange"
           icon={<WarningOutlined />}
           label="Lô sắp hết hạn"
-          value={data.permissions.inventory ? number.format(data.inventory.counts.expiring) : noAccess}
+          value={
+            data.permissions.inventory ? number.format(data.inventory.counts.expiring) : noAccess
+          }
           hint={
             data.permissions.inventory
               ? data.inventory.counts.expired > 0
@@ -142,7 +178,11 @@ export function DashboardPage() {
 
       <Row gutter={[16, 16]}>
         <Col xs={24} xl={15}>
-          <Card title={`Doanh thu ${days} ngày gần đây`} className="card-fill" extra={data.permissions.sales ? <Tag color="blue">Hóa đơn hoàn tất</Tag> : null}>
+          <Card
+            title={`Doanh thu ${days} ngày gần đây`}
+            className="card-fill"
+            extra={data.permissions.sales ? <Tag color="blue">Hóa đơn hoàn tất</Tag> : null}
+          >
             {data.permissions.sales ? (
               <BarTrend
                 emptyText="Chưa có hóa đơn hoàn tất trong khoảng thời gian này"
@@ -167,8 +207,16 @@ export function DashboardPage() {
           </Card>
         </Col>
         <Col xs={24} xl={9}>
-          <Card title="Thuốc bán chạy" className="card-fill" extra={data.permissions.sales ? <Tag color="blue">Theo doanh thu</Tag> : null}>
-            {data.permissions.sales ? <TopProductsDonut items={data.sales.topProducts} trend={data.sales.trend} /> : <NoPermission />}
+          <Card
+            title="Thuốc bán chạy"
+            className="card-fill"
+            extra={data.permissions.sales ? <Tag color="blue">Theo doanh thu</Tag> : null}
+          >
+            {data.permissions.sales ? (
+              <TopProductsDonut items={data.sales.topProducts} trend={data.sales.trend} />
+            ) : (
+              <NoPermission />
+            )}
           </Card>
         </Col>
       </Row>
@@ -190,13 +238,41 @@ export function DashboardPage() {
                 rowKey="id"
                 pagination={false}
                 scroll={{ x: 520 }}
-                locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Không có lô nào hết hạn trong 90 ngày tới" /> }}
+                locale={{
+                  emptyText: (
+                    <Empty
+                      image={Empty.PRESENTED_IMAGE_SIMPLE}
+                      description="Không có lô nào hết hạn trong 90 ngày tới"
+                    />
+                  ),
+                }}
                 dataSource={data.inventory.expiringBatches}
                 columns={[
-                  { title: "Tên thuốc", dataIndex: "productName", ellipsis: true, render: (value: string) => <Typography.Text strong>{value}</Typography.Text> },
-                  { title: "Số lô", dataIndex: "batchNumber", width: 130, render: (value: string) => <span className="mono">{value}</span> },
-                  { title: "Hạn dùng", dataIndex: "expiryDate", width: 110, render: (value: string) => new Date(value).toLocaleDateString("vi-VN") },
-                  { title: "Tồn", dataIndex: "quantityOnHand", width: 90, align: "right", render: (value: number) => number.format(value) },
+                  {
+                    title: "Tên thuốc",
+                    dataIndex: "productName",
+                    ellipsis: true,
+                    render: (value: string) => <Typography.Text strong>{value}</Typography.Text>,
+                  },
+                  {
+                    title: "Số lô",
+                    dataIndex: "batchNumber",
+                    width: 130,
+                    render: (value: string) => <span className="mono">{value}</span>,
+                  },
+                  {
+                    title: "Hạn dùng",
+                    dataIndex: "expiryDate",
+                    width: 110,
+                    render: (value: string) => new Date(value).toLocaleDateString("vi-VN"),
+                  },
+                  {
+                    title: "Tồn",
+                    dataIndex: "quantityOnHand",
+                    width: 90,
+                    align: "right",
+                    render: (value: number) => number.format(value),
+                  },
                 ]}
               />
             ) : (
@@ -214,7 +290,11 @@ export function DashboardPage() {
               </Button>
             }
           >
-            {data.permissions.inventory ? <CategoryStock items={data.inventory.categoryStock} /> : <NoPermission />}
+            {data.permissions.inventory ? (
+              <CategoryStock items={data.inventory.categoryStock} />
+            ) : (
+              <NoPermission />
+            )}
           </Card>
         </Col>
       </Row>
@@ -230,7 +310,11 @@ export function DashboardPage() {
               </Button>
             }
           >
-            {data.permissions.inventory ? <LowStock items={data.inventory.lowStockProducts} /> : <NoPermission />}
+            {data.permissions.inventory ? (
+              <LowStock items={data.inventory.lowStockProducts} />
+            ) : (
+              <NoPermission />
+            )}
           </Card>
         </Col>
         <Col xs={24} xl={9}>
@@ -275,19 +359,37 @@ export function DashboardPage() {
 }
 
 /** "Khác" = doanh thu cả kỳ trừ các sản phẩm top, không phải số minh họa. */
-function TopProductsDonut({ items, trend }: { items: DashboardData["sales"]["topProducts"]; trend: DashboardData["sales"]["trend"] }) {
+function TopProductsDonut({
+  items,
+  trend,
+}: {
+  items: DashboardData["sales"]["topProducts"];
+  trend: DashboardData["sales"]["trend"];
+}) {
   const periodRevenue = trend.reduce((sum, point) => sum + point.revenue, 0);
   const topRevenue = items.reduce((sum, item) => sum + item.revenue, 0);
   const otherRevenue = Math.max(0, periodRevenue - topRevenue);
   const slices = [
-    ...items.map((item, index) => ({ label: item.productName, value: item.revenue, color: chartColors[index % chartColors.length]! })),
+    ...items.map((item, index) => ({
+      label: item.productName,
+      value: item.revenue,
+      color: chartColors[index % chartColors.length]!,
+    })),
     ...(otherRevenue > 0 ? [{ label: "Khác", value: otherRevenue, color: chartOtherColor }] : []),
   ];
-  return <Donut slices={slices} centerLabel="Tổng doanh thu" formatTotal={(total) => money.format(total)} emptyText="Chưa có dữ liệu bán hàng" />;
+  return (
+    <Donut
+      slices={slices}
+      centerLabel="Tổng doanh thu"
+      formatTotal={(total) => money.format(total)}
+      emptyText="Chưa có dữ liệu bán hàng"
+    />
+  );
 }
 
 function CategoryStock({ items }: { items: DashboardData["inventory"]["categoryStock"] }) {
-  if (items.length === 0) return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có dữ liệu tồn kho" />;
+  if (items.length === 0)
+    return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có dữ liệu tồn kho" />;
   const maximum = Math.max(...items.map((item) => item.quantity), 1);
   return (
     <div className="category-stock-list">
@@ -297,7 +399,12 @@ function CategoryStock({ items }: { items: DashboardData["inventory"]["categoryS
             <span>{item.categoryName}</span>
             <strong>{number.format(item.quantity)}</strong>
           </div>
-          <Progress percent={Math.round((item.quantity / maximum) * 100)} showInfo={false} strokeColor="var(--c-accent)" size="small" />
+          <Progress
+            percent={Math.round((item.quantity / maximum) * 100)}
+            showInfo={false}
+            strokeColor="var(--c-accent)"
+            size="small"
+          />
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
             {number.format(item.productCount)} mặt hàng
           </Typography.Text>
@@ -308,7 +415,13 @@ function CategoryStock({ items }: { items: DashboardData["inventory"]["categoryS
 }
 
 function LowStock({ items }: { items: DashboardData["inventory"]["lowStockProducts"] }) {
-  if (items.length === 0) return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Không có mặt hàng dưới mức tồn tối thiểu" />;
+  if (items.length === 0)
+    return (
+      <Empty
+        image={Empty.PRESENTED_IMAGE_SIMPLE}
+        description="Không có mặt hàng dưới mức tồn tối thiểu"
+      />
+    );
   return (
     <div className="low-stock-list">
       {items.map((item) => (
@@ -325,12 +438,24 @@ function LowStock({ items }: { items: DashboardData["inventory"]["lowStockProduc
   );
 }
 
-function Notifications({ items, navigate }: { items: DashboardData["notifications"]; navigate: (href: string) => void }) {
-  if (items.length === 0) return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Không có việc cần xử lý" />;
+function Notifications({
+  items,
+  navigate,
+}: {
+  items: DashboardData["notifications"];
+  navigate: (href: string) => void;
+}) {
+  if (items.length === 0)
+    return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Không có việc cần xử lý" />;
   return (
     <div className="notification-list">
       {items.map((item) => (
-        <button type="button" className={`notification-item ${item.severity}`} key={item.type} onClick={() => void navigate(item.href)}>
+        <button
+          type="button"
+          className={`notification-item ${item.severity}`}
+          key={item.type}
+          onClick={() => void navigate(item.href)}
+        >
           <span className="notification-dot" />
           <span>{item.title}</span>
         </button>
@@ -340,5 +465,10 @@ function Notifications({ items, navigate }: { items: DashboardData["notification
 }
 
 function NoPermission() {
-  return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Vai trò hiện tại không có quyền xem dữ liệu này" />;
+  return (
+    <Empty
+      image={Empty.PRESENTED_IMAGE_SIMPLE}
+      description="Vai trò hiện tại không có quyền xem dữ liệu này"
+    />
+  );
 }

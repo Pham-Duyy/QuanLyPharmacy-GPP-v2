@@ -1,10 +1,34 @@
-import { DeleteOutlined, InfoCircleOutlined, PictureOutlined, UploadOutlined } from "@ant-design/icons";
+import {
+  DeleteOutlined,
+  InfoCircleOutlined,
+  PictureOutlined,
+  UploadOutlined,
+} from "@ant-design/icons";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, App, AutoComplete, Button, Card, Checkbox, Form, Grid, Input, Radio, Segmented, Tag, Upload } from "antd";
+import {
+  Alert,
+  App,
+  AutoComplete,
+  Button,
+  Card,
+  Checkbox,
+  Form,
+  Grid,
+  Input,
+  Radio,
+  Segmented,
+  Tag,
+  Upload,
+} from "antd";
 import { useState } from "react";
 import type { ReactNode } from "react";
 import { http } from "../../api/http.js";
-import type { Envelope, InvoicePaperSize, PrintTemplate, PrintTemplateState } from "../../api/types.js";
+import type {
+  Envelope,
+  InvoicePaperSize,
+  PrintTemplate,
+  PrintTemplateState,
+} from "../../api/types.js";
 import { useDebounced } from "../../ui/useDebounced.js";
 import { useAuth } from "../auth/auth-context.js";
 import { PRINT_TEMPLATE_QUERY, printHtml, usePrintTemplate } from "../printing/printing.js";
@@ -30,7 +54,9 @@ const DISPLAY_OPTIONS: Array<{ key: keyof PrintTemplate["display"]; label: strin
   { key: "cashChange", label: "Khách đưa & tiền thừa" },
 ];
 
-const TITLE_SUGGESTIONS = ["HÓA ĐƠN BÁN HÀNG", "HÓA ĐƠN BÁN LẺ", "PHIẾU THANH TOÁN"].map((value) => ({ value }));
+const TITLE_SUGGESTIONS = ["HÓA ĐƠN BÁN HÀNG", "HÓA ĐƠN BÁN LẺ", "PHIẾU THANH TOÁN"].map(
+  (value) => ({ value }),
+);
 
 type Sample = "standard" | "long" | "walk_in";
 
@@ -53,7 +79,13 @@ function readAsDataUrl(file: File): Promise<string> {
 }
 
 /** Ô chọn logo: tải lên, đổi, gỡ. Chỉ nhận PNG/JPG ≤ 300 KB; server kiểm tra lại theo nội dung tệp. */
-function LogoField({ value, onChange }: { value?: string | null; onChange?: (value: string | null) => void }) {
+function LogoField({
+  value,
+  onChange,
+}: {
+  value?: string | null;
+  onChange?: (value: string | null) => void;
+}) {
   const { message } = App.useApp();
 
   async function pick(file: File) {
@@ -98,7 +130,13 @@ function LogoField({ value, onChange }: { value?: string | null; onChange?: (val
                 Đổi
               </Button>,
             )}
-            <Button size="small" danger icon={<DeleteOutlined />} onClick={() => onChange?.(null)} aria-label="Gỡ logo" />
+            <Button
+              size="small"
+              danger
+              icon={<DeleteOutlined />}
+              onClick={() => onChange?.(null)}
+              aria-label="Gỡ logo"
+            />
           </div>
         </>
       ) : (
@@ -169,7 +207,8 @@ function TemplateEditor({ state }: { state: PrintTemplateState }) {
 
   const save = useMutation({
     mutationFn: async (template: PrintTemplate) =>
-      (await http.put<Envelope<PrintTemplateState>>("/settings/invoice-print-template", template)).data.data,
+      (await http.put<Envelope<PrintTemplateState>>("/settings/invoice-print-template", template))
+        .data.data,
     onSuccess: (saved) => {
       void message.success("Đã lưu mẫu in. Các hóa đơn in từ bây giờ sẽ dùng mẫu này");
       queryClient.setQueryData([PRINT_TEMPLATE_QUERY, storeId], saved);
@@ -207,7 +246,13 @@ function TemplateEditor({ state }: { state: PrintTemplateState }) {
         layout="vertical"
         requiredMark
         initialValues={state.template}
-        onValuesChange={(_, all) => setDraft({ ...state.template, ...all, display: { ...state.template.display, ...all.display } })}
+        onValuesChange={(_, all) =>
+          setDraft({
+            ...state.template,
+            ...all,
+            display: { ...state.template.display, ...all.display },
+          })
+        }
       >
         <div className="tpl-section-head">
           <h3>1. Thông tin cố định</h3>
@@ -218,7 +263,11 @@ function TemplateEditor({ state }: { state: PrintTemplateState }) {
             <Form.Item name="companyName" label="Tên công ty / hộ kinh doanh">
               <Input placeholder="VD: Hộ kinh doanh Nhà thuốc Minh An" maxLength={150} />
             </Form.Item>
-            <Form.Item name="storeName" label="Tên nhà thuốc" rules={[{ required: true, whitespace: true, message: "Phải nhập tên nhà thuốc" }]}>
+            <Form.Item
+              name="storeName"
+              label="Tên nhà thuốc"
+              rules={[{ required: true, whitespace: true, message: "Phải nhập tên nhà thuốc" }]}
+            >
               <Input maxLength={150} />
             </Form.Item>
           </div>
@@ -230,10 +279,18 @@ function TemplateEditor({ state }: { state: PrintTemplateState }) {
           <Input maxLength={250} placeholder="Số nhà, đường, phường/xã, tỉnh/thành" />
         </Form.Item>
         <div className="tpl-row2">
-          <Form.Item name="phone" label="Số điện thoại" rules={[{ pattern: /^[0-9 +().-]*$/, message: "Số điện thoại không hợp lệ" }]}>
+          <Form.Item
+            name="phone"
+            label="Số điện thoại"
+            rules={[{ pattern: /^[0-9 +().-]*$/, message: "Số điện thoại không hợp lệ" }]}
+          >
             <Input maxLength={30} inputMode="tel" />
           </Form.Item>
-          <Form.Item name="taxCode" label="Mã số thuế (nếu có)" rules={[{ pattern: /^[0-9-]*$/, message: "Chỉ gồm chữ số và dấu gạch ngang" }]}>
+          <Form.Item
+            name="taxCode"
+            label="Mã số thuế (nếu có)"
+            rules={[{ pattern: /^[0-9-]*$/, message: "Chỉ gồm chữ số và dấu gạch ngang" }]}
+          >
             <Input maxLength={20} placeholder="Nhập mã số thuế" inputMode="numeric" />
           </Form.Item>
         </div>
@@ -242,7 +299,11 @@ function TemplateEditor({ state }: { state: PrintTemplateState }) {
           <h3>2. Nội dung bản in</h3>
         </div>
         <div className="tpl-row2">
-          <Form.Item name="title" label="Tiêu đề" rules={[{ required: true, whitespace: true, message: "Phải nhập tiêu đề" }]}>
+          <Form.Item
+            name="title"
+            label="Tiêu đề"
+            rules={[{ required: true, whitespace: true, message: "Phải nhập tiêu đề" }]}
+          >
             <AutoComplete options={TITLE_SUGGESTIONS} maxLength={80} />
           </Form.Item>
           <Form.Item name="paperSize" label="Khổ giấy">
@@ -255,17 +316,36 @@ function TemplateEditor({ state }: { state: PrintTemplateState }) {
             </Radio.Group>
           </Form.Item>
         </div>
-        <Form.Item label="Hiển thị trên hóa đơn" className="tpl-display" extra={<><InfoCircleOutlined /> Dữ liệu đơn bán (thuốc, số lượng, tiền) được điền tự động khi in. Mục tắt hoặc để trống sẽ không in ra.</>}>
+        <Form.Item
+          label="Hiển thị trên hóa đơn"
+          className="tpl-display"
+          extra={
+            <>
+              <InfoCircleOutlined /> Dữ liệu đơn bán (thuốc, số lượng, tiền) được điền tự động khi
+              in. Mục tắt hoặc để trống sẽ không in ra.
+            </>
+          }
+        >
           <div className="tpl-display-grid">
             {DISPLAY_OPTIONS.map((option) => (
-              <Form.Item key={option.key} name={["display", option.key]} valuePropName="checked" noStyle>
+              <Form.Item
+                key={option.key}
+                name={["display", option.key]}
+                valuePropName="checked"
+                noStyle
+              >
                 <Checkbox>{option.label}</Checkbox>
               </Form.Item>
             ))}
           </div>
         </Form.Item>
         <Form.Item name="footer" label="Lời cảm ơn / chân trang">
-          <Input.TextArea autoSize={{ minRows: 2, maxRows: 4 }} maxLength={300} showCount placeholder="VD: Cảm ơn quý khách! Vui lòng giữ hóa đơn để đối chiếu." />
+          <Input.TextArea
+            autoSize={{ minRows: 2, maxRows: 4 }}
+            maxLength={300}
+            showCount
+            placeholder="VD: Cảm ơn quý khách! Vui lòng giữ hóa đơn để đối chiếu."
+          />
         </Form.Item>
       </Form>
     </Card>
@@ -275,11 +355,7 @@ function TemplateEditor({ state }: { state: PrintTemplateState }) {
     <Card
       className="tpl-preview-card"
       title="Xem trước bản in"
-      extra={
-        <span className="tpl-preview-meta">
-          {paperLabel} · Dữ liệu minh họa
-        </span>
-      }
+      extra={<span className="tpl-preview-meta">{paperLabel} · Dữ liệu minh họa</span>}
     >
       <Segmented<Sample>
         size="small"
@@ -293,12 +369,28 @@ function TemplateEditor({ state }: { state: PrintTemplateState }) {
         ]}
       />
       {!previewable ? (
-        <Alert type="warning" showIcon className="tpl-preview-alert" title="Nhập tên nhà thuốc và tiêu đề để xem trước." />
+        <Alert
+          type="warning"
+          showIcon
+          className="tpl-preview-alert"
+          title="Nhập tên nhà thuốc và tiêu đề để xem trước."
+        />
       ) : preview.isError ? (
-        <Alert type="error" showIcon className="tpl-preview-alert" title={readApiError(preview.error).message} />
+        <Alert
+          type="error"
+          showIcon
+          className="tpl-preview-alert"
+          title={readApiError(preview.error).message}
+        />
       ) : null}
-      <PrintPaper html={preview.data} paperSize={debounced.paperSize} loading={preview.isFetching} />
-      <p className="tpl-preview-note">Tên thuốc dài tự xuống dòng. Bản xem trước không tạo giao dịch nào.</p>
+      <PrintPaper
+        html={preview.data}
+        paperSize={debounced.paperSize}
+        loading={preview.isFetching}
+      />
+      <p className="tpl-preview-note">
+        Tên thuốc dài tự xuống dòng. Bản xem trước không tạo giao dịch nào.
+      </p>
     </Card>
   );
 

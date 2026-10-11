@@ -10,7 +10,18 @@ import {
   SearchOutlined,
   ShopOutlined,
 } from "@ant-design/icons";
-import { Avatar, Button, Drawer, Dropdown, Grid, Layout, Menu, Select, Skeleton, Tooltip } from "antd";
+import {
+  Avatar,
+  Button,
+  Drawer,
+  Dropdown,
+  Grid,
+  Layout,
+  Menu,
+  Select,
+  Skeleton,
+  Tooltip,
+} from "antd";
 import type { MenuProps } from "antd";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router";
@@ -19,7 +30,14 @@ import { ChangePasswordModal } from "../features/auth/ChangePasswordModal.js";
 import { activeNav, visibleSidebar } from "./access.js";
 import { CommandPalette } from "./CommandPalette.js";
 import { confirmLeave } from "./leave-guard.js";
-import { DEFAULT_MENU_PREFS, dropLegacyMenuPrefs, readMenuPrefs, sanitizeOpenGroup, writeMenuPrefs, type MenuPrefs } from "./menu-prefs.js";
+import {
+  DEFAULT_MENU_PREFS,
+  dropLegacyMenuPrefs,
+  readMenuPrefs,
+  sanitizeOpenGroup,
+  writeMenuPrefs,
+  type MenuPrefs,
+} from "./menu-prefs.js";
 import { NotificationBell } from "./NotificationBell.js";
 
 function initialsOf(fullName: string): string {
@@ -92,9 +110,13 @@ export function AppLayout() {
     () => visibleSidebar(can, (feature) => features?.[feature] ?? false),
     [can, features],
   );
-  const groupKeys = useMemo(() => visible.flatMap((entry) => (entry.kind === "group" ? [entry.key] : [])), [visible]);
+  const groupKeys = useMemo(
+    () => visible.flatMap((entry) => (entry.kind === "group" ? [entry.key] : [])),
+    [visible],
+  );
   const nav = useMemo(() => activeNav(location.pathname), [location.pathname]);
-  const activeGroup = nav.groupKey !== null && groupKeys.includes(nav.groupKey) ? nav.groupKey : null;
+  const activeGroup =
+    nav.groupKey !== null && groupKeys.includes(nav.groupKey) ? nav.groupKey : null;
   /** Nhóm đang mở; nhóm đã lưu mà không còn quyền thấy thì coi như chưa mở. */
   const openGroup = sanitizeOpenGroup(prefs.openGroup, groupKeys);
 
@@ -117,7 +139,9 @@ export function AppLayout() {
     // Cập nhật dạng hàm: cùng lượt render này có thể vừa nạp tùy chọn của tài
     // khoản ở trên, không được ghi đè mất trạng thái thu gọn đã lưu.
     if (activeGroup !== null && !userChose) {
-      setPrefs((current) => (current.openGroup === activeGroup ? current : { ...current, openGroup: activeGroup }));
+      setPrefs((current) =>
+        current.openGroup === activeGroup ? current : { ...current, openGroup: activeGroup },
+      );
     }
   }
 
@@ -139,14 +163,21 @@ export function AppLayout() {
   const menuItems = useMemo<MenuProps["items"]>(
     () =>
       visible.flatMap((entry): MenuItem[] => {
-        if (entry.kind === "page") return [{ key: entry.page.path, icon: entry.page.icon, label: entry.page.label }];
+        if (entry.kind === "page")
+          return [{ key: entry.page.path, icon: entry.page.icon, label: entry.page.label }];
         const group = {
           key: entry.key,
           icon: entry.icon,
           label: entry.label,
-          children: entry.pages.map((page) => ({ key: page.path, icon: page.icon, label: page.label })),
+          children: entry.pages.map((page) => ({
+            key: page.path,
+            icon: page.icon,
+            label: page.label,
+          })),
         };
-        return entry.divided ? [{ type: "divider" as const, key: `divider-${entry.key}` }, group] : [group];
+        return entry.divided
+          ? [{ type: "divider" as const, key: `divider-${entry.key}` }, group]
+          : [group];
       }),
     [visible],
   );
@@ -155,7 +186,9 @@ export function AppLayout() {
 
   const collapsed = isDesktop && prefs.collapsed;
   const store = me.stores.find((item) => item.id === storeId);
-  const roleNames = me.roles.filter((role) => role.storeId === null || role.storeId === storeId).map((role) => role.name);
+  const roleNames = me.roles
+    .filter((role) => role.storeId === null || role.storeId === storeId)
+    .map((role) => role.name);
   const roleText = roleNames.length === 0 ? "Chưa được gán vai trò" : roleNames.join(" · ");
 
   const sidebar = (compact: boolean) => (
@@ -220,7 +253,13 @@ export function AppLayout() {
   return (
     <Layout hasSider className="app-shell">
       {isDesktop ? (
-        <Layout.Sider width={248} collapsedWidth={72} collapsed={collapsed} trigger={null} className="app-sider">
+        <Layout.Sider
+          width={248}
+          collapsedWidth={72}
+          collapsed={collapsed}
+          trigger={null}
+          className="app-sider"
+        >
           {sidebar(collapsed)}
         </Layout.Sider>
       ) : (
@@ -242,7 +281,17 @@ export function AppLayout() {
             <Button
               type="text"
               className="header-icon-btn"
-              icon={isDesktop ? collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined /> : <MenuOutlined />}
+              icon={
+                isDesktop ? (
+                  collapsed ? (
+                    <MenuUnfoldOutlined />
+                  ) : (
+                    <MenuFoldOutlined />
+                  )
+                ) : (
+                  <MenuOutlined />
+                )
+              }
               onClick={() => {
                 if (!isDesktop) return setDrawerOpen(true);
                 setPopupGroup(null);
@@ -279,7 +328,13 @@ export function AppLayout() {
               </span>
             ) : null}
             <span className="header-date">
-              <CalendarOutlined /> {new Intl.DateTimeFormat("vi-VN", { weekday: "short", day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date())}
+              <CalendarOutlined />{" "}
+              {new Intl.DateTimeFormat("vi-VN", {
+                weekday: "short",
+                day: "2-digit",
+                month: "2-digit",
+                year: "numeric",
+              }).format(new Date())}
             </span>
             <NotificationBell />
             <Dropdown menu={userMenu} trigger={["click"]} placement="bottomRight">
@@ -297,7 +352,9 @@ export function AppLayout() {
           </div>
         </Layout.Header>
         <Layout.Content className="app-content">
-          <Suspense fallback={<Skeleton active paragraph={{ rows: 8 }} className="page-skeleton" />}>
+          <Suspense
+            fallback={<Skeleton active paragraph={{ rows: 8 }} className="page-skeleton" />}
+          >
             <Outlet />
           </Suspense>
         </Layout.Content>

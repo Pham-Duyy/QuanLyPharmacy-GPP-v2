@@ -1,6 +1,26 @@
-import { BarcodeOutlined, DeleteOutlined, EyeOutlined, PlusOutlined, PrinterOutlined } from "@ant-design/icons";
+import {
+  BarcodeOutlined,
+  DeleteOutlined,
+  EyeOutlined,
+  PlusOutlined,
+  PrinterOutlined,
+} from "@ant-design/icons";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Alert, App, AutoComplete, Button, Card, Empty, InputNumber, Segmented, Select, Skeleton, Switch, Table, Tooltip } from "antd";
+import {
+  Alert,
+  App,
+  AutoComplete,
+  Button,
+  Card,
+  Empty,
+  InputNumber,
+  Segmented,
+  Select,
+  Skeleton,
+  Switch,
+  Table,
+  Tooltip,
+} from "antd";
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router";
 import { getErrorMessage, http } from "../../api/http.js";
@@ -49,7 +69,12 @@ export function LabelsPage() {
   const products = useQuery({
     queryKey: ["label-products", term],
     enabled: term.length > 0,
-    queryFn: async () => (await http.get<Envelope<Paged<ProductListItem>>>("/products", { params: { search: term, page: 1, limit: 12 } })).data.data.items,
+    queryFn: async () =>
+      (
+        await http.get<Envelope<Paged<ProductListItem>>>("/products", {
+          params: { search: term, page: 1, limit: 12 },
+        })
+      ).data.data.items,
   });
 
   const batches = useQuery({
@@ -58,7 +83,11 @@ export function LabelsPage() {
     queryFn: async () => {
       const result = await Promise.all(
         [...new Set(rows.map((row) => row.productId))].map(async (productId) => {
-          const items = (await http.get<Envelope<Paged<BatchOption>>>("/inventory/batches", { params: { productId, page: 1, limit: 50 } })).data.data.items;
+          const items = (
+            await http.get<Envelope<Paged<BatchOption>>>("/inventory/batches", {
+              params: { productId, page: 1, limit: 50 },
+            })
+          ).data.data.items;
           return [productId, items] as const;
         }),
       );
@@ -72,7 +101,12 @@ export function LabelsPage() {
       showPrice,
       showBatch,
       showStoreName,
-      items: rows.map((row) => ({ productId: row.productId, unitId: row.unitId, batchId: showBatch ? row.batchId : null, quantity: row.quantity })),
+      items: rows.map((row) => ({
+        productId: row.productId,
+        unitId: row.unitId,
+        batchId: showBatch ? row.batchId : null,
+        quantity: row.quantity,
+      })),
     }),
     [size, showPrice, showBatch, showStoreName, rows],
   );
@@ -80,9 +114,15 @@ export function LabelsPage() {
   const render = useMutation({
     mutationFn: async (mode: "preview" | "print") => {
       // Trang tem không tự bật hộp thoại in: việc in do printHtml điều khiển.
-      const response = await http.post<string>("/labels/print?autoprint=0", body, { responseType: "text" });
+      const response = await http.post<string>("/labels/print?autoprint=0", body, {
+        responseType: "text",
+      });
       const raw = response.headers["x-label-warnings"];
-      return { html: response.data, mode, warnings: raw ? (JSON.parse(decodeURIComponent(String(raw))) as Warning[]) : [] };
+      return {
+        html: response.data,
+        mode,
+        warnings: raw ? (JSON.parse(decodeURIComponent(String(raw))) as Warning[]) : [],
+      };
     },
     onSuccess: async (result) => {
       setWarnings(result.warnings);
@@ -94,11 +134,27 @@ export function LabelsPage() {
 
   function rowFrom(product: ProductListItem | ProductDetail): Row | null {
     // Danh sách sản phẩm trả `saleUnits`, còn chi tiết sản phẩm trả `units`.
-    const source = ("saleUnits" in product ? product.saleUnits : undefined) ?? ("units" in product ? product.units : undefined) ?? [];
-    const units: Unit[] = source.map((unit) => ({ id: unit.id, name: unit.name, conversionToBase: unit.conversionToBase }));
+    const source =
+      ("saleUnits" in product ? product.saleUnits : undefined) ??
+      ("units" in product ? product.units : undefined) ??
+      [];
+    const units: Unit[] = source.map((unit) => ({
+      id: unit.id,
+      name: unit.name,
+      conversionToBase: unit.conversionToBase,
+    }));
     const unit = units.find((item) => item.conversionToBase === 1) ?? units[0];
     if (!unit) return null;
-    return { key: crypto.randomUUID(), productId: product.id, productCode: product.code, productName: product.name, units, unitId: unit.id, batchId: null, quantity: 1 };
+    return {
+      key: crypto.randomUUID(),
+      productId: product.id,
+      productCode: product.code,
+      productName: product.name,
+      units,
+      unitId: unit.id,
+      batchId: null,
+      quantity: 1,
+    };
   }
 
   function addProduct(product: ProductListItem | ProductDetail): void {
@@ -116,7 +172,8 @@ export function LabelsPage() {
   const preselected = useQuery({
     queryKey: ["label-preselect", preselect],
     enabled: Boolean(preselect),
-    queryFn: async () => (await http.get<Envelope<ProductDetail>>(`/products/${preselect}`)).data.data,
+    queryFn: async () =>
+      (await http.get<Envelope<ProductDetail>>(`/products/${preselect}`)).data.data,
   });
 
   useEffect(() => {
@@ -146,7 +203,12 @@ export function LabelsPage() {
         title="In tem mã vạch"
         extra={
           <>
-            <Button icon={<EyeOutlined />} disabled={rows.length === 0} loading={render.isPending && render.variables === "preview"} onClick={() => render.mutate("preview")}>
+            <Button
+              icon={<EyeOutlined />}
+              disabled={rows.length === 0}
+              loading={render.isPending && render.variables === "preview"}
+              onClick={() => render.mutate("preview")}
+            >
               Xem trước
             </Button>
             <Button
@@ -175,7 +237,10 @@ export function LabelsPage() {
                   setSize(String(value));
                   setPreview(null);
                 }}
-                options={(sizes.data ?? []).map((item) => ({ value: item.value, label: item.label }))}
+                options={(sizes.data ?? []).map((item) => ({
+                  value: item.value,
+                  label: item.label,
+                }))}
               />
             </label>
             <label>
@@ -222,7 +287,10 @@ export function LabelsPage() {
             value={search}
             onChange={setSearch}
             style={{ width: 340 }}
-            options={(products.data ?? []).map((product) => ({ value: product.id, label: `${product.name} · ${product.code}` }))}
+            options={(products.data ?? []).map((product) => ({
+              value: product.id,
+              label: `${product.name} · ${product.code}`,
+            }))}
             onSelect={(value) => {
               const product = products.data?.find((item) => item.id === value);
               if (product) addProduct(product);
@@ -253,7 +321,12 @@ export function LabelsPage() {
               dataIndex: "unitId",
               width: 170,
               render: (unitId: string, row: Row) => (
-                <Select value={unitId} style={{ width: "100%" }} options={row.units.map((unit) => ({ value: unit.id, label: unit.name }))} onChange={(value) => update(row.key, { unitId: value })} />
+                <Select
+                  value={unitId}
+                  style={{ width: "100%" }}
+                  options={row.units.map((unit) => ({ value: unit.id, label: unit.name }))}
+                  onChange={(value) => update(row.key, { unitId: value })}
+                />
               ),
             },
             ...(showBatch
@@ -284,7 +357,13 @@ export function LabelsPage() {
               dataIndex: "quantity",
               width: 120,
               render: (quantity: number, row: Row) => (
-                <InputNumber min={1} max={500} value={quantity} style={{ width: "100%" }} onChange={(value) => update(row.key, { quantity: Number(value ?? 1) })} />
+                <InputNumber
+                  min={1}
+                  max={500}
+                  value={quantity}
+                  style={{ width: "100%" }}
+                  onChange={(value) => update(row.key, { quantity: Number(value ?? 1) })}
+                />
               ),
             },
             {
@@ -339,7 +418,12 @@ export function LabelsPage() {
 
       {preview ? (
         <Card title={`Xem trước · ${activeSize?.label ?? size}`} style={{ marginTop: 14 }}>
-          <iframe title="Xem trước tem" className="label-preview" sandbox="allow-same-origin" srcDoc={preview} />
+          <iframe
+            title="Xem trước tem"
+            className="label-preview"
+            sandbox="allow-same-origin"
+            srcDoc={preview}
+          />
         </Card>
       ) : null}
     </div>

@@ -20,7 +20,24 @@ import {
   ShopOutlined,
 } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, App, Button, Card, DatePicker, Dropdown, Empty, Input, Modal, Progress, Segmented, Select, Skeleton, Table, Tag, Typography } from "antd";
+import {
+  Alert,
+  App,
+  Button,
+  Card,
+  DatePicker,
+  Dropdown,
+  Empty,
+  Input,
+  Modal,
+  Progress,
+  Segmented,
+  Select,
+  Skeleton,
+  Table,
+  Tag,
+  Typography,
+} from "antd";
 import type { Dayjs } from "dayjs";
 import { useRef, useState } from "react";
 import { useNavigate } from "react-router";
@@ -55,9 +72,25 @@ type SortState = { sortBy: "receivedAt" | "totalCost"; order: "asc" | "desc" };
 
 /** Xuất CSV từ các dòng đang chọn, không gọi thêm API. */
 function downloadCsv(filename: string, rows: GoodsReceiptListItem[]): void {
-  const header = ["Mã phiếu", "Nhà cung cấp", "Ngày nhập", "Số mặt hàng", "Tổng tiền", "Trạng thái"];
-  const body = rows.map((row) => [row.code, row.supplierName ?? "", formatDate(row.receivedAt), row.lineCount, row.totalCost, STATUS[row.status].text]);
-  const csv = [header, ...body].map((cells) => cells.map((cell) => JSON.stringify(String(cell))).join(",")).join("\n");
+  const header = [
+    "Mã phiếu",
+    "Nhà cung cấp",
+    "Ngày nhập",
+    "Số mặt hàng",
+    "Tổng tiền",
+    "Trạng thái",
+  ];
+  const body = rows.map((row) => [
+    row.code,
+    row.supplierName ?? "",
+    formatDate(row.receivedAt),
+    row.lineCount,
+    row.totalCost,
+    STATUS[row.status].text,
+  ]);
+  const csv = [header, ...body]
+    .map((cells) => cells.map((cell) => JSON.stringify(String(cell))).join(","))
+    .join("\n");
   const url = URL.createObjectURL(new Blob([`﻿${csv}`], { type: "text/csv;charset=utf-8;" }));
   const link = document.createElement("a");
   link.href = url;
@@ -89,7 +122,17 @@ export function GoodsReceiptsPage() {
   const term = useDebounced(search.trim(), 300);
 
   const list = useQuery({
-    queryKey: ["goods-receipts", page, pageSize, status, supplierId, term, sort, range?.[0].format("YYYY-MM-DD"), range?.[1].format("YYYY-MM-DD")],
+    queryKey: [
+      "goods-receipts",
+      page,
+      pageSize,
+      status,
+      supplierId,
+      term,
+      sort,
+      range?.[0].format("YYYY-MM-DD"),
+      range?.[1].format("YYYY-MM-DD"),
+    ],
     queryFn: async () =>
       (
         await http.get<Envelope<Paged<GoodsReceiptListItem>>>("/goods-receipts", {
@@ -110,11 +153,17 @@ export function GoodsReceiptsPage() {
   });
   const summary = useQuery({
     queryKey: ["goods-receipts", "summary"],
-    queryFn: async () => (await http.get<Envelope<GoodsReceiptSummary>>("/goods-receipts/summary")).data.data,
+    queryFn: async () =>
+      (await http.get<Envelope<GoodsReceiptSummary>>("/goods-receipts/summary")).data.data,
   });
   const suppliers = useQuery({
     queryKey: ["receipt-suppliers"],
-    queryFn: async () => (await http.get<Envelope<Paged<SupplierListItem>>>("/suppliers", { params: { page: 1, limit: 100 } })).data.data.items,
+    queryFn: async () =>
+      (
+        await http.get<Envelope<Paged<SupplierListItem>>>("/suppliers", {
+          params: { page: 1, limit: 100 },
+        })
+      ).data.data.items,
   });
 
   const items = list.data?.items ?? [];
@@ -144,7 +193,15 @@ export function GoodsReceiptsPage() {
         title="Nhập hàng"
         extra={
           <>
-            <ExcelExportButton type="goods-receipts" range={rangeParams(range)} tooltip={range ? "Xuất phiếu nhập trong khoảng ngày đang lọc" : "Xuất phiếu nhập 30 ngày gần nhất"} />
+            <ExcelExportButton
+              type="goods-receipts"
+              range={rangeParams(range)}
+              tooltip={
+                range
+                  ? "Xuất phiếu nhập trong khoảng ngày đang lọc"
+                  : "Xuất phiếu nhập 30 ngày gần nhất"
+              }
+            />
             {canCreate ? (
               <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreating(true)}>
                 Tạo phiếu nhập
@@ -192,7 +249,10 @@ export function GoodsReceiptsPage() {
                     setSupplierId(value);
                     resetPage();
                   }}
-                  options={(suppliers.data ?? []).map((item) => ({ value: item.id, label: item.name }))}
+                  options={(suppliers.data ?? []).map((item) => ({
+                    value: item.id,
+                    label: item.name,
+                  }))}
                 />
               </label>
               <label className="field">
@@ -217,7 +277,10 @@ export function GoodsReceiptsPage() {
                     setStatus(value);
                     resetPage();
                   }}
-                  options={Object.entries(STATUS).map(([value, info]) => ({ value, label: info.text }))}
+                  options={Object.entries(STATUS).map(([value, info]) => ({
+                    value,
+                    label: info.text,
+                  }))}
                 />
               </label>
               <div className="filter-actions">
@@ -235,7 +298,10 @@ export function GoodsReceiptsPage() {
                     Xóa lọc
                   </Button>
                 ) : null}
-                <Button icon={<ReloadOutlined spin={list.isFetching} />} onClick={() => void refreshAll()}>
+                <Button
+                  icon={<ReloadOutlined spin={list.isFetching} />}
+                  onClick={() => void refreshAll()}
+                >
                   Làm mới
                 </Button>
               </div>
@@ -248,14 +314,35 @@ export function GoodsReceiptsPage() {
                 Danh sách phiếu nhập <span className="text-secondary">({formatNumber(total)})</span>
               </span>
             }
-            extra={<Input allowClear prefix={<SearchOutlined />} placeholder="Tìm theo mã phiếu, nhà cung cấp, số HĐ…" className="card-search" value={search} onChange={(event) => { setSearch(event.target.value); resetPage(); }} />}
+            extra={
+              <Input
+                allowClear
+                prefix={<SearchOutlined />}
+                placeholder="Tìm theo mã phiếu, nhà cung cấp, số HĐ…"
+                className="card-search"
+                value={search}
+                onChange={(event) => {
+                  setSearch(event.target.value);
+                  resetPage();
+                }}
+              />
+            }
           >
             {selectedKeys.length > 0 ? (
               <div className="bulk-bar">
                 <span>
                   Đã chọn <strong>{selectedKeys.length}</strong> phiếu
                 </span>
-                <Button size="small" icon={<DownloadOutlined />} onClick={() => downloadCsv(`phieu-nhap-${vnDateKey()}.csv`, items.filter((item) => selectedKeys.includes(item.id)))}>
+                <Button
+                  size="small"
+                  icon={<DownloadOutlined />}
+                  onClick={() =>
+                    downloadCsv(
+                      `phieu-nhap-${vnDateKey()}.csv`,
+                      items.filter((item) => selectedKeys.includes(item.id)),
+                    )
+                  }
+                >
                   Xuất CSV
                 </Button>
                 <Button size="small" type="text" onClick={() => setSelectedKeys([])}>
@@ -270,14 +357,36 @@ export function GoodsReceiptsPage() {
               loading={list.isFetching}
               dataSource={items}
               scroll={{ x: compact ? 600 : 900 }}
-              rowSelection={{ selectedRowKeys: selectedKeys, onChange: (keys) => setSelectedKeys(keys as string[]), columnWidth: 44 }}
-              onRow={(row) => ({ onClick: () => openWith(row.id, null), style: { cursor: "pointer" } })}
+              rowSelection={{
+                selectedRowKeys: selectedKeys,
+                onChange: (keys) => setSelectedKeys(keys as string[]),
+                columnWidth: 44,
+              }}
+              onRow={(row) => ({
+                onClick: () => openWith(row.id, null),
+                style: { cursor: "pointer" },
+              })}
               rowClassName={(row) => (row.id === openId ? "row-selected" : "")}
-              locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={hasFilter ? "Không có phiếu nào khớp bộ lọc" : "Chưa có phiếu nhập nào"} /> }}
+              locale={{
+                emptyText: (
+                  <Empty
+                    image={Empty.PRESENTED_IMAGE_SIMPLE}
+                    description={
+                      hasFilter ? "Không có phiếu nào khớp bộ lọc" : "Chưa có phiếu nhập nào"
+                    }
+                  />
+                ),
+              }}
               onChange={(_, __, sorter) => {
                 const single = Array.isArray(sorter) ? sorter[0] : sorter;
-                if (single?.order && (single.columnKey === "receivedAt" || single.columnKey === "totalCost")) {
-                  setSort({ sortBy: single.columnKey, order: single.order === "ascend" ? "asc" : "desc" });
+                if (
+                  single?.order &&
+                  (single.columnKey === "receivedAt" || single.columnKey === "totalCost")
+                ) {
+                  setSort({
+                    sortBy: single.columnKey,
+                    order: single.order === "ascend" ? "asc" : "desc",
+                  });
                 } else {
                   setSort({ sortBy: "receivedAt", order: "desc" });
                 }
@@ -294,7 +403,8 @@ export function GoodsReceiptsPage() {
                     setPage(1);
                   } else setPage(nextPage);
                 },
-                showTotal: (count, [start, end]) => `${start} – ${end} của ${formatNumber(count)} phiếu`,
+                showTotal: (count, [start, end]) =>
+                  `${start} – ${end} của ${formatNumber(count)} phiếu`,
               }}
               columns={[
                 {
@@ -316,33 +426,71 @@ export function GoodsReceiptsPage() {
                         >
                           {main}
                         </Typography.Link>
-                        <span>{compact ? row.supplierName ?? "Không có NCC" : prefix}</span>
+                        <span>{compact ? (row.supplierName ?? "Không có NCC") : prefix}</span>
                       </span>
                     );
                   },
                 },
                 ...(compact
                   ? []
-                  : [{ title: "Nhà cung cấp", key: "supplier", ellipsis: true, render: (_: unknown, row: GoodsReceiptListItem) => row.supplierName ?? <span className="text-secondary">Không có NCC</span> }]),
+                  : [
+                      {
+                        title: "Nhà cung cấp",
+                        key: "supplier",
+                        ellipsis: true,
+                        render: (_: unknown, row: GoodsReceiptListItem) =>
+                          row.supplierName ?? <span className="text-secondary">Không có NCC</span>,
+                      },
+                    ]),
                 {
                   title: "Ngày nhập",
                   key: "receivedAt",
                   width: 120,
                   sorter: true,
-                  sortOrder: sort.sortBy === "receivedAt" ? (sort.order === "asc" ? "ascend" : "descend") : null,
+                  sortOrder:
+                    sort.sortBy === "receivedAt"
+                      ? sort.order === "asc"
+                        ? "ascend"
+                        : "descend"
+                      : null,
                   render: (_: unknown, row: GoodsReceiptListItem) => formatDate(row.receivedAt),
                 },
-                ...(compact ? [] : [{ title: "Số mặt hàng", key: "lines", width: 110, align: "right" as const, render: (_: unknown, row: GoodsReceiptListItem) => formatNumber(row.lineCount) }]),
+                ...(compact
+                  ? []
+                  : [
+                      {
+                        title: "Số mặt hàng",
+                        key: "lines",
+                        width: 110,
+                        align: "right" as const,
+                        render: (_: unknown, row: GoodsReceiptListItem) =>
+                          formatNumber(row.lineCount),
+                      },
+                    ]),
                 {
                   title: "Tổng tiền",
                   key: "totalCost",
                   width: 140,
                   align: "right",
                   sorter: true,
-                  sortOrder: sort.sortBy === "totalCost" ? (sort.order === "asc" ? "ascend" : "descend") : null,
-                  render: (_: unknown, row: GoodsReceiptListItem) => <strong>{formatVnd(row.totalCost)}</strong>,
+                  sortOrder:
+                    sort.sortBy === "totalCost"
+                      ? sort.order === "asc"
+                        ? "ascend"
+                        : "descend"
+                      : null,
+                  render: (_: unknown, row: GoodsReceiptListItem) => (
+                    <strong>{formatVnd(row.totalCost)}</strong>
+                  ),
                 },
-                { title: "Trạng thái", key: "status", width: 130, render: (_: unknown, row: GoodsReceiptListItem) => <StatusTag status={row.status} /> },
+                {
+                  title: "Trạng thái",
+                  key: "status",
+                  width: 130,
+                  render: (_: unknown, row: GoodsReceiptListItem) => (
+                    <StatusTag status={row.status} />
+                  ),
+                },
                 {
                   title: "Thao tác",
                   key: "actions",
@@ -359,27 +507,57 @@ export function GoodsReceiptsPage() {
                           menu={{
                             items: [
                               { key: "view", icon: <EyeOutlined />, label: "Xem chi tiết" },
-                              { key: "lines", icon: <AppstoreOutlined />, label: "Xem chi tiết hàng hóa" },
-                              { key: "preview", icon: <FileSearchOutlined />, label: "Xem trước bản in" },
+                              {
+                                key: "lines",
+                                icon: <AppstoreOutlined />,
+                                label: "Xem chi tiết hàng hóa",
+                              },
+                              {
+                                key: "preview",
+                                icon: <FileSearchOutlined />,
+                                label: "Xem trước bản in",
+                              },
                               { key: "print", icon: <PrinterOutlined />, label: "In phiếu nhập" },
                               ...(draft
                                 ? [
                                     { type: "divider" as const },
-                                    { key: "inspect", icon: <SafetyCertificateOutlined />, label: "Kiểm nhập & xác nhận", disabled: !canConfirm },
-                                    { key: "edit", icon: <EditOutlined />, label: "Sửa phiếu", disabled: !canCreate },
-                                    { key: "cancel", icon: <CloseCircleOutlined />, label: "Hủy phiếu", danger: canConfirm, disabled: !canConfirm },
+                                    {
+                                      key: "inspect",
+                                      icon: <SafetyCertificateOutlined />,
+                                      label: "Kiểm nhập & xác nhận",
+                                      disabled: !canConfirm,
+                                    },
+                                    {
+                                      key: "edit",
+                                      icon: <EditOutlined />,
+                                      label: "Sửa phiếu",
+                                      disabled: !canCreate,
+                                    },
+                                    {
+                                      key: "cancel",
+                                      icon: <CloseCircleOutlined />,
+                                      label: "Hủy phiếu",
+                                      danger: canConfirm,
+                                      disabled: !canConfirm,
+                                    },
                                   ]
                                 : []),
                             ],
                             onClick: ({ key, domEvent }) => {
                               domEvent.stopPropagation();
                               if (key === "preview") setPreviewing({ id: row.id, code: row.code });
-                              else if (key === "print") void printDocument(printUrl.goodsReceipt(row.id), message);
+                              else if (key === "print")
+                                void printDocument(printUrl.goodsReceipt(row.id), message);
                               else openWith(row.id, key === "view" ? null : (key as PanelAction));
                             },
                           }}
                         >
-                          <Button type="text" className="more-btn" icon={<MoreOutlined />} aria-label={`Thao tác với ${row.code}`} />
+                          <Button
+                            type="text"
+                            className="more-btn"
+                            icon={<MoreOutlined />}
+                            aria-label={`Thao tác với ${row.code}`}
+                          />
                         </Dropdown>
                       </span>
                     );
@@ -432,14 +610,37 @@ function draftChecks(receipt: GoodsReceiptDetail) {
   const notExpired = lines.filter((line) => line.expiryDate.slice(0, 10) > today).length;
   const longEnough = lines.filter((line) => daysUntil(line.expiryDate) > 90).length;
   const hasCost = lines.filter((line) => line.quantity > 0 && line.unitCost > 0).length;
-  const ready = lines.filter((line) => line.batchNumber.trim() && line.expiryDate.slice(0, 10) > today && line.quantity > 0 && line.unitCost > 0).length;
+  const ready = lines.filter(
+    (line) =>
+      line.batchNumber.trim() &&
+      line.expiryDate.slice(0, 10) > today &&
+      line.quantity > 0 &&
+      line.unitCost > 0,
+  ).length;
   return {
     ready,
     items: [
-      { label: "Đủ số lô cho từng dòng", done: hasBatch === lines.length, detail: `${hasBatch}/${lines.length}` },
-      { label: "Hạn dùng chưa qua", done: notExpired === lines.length, detail: `${notExpired}/${lines.length}` },
-      { label: "Có số lượng và giá nhập", done: hasCost === lines.length, detail: `${hasCost}/${lines.length}` },
-      { label: "Hạn dùng còn trên 90 ngày", done: longEnough === lines.length, detail: `${longEnough}/${lines.length}`, warnOnly: true },
+      {
+        label: "Đủ số lô cho từng dòng",
+        done: hasBatch === lines.length,
+        detail: `${hasBatch}/${lines.length}`,
+      },
+      {
+        label: "Hạn dùng chưa qua",
+        done: notExpired === lines.length,
+        detail: `${notExpired}/${lines.length}`,
+      },
+      {
+        label: "Có số lượng và giá nhập",
+        done: hasCost === lines.length,
+        detail: `${hasCost}/${lines.length}`,
+      },
+      {
+        label: "Hạn dùng còn trên 90 ngày",
+        done: longEnough === lines.length,
+        detail: `${longEnough}/${lines.length}`,
+        warnOnly: true,
+      },
     ],
   };
 }
@@ -471,7 +672,8 @@ function ReceiptDetailPanel({
 
   const detail = useQuery({
     queryKey: ["goods-receipt", receiptId],
-    queryFn: async () => (await http.get<Envelope<GoodsReceiptDetail>>(`/goods-receipts/${receiptId}`)).data.data,
+    queryFn: async () =>
+      (await http.get<Envelope<GoodsReceiptDetail>>(`/goods-receipts/${receiptId}`)).data.data,
   });
   const receipt = detail.data;
 
@@ -497,11 +699,19 @@ function ReceiptDetailPanel({
   }
 
   async function refresh(): Promise<void> {
-    await Promise.all([queryClient.invalidateQueries({ queryKey: ["goods-receipt", receiptId] }), onChanged()]);
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["goods-receipt", receiptId] }),
+      onChanged(),
+    ]);
   }
 
   const cancel = useMutation({
-    mutationFn: () => http.post(`/goods-receipts/${receiptId}/cancel`, { reason: cancelReason }, { headers: { "Idempotency-Key": keyFor("cancel") } }),
+    mutationFn: () =>
+      http.post(
+        `/goods-receipts/${receiptId}/cancel`,
+        { reason: cancelReason },
+        { headers: { "Idempotency-Key": keyFor("cancel") } },
+      ),
     onSuccess: async () => {
       void message.success("Đã hủy phiếu nhập");
       closeDialogs();
@@ -589,7 +799,9 @@ function ReceiptDetailPanel({
                 </div>
               </dl>
             ) : (
-              <Typography.Text type="secondary">Phiếu không gắn nhà cung cấp (ví dụ tồn đầu kỳ).</Typography.Text>
+              <Typography.Text type="secondary">
+                Phiếu không gắn nhà cung cấp (ví dụ tồn đầu kỳ).
+              </Typography.Text>
             )}
           </section>
 
@@ -616,18 +828,27 @@ function ReceiptDetailPanel({
                 <div>
                   <dt>Tiền hàng / CK / thuế</dt>
                   <dd>
-                    {formatVnd(receipt.goodsAmount)} − {formatVnd(receipt.discountAmount)} + {formatVnd(receipt.vatAmount)}
+                    {formatVnd(receipt.goodsAmount)} − {formatVnd(receipt.discountAmount)} +{" "}
+                    {formatVnd(receipt.vatAmount)}
                   </dd>
                 </div>
               ) : null}
               <div>
                 <dt>Người lập</dt>
-                <dd>{receipt.createdBy ? `${receipt.createdBy.fullName}${receipt.createdAt ? ` · ${formatDateTime(receipt.createdAt)}` : ""}` : "—"}</dd>
+                <dd>
+                  {receipt.createdBy
+                    ? `${receipt.createdBy.fullName}${receipt.createdAt ? ` · ${formatDateTime(receipt.createdAt)}` : ""}`
+                    : "—"}
+                </dd>
               </div>
               {receipt.status === "CONFIRMED" ? (
                 <div>
                   <dt>Người kiểm nhập</dt>
-                  <dd>{receipt.confirmedBy ? `${receipt.confirmedBy.fullName} · ${formatDateTime(receipt.confirmedAt)}` : formatDateTime(receipt.confirmedAt)}</dd>
+                  <dd>
+                    {receipt.confirmedBy
+                      ? `${receipt.confirmedBy.fullName} · ${formatDateTime(receipt.confirmedAt)}`
+                      : formatDateTime(receipt.confirmedAt)}
+                  </dd>
                 </div>
               ) : null}
               {receipt.status === "CANCELLED" ? (
@@ -650,17 +871,27 @@ function ReceiptDetailPanel({
             <section className="panel-section">
               <h4 className="panel-section-row">
                 <span>
-                  <SafetyCertificateOutlined /> {isDraft ? "Kiểm tra lô – hạn dùng" : "Kết quả nhập kho"}
+                  <SafetyCertificateOutlined />{" "}
+                  {isDraft ? "Kiểm tra lô – hạn dùng" : "Kết quả nhập kho"}
                 </span>
                 <span className="text-secondary">
                   {progressDone}/{lineCount}
                 </span>
               </h4>
-              <Progress percent={Math.round((progressDone / lineCount) * 100)} showInfo={false} strokeColor={progressDone === lineCount ? "var(--tone-green)" : "var(--tone-orange)"} />
+              <Progress
+                percent={Math.round((progressDone / lineCount) * 100)}
+                showInfo={false}
+                strokeColor={
+                  progressDone === lineCount ? "var(--tone-green)" : "var(--tone-orange)"
+                }
+              />
               <ul className="check-list">
                 {checks
                   ? checks.items.map((item) => (
-                      <li key={item.label} className={item.done ? "done" : item.warnOnly ? "warn" : "fail"}>
+                      <li
+                        key={item.label}
+                        className={item.done ? "done" : item.warnOnly ? "warn" : "fail"}
+                      >
                         {item.done ? <CheckCircleFilled /> : <ExclamationCircleFilled />}
                         <span>{item.label}</span>
                         <em>{item.detail}</em>
@@ -670,7 +901,9 @@ function ReceiptDetailPanel({
                       <li key="ok" className="done">
                         <CheckCircleFilled />
                         <span>Lô đang bán được</span>
-                        <em>{available}/{lineCount}</em>
+                        <em>
+                          {available}/{lineCount}
+                        </em>
                       </li>,
                       <li key="q" className={quarantined > 0 ? "warn" : "done"}>
                         {quarantined > 0 ? <ExclamationCircleFilled /> : <CheckCircleFilled />}
@@ -679,39 +912,72 @@ function ReceiptDetailPanel({
                       </li>,
                     ]}
               </ul>
-              {isDraft ? <p className="section-note">Đây là kiểm tra dữ liệu trên phiếu. Kiểm tra cảm quan thực tế làm ở bước “Kiểm nhập & xác nhận”.</p> : null}
+              {isDraft ? (
+                <p className="section-note">
+                  Đây là kiểm tra dữ liệu trên phiếu. Kiểm tra cảm quan thực tế làm ở bước “Kiểm
+                  nhập & xác nhận”.
+                </p>
+              ) : null}
             </section>
           ) : null}
 
           <div className="panel-actions">
             {isDraft ? (
-              <Button type="primary" size="large" block icon={<SafetyCertificateOutlined />} disabled={!can("goods_receipt.confirm")} onClick={() => setInspecting(true)}>
+              <Button
+                type="primary"
+                size="large"
+                block
+                icon={<SafetyCertificateOutlined />}
+                disabled={!can("goods_receipt.confirm")}
+                onClick={() => setInspecting(true)}
+              >
                 Kiểm nhập &amp; xác nhận
               </Button>
             ) : null}
-            <Button size="large" block icon={<AppstoreOutlined />} onClick={() => setViewingLines(true)}>
+            <Button
+              size="large"
+              block
+              icon={<AppstoreOutlined />}
+              onClick={() => setViewingLines(true)}
+            >
               Xem chi tiết hàng hóa
             </Button>
             <div className="panel-actions-row">
               <Button icon={<FileSearchOutlined />} onClick={() => setPreviewingPrint(true)}>
                 Xem trước bản in
               </Button>
-              <Button icon={<PrinterOutlined />} onClick={() => void printDocument(printUrl.goodsReceipt(receipt.id), message)}>
+              <Button
+                icon={<PrinterOutlined />}
+                onClick={() => void printDocument(printUrl.goodsReceipt(receipt.id), message)}
+              >
                 In phiếu nhập
               </Button>
             </div>
             {isDraft ? (
               <div className="panel-actions-row">
-                <Button icon={<EditOutlined />} disabled={!can("goods_receipt.create")} onClick={() => setEditing(true)}>
+                <Button
+                  icon={<EditOutlined />}
+                  disabled={!can("goods_receipt.create")}
+                  onClick={() => setEditing(true)}
+                >
                   Sửa phiếu
                 </Button>
-                <Button danger icon={<CloseCircleOutlined />} disabled={!can("goods_receipt.confirm")} onClick={() => setCancelling(true)}>
+                <Button
+                  danger
+                  icon={<CloseCircleOutlined />}
+                  disabled={!can("goods_receipt.confirm")}
+                  onClick={() => setCancelling(true)}
+                >
                   Hủy phiếu
                 </Button>
               </div>
             ) : null}
             {receipt.status === "CONFIRMED" && can("stock.read") ? (
-              <Button type="link" icon={<DatabaseOutlined />} onClick={() => void navigate("/ton-kho")}>
+              <Button
+                type="link"
+                icon={<DatabaseOutlined />}
+                onClick={() => void navigate("/ton-kho")}
+              >
                 Xem tồn kho sau nhập
               </Button>
             ) : null}
@@ -720,7 +986,11 @@ function ReceiptDetailPanel({
       </Card>
 
       <ReceiptLinesModal open={linesOpen} receipt={receipt} onClose={closeDialogs} />
-      <PrintPreviewModal url={previewingPrint ? printUrl.goodsReceipt(receipt.id) : null} title={`Xem trước phiếu nhập ${receipt.code}`} onClose={() => setPreviewingPrint(false)} />
+      <PrintPreviewModal
+        url={previewingPrint ? printUrl.goodsReceipt(receipt.id) : null}
+        title={`Xem trước phiếu nhập ${receipt.code}`}
+        onClose={() => setPreviewingPrint(false)}
+      />
       <ReceiptFormModal
         open={editOpen}
         receipt={receipt}
@@ -751,21 +1021,42 @@ function ReceiptDetailPanel({
         confirmLoading={cancel.isPending}
         okButtonProps={{ danger: true, disabled: cancelReason.trim().length === 0 }}
       >
-        <Typography.Paragraph type="secondary">Phiếu hủy được giữ lại để tra cứu, không ảnh hưởng tồn kho.</Typography.Paragraph>
-        <Input.TextArea rows={3} placeholder="Lý do hủy phiếu (bắt buộc)" value={cancelReason} onChange={(event) => setCancelReason(event.target.value)} />
+        <Typography.Paragraph type="secondary">
+          Phiếu hủy được giữ lại để tra cứu, không ảnh hưởng tồn kho.
+        </Typography.Paragraph>
+        <Input.TextArea
+          rows={3}
+          placeholder="Lý do hủy phiếu (bắt buộc)"
+          value={cancelReason}
+          onChange={(event) => setCancelReason(event.target.value)}
+        />
       </Modal>
     </>
   );
 }
 
-function ReceiptLinesModal({ open, receipt, onClose }: { open: boolean; receipt: GoodsReceiptDetail; onClose: () => void }) {
+function ReceiptLinesModal({
+  open,
+  receipt,
+  onClose,
+}: {
+  open: boolean;
+  receipt: GoodsReceiptDetail;
+  onClose: () => void;
+}) {
   const BATCH_STATUS: Record<string, { text: string; color: string }> = {
     AVAILABLE: { text: "Bán được", color: "green" },
     QUARANTINED: { text: "Biệt trữ", color: "orange" },
     RECALLED: { text: "Thu hồi", color: "red" },
   };
   return (
-    <Modal open={open} onCancel={onClose} footer={null} width={1040} title={`Hàng hóa trong phiếu ${receipt.code}`}>
+    <Modal
+      open={open}
+      onCancel={onClose}
+      footer={null}
+      width={1040}
+      title={`Hàng hóa trong phiếu ${receipt.code}`}
+    >
       <Table
         rowKey="id"
         size="small"
@@ -798,16 +1089,54 @@ function ReceiptLinesModal({ open, receipt, onClose }: { open: boolean; receipt:
             ),
           },
           { title: "Số lô", dataIndex: "batchNumber", width: 120 },
-          { title: "NSX", key: "mfg", width: 100, render: (_: unknown, line: GoodsReceiptLine) => formatDate(line.manufactureDate) },
-          { title: "HSD", key: "exp", width: 100, render: (_: unknown, line: GoodsReceiptLine) => formatDate(line.expiryDate) },
-          { title: "Số lượng", key: "qty", width: 110, align: "right", render: (_: unknown, line: GoodsReceiptLine) => `${formatNumber(line.quantity)} ${line.unitName}` },
-          { title: "Giá nhập", key: "cost", width: 110, align: "right", render: (_: unknown, line: GoodsReceiptLine) => formatVnd(line.unitCost) },
-          { title: "Thành tiền", key: "lineCost", width: 120, align: "right", render: (_: unknown, line: GoodsReceiptLine) => <strong>{formatVnd(line.lineCost)}</strong> },
+          {
+            title: "NSX",
+            key: "mfg",
+            width: 100,
+            render: (_: unknown, line: GoodsReceiptLine) => formatDate(line.manufactureDate),
+          },
+          {
+            title: "HSD",
+            key: "exp",
+            width: 100,
+            render: (_: unknown, line: GoodsReceiptLine) => formatDate(line.expiryDate),
+          },
+          {
+            title: "Số lượng",
+            key: "qty",
+            width: 110,
+            align: "right",
+            render: (_: unknown, line: GoodsReceiptLine) =>
+              `${formatNumber(line.quantity)} ${line.unitName}`,
+          },
+          {
+            title: "Giá nhập",
+            key: "cost",
+            width: 110,
+            align: "right",
+            render: (_: unknown, line: GoodsReceiptLine) => formatVnd(line.unitCost),
+          },
+          {
+            title: "Thành tiền",
+            key: "lineCost",
+            width: 120,
+            align: "right",
+            render: (_: unknown, line: GoodsReceiptLine) => (
+              <strong>{formatVnd(line.lineCost)}</strong>
+            ),
+          },
           {
             title: "Lô trong kho",
             key: "batch",
             width: 130,
-            render: (_: unknown, line: GoodsReceiptLine) => (line.batchStatus ? <Tag color={BATCH_STATUS[line.batchStatus]?.color}>{BATCH_STATUS[line.batchStatus]?.text}</Tag> : <span className="text-secondary">Chưa nhập kho</span>),
+            render: (_: unknown, line: GoodsReceiptLine) =>
+              line.batchStatus ? (
+                <Tag color={BATCH_STATUS[line.batchStatus]?.color}>
+                  {BATCH_STATUS[line.batchStatus]?.text}
+                </Tag>
+              ) : (
+                <span className="text-secondary">Chưa nhập kho</span>
+              ),
           },
         ]}
       />
@@ -844,7 +1173,11 @@ function InspectionModal({
   if (open !== wasOpen) {
     setWasOpen(open);
     if (open) {
-      setResults(Object.fromEntries(receipt.lines.map((line) => [line.id, { passed: true, rejectReason: "" }])));
+      setResults(
+        Object.fromEntries(
+          receipt.lines.map((line) => [line.id, { passed: true, rejectReason: "" }]),
+        ),
+      );
     }
   }
 
@@ -865,14 +1198,17 @@ function InspectionModal({
       void message.success("Đã xác nhận kiểm nhập và cập nhật tồn kho");
       await onConfirmed();
     },
-    onError: (error) => void message.error(getErrorMessage(error, "Không xác nhận được phiếu nhập")),
+    onError: (error) =>
+      void message.error(getErrorMessage(error, "Không xác nhận được phiếu nhập")),
   });
 
   const hasFailedWithoutReason = receipt.lines.some((line) => {
     const result = results[line.id];
     return result && !result.passed && result.rejectReason.trim().length === 0;
   });
-  const failedCount = receipt.lines.filter((line) => results[line.id] && !results[line.id]!.passed).length;
+  const failedCount = receipt.lines.filter(
+    (line) => results[line.id] && !results[line.id]!.passed,
+  ).length;
 
   return (
     <Modal
@@ -901,15 +1237,35 @@ function InspectionModal({
                 <div className="cell-main">
                   <strong>{line.productName}</strong>
                   <span>
-                    Lô {line.batchNumber} · HSD {formatDate(line.expiryDate)} · {formatNumber(line.quantity)} {line.unitName}
+                    Lô {line.batchNumber} · HSD {formatDate(line.expiryDate)} ·{" "}
+                    {formatNumber(line.quantity)} {line.unitName}
                   </span>
                 </div>
                 <Segmented
                   value={result.passed ? "pass" : "fail"}
-                  onChange={(value) => setResults((current) => ({ ...current, [line.id]: { ...result, passed: value === "pass" } }))}
+                  onChange={(value) =>
+                    setResults((current) => ({
+                      ...current,
+                      [line.id]: { ...result, passed: value === "pass" },
+                    }))
+                  }
                   options={[
-                    { value: "pass", label: <span className="text-success"><CheckCircleOutlined /> Đạt</span> },
-                    { value: "fail", label: <span className="text-danger"><CloseCircleOutlined /> Không đạt</span> },
+                    {
+                      value: "pass",
+                      label: (
+                        <span className="text-success">
+                          <CheckCircleOutlined /> Đạt
+                        </span>
+                      ),
+                    },
+                    {
+                      value: "fail",
+                      label: (
+                        <span className="text-danger">
+                          <CloseCircleOutlined /> Không đạt
+                        </span>
+                      ),
+                    },
                   ]}
                 />
               </div>
@@ -919,7 +1275,12 @@ function InspectionModal({
                   placeholder="Lý do không đạt (bắt buộc), ví dụ: bao bì móp, ẩm mốc, sai số lô…"
                   value={result.rejectReason}
                   status={result.rejectReason.trim() ? undefined : "error"}
-                  onChange={(event) => setResults((current) => ({ ...current, [line.id]: { ...result, rejectReason: event.target.value } }))}
+                  onChange={(event) =>
+                    setResults((current) => ({
+                      ...current,
+                      [line.id]: { ...result, rejectReason: event.target.value },
+                    }))
+                  }
                 />
               ) : null}
             </div>

@@ -1,13 +1,43 @@
-import { ArrowLeftOutlined, CheckCircleOutlined, CloseCircleOutlined, DeleteOutlined, SaveOutlined, SearchOutlined } from "@ant-design/icons";
+import {
+  ArrowLeftOutlined,
+  CheckCircleOutlined,
+  CloseCircleOutlined,
+  DeleteOutlined,
+  SaveOutlined,
+  SearchOutlined,
+} from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, App, Button, Empty, Input, InputNumber, Modal, Progress, Segmented, Select, Skeleton, Table, Tag, Tooltip, Typography } from "antd";
+import {
+  Alert,
+  App,
+  Button,
+  Empty,
+  Input,
+  InputNumber,
+  Modal,
+  Progress,
+  Segmented,
+  Select,
+  Skeleton,
+  Table,
+  Tag,
+  Tooltip,
+  Typography,
+} from "antd";
 import { useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { getErrorMessage, http } from "../../../api/http.js";
 import { formatDate, formatDateTime, formatNumber } from "../../../ui/format.js";
 import { formatVnd } from "../../../api/types.js";
 import { useAuth } from "../../auth/auth-context.js";
-import { cancelCount, closeCount, getCount, saveCounts, type CountEntry, type CountLine } from "./stock-count-api.js";
+import {
+  cancelCount,
+  closeCount,
+  getCount,
+  saveCounts,
+  type CountEntry,
+  type CountLine,
+} from "./stock-count-api.js";
 
 type Filter = "ALL" | "PENDING" | "COUNTED" | "DIFF";
 
@@ -40,7 +70,11 @@ export function CountingBoard({ countId, onBack }: { countId: string; onBack: ()
         for (const entry of entries) delete next[entry.lineId];
         return next;
       });
-      queryClient.setQueryData(["stock-count", countId], { count: data.count, lines: data.lines, summary: data.summary });
+      queryClient.setQueryData(["stock-count", countId], {
+        count: data.count,
+        lines: data.lines,
+        summary: data.summary,
+      });
       await queryClient.invalidateQueries({ queryKey: ["stock-counts"] });
     },
     onError: (error) => void message.error(getErrorMessage(error, "Không lưu được số đếm")),
@@ -51,7 +85,13 @@ export function CountingBoard({ countId, onBack }: { countId: string; onBack: ()
     mutationFn: (line: CountLine) =>
       http.post(
         `/inventory/batches/${line.batchId}/quarantine`,
-        { reason: `Kiểm kê ${count?.code ?? ""}: cảm quan không đạt — ${line.note ?? ""}`.slice(0, 500), version: line.batchVersion },
+        {
+          reason: `Kiểm kê ${count?.code ?? ""}: cảm quan không đạt — ${line.note ?? ""}`.slice(
+            0,
+            500,
+          ),
+          version: line.batchVersion,
+        },
         { headers: { "Idempotency-Key": crypto.randomUUID() } },
       ),
     onSuccess: async () => {
@@ -65,7 +105,13 @@ export function CountingBoard({ countId, onBack }: { countId: string; onBack: ()
   function saveSensory(line: CountLine, failed: boolean, reason: string | null) {
     if (line.countedQuantity === null || !line.countedUnitId) return;
     save.mutate([
-      { lineId: line.id, unitId: line.countedUnitId, quantity: line.countedQuantity, sensoryFailed: failed, ...(failed ? { note: reason } : {}) },
+      {
+        lineId: line.id,
+        unitId: line.countedUnitId,
+        quantity: line.countedQuantity,
+        sensoryFailed: failed,
+        ...(failed ? { note: reason } : {}),
+      },
     ]);
   }
 
@@ -73,12 +119,18 @@ export function CountingBoard({ countId, onBack }: { countId: string; onBack: ()
     mutationFn: () => closeCount(countId),
     onSuccess: async (data) => {
       await queryClient.invalidateQueries({ queryKey: ["stock-counts"] });
-      queryClient.setQueryData(["stock-count", countId], { count: data.count, lines: data.lines, summary: data.summary });
+      queryClient.setQueryData(["stock-count", countId], {
+        count: data.count,
+        lines: data.lines,
+        summary: data.summary,
+      });
       modal.success({
         title: "Đã chốt đợt kiểm kê",
         content: data.adjustmentId ? (
           <span>
-            Có {formatNumber(data.differenceLines)} dòng lệch. Hệ thống đã lập phiếu điều chỉnh <b>{data.count.adjustment?.code}</b> ở trạng thái nháp. Tồn kho chỉ thay đổi sau khi người khác duyệt phiếu này.
+            Có {formatNumber(data.differenceLines)} dòng lệch. Hệ thống đã lập phiếu điều chỉnh{" "}
+            <b>{data.count.adjustment?.code}</b> ở trạng thái nháp. Tồn kho chỉ thay đổi sau khi
+            người khác duyệt phiếu này.
           </span>
         ) : (
           <span>Số đếm khớp hoàn toàn với tồn hệ thống, không cần điều chỉnh gì.</span>
@@ -102,7 +154,17 @@ export function CountingBoard({ countId, onBack }: { countId: string; onBack: ()
     onError: (error) => void message.error(getErrorMessage(error, "Không hủy được đợt kiểm kê")),
   });
 
-  const shelves = useMemo(() => [...new Set(lines.map((line) => line.shelfLocation).filter((value): value is string => Boolean(value)))].sort(), [lines]);
+  const shelves = useMemo(
+    () =>
+      [
+        ...new Set(
+          lines
+            .map((line) => line.shelfLocation)
+            .filter((value): value is string => Boolean(value)),
+        ),
+      ].sort(),
+    [lines],
+  );
 
   const visible = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -112,7 +174,9 @@ export function CountingBoard({ countId, onBack }: { countId: string; onBack: ()
       if (filter === "COUNTED" && line.countedBaseQuantity === null) return false;
       if (filter === "DIFF" && !line.differenceBaseQuantity) return false;
       if (!term) return true;
-      return [line.productName, line.productCode, line.batchNumber].some((value) => value.toLowerCase().includes(term));
+      return [line.productName, line.productCode, line.batchNumber].some((value) =>
+        value.toLowerCase().includes(term),
+      );
     });
   }, [lines, search, filter, shelf]);
 
@@ -120,8 +184,16 @@ export function CountingBoard({ countId, onBack }: { countId: string; onBack: ()
     setDrafts((current) => ({
       ...current,
       [line.id]: {
-        unitId: patch.unitId ?? current[line.id]?.unitId ?? line.countedUnitId ?? line.units.find((unit) => unit.conversionToBase === 1)?.id ?? line.units[0]!.id,
-        quantity: patch.quantity === undefined ? (current[line.id]?.quantity ?? line.countedQuantity) : patch.quantity,
+        unitId:
+          patch.unitId ??
+          current[line.id]?.unitId ??
+          line.countedUnitId ??
+          line.units.find((unit) => unit.conversionToBase === 1)?.id ??
+          line.units[0]!.id,
+        quantity:
+          patch.quantity === undefined
+            ? (current[line.id]?.quantity ?? line.countedQuantity)
+            : patch.quantity,
       },
     }));
   }
@@ -153,7 +225,8 @@ export function CountingBoard({ countId, onBack }: { countId: string; onBack: ()
       content: (
         <div>
           <p>
-            Đã đếm {formatNumber(summary.countedLines)}/{formatNumber(summary.totalLines)} dòng, trong đó <b>{formatNumber(summary.differenceLines)} dòng lệch</b>.
+            Đã đếm {formatNumber(summary.countedLines)}/{formatNumber(summary.totalLines)} dòng,
+            trong đó <b>{formatNumber(summary.differenceLines)} dòng lệch</b>.
           </p>
           {summary.pendingLines > 0 ? (
             <Alert
@@ -163,7 +236,10 @@ export function CountingBoard({ countId, onBack }: { countId: string; onBack: ()
               description="Dòng chưa đếm không bị coi là hết hàng — hệ thống bỏ qua, tồn của chúng giữ nguyên."
             />
           ) : null}
-          <p style={{ marginTop: 10 }}>Hệ thống sẽ lập phiếu điều chỉnh tồn ở trạng thái nháp. Tồn kho chỉ đổi sau khi người khác duyệt phiếu.</p>
+          <p style={{ marginTop: 10 }}>
+            Hệ thống sẽ lập phiếu điều chỉnh tồn ở trạng thái nháp. Tồn kho chỉ đổi sau khi người
+            khác duyệt phiếu.
+          </p>
         </div>
       ),
       okText: "Chốt kiểm kê",
@@ -179,7 +255,10 @@ export function CountingBoard({ countId, onBack }: { countId: string; onBack: ()
       content: (
         <div>
           <p>Toàn bộ số đã đếm trong đợt này sẽ không được dùng. Tồn kho giữ nguyên.</p>
-          <Input placeholder="Lý do hủy (tùy chọn)" onChange={(event) => (reason = event.target.value)} />
+          <Input
+            placeholder="Lý do hủy (tùy chọn)"
+            onChange={(event) => (reason = event.target.value)}
+          />
         </div>
       ),
       okText: "Hủy đợt",
@@ -192,7 +271,8 @@ export function CountingBoard({ countId, onBack }: { countId: string; onBack: ()
   if (detail.isLoading) return <Skeleton active />;
   if (!count || !summary) return <Alert type="error" showIcon title="Không đọc được đợt kiểm kê" />;
 
-  const progress = summary.totalLines === 0 ? 0 : Math.round((summary.countedLines / summary.totalLines) * 100);
+  const progress =
+    summary.totalLines === 0 ? 0 : Math.round((summary.countedLines / summary.totalLines) * 100);
 
   const columns = [
     {
@@ -209,7 +289,12 @@ export function CountingBoard({ countId, onBack }: { countId: string; onBack: ()
             <span className="cell-sub">
               <Tag color="red">Cảm quan không đạt</Tag> {line.note}
               {line.batchStatus === "AVAILABLE" && can("batch.quarantine") ? (
-                <Button type="link" size="small" loading={quarantine.isPending} onClick={() => quarantine.mutate(line)}>
+                <Button
+                  type="link"
+                  size="small"
+                  loading={quarantine.isPending}
+                  onClick={() => quarantine.mutate(line)}
+                >
                   Biệt trữ lô
                 </Button>
               ) : line.batchStatus === "QUARANTINED" ? (
@@ -222,7 +307,12 @@ export function CountingBoard({ countId, onBack }: { countId: string; onBack: ()
               ) : null}
             </span>
           ) : canCount && line.countedBaseQuantity !== null ? (
-            <Button type="link" size="small" className="count-sensory-link" onClick={() => setSensory({ line, reason: "" })}>
+            <Button
+              type="link"
+              size="small"
+              className="count-sensory-link"
+              onClick={() => setSensory({ line, reason: "" })}
+            >
               Cảm quan không đạt?
             </Button>
           ) : null}
@@ -235,7 +325,13 @@ export function CountingBoard({ countId, onBack }: { countId: string; onBack: ()
       width: 120,
       align: "right" as const,
       render: (value: number, line: CountLine) => (
-        <Tooltip title={line.countedAt ? `Lúc đếm: ${formatNumber(line.systemBaseQuantityAtCount)} ${line.baseUnitName}` : undefined}>
+        <Tooltip
+          title={
+            line.countedAt
+              ? `Lúc đếm: ${formatNumber(line.systemBaseQuantityAtCount)} ${line.baseUnitName}`
+              : undefined
+          }
+        >
           <span>
             {formatNumber(value)} <span className="cell-sub">{line.baseUnitName}</span>
           </span>
@@ -248,7 +344,10 @@ export function CountingBoard({ countId, onBack }: { countId: string; onBack: ()
       width: 230,
       render: (_: number | null, line: CountLine) => {
         const draft = drafts[line.id];
-        const unitId = draft?.unitId ?? line.countedUnitId ?? line.units.find((unit) => unit.conversionToBase === 1)?.id;
+        const unitId =
+          draft?.unitId ??
+          line.countedUnitId ??
+          line.units.find((unit) => unit.conversionToBase === 1)?.id;
         const quantity = draft ? draft.quantity : line.countedQuantity;
         return (
           <div className="count-entry">
@@ -263,7 +362,9 @@ export function CountingBoard({ countId, onBack }: { countId: string; onBack: ()
                 if (element) inputs.current.set(line.id, element);
                 else inputs.current.delete(line.id);
               }}
-              onChange={(value) => setDraft(line, { quantity: value === null ? null : Number(value) })}
+              onChange={(value) =>
+                setDraft(line, { quantity: value === null ? null : Number(value) })
+              }
               onPressEnter={() => commitRow(line)}
             />
             <Select
@@ -275,7 +376,12 @@ export function CountingBoard({ countId, onBack }: { countId: string; onBack: ()
             />
             {line.countedBaseQuantity !== null && canCount ? (
               <Tooltip title="Xóa số đã đếm">
-                <Button size="small" type="text" icon={<DeleteOutlined />} onClick={() => save.mutate([{ lineId: line.id, clear: true }])} />
+                <Button
+                  size="small"
+                  type="text"
+                  icon={<DeleteOutlined />}
+                  onClick={() => save.mutate([{ lineId: line.id, clear: true }])}
+                />
               </Tooltip>
             ) : null}
           </div>
@@ -302,7 +408,9 @@ export function CountingBoard({ countId, onBack }: { countId: string; onBack: ()
               {value > 0 ? "+" : ""}
               {formatNumber(value)} {line.baseUnitName}
             </span>
-            {line.differenceValue !== null ? <span className="cell-sub">{formatVnd(line.differenceValue)}</span> : null}
+            {line.differenceValue !== null ? (
+              <span className="cell-sub">{formatVnd(line.differenceValue)}</span>
+            ) : null}
           </div>
         );
       },
@@ -312,7 +420,11 @@ export function CountingBoard({ countId, onBack }: { countId: string; onBack: ()
   return (
     <div className="count-board">
       <Modal
-        title={sensory ? `Cảm quan không đạt — ${sensory.line.productName}, lô ${sensory.line.batchNumber}` : ""}
+        title={
+          sensory
+            ? `Cảm quan không đạt — ${sensory.line.productName}, lô ${sensory.line.batchNumber}`
+            : ""
+        }
         open={Boolean(sensory)}
         okText="Ghi nhận"
         cancelText="Quay lại"
@@ -331,7 +443,11 @@ export function CountingBoard({ countId, onBack }: { countId: string; onBack: ()
           maxLength={300}
           placeholder="Ví dụ: vỉ bị ẩm, viên đổi màu, bao bì rách"
           value={sensory?.reason ?? ""}
-          onChange={(event) => setSensory((current) => (current ? { ...current, reason: event.target.value } : current))}
+          onChange={(event) =>
+            setSensory((current) =>
+              current ? { ...current, reason: event.target.value } : current,
+            )
+          }
         />
       </Modal>
       <div className="count-head">
@@ -354,19 +470,40 @@ export function CountingBoard({ countId, onBack }: { countId: string; onBack: ()
             )}
           </h2>
           <p>
-            {count.scopeType === "ALL" ? "Toàn bộ kho" : count.scopeType === "CATEGORY" ? `Nhóm hàng: ${count.scopeLabel}` : `Kệ: ${count.scopeLabel}`} · Mở lúc {formatDateTime(count.startedAt)} bởi {count.createdByName}
+            {count.scopeType === "ALL"
+              ? "Toàn bộ kho"
+              : count.scopeType === "CATEGORY"
+                ? `Nhóm hàng: ${count.scopeLabel}`
+                : `Kệ: ${count.scopeLabel}`}{" "}
+            · Mở lúc {formatDateTime(count.startedAt)} bởi {count.createdByName}
             {count.closedAt ? ` · Chốt lúc ${formatDateTime(count.closedAt)}` : ""}
           </p>
         </div>
         {canCount ? (
           <div className="count-actions">
-            <Button danger icon={<CloseCircleOutlined />} onClick={confirmCancel} loading={abandon.isPending}>
+            <Button
+              danger
+              icon={<CloseCircleOutlined />}
+              onClick={confirmCancel}
+              loading={abandon.isPending}
+            >
               Hủy đợt
             </Button>
-            <Button icon={<SaveOutlined />} disabled={dirtyEntries.length === 0} loading={save.isPending} onClick={() => save.mutate(dirtyEntries)}>
+            <Button
+              icon={<SaveOutlined />}
+              disabled={dirtyEntries.length === 0}
+              loading={save.isPending}
+              onClick={() => save.mutate(dirtyEntries)}
+            >
               Lưu {dirtyEntries.length > 0 ? `${dirtyEntries.length} dòng` : "số đếm"}
             </Button>
-            <Button type="primary" icon={<CheckCircleOutlined />} onClick={confirmClose} loading={finish.isPending} disabled={summary.countedLines === 0}>
+            <Button
+              type="primary"
+              icon={<CheckCircleOutlined />}
+              onClick={confirmClose}
+              loading={finish.isPending}
+              disabled={summary.countedLines === 0}
+            >
               Chốt kiểm kê
             </Button>
           </div>
@@ -391,7 +528,11 @@ export function CountingBoard({ countId, onBack }: { countId: string; onBack: ()
       <div className="count-stats">
         <div className="count-stat">
           <span>Tiến độ</span>
-          <Progress percent={progress} size="small" status={progress === 100 ? "success" : "active"} />
+          <Progress
+            percent={progress}
+            size="small"
+            status={progress === 100 ? "success" : "active"}
+          />
           <b>
             {formatNumber(summary.countedLines)}/{formatNumber(summary.totalLines)} dòng
           </b>
@@ -403,19 +544,23 @@ export function CountingBoard({ countId, onBack }: { countId: string; onBack: ()
         <div className="count-stat">
           <span>Thừa so với sổ</span>
           <b className="count-diff-plus">
-            +{formatNumber(summary.surplusBaseQuantity)} <small>({formatNumber(summary.surplusLines)} dòng)</small>
+            +{formatNumber(summary.surplusBaseQuantity)}{" "}
+            <small>({formatNumber(summary.surplusLines)} dòng)</small>
           </b>
         </div>
         <div className="count-stat">
           <span>Thiếu so với sổ</span>
           <b className="count-diff-minus">
-            −{formatNumber(summary.shortageBaseQuantity)} <small>({formatNumber(summary.shortageLines)} dòng)</small>
+            −{formatNumber(summary.shortageBaseQuantity)}{" "}
+            <small>({formatNumber(summary.shortageLines)} dòng)</small>
           </b>
         </div>
         {summary.differenceValue !== null ? (
           <div className="count-stat">
             <span>Giá trị chênh lệch</span>
-            <b className={summary.differenceValue < 0 ? "count-diff-minus" : "count-diff-plus"}>{formatVnd(summary.differenceValue)}</b>
+            <b className={summary.differenceValue < 0 ? "count-diff-minus" : "count-diff-plus"}>
+              {formatVnd(summary.differenceValue)}
+            </b>
           </div>
         ) : null}
       </div>
@@ -440,7 +585,14 @@ export function CountingBoard({ countId, onBack }: { countId: string; onBack: ()
           ]}
         />
         {shelves.length > 0 ? (
-          <Select allowClear placeholder="Mọi kệ" value={shelf} onChange={setShelf} className="count-shelf" options={shelves.map((value) => ({ value, label: value }))} />
+          <Select
+            allowClear
+            placeholder="Mọi kệ"
+            value={shelf}
+            onChange={setShelf}
+            className="count-shelf"
+            options={shelves.map((value) => ({ value, label: value }))}
+          />
         ) : null}
       </div>
 
@@ -452,13 +604,20 @@ export function CountingBoard({ countId, onBack }: { countId: string; onBack: ()
         columns={columns}
         scroll={{ x: 720 }}
         pagination={visible.length > 50 ? { pageSize: 50, size: "small" } : false}
-        rowClassName={(line) => (line.countedBaseQuantity === null ? "" : line.differenceBaseQuantity ? "count-row-diff" : "count-row-ok")}
+        rowClassName={(line) =>
+          line.countedBaseQuantity === null
+            ? ""
+            : line.differenceBaseQuantity
+              ? "count-row-diff"
+              : "count-row-ok"
+        }
         locale={{ emptyText: <Empty description="Không có dòng nào khớp bộ lọc" /> }}
       />
 
       {count.status === "COUNTING" ? (
         <Typography.Paragraph type="secondary" className="count-hint">
-          Mẹo: gõ số rồi nhấn Enter để lưu dòng đó và nhảy xuống dòng kế tiếp. Vẫn bán hàng bình thường trong lúc kiểm kê — mỗi dòng so với tồn tại đúng lúc bạn đếm.
+          Mẹo: gõ số rồi nhấn Enter để lưu dòng đó và nhảy xuống dòng kế tiếp. Vẫn bán hàng bình
+          thường trong lúc kiểm kê — mỗi dòng so với tồn tại đúng lúc bạn đếm.
         </Typography.Paragraph>
       ) : null}
     </div>

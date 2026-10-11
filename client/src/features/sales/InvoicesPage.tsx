@@ -1,11 +1,40 @@
-import { EyeOutlined, FileSearchOutlined, FileTextOutlined, MoreOutlined, PlusOutlined, PrinterOutlined, RollbackOutlined, StopOutlined } from "@ant-design/icons";
+import {
+  EyeOutlined,
+  FileSearchOutlined,
+  FileTextOutlined,
+  MoreOutlined,
+  PlusOutlined,
+  PrinterOutlined,
+  RollbackOutlined,
+  StopOutlined,
+} from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { App, Button, Card, DatePicker, Dropdown, Empty, Input, Modal, Segmented, Skeleton, Table, Tag, Typography } from "antd";
+import {
+  App,
+  Button,
+  Card,
+  DatePicker,
+  Dropdown,
+  Empty,
+  Input,
+  Modal,
+  Segmented,
+  Skeleton,
+  Table,
+  Tag,
+  Typography,
+} from "antd";
 import type { Dayjs } from "dayjs";
 import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { getErrorMessage, http } from "../../api/http.js";
-import { formatVnd, type Envelope, type Invoice, type InvoiceListItem, type Paged } from "../../api/types.js";
+import {
+  formatVnd,
+  type Envelope,
+  type Invoice,
+  type InvoiceListItem,
+  type Paged,
+} from "../../api/types.js";
 import { formatDate, formatDateTime, formatNumber, vnDateKey } from "../../ui/format.js";
 import { paymentMethodLabel } from "../../ui/labels.js";
 import { ExcelExportButton } from "../excel/ExcelButtons.js";
@@ -51,7 +80,13 @@ function InvoiceRowActions({
   onVoid: () => void;
 }) {
   const completed = row.status === "COMPLETED";
-  const returnBlock = !canReturn ? "Vai trò không có quyền nhận trả hàng" : !completed ? "Hóa đơn đã hủy" : row.returnStatus === "FULL" ? "Hóa đơn đã trả hết" : null;
+  const returnBlock = !canReturn
+    ? "Vai trò không có quyền nhận trả hàng"
+    : !completed
+      ? "Hóa đơn đã hủy"
+      : row.returnStatus === "FULL"
+        ? "Hóa đơn đã trả hết"
+        : null;
   // Máy chủ mới là nơi quyết định; ở đây chỉ khóa sớm theo quy tắc hủy trong ngày bán.
   const voidBlock = !canVoid
     ? "Vai trò không có quyền hủy hóa đơn"
@@ -84,8 +119,19 @@ function InvoiceRowActions({
             { key: "preview", icon: <FileSearchOutlined />, label: "Xem trước bản in" },
             { key: "print", icon: <PrinterOutlined />, label: "In lại hóa đơn" },
             { type: "divider" },
-            { key: "return", icon: <RollbackOutlined />, label: withReason("Nhận trả hàng", returnBlock), disabled: returnBlock !== null },
-            { key: "void", icon: <StopOutlined />, label: withReason("Hủy hóa đơn", voidBlock), danger: voidBlock === null, disabled: voidBlock !== null },
+            {
+              key: "return",
+              icon: <RollbackOutlined />,
+              label: withReason("Nhận trả hàng", returnBlock),
+              disabled: returnBlock !== null,
+            },
+            {
+              key: "void",
+              icon: <StopOutlined />,
+              label: withReason("Hủy hóa đơn", voidBlock),
+              danger: voidBlock === null,
+              disabled: voidBlock !== null,
+            },
           ],
           onClick: ({ key, domEvent }) => {
             domEvent.stopPropagation();
@@ -97,7 +143,12 @@ function InvoiceRowActions({
           },
         }}
       >
-        <Button type="text" className="more-btn" icon={<MoreOutlined />} aria-label={`Thao tác với ${row.code}`} />
+        <Button
+          type="text"
+          className="more-btn"
+          icon={<MoreOutlined />}
+          aria-label={`Thao tác với ${row.code}`}
+        />
       </Dropdown>
     </span>
   );
@@ -143,7 +194,14 @@ export function InvoicesPage() {
   const codeTerm = useDebounced(code.trim(), 300);
 
   const list = useQuery({
-    queryKey: ["invoices", page, status, codeTerm, range?.[0].format("YYYY-MM-DD"), range?.[1].format("YYYY-MM-DD")],
+    queryKey: [
+      "invoices",
+      page,
+      status,
+      codeTerm,
+      range?.[0].format("YYYY-MM-DD"),
+      range?.[1].format("YYYY-MM-DD"),
+    ],
     queryFn: async () => {
       const response = await http.get<Envelope<Paged<InvoiceListItem>>>("/invoices", {
         params: {
@@ -171,7 +229,11 @@ export function InvoicesPage() {
 
   const voidInvoice = useMutation({
     mutationFn: async () => {
-      await http.post(`/invoices/${openId}/void`, { reason: voidReason }, { headers: { "Idempotency-Key": crypto.randomUUID() } });
+      await http.post(
+        `/invoices/${openId}/void`,
+        { reason: voidReason },
+        { headers: { "Idempotency-Key": crypto.randomUUID() } },
+      );
     },
     onSuccess: async () => {
       void message.success("Đã hủy hóa đơn và hoàn tồn về đúng lô");
@@ -191,10 +253,29 @@ export function InvoicesPage() {
         title="Hóa đơn"
         extra={
           <>
-            <ExcelExportButton type="invoices" range={rangeParams(range)} tooltip={range ? "Xuất hóa đơn trong khoảng ngày đang lọc" : "Xuất hóa đơn 30 ngày gần nhất (chọn khoảng ngày để đổi kỳ)"} />
-            {can("prescription.read") ? <ExcelExportButton type="rx-sales" label="Sổ bán thuốc kê đơn" range={rangeParams(range)} tooltip="Sổ theo dõi bán thuốc kê đơn theo GPP, theo khoảng ngày đang lọc" /> : null}
+            <ExcelExportButton
+              type="invoices"
+              range={rangeParams(range)}
+              tooltip={
+                range
+                  ? "Xuất hóa đơn trong khoảng ngày đang lọc"
+                  : "Xuất hóa đơn 30 ngày gần nhất (chọn khoảng ngày để đổi kỳ)"
+              }
+            />
+            {can("prescription.read") ? (
+              <ExcelExportButton
+                type="rx-sales"
+                label="Sổ bán thuốc kê đơn"
+                range={rangeParams(range)}
+                tooltip="Sổ theo dõi bán thuốc kê đơn theo GPP, theo khoảng ngày đang lọc"
+              />
+            ) : null}
             {can("invoice.create") ? (
-              <Button type="primary" icon={<PlusOutlined />} onClick={() => void navigate("/ban-hang")}>
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                onClick={() => void navigate("/ban-hang")}
+              >
                 Tạo hóa đơn
               </Button>
             ) : null}
@@ -244,9 +325,19 @@ export function InvoicesPage() {
             tableLayout="fixed"
             className="compact-cells"
             scroll={{ x: 980 }}
-            onRow={(row) => ({ onClick: () => setParams({ id: row.id }), style: { cursor: "pointer" } })}
+            onRow={(row) => ({
+              onClick: () => setParams({ id: row.id }),
+              style: { cursor: "pointer" },
+            })}
             rowClassName={(row) => (row.id === openId ? "row-selected" : "")}
-            locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Không có hóa đơn phù hợp" /> }}
+            locale={{
+              emptyText: (
+                <Empty
+                  image={Empty.PRESENTED_IMAGE_SIMPLE}
+                  description="Không có hóa đơn phù hợp"
+                />
+              ),
+            }}
             pagination={{
               current: page,
               pageSize: list.data?.pagination.limit ?? 20,
@@ -256,12 +347,50 @@ export function InvoicesPage() {
               showTotal: (total) => `${total} hóa đơn`,
             }}
             columns={[
-              { title: "Số hóa đơn", key: "code", width: COLUMN_WIDTH, render: (_: unknown, row: InvoiceListItem) => <DocCode code={row.code} /> },
-              { title: "Thời điểm", key: "soldAt", width: COLUMN_WIDTH, render: (_: unknown, row: InvoiceListItem) => formatDateTime(row.soldAt) },
-              { title: "Khách hàng", key: "customer", width: COLUMN_WIDTH, ellipsis: true, render: (_: unknown, row: InvoiceListItem) => row.customerName ?? <span className="text-secondary">Khách lẻ</span> },
-              { title: "Người bán", key: "seller", width: COLUMN_WIDTH, ellipsis: true, render: (_: unknown, row: InvoiceListItem) => row.sellerName },
-              { title: "Tổng tiền", key: "total", width: COLUMN_WIDTH, align: "right", render: (_: unknown, row: InvoiceListItem) => <Typography.Text strong>{formatVnd(row.totalAmount)}</Typography.Text> },
-              { title: "Trạng thái", key: "status", width: COLUMN_WIDTH, render: (_: unknown, row: InvoiceListItem) => <StatusTags status={row.status} returnStatus={row.returnStatus} /> },
+              {
+                title: "Số hóa đơn",
+                key: "code",
+                width: COLUMN_WIDTH,
+                render: (_: unknown, row: InvoiceListItem) => <DocCode code={row.code} />,
+              },
+              {
+                title: "Thời điểm",
+                key: "soldAt",
+                width: COLUMN_WIDTH,
+                render: (_: unknown, row: InvoiceListItem) => formatDateTime(row.soldAt),
+              },
+              {
+                title: "Khách hàng",
+                key: "customer",
+                width: COLUMN_WIDTH,
+                ellipsis: true,
+                render: (_: unknown, row: InvoiceListItem) =>
+                  row.customerName ?? <span className="text-secondary">Khách lẻ</span>,
+              },
+              {
+                title: "Người bán",
+                key: "seller",
+                width: COLUMN_WIDTH,
+                ellipsis: true,
+                render: (_: unknown, row: InvoiceListItem) => row.sellerName,
+              },
+              {
+                title: "Tổng tiền",
+                key: "total",
+                width: COLUMN_WIDTH,
+                align: "right",
+                render: (_: unknown, row: InvoiceListItem) => (
+                  <Typography.Text strong>{formatVnd(row.totalAmount)}</Typography.Text>
+                ),
+              },
+              {
+                title: "Trạng thái",
+                key: "status",
+                width: COLUMN_WIDTH,
+                render: (_: unknown, row: InvoiceListItem) => (
+                  <StatusTags status={row.status} returnStatus={row.returnStatus} />
+                ),
+              },
               {
                 title: "Thao tác",
                 key: "actions",
@@ -294,19 +423,37 @@ export function InvoicesPage() {
         {openId !== null ? (
           <aside className="split-aside">
             <Card
-              title={detail.data ? <span className="mono">{detail.data.code}</span> : "Chi tiết hóa đơn"}
+              title={
+                detail.data ? <span className="mono">{detail.data.code}</span> : "Chi tiết hóa đơn"
+              }
               extra={
                 <span className="row-actions">
                   {detail.data ? (
                     <>
-                      <Button size="small" icon={<FileSearchOutlined />} onClick={() => setPreviewing({ id: detail.data!.id, code: detail.data!.code })}>
+                      <Button
+                        size="small"
+                        icon={<FileSearchOutlined />}
+                        onClick={() =>
+                          setPreviewing({ id: detail.data!.id, code: detail.data!.code })
+                        }
+                      >
                         Xem trước
                       </Button>
-                      <Button size="small" icon={<PrinterOutlined />} onClick={() => void printInvoice(detail.data!.id, message)}>
+                      <Button
+                        size="small"
+                        icon={<PrinterOutlined />}
+                        onClick={() => void printInvoice(detail.data!.id, message)}
+                      >
                         In lại
                       </Button>
                       {detail.data.lines.some((line) => line.usageInstruction) ? (
-                        <Button size="small" icon={<PrinterOutlined />} onClick={() => void printDocument(printUrl.usageLabels(detail.data!.id), message)}>
+                        <Button
+                          size="small"
+                          icon={<PrinterOutlined />}
+                          onClick={() =>
+                            void printDocument(printUrl.usageLabels(detail.data!.id), message)
+                          }
+                        >
                           In nhãn cách dùng
                         </Button>
                       ) : null}
@@ -321,16 +468,28 @@ export function InvoicesPage() {
               {detail.isLoading || !detail.data ? (
                 <Skeleton active paragraph={{ rows: 8 }} />
               ) : (
-                <InvoiceDetail invoice={detail.data} canReturn={can("return.create")} canVoid={can("invoice.void")} onReturn={() => setReturning(true)} onVoid={() => setVoiding(true)} />
+                <InvoiceDetail
+                  invoice={detail.data}
+                  canReturn={can("return.create")}
+                  canVoid={can("invoice.void")}
+                  onReturn={() => setReturning(true)}
+                  onVoid={() => setVoiding(true)}
+                />
               )}
             </Card>
           </aside>
         ) : null}
       </div>
 
-      <PrintPreviewModal url={previewing ? printUrl.invoice(previewing.id) : null} title={`Xem trước hóa đơn ${previewing?.code ?? ""}`} onClose={() => setPreviewing(null)} />
+      <PrintPreviewModal
+        url={previewing ? printUrl.invoice(previewing.id) : null}
+        title={`Xem trước hóa đơn ${previewing?.code ?? ""}`}
+        onClose={() => setPreviewing(null)}
+      />
 
-      {detail.data ? <ReturnModal invoice={detail.data} open={returning} onClose={() => setReturning(false)} /> : null}
+      {detail.data ? (
+        <ReturnModal invoice={detail.data} open={returning} onClose={() => setReturning(false)} />
+      ) : null}
 
       <Modal
         open={voiding}
@@ -343,15 +502,33 @@ export function InvoicesPage() {
         onCancel={() => setVoiding(false)}
       >
         <Typography.Paragraph type="secondary">
-          Tồn sẽ được hoàn về đúng các lô đã xuất và ghi thẻ kho loại “Hủy hóa đơn”. Chỉ hủy được hóa đơn trong ngày bán và chưa có phiếu trả.
+          Tồn sẽ được hoàn về đúng các lô đã xuất và ghi thẻ kho loại “Hủy hóa đơn”. Chỉ hủy được
+          hóa đơn trong ngày bán và chưa có phiếu trả.
         </Typography.Paragraph>
-        <Input.TextArea rows={3} placeholder="Lý do hủy (bắt buộc)" value={voidReason} onChange={(event) => setVoidReason(event.target.value)} />
+        <Input.TextArea
+          rows={3}
+          placeholder="Lý do hủy (bắt buộc)"
+          value={voidReason}
+          onChange={(event) => setVoidReason(event.target.value)}
+        />
       </Modal>
     </div>
   );
 }
 
-function InvoiceDetail({ invoice, canReturn, canVoid, onReturn, onVoid }: { invoice: Invoice; canReturn: boolean; canVoid: boolean; onReturn: () => void; onVoid: () => void }) {
+function InvoiceDetail({
+  invoice,
+  canReturn,
+  canVoid,
+  onReturn,
+  onVoid,
+}: {
+  invoice: Invoice;
+  canReturn: boolean;
+  canVoid: boolean;
+  onReturn: () => void;
+  onVoid: () => void;
+}) {
   return (
     <div className="detail-stack">
       <div className="invoice-total">
@@ -388,14 +565,17 @@ function InvoiceDetail({ invoice, canReturn, canVoid, onReturn, onVoid }: { invo
             {invoice.discountAmount - invoice.loyaltyDiscountAmount > 0
               ? `−${formatVnd(invoice.discountAmount - invoice.loyaltyDiscountAmount)}`
               : formatVnd(0)}
-            {invoice.discountReason ? <span className="text-secondary"> · {invoice.discountReason}</span> : null}
+            {invoice.discountReason ? (
+              <span className="text-secondary"> · {invoice.discountReason}</span>
+            ) : null}
           </dd>
         </div>
         {invoice.loyaltyPointsRedeemed > 0 ? (
           <div>
             <dt>Đổi điểm</dt>
             <dd>
-              {formatNumber(invoice.loyaltyPointsRedeemed)} điểm · −{formatVnd(invoice.loyaltyDiscountAmount)}
+              {formatNumber(invoice.loyaltyPointsRedeemed)} điểm · −
+              {formatVnd(invoice.loyaltyDiscountAmount)}
             </dd>
           </div>
         ) : null}
@@ -435,7 +615,8 @@ function InvoiceDetail({ invoice, canReturn, canVoid, onReturn, onVoid }: { invo
               <strong>{line.productName}</strong>
               {line.allocations.map((allocation) => (
                 <span key={allocation.id}>
-                  Lô <span className="mono">{allocation.batchNumber}</span> · HSD {formatDate(allocation.expiryDate)} · {formatNumber(allocation.baseQuantity)}
+                  Lô <span className="mono">{allocation.batchNumber}</span> · HSD{" "}
+                  {formatDate(allocation.expiryDate)} · {formatNumber(allocation.baseQuantity)}
                 </span>
               ))}
             </div>

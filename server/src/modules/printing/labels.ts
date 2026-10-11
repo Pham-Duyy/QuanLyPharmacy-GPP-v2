@@ -29,13 +29,58 @@ type SizeSpec = {
 };
 
 export const SIZES: Record<LabelSize, SizeSpec> = {
-  "50x30": { label: "Tem nhiệt 50 × 30 mm", width: 50, height: 30, columns: null, nameFont: "7.5pt", priceFont: "10pt", metaFont: "6pt", barcodeHeight: 10, moduleMm: 0.33 },
-  "40x30": { label: "Tem nhiệt 40 × 30 mm", width: 40, height: 30, columns: null, nameFont: "7pt", priceFont: "9.5pt", metaFont: "5.5pt", barcodeHeight: 9, moduleMm: 0.26 },
-  "35x22": { label: "Tem nhiệt 35 × 22 mm", width: 35, height: 22, columns: null, nameFont: "6pt", priceFont: "8pt", metaFont: "5pt", barcodeHeight: 7, moduleMm: 0.25 },
-  A4_38x21: { label: "Giấy decal A4 · 65 tem 38 × 21 mm", width: 38, height: 21, columns: 5, nameFont: "6pt", priceFont: "7.5pt", metaFont: "5pt", barcodeHeight: 6.5, moduleMm: 0.25 },
+  "50x30": {
+    label: "Tem nhiệt 50 × 30 mm",
+    width: 50,
+    height: 30,
+    columns: null,
+    nameFont: "7.5pt",
+    priceFont: "10pt",
+    metaFont: "6pt",
+    barcodeHeight: 10,
+    moduleMm: 0.33,
+  },
+  "40x30": {
+    label: "Tem nhiệt 40 × 30 mm",
+    width: 40,
+    height: 30,
+    columns: null,
+    nameFont: "7pt",
+    priceFont: "9.5pt",
+    metaFont: "5.5pt",
+    barcodeHeight: 9,
+    moduleMm: 0.26,
+  },
+  "35x22": {
+    label: "Tem nhiệt 35 × 22 mm",
+    width: 35,
+    height: 22,
+    columns: null,
+    nameFont: "6pt",
+    priceFont: "8pt",
+    metaFont: "5pt",
+    barcodeHeight: 7,
+    moduleMm: 0.25,
+  },
+  A4_38x21: {
+    label: "Giấy decal A4 · 65 tem 38 × 21 mm",
+    width: 38,
+    height: 21,
+    columns: 5,
+    nameFont: "6pt",
+    priceFont: "7.5pt",
+    metaFont: "5pt",
+    barcodeHeight: 6.5,
+    moduleMm: 0.25,
+  },
 };
 
-export type LabelItemInput = { productId: string; unitId?: string | null; batchId?: string | null; quantity: number };
+export type LabelItemInput = {
+  productId: string;
+  unitId?: string | null;
+  batchId?: string | null;
+  quantity: number;
+};
 
 export type LabelOptions = {
   size: LabelSize;
@@ -63,34 +108,57 @@ type PreparedLabel = {
 
 export type LabelRender = { html: string; labelCount: number; warnings: LabelWarning[] };
 
-export async function renderLabels(storeId: string, items: LabelItemInput[], options: LabelOptions): Promise<LabelRender> {
+export async function renderLabels(
+  storeId: string,
+  items: LabelItemInput[],
+  options: LabelOptions,
+): Promise<LabelRender> {
   const products = await prisma.product.findMany({
     where: { id: { in: items.map((item) => item.productId) } },
-    include: { units: { where: { isActive: true }, include: { barcodes: true }, orderBy: { conversionToBase: "asc" } } },
+    include: {
+      units: {
+        where: { isActive: true },
+        include: { barcodes: true },
+        orderBy: { conversionToBase: "asc" },
+      },
+    },
   });
   const byId = new Map(products.map((product) => [product.id, product]));
 
   const batches = options.showBatch
     ? await prisma.batch.findMany({
-        where: { id: { in: items.map((item) => item.batchId).filter((id): id is string => Boolean(id)) }, storeId },
+        where: {
+          id: { in: items.map((item) => item.batchId).filter((id): id is string => Boolean(id)) },
+          storeId,
+        },
         select: { id: true, batchNumber: true, expiryDate: true, productId: true },
       })
     : [];
   const batchById = new Map(batches.map((batch) => [batch.id, batch]));
 
   const unitIds = items
-    .map((item) => item.unitId ?? byId.get(item.productId)?.units.find((unit) => unit.isDefaultSaleUnit)?.id ?? byId.get(item.productId)?.units[0]?.id)
+    .map(
+      (item) =>
+        item.unitId ??
+        byId.get(item.productId)?.units.find((unit) => unit.isDefaultSaleUnit)?.id ??
+        byId.get(item.productId)?.units[0]?.id,
+    )
     .filter((id): id is string => Boolean(id));
   const prices = options.showPrice ? await getCurrentPrices(unitIds, storeId) : new Map();
 
-  const store = options.showStoreName ? await prisma.store.findUnique({ where: { id: storeId }, select: { name: true } }) : null;
+  const store = options.showStoreName
+    ? await prisma.store.findUnique({ where: { id: storeId }, select: { name: true } })
+    : null;
   const warnings: LabelWarning[] = [];
   const prepared: PreparedLabel[] = [];
 
   for (const item of items) {
     const product = byId.get(item.productId);
     if (!product) throw AppError.notFound("Không tìm thấy sản phẩm cần in tem");
-    const unit = (item.unitId ? product.units.find((entry) => entry.id === item.unitId) : undefined) ?? product.units.find((entry) => entry.isDefaultSaleUnit) ?? product.units[0];
+    const unit =
+      (item.unitId ? product.units.find((entry) => entry.id === item.unitId) : undefined) ??
+      product.units.find((entry) => entry.isDefaultSaleUnit) ??
+      product.units[0];
     if (!unit) throw AppError.validation(`${product.name} chưa có đơn vị tính, không in tem được`);
 
     // Mã vạch của chính đơn vị đang in; không có thì dùng mã của đơn vị khác
@@ -100,20 +168,40 @@ export async function renderLabels(storeId: string, items: LabelItemInput[], opt
     const barcodeValue = ownBarcode ?? anyBarcode ?? product.code;
     const internalCode = !ownBarcode && !anyBarcode;
     if (internalCode) {
-      warnings.push({ productName: product.name, message: "Chưa có mã vạch nhà sản xuất, tem in mã nội bộ theo mã sản phẩm" });
+      warnings.push({
+        productName: product.name,
+        message: "Chưa có mã vạch nhà sản xuất, tem in mã nội bộ theo mã sản phẩm",
+      });
     } else if (!ownBarcode) {
-      warnings.push({ productName: product.name, message: `Đơn vị ${unit.name} chưa có mã vạch riêng, tem dùng mã của đơn vị khác` });
+      warnings.push({
+        productName: product.name,
+        message: `Đơn vị ${unit.name} chưa có mã vạch riêng, tem dùng mã của đơn vị khác`,
+      });
     }
 
     // Mã lưu trong danh mục trông như EAN nhưng sai số kiểm: in Code128 nguyên
     // văn và nói rõ, vì tự sửa số kiểm sẽ thành mã của mặt hàng khác.
-    if (!internalCode && /^\d{8}$|^\d{13}$/.test(barcodeValue) && detectKind(barcodeValue) === "CODE128") {
-      warnings.push({ productName: product.name, message: `Mã vạch ${barcodeValue} sai số kiểm của chuẩn EAN, tem in dạng Code128` });
+    if (
+      !internalCode &&
+      /^\d{8}$|^\d{13}$/.test(barcodeValue) &&
+      detectKind(barcodeValue) === "CODE128"
+    ) {
+      warnings.push({
+        productName: product.name,
+        message: `Mã vạch ${barcodeValue} sai số kiểm của chuẩn EAN, tem in dạng Code128`,
+      });
     }
 
-    const price = options.showPrice ? (prices.get(unit.id) ? Number(prices.get(unit.id)!.salePrice) : null) : null;
+    const price = options.showPrice
+      ? prices.get(unit.id)
+        ? Number(prices.get(unit.id)!.salePrice)
+        : null
+      : null;
     if (options.showPrice && price === null) {
-      warnings.push({ productName: product.name, message: `Đơn vị ${unit.name} chưa có giá bán, tem in không kèm giá` });
+      warnings.push({
+        productName: product.name,
+        message: `Đơn vị ${unit.name} chưa có giá bán, tem in không kèm giá`,
+      });
     }
 
     const batch = item.batchId ? batchById.get(item.batchId) : undefined;
@@ -123,9 +211,14 @@ export async function renderLabels(storeId: string, items: LabelItemInput[], opt
 
     let drawn;
     try {
-      drawn = barcodeSvg(barcodeValue, { heightMm: SIZES[options.size].barcodeHeight, moduleMm: SIZES[options.size].moduleMm });
+      drawn = barcodeSvg(barcodeValue, {
+        heightMm: SIZES[options.size].barcodeHeight,
+        moduleMm: SIZES[options.size].moduleMm,
+      });
     } catch {
-      throw AppError.validation(`${product.name}: mã "${barcodeValue}" có ký tự không in được thành mã vạch`);
+      throw AppError.validation(
+        `${product.name}: mã "${barcodeValue}" có ký tự không in được thành mã vạch`,
+      );
     }
 
     prepared.push({
@@ -164,13 +257,23 @@ function labelHtml(label: PreparedLabel, options: LabelOptions, storeName: strin
 </div>`;
 }
 
-function renderHtml(labels: PreparedLabel[], options: LabelOptions, storeName: string | null): string {
+function renderHtml(
+  labels: PreparedLabel[],
+  options: LabelOptions,
+  storeName: string | null,
+): string {
   const spec = SIZES[options.size];
   const sheet = spec.columns !== null;
-  const body = labels.flatMap((label) => Array.from({ length: label.count }, () => labelHtml(label, options, storeName))).join("\n");
+  const body = labels
+    .flatMap((label) =>
+      Array.from({ length: label.count }, () => labelHtml(label, options, storeName)),
+    )
+    .join("\n");
 
   // Tem nhiệt: mỗi tem một trang đúng khổ. Giấy decal A4: xếp lưới theo cột.
-  const page = sheet ? `@page { size: A4; margin: 10mm 6mm; }` : `@page { size: ${spec.width}mm ${spec.height}mm; margin: 0; }`;
+  const page = sheet
+    ? `@page { size: A4; margin: 10mm 6mm; }`
+    : `@page { size: ${spec.width}mm ${spec.height}mm; margin: 0; }`;
   const layout = sheet
     ? `.sheet { display: grid; grid-template-columns: repeat(${spec.columns}, ${spec.width}mm); gap: 0; }
        .label { width: ${spec.width}mm; height: ${spec.height}mm; }`

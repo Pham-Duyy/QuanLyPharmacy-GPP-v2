@@ -11,7 +11,9 @@ export function formatDate(value: string | null | undefined): string {
 }
 
 export function formatDateTime(value: string | null | undefined): string {
-  return value ? new Date(value).toLocaleString("vi-VN", { dateStyle: "short", timeStyle: "short" }) : "—";
+  return value
+    ? new Date(value).toLocaleString("vi-VN", { dateStyle: "short", timeStyle: "short" })
+    : "—";
 }
 
 /** Ngày hôm nay theo giờ Việt Nam, dạng yyyy-mm-dd — khớp cách máy chủ tính ngày nghiệp vụ. */

@@ -45,7 +45,11 @@ export function SafetyPanel({
         {loading ? <Spin size="small" /> : null}
       </div>
 
-      {failed ? <div className="pos-safety-item danger">Không kiểm tra được an toàn. Thử sửa đơn hoặc tải lại trang.</div> : null}
+      {failed ? (
+        <div className="pos-safety-item danger">
+          Không kiểm tra được an toàn. Thử sửa đơn hoặc tải lại trang.
+        </div>
+      ) : null}
 
       {!loading && !failed && blocking.length === 0 && warnings.length === 0 ? (
         <div className="pos-safety-item ok">
@@ -60,15 +64,24 @@ export function SafetyPanel({
       ))}
 
       {warnings.map((warning) => {
-        const severity = SEVERITY[warning.severity] ?? { label: warning.severity, color: "default" };
+        const severity = SEVERITY[warning.severity] ?? {
+          label: warning.severity,
+          color: "default",
+        };
         return (
-          <div className="pos-safety-item warning" key={`${warning.code}-${warning.productIds.join(",")}`}>
+          <div
+            className="pos-safety-item warning"
+            key={`${warning.code}-${warning.productIds.join(",")}`}
+          >
             <div className="pos-safety-title">
               <span>{warning.message}</span>
               <Tag color={severity.color}>{severity.label}</Tag>
             </div>
             {warning.requiresAck ? (
-              <Checkbox checked={liveAcked.includes(warning.code)} onChange={(event) => onToggle(warning.code, event.target.checked)}>
+              <Checkbox
+                checked={liveAcked.includes(warning.code)}
+                onChange={(event) => onToggle(warning.code, event.target.checked)}
+              >
                 Đã tư vấn khách và chịu trách nhiệm tiếp tục bán
               </Checkbox>
             ) : (
@@ -80,7 +93,14 @@ export function SafetyPanel({
         );
       })}
 
-      {ackReason !== null ? <Input size="small" placeholder="Ghi chú khi ghi nhận cảnh báo (không bắt buộc)" value={ackReason} onChange={(event) => onAckReasonChange(event.target.value)} /> : null}
+      {ackReason !== null ? (
+        <Input
+          size="small"
+          placeholder="Ghi chú khi ghi nhận cảnh báo (không bắt buộc)"
+          value={ackReason}
+          onChange={(event) => onAckReasonChange(event.target.value)}
+        />
+      ) : null}
 
       {notChecked.length > 0 ? (
         <div className="pos-safety-item info">

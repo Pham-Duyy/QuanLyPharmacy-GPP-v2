@@ -1,6 +1,28 @@
-import { EditOutlined, EnvironmentOutlined, FileSearchOutlined, PhoneOutlined, PlusOutlined, PoweroffOutlined, ShopOutlined } from "@ant-design/icons";
+import {
+  EditOutlined,
+  EnvironmentOutlined,
+  FileSearchOutlined,
+  PhoneOutlined,
+  PlusOutlined,
+  PoweroffOutlined,
+  ShopOutlined,
+} from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { App, Button, Card, Col, Empty, Form, Input, Modal, Popconfirm, Row, Skeleton, Table, Tag } from "antd";
+import {
+  App,
+  Button,
+  Card,
+  Col,
+  Empty,
+  Form,
+  Input,
+  Modal,
+  Popconfirm,
+  Row,
+  Skeleton,
+  Table,
+  Tag,
+} from "antd";
 import { useState } from "react";
 import { getErrorMessage, http } from "../../api/http.js";
 import { type Envelope, type StoreDetail } from "../../api/types.js";
@@ -8,7 +30,13 @@ import { PageHeader } from "../../ui/PageHeader.js";
 import { PanelEmpty } from "../../ui/PanelEmpty.js";
 import { useAuth } from "../auth/auth-context.js";
 
-type StoreListItem = { id: string; code: string; name: string; address: string | null; phone: string | null };
+type StoreListItem = {
+  id: string;
+  code: string;
+  name: string;
+  address: string | null;
+  phone: string | null;
+};
 
 /** Quản lý cửa hàng trong chuỗi (contract §21). */
 export function StoresPage() {
@@ -19,13 +47,18 @@ export function StoresPage() {
 
   const list = useQuery({
     queryKey: ["all-stores-page"],
-    queryFn: async () => (await http.get<Envelope<{ items: StoreListItem[] }>>("/stores")).data.data.items,
+    queryFn: async () =>
+      (await http.get<Envelope<{ items: StoreListItem[] }>>("/stores")).data.data.items,
   });
 
   async function refresh(): Promise<void> {
     // Ô chọn cửa hàng trên đầu trang đọc danh sách từ /auth/me: tải lại để cửa
     // hàng vừa mở (hoặc vừa ngừng) hiện đúng ngay, không cần đăng nhập lại.
-    await Promise.all([queryClient.invalidateQueries({ queryKey: ["all-stores-page"] }), queryClient.invalidateQueries({ queryKey: ["all-stores"] }), reloadMe()]);
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["all-stores-page"] }),
+      queryClient.invalidateQueries({ queryKey: ["all-stores"] }),
+      reloadMe(),
+    ]);
   }
 
   return (
@@ -51,7 +84,11 @@ export function StoresPage() {
             onRow={(row) => ({ onClick: () => setOpenId(row.id), style: { cursor: "pointer" } })}
             rowClassName={(row) => (row.id === openId ? "row-selected" : "")}
             pagination={false}
-            locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có cửa hàng" /> }}
+            locale={{
+              emptyText: (
+                <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có cửa hàng" />
+              ),
+            }}
             columns={[
               {
                 title: "Cửa hàng",
@@ -63,8 +100,18 @@ export function StoresPage() {
                   </div>
                 ),
               },
-              { title: "Địa chỉ", dataIndex: "address", ellipsis: true, render: (value: string | null) => value ?? "—" },
-              { title: "Điện thoại", dataIndex: "phone", width: 140, render: (value: string | null) => <span className="mono">{value ?? "—"}</span> },
+              {
+                title: "Địa chỉ",
+                dataIndex: "address",
+                ellipsis: true,
+                render: (value: string | null) => value ?? "—",
+              },
+              {
+                title: "Điện thoại",
+                dataIndex: "phone",
+                width: 140,
+                render: (value: string | null) => <span className="mono">{value ?? "—"}</span>,
+              },
             ]}
           />
         </Card>
@@ -85,7 +132,15 @@ export function StoresPage() {
   );
 }
 
-function StorePanel({ id, onClose, onChanged }: { id: string | null; onClose: () => void; onChanged: () => Promise<void> }) {
+function StorePanel({
+  id,
+  onClose,
+  onChanged,
+}: {
+  id: string | null;
+  onClose: () => void;
+  onChanged: () => Promise<void>;
+}) {
   const { message } = App.useApp();
   const [editing, setEditing] = useState(false);
   const queryClient = useQueryClient();
@@ -97,7 +152,10 @@ function StorePanel({ id, onClose, onChanged }: { id: string | null; onClose: ()
   });
 
   async function refresh(): Promise<void> {
-    await Promise.all([queryClient.invalidateQueries({ queryKey: ["store-detail", id] }), onChanged()]);
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["store-detail", id] }),
+      onChanged(),
+    ]);
   }
 
   const deactivate = useMutation({
@@ -106,13 +164,18 @@ function StorePanel({ id, onClose, onChanged }: { id: string | null; onClose: ()
       void message.success("Đã ngừng hoạt động cửa hàng");
       await refresh();
     },
-    onError: (error) => void message.error(getErrorMessage(error, "Không cập nhật được trạng thái")),
+    onError: (error) =>
+      void message.error(getErrorMessage(error, "Không cập nhật được trạng thái")),
   });
 
   if (id === null) {
     return (
       <Card title="Chi tiết cửa hàng">
-        <PanelEmpty icon={<FileSearchOutlined />} title="Chưa chọn cửa hàng" description="Bấm vào một cửa hàng để xem hồ sơ pháp lý." />
+        <PanelEmpty
+          icon={<FileSearchOutlined />}
+          title="Chưa chọn cửa hàng"
+          description="Bấm vào một cửa hàng để xem hồ sơ pháp lý."
+        />
       </Card>
     );
   }
@@ -135,7 +198,8 @@ function StorePanel({ id, onClose, onChanged }: { id: string | null; onClose: ()
           <div>
             <h3 className="detail-title">{store.name}</h3>
             <span className="detail-sub">
-              <span className="mono">{store.code}</span> · {store.isActive ? <Tag color="green">Đang hoạt động</Tag> : <Tag>Đã ngừng</Tag>}
+              <span className="mono">{store.code}</span> ·{" "}
+              {store.isActive ? <Tag color="green">Đang hoạt động</Tag> : <Tag>Đã ngừng</Tag>}
             </span>
           </div>
           <dl className="kv-list">
@@ -167,7 +231,14 @@ function StorePanel({ id, onClose, onChanged }: { id: string | null; onClose: ()
                 Sửa thông tin
               </Button>
               {store.isActive ? (
-                <Popconfirm title="Ngừng hoạt động cửa hàng này?" description="Nhân viên sẽ không chọn được cửa hàng này nữa." okText="Ngừng hoạt động" okButtonProps={{ danger: true }} cancelText="Quay lại" onConfirm={() => deactivate.mutate()}>
+                <Popconfirm
+                  title="Ngừng hoạt động cửa hàng này?"
+                  description="Nhân viên sẽ không chọn được cửa hàng này nữa."
+                  okText="Ngừng hoạt động"
+                  okButtonProps={{ danger: true }}
+                  cancelText="Quay lại"
+                  onConfirm={() => deactivate.mutate()}
+                >
                   <Button danger icon={<PoweroffOutlined />} loading={deactivate.isPending}>
                     Ngừng hoạt động
                   </Button>
@@ -192,9 +263,26 @@ function StorePanel({ id, onClose, onChanged }: { id: string | null; onClose: ()
   );
 }
 
-type StoreForm = { code?: string; name: string; address?: string; phone?: string; gppCertificateNumber?: string; licenseNumber?: string };
+type StoreForm = {
+  code?: string;
+  name: string;
+  address?: string;
+  phone?: string;
+  gppCertificateNumber?: string;
+  licenseNumber?: string;
+};
 
-function StoreFormModal({ open, store, onClose, onSaved }: { open: boolean; store: StoreDetail | null; onClose: () => void; onSaved: () => Promise<void> }) {
+function StoreFormModal({
+  open,
+  store,
+  onClose,
+  onSaved,
+}: {
+  open: boolean;
+  store: StoreDetail | null;
+  onClose: () => void;
+  onSaved: () => Promise<void>;
+}) {
   const { message } = App.useApp();
   const [form] = Form.useForm<StoreForm>();
 
@@ -241,13 +329,21 @@ function StoreFormModal({ open, store, onClose, onSaved }: { open: boolean; stor
         <Row gutter={12}>
           {!store ? (
             <Col xs={24} sm={8}>
-              <Form.Item name="code" label="Mã cửa hàng" rules={[{ required: true, whitespace: true, message: "Nhập mã, ví dụ NT02" }]}>
+              <Form.Item
+                name="code"
+                label="Mã cửa hàng"
+                rules={[{ required: true, whitespace: true, message: "Nhập mã, ví dụ NT02" }]}
+              >
                 <Input placeholder="NT02" />
               </Form.Item>
             </Col>
           ) : null}
           <Col xs={24} sm={store ? 24 : 16}>
-            <Form.Item name="name" label="Tên cửa hàng" rules={[{ required: true, whitespace: true, message: "Nhập tên cửa hàng" }]}>
+            <Form.Item
+              name="name"
+              label="Tên cửa hàng"
+              rules={[{ required: true, whitespace: true, message: "Nhập tên cửa hàng" }]}
+            >
               <Input placeholder="Nhà thuốc GPP số 2" />
             </Form.Item>
           </Col>

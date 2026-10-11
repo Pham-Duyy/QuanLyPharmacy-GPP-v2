@@ -1,7 +1,14 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { prisma } from "../../db/prisma.js";
-import { api, authHeaders, login, seedFixture, truncateAll, type Fixture } from "../../test/helpers.js";
+import {
+  api,
+  authHeaders,
+  login,
+  seedFixture,
+  truncateAll,
+  type Fixture,
+} from "../../test/helpers.js";
 
 /**
  * Vòng đời kiểm kê, thanh toán công nợ và phiếu trả nhà cung cấp khi có hai
@@ -19,7 +26,9 @@ const h = (token = adminToken) => authHeaders(token, fixture.storeId);
 const idem = () => ({ "Idempotency-Key": randomUUID() });
 
 function dayKey(days = 0): string {
-  const vnToday = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Ho_Chi_Minh" }).format(new Date());
+  const vnToday = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Ho_Chi_Minh" }).format(
+    new Date(),
+  );
   const date = new Date(`${vnToday}T00:00:00.000Z`);
   date.setUTCDate(date.getUTCDate() + days);
   return date.toISOString().slice(0, 10);
@@ -39,7 +48,12 @@ async function receive(quantity: number, unitCost: number, batchNumber: string):
   await api()
     .post(`/api/v1/goods-receipts/${created.body.data.id}/confirm`)
     .set({ ...h(pharmacistToken), ...idem() })
-    .send({ lines: created.body.data.lines.map((line: { id: string }) => ({ lineId: line.id, passed: true })) })
+    .send({
+      lines: created.body.data.lines.map((line: { id: string }) => ({
+        lineId: line.id,
+        passed: true,
+      })),
+    })
     .expect(200);
 
   return created.body.data.id as string;
@@ -78,7 +92,11 @@ afterAll(async () => {
 describe("Vòng đời đợt kiểm kê", () => {
   async function openWithOneCount(): Promise<{ countId: string; lineId: string }> {
     await receive(100, 1000, "L1");
-    const opened = await api().post("/api/v1/stock-counts").set(h(pharmacistToken)).send({ scopeType: "ALL" }).expect(201);
+    const opened = await api()
+      .post("/api/v1/stock-counts")
+      .set(h(pharmacistToken))
+      .send({ scopeType: "ALL" })
+      .expect(201);
     const countId = opened.body.data.count.id as string;
     const lineId = opened.body.data.lines[0].id as string;
 
@@ -112,7 +130,10 @@ describe("Vòng đời đợt kiểm kê", () => {
 
     const results = await Promise.allSettled([
       api().post(`/api/v1/stock-counts/${countId}/close`).set(h(pharmacistToken)).send({}),
-      api().post(`/api/v1/stock-counts/${countId}/cancel`).set(h(pharmacistToken)).send({ reason: "Đếm lại từ đầu" }),
+      api()
+        .post(`/api/v1/stock-counts/${countId}/cancel`)
+        .set(h(pharmacistToken))
+        .send({ reason: "Đếm lại từ đầu" }),
     ]);
     const ok = results.filter((item) => item.status === "fulfilled" && item.value.status === 200);
     expect(ok).toHaveLength(1);
@@ -129,7 +150,11 @@ describe("Vòng đời đợt kiểm kê", () => {
 
   it("đợt đã chốt thì không ghi thêm số đếm được", async () => {
     const { countId, lineId } = await openWithOneCount();
-    await api().post(`/api/v1/stock-counts/${countId}/close`).set(h(pharmacistToken)).send({}).expect(200);
+    await api()
+      .post(`/api/v1/stock-counts/${countId}/close`)
+      .set(h(pharmacistToken))
+      .send({})
+      .expect(200);
 
     const late = await api()
       .patch(`/api/v1/stock-counts/${countId}/counts`)
@@ -151,7 +176,11 @@ describe("Thanh toán công nợ nhà cung cấp", () => {
       api()
         .post("/api/v1/supplier-payments")
         .set({ ...h(), ...idem() })
-        .send({ supplierId, method: "CASH", allocations: [{ goodsReceiptId: receiptId, amount: 100_000 }] });
+        .send({
+          supplierId,
+          method: "CASH",
+          allocations: [{ goodsReceiptId: receiptId, amount: 100_000 }],
+        });
 
     const results = await Promise.allSettled([pay(), pay()]);
     const ok = results.filter((item) => item.status === "fulfilled" && item.value.status === 201);
@@ -185,12 +214,22 @@ describe("Thanh toán công nợ nhà cung cấp", () => {
     const payment = await api()
       .post("/api/v1/supplier-payments")
       .set({ ...h(), ...idem() })
-      .send({ supplierId, method: "CASH", allocations: [{ goodsReceiptId: receiptId, amount: 40_000 }] })
+      .send({
+        supplierId,
+        method: "CASH",
+        allocations: [{ goodsReceiptId: receiptId, amount: 40_000 }],
+      })
       .expect(201);
 
     const results = await Promise.allSettled([
-      api().post(`/api/v1/supplier-payments/${payment.body.data.id}/void`).set(h()).send({ reason: "Chuyển nhầm" }),
-      api().post(`/api/v1/supplier-payments/${payment.body.data.id}/void`).set(h()).send({ reason: "Chuyển nhầm" }),
+      api()
+        .post(`/api/v1/supplier-payments/${payment.body.data.id}/void`)
+        .set(h())
+        .send({ reason: "Chuyển nhầm" }),
+      api()
+        .post(`/api/v1/supplier-payments/${payment.body.data.id}/void`)
+        .set(h())
+        .send({ reason: "Chuyển nhầm" }),
     ]);
     const ok = results.filter((item) => item.status === "fulfilled" && item.value.status === 200);
     expect(ok).toHaveLength(1);
@@ -216,8 +255,14 @@ describe("Phiếu trả hàng nhà cung cấp", () => {
     const returnId = draft.body.data.id as string;
 
     const results = await Promise.allSettled([
-      api().post(`/api/v1/supplier-returns/${returnId}/confirm`).set({ ...h(pharmacistToken), ...idem() }).send({}),
-      api().post(`/api/v1/supplier-returns/${returnId}/cancel`).set(h(pharmacistToken)).send({ reason: "Bỏ phiếu" }),
+      api()
+        .post(`/api/v1/supplier-returns/${returnId}/confirm`)
+        .set({ ...h(pharmacistToken), ...idem() })
+        .send({}),
+      api()
+        .post(`/api/v1/supplier-returns/${returnId}/cancel`)
+        .set(h(pharmacistToken))
+        .send({ reason: "Bỏ phiếu" }),
     ]);
     const ok = results.filter((item) => item.status === "fulfilled" && item.value.status === 200);
     expect(ok).toHaveLength(1);

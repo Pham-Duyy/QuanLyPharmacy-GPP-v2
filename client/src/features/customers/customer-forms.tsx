@@ -1,14 +1,43 @@
 import { DeleteOutlined, HeartOutlined } from "@ant-design/icons";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Alert, App, Button, Checkbox, Empty, Input, InputNumber, Modal, Select, Skeleton, Tag, Typography } from "antd";
+import {
+  Alert,
+  App,
+  Button,
+  Checkbox,
+  Empty,
+  Input,
+  InputNumber,
+  Modal,
+  Select,
+  Skeleton,
+  Tag,
+  Typography,
+} from "antd";
 import { useState } from "react";
 import { getErrorMessage, http } from "../../api/http.js";
-import type { CustomerDetail, CustomerHealthProfile, CustomerInvoiceHistoryItem, Envelope, Paged } from "../../api/types.js";
+import type {
+  CustomerDetail,
+  CustomerHealthProfile,
+  CustomerInvoiceHistoryItem,
+  Envelope,
+  Paged,
+} from "../../api/types.js";
 import { formatVnd } from "../../api/types.js";
 import { formatDateTime } from "../../ui/format.js";
 import { GENDER } from "./customer-labels.js";
 
-export function AnonymizeModal({ open, customerId, onClose, onSaved }: { open: boolean; customerId: string | null; onClose: () => void; onSaved: () => Promise<unknown> }) {
+export function AnonymizeModal({
+  open,
+  customerId,
+  onClose,
+  onSaved,
+}: {
+  open: boolean;
+  customerId: string | null;
+  onClose: () => void;
+  onSaved: () => Promise<unknown>;
+}) {
   const { message } = App.useApp();
   const [reason, setReason] = useState("");
 
@@ -44,15 +73,29 @@ export function AnonymizeModal({ open, customerId, onClose, onSaved }: { open: b
         title="Thao tác không thể hoàn tác"
         description="Họ tên, số điện thoại và hồ sơ sức khỏe sẽ bị xóa vĩnh viễn, thay bằng mã ẩn danh. Hóa đơn và đơn thuốc đã phát sinh vẫn được giữ lại."
       />
-      <Input.TextArea rows={3} placeholder="Lý do ẩn danh (bắt buộc — ví dụ: khách yêu cầu xóa dữ liệu cá nhân)" value={reason} onChange={(event) => setReason(event.target.value)} autoFocus />
+      <Input.TextArea
+        rows={3}
+        placeholder="Lý do ẩn danh (bắt buộc — ví dụ: khách yêu cầu xóa dữ liệu cá nhân)"
+        value={reason}
+        onChange={(event) => setReason(event.target.value)}
+        autoFocus
+      />
     </Modal>
   );
 }
 
-export function HealthProfilePanel({ customerId, onSaved }: { customerId: string; onSaved: () => Promise<unknown> }) {
+export function HealthProfilePanel({
+  customerId,
+  onSaved,
+}: {
+  customerId: string;
+  onSaved: () => Promise<unknown>;
+}) {
   const profile = useQuery({
     queryKey: ["customer-health", customerId],
-    queryFn: async () => (await http.get<Envelope<CustomerHealthProfile>>(`/customers/${customerId}/health-profile`)).data.data,
+    queryFn: async () =>
+      (await http.get<Envelope<CustomerHealthProfile>>(`/customers/${customerId}/health-profile`))
+        .data.data,
   });
   const [editing, setEditing] = useState(false);
 
@@ -61,7 +104,12 @@ export function HealthProfilePanel({ customerId, onSaved }: { customerId: string
   return (
     <div className="detail-stack">
       {!profile.data?.hasHealthConsent ? (
-        <Alert type="warning" showIcon title="Khách chưa đồng ý lưu hồ sơ sức khỏe" description="Chỉ được ghi dị ứng và bệnh nền sau khi đã hỏi và được khách đồng ý." />
+        <Alert
+          type="warning"
+          showIcon
+          title="Khách chưa đồng ý lưu hồ sơ sức khỏe"
+          description="Chỉ được ghi dị ứng và bệnh nền sau khi đã hỏi và được khách đồng ý."
+        />
       ) : null}
       <dl className="kv-list">
         <div>
@@ -110,16 +158,34 @@ export function HealthProfilePanel({ customerId, onSaved }: { customerId: string
  * Lịch sử mua của khách (contract §11): cần quyền customer.sensitive, server
  * ghi audit mỗi lần mở. `limit` để hiện vài giao dịch gần nhất ở tab Tổng quan.
  */
-export function InvoiceHistoryPanel({ customerId, limit, onOpenInvoice }: { customerId: string; limit?: number; onOpenInvoice?: (invoiceId: string) => void }) {
+export function InvoiceHistoryPanel({
+  customerId,
+  limit,
+  onOpenInvoice,
+}: {
+  customerId: string;
+  limit?: number;
+  onOpenInvoice?: (invoiceId: string) => void;
+}) {
   const history = useQuery({
     queryKey: ["customer-invoices", customerId],
-    queryFn: async () => (await http.get<Envelope<CustomerInvoiceHistoryItem[]>>(`/customers/${customerId}/invoices`)).data.data,
+    queryFn: async () =>
+      (await http.get<Envelope<CustomerInvoiceHistoryItem[]>>(`/customers/${customerId}/invoices`))
+        .data.data,
   });
 
   if (history.isLoading) return <Skeleton active paragraph={{ rows: 3 }} />;
-  if (history.isError) return <Alert type="error" showIcon title={getErrorMessage(history.error, "Không tải được lịch sử mua")} />;
+  if (history.isError)
+    return (
+      <Alert
+        type="error"
+        showIcon
+        title={getErrorMessage(history.error, "Không tải được lịch sử mua")}
+      />
+    );
   const rows = (history.data ?? []).slice(0, limit ?? undefined);
-  if (rows.length === 0) return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Khách chưa mua lần nào" />;
+  if (rows.length === 0)
+    return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Khách chưa mua lần nào" />;
 
   return (
     <div className="cust-tx">
@@ -132,7 +198,11 @@ export function InvoiceHistoryPanel({ customerId, limit, onOpenInvoice }: { cust
       {rows.map((row) => (
         <div className="cust-tx-row" key={row.id}>
           {onOpenInvoice ? (
-            <button type="button" className="link-button mono" onClick={() => onOpenInvoice(row.id)}>
+            <button
+              type="button"
+              className="link-button mono"
+              onClick={() => onOpenInvoice(row.id)}
+            >
               {row.code}
             </button>
           ) : (
@@ -143,7 +213,13 @@ export function InvoiceHistoryPanel({ customerId, limit, onOpenInvoice }: { cust
             <small className="muted"> · {row.storeCode}</small>
           </span>
           <strong className="col-num">{formatVnd(row.totalAmount)}</strong>
-          <span>{row.status === "VOIDED" ? <span className="status-dot is-red">Đã hủy</span> : <span className="status-dot is-green">Đã thanh toán</span>}</span>
+          <span>
+            {row.status === "VOIDED" ? (
+              <span className="status-dot is-red">Đã hủy</span>
+            ) : (
+              <span className="status-dot is-green">Đã thanh toán</span>
+            )}
+          </span>
         </div>
       ))}
     </div>
@@ -188,9 +264,20 @@ export function CustomerFormModal({
 
   const save = useMutation({
     mutationFn: async () => {
-      const body = { fullName: fullName || null, phone: phone || null, birthYear, gender: gender ?? null, note: note || null, email: email.trim() || null, address: address.trim() || null };
+      const body = {
+        fullName: fullName || null,
+        phone: phone || null,
+        birthYear,
+        gender: gender ?? null,
+        note: note || null,
+        email: email.trim() || null,
+        address: address.trim() || null,
+      };
       if (customer) {
-        const response = await http.patch<Envelope<CustomerDetail>>(`/customers/${customer.id}`, { ...body, version: customer.version });
+        const response = await http.patch<Envelope<CustomerDetail>>(`/customers/${customer.id}`, {
+          ...body,
+          version: customer.version,
+        });
         return response.data.data.id;
       }
       const response = await http.post<Envelope<CustomerDetail>>("/customers", body);
@@ -218,27 +305,59 @@ export function CustomerFormModal({
         <div className="form-grid">
           <label className="field">
             <span>Họ và tên</span>
-            <Input placeholder="Nguyễn Văn A" value={fullName} onChange={(event) => setFullName(event.target.value)} autoFocus />
+            <Input
+              placeholder="Nguyễn Văn A"
+              value={fullName}
+              onChange={(event) => setFullName(event.target.value)}
+              autoFocus
+            />
           </label>
           <label className="field">
             <span>Số điện thoại</span>
-            <Input placeholder="09xxxxxxxx" inputMode="tel" value={phone} onChange={(event) => setPhone(event.target.value)} />
+            <Input
+              placeholder="09xxxxxxxx"
+              inputMode="tel"
+              value={phone}
+              onChange={(event) => setPhone(event.target.value)}
+            />
           </label>
           <label className="field">
             <span>Năm sinh</span>
-            <InputNumber style={{ width: "100%" }} placeholder="1980" min={1900} max={new Date().getFullYear()} value={birthYear} onChange={setBirthYear} />
+            <InputNumber
+              style={{ width: "100%" }}
+              placeholder="1980"
+              min={1900}
+              max={new Date().getFullYear()}
+              value={birthYear}
+              onChange={setBirthYear}
+            />
           </label>
           <label className="field">
             <span>Giới tính</span>
-            <Select allowClear placeholder="Không rõ" value={gender} onChange={setGender} options={Object.entries(GENDER).map(([value, label]) => ({ value, label }))} />
+            <Select
+              allowClear
+              placeholder="Không rõ"
+              value={gender}
+              onChange={setGender}
+              options={Object.entries(GENDER).map(([value, label]) => ({ value, label }))}
+            />
           </label>
           <label className="field">
             <span>Email</span>
-            <Input type="email" placeholder="ten@example.com" value={email} onChange={(event) => setEmail(event.target.value)} />
+            <Input
+              type="email"
+              placeholder="ten@example.com"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+            />
           </label>
           <label className="field">
             <span>Địa chỉ</span>
-            <Input placeholder="Phường, quận/huyện, tỉnh/thành" value={address} onChange={(event) => setAddress(event.target.value)} />
+            <Input
+              placeholder="Phường, quận/huyện, tỉnh/thành"
+              value={address}
+              onChange={(event) => setAddress(event.target.value)}
+            />
           </label>
         </div>
         <label className="field">
@@ -269,7 +388,9 @@ function HealthProfileFormModal({
   const [chronicConditions, setChronicConditions] = useState("");
   const [note, setNote] = useState("");
   const [ingredientSearch, setIngredientSearch] = useState("");
-  const [allergies, setAllergies] = useState<Array<{ ingredientId: string; ingredientName: string; note: string }>>([]);
+  const [allergies, setAllergies] = useState<
+    Array<{ ingredientId: string; ingredientName: string; note: string }>
+  >([]);
 
   // Nạp lại form mỗi lần mở, ngay trong lượt render (không qua effect nên không vẽ thêm một lượt).
   const [wasOpen, setWasOpen] = useState(false);
@@ -286,7 +407,12 @@ function HealthProfileFormModal({
   const ingredientSearchQuery = useQuery({
     queryKey: ["ingredient-search", ingredientSearch],
     enabled: ingredientSearch.length > 0,
-    queryFn: async () => (await http.get<Envelope<Paged<{ id: string; name: string }>>>("/active-ingredients", { params: { search: ingredientSearch, limit: 10 } })).data.data.items,
+    queryFn: async () =>
+      (
+        await http.get<Envelope<Paged<{ id: string; name: string }>>>("/active-ingredients", {
+          params: { search: ingredientSearch, limit: 10 },
+        })
+      ).data.data.items,
   });
 
   const save = useMutation({
@@ -307,7 +433,17 @@ function HealthProfileFormModal({
   const needsConsent = !profile?.hasHealthConsent;
 
   return (
-    <Modal open={open} onCancel={onClose} onOk={() => save.mutate()} okText="Lưu" cancelText="Hủy" okButtonProps={{ disabled: needsConsent && !consent }} confirmLoading={save.isPending} title="Hồ sơ sức khỏe" width={600}>
+    <Modal
+      open={open}
+      onCancel={onClose}
+      onOk={() => save.mutate()}
+      okText="Lưu"
+      cancelText="Hủy"
+      okButtonProps={{ disabled: needsConsent && !consent }}
+      confirmLoading={save.isPending}
+      title="Hồ sơ sức khỏe"
+      width={600}
+    >
       <div className="detail-stack">
         {needsConsent ? (
           <div className="consent-box">
@@ -320,7 +456,12 @@ function HealthProfileFormModal({
         )}
         <label className="field">
           <span>Bệnh nền</span>
-          <Input.TextArea rows={2} placeholder="Ví dụ: tiểu đường, cao huyết áp" value={chronicConditions} onChange={(event) => setChronicConditions(event.target.value)} />
+          <Input.TextArea
+            rows={2}
+            placeholder="Ví dụ: tiểu đường, cao huyết áp"
+            value={chronicConditions}
+            onChange={(event) => setChronicConditions(event.target.value)}
+          />
         </label>
         <label className="field">
           <span>Ghi chú khác</span>
@@ -338,12 +479,18 @@ function HealthProfileFormModal({
               if (!ingredientId) return;
               const found = ingredientSearchQuery.data?.find((i) => i.id === ingredientId);
               if (found && !allergies.some((a) => a.ingredientId === ingredientId)) {
-                setAllergies((current) => [...current, { ingredientId, ingredientName: found.name, note: "" }]);
+                setAllergies((current) => [
+                  ...current,
+                  { ingredientId, ingredientName: found.name, note: "" },
+                ]);
               }
               setIngredientSearch("");
             }}
             value={null}
-            options={(ingredientSearchQuery.data ?? []).map((i) => ({ value: i.id, label: i.name }))}
+            options={(ingredientSearchQuery.data ?? []).map((i) => ({
+              value: i.id,
+              label: i.name,
+            }))}
           />
           {allergies.map((allergy) => (
             <div key={allergy.ingredientId} className="allergy-row">
@@ -352,9 +499,28 @@ function HealthProfileFormModal({
                 size="small"
                 placeholder="Biểu hiện dị ứng…"
                 value={allergy.note}
-                onChange={(event) => setAllergies((current) => current.map((a) => (a.ingredientId === allergy.ingredientId ? { ...a, note: event.target.value } : a)))}
+                onChange={(event) =>
+                  setAllergies((current) =>
+                    current.map((a) =>
+                      a.ingredientId === allergy.ingredientId
+                        ? { ...a, note: event.target.value }
+                        : a,
+                    ),
+                  )
+                }
               />
-              <Button size="small" type="text" danger icon={<DeleteOutlined />} aria-label={`Xóa dị ứng ${allergy.ingredientName}`} onClick={() => setAllergies((current) => current.filter((a) => a.ingredientId !== allergy.ingredientId))} />
+              <Button
+                size="small"
+                type="text"
+                danger
+                icon={<DeleteOutlined />}
+                aria-label={`Xóa dị ứng ${allergy.ingredientName}`}
+                onClick={() =>
+                  setAllergies((current) =>
+                    current.filter((a) => a.ingredientId !== allergy.ingredientId),
+                  )
+                }
+              />
             </div>
           ))}
         </div>

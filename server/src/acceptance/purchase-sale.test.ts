@@ -93,7 +93,9 @@ describe("Nhập hàng", () => {
       (item: { supplierId: string }) => item.supplierId === stage.supplierId,
     );
     expect(supplier.outstanding).toBe(1_100_000);
-    const saved = await prisma.goodsReceipt.findFirstOrThrow({ where: { code: receipt.body.data.code } });
+    const saved = await prisma.goodsReceipt.findFirstOrThrow({
+      where: { code: receipt.body.data.code },
+    });
     expect(saved.paymentDueDate?.toISOString().slice(0, 10)).toBe(dayKey(30));
   });
 
@@ -112,7 +114,11 @@ describe("Nhập hàng", () => {
     }).expect(201);
 
     await confirmReceipt(stage, receipt.body.data, [
-      { lineId: receipt.body.data.lines[0].id, passed: false, rejectReason: "Vỏ hộp rách, nghi ngờ ẩm" },
+      {
+        lineId: receipt.body.data.lines[0].id,
+        passed: false,
+        rejectReason: "Vỏ hộp rách, nghi ngờ ẩm",
+      },
     ]).expect(200);
 
     const batch = await batchOf("PN-LOI");
@@ -200,8 +206,20 @@ describe("Nhập hàng", () => {
 describe("Bán hàng", () => {
   it("bán hộp/vỉ/viên: quy đổi, FEFO qua hai lô, giảm giá, VAT và tiền thừa", async () => {
     // LO-A hết hạn sớm hơn nên phải xuất trước.
-    await makeBatch(stage, { product: para, batchNumber: "LO-A", quantity: 110, unitCost: 1000, expiryInDays: 30 });
-    await makeBatch(stage, { product: para, batchNumber: "LO-B", quantity: 500, unitCost: 1500, expiryInDays: 120 });
+    await makeBatch(stage, {
+      product: para,
+      batchNumber: "LO-A",
+      quantity: 110,
+      unitCost: 1000,
+      expiryInDays: 30,
+    });
+    await makeBatch(stage, {
+      product: para,
+      batchNumber: "LO-B",
+      quantity: 500,
+      unitCost: 1500,
+      expiryInDays: 120,
+    });
 
     const sale = await sell(stage, {
       lines: [line(para, "Hộp", 1), line(para, "Vỉ", 2), line(para, "Viên", 5)],
@@ -228,8 +246,9 @@ describe("Bán hàng", () => {
 
     // FEFO: dòng 1 lấy 100 của LO-A; dòng 2 lấy nốt 10 của LO-A rồi 10 của
     // LO-B; dòng 3 lấy 5 của LO-B.
-    const allocations = data.lines.map((item: { allocations: Array<{ batchNumber: string; baseQuantity: number }> }) =>
-      item.allocations.map((a) => `${a.batchNumber}:${a.baseQuantity}`),
+    const allocations = data.lines.map(
+      (item: { allocations: Array<{ batchNumber: string; baseQuantity: number }> }) =>
+        item.allocations.map((a) => `${a.batchNumber}:${a.baseQuantity}`),
     );
     expect(allocations).toEqual([["LO-A:100"], ["LO-A:10", "LO-B:10"], ["LO-B:5"]]);
 
@@ -256,17 +275,44 @@ describe("Bán hàng", () => {
   });
 
   it("chặn bán lô hết hạn, lô thu hồi và lô biệt trữ", async () => {
-    await makeBatch(stage, { product: para, batchNumber: "HET-HAN", quantity: 100, unitCost: 1000, expiryInDays: -1 });
-    await makeBatch(stage, { product: para, batchNumber: "THU-HOI", quantity: 100, unitCost: 1000, status: "RECALLED" });
-    await makeBatch(stage, { product: para, batchNumber: "BIET-TRU", quantity: 100, unitCost: 1000, status: "QUARANTINED" });
+    await makeBatch(stage, {
+      product: para,
+      batchNumber: "HET-HAN",
+      quantity: 100,
+      unitCost: 1000,
+      expiryInDays: -1,
+    });
+    await makeBatch(stage, {
+      product: para,
+      batchNumber: "THU-HOI",
+      quantity: 100,
+      unitCost: 1000,
+      status: "RECALLED",
+    });
+    await makeBatch(stage, {
+      product: para,
+      batchNumber: "BIET-TRU",
+      quantity: 100,
+      unitCost: 1000,
+      status: "QUARANTINED",
+    });
 
     const blocked = await sell(stage, { lines: [line(para, "Viên", 1)] }).expect(409);
     expect(blocked.body.error.code).toBe("INSUFFICIENT_STOCK");
 
     // Thêm 20 viên bán được: chỉ bán được tối đa 20.
-    await makeBatch(stage, { product: para, batchNumber: "BAN-DUOC", quantity: 20, unitCost: 1000, expiryInDays: 90 });
+    await makeBatch(stage, {
+      product: para,
+      batchNumber: "BAN-DUOC",
+      quantity: 20,
+      unitCost: 1000,
+      expiryInDays: 90,
+    });
     const over = await sell(stage, { lines: [line(para, "Viên", 21)] }).expect(409);
-    expect(over.body.error.details[0]).toMatchObject({ sellableBaseQuantity: 20, requestedBaseQuantity: 21 });
+    expect(over.body.error.details[0]).toMatchObject({
+      sellableBaseQuantity: 20,
+      requestedBaseQuantity: 21,
+    });
 
     const ok = await sell(stage, { lines: [line(para, "Viên", 20)] }).expect(201);
     expect(ok.body.data.lines[0].allocations[0].batchNumber).toBe("BAN-DUOC");
@@ -282,9 +328,17 @@ describe("Bán hàng", () => {
       drugClass: "RX",
       units: [["Viên", 1, 3000]],
     });
-    await makeBatch(stage, { product: amox, batchNumber: "RX-1", quantity: 100, unitCost: 1200, expiryInDays: 180 });
+    await makeBatch(stage, {
+      product: amox,
+      batchNumber: "RX-1",
+      quantity: 100,
+      unitCost: 1200,
+      expiryInDays: 180,
+    });
 
-    const customer = await prisma.customer.create({ data: { fullName: "Chị Lan", phone: "0900000001" } });
+    const customer = await prisma.customer.create({
+      data: { fullName: "Chị Lan", phone: "0900000001" },
+    });
     const created = await api()
       .post("/api/v1/prescriptions")
       .set(h(stage.pharmacist))
@@ -294,7 +348,12 @@ describe("Bán hàng", () => {
         facilityName: "Bệnh viện Q.1",
         prescribedDate: dayKey(0),
         items: [
-          { productId: amox.id, drugNameText: "Amoxicillin 500mg", unitId: amox.units["Viên"]!, quantity: 20 },
+          {
+            productId: amox.id,
+            drugNameText: "Amoxicillin 500mg",
+            unitId: amox.units["Viên"]!,
+            quantity: 20,
+          },
         ],
       })
       .expect(201);
@@ -307,16 +366,26 @@ describe("Bán hàng", () => {
     // Bán hai lần, không gửi prescriptionItemId: máy chủ tự khớp dòng đơn.
     await sell(
       stage,
-      { customerId: customer.id, prescriptionId: created.body.data.id, lines: [line(amox, "Viên", 8)] },
+      {
+        customerId: customer.id,
+        prescriptionId: created.body.data.id,
+        lines: [line(amox, "Viên", 8)],
+      },
       stage.pharmacist,
     ).expect(201);
     await sell(
       stage,
-      { customerId: customer.id, prescriptionId: created.body.data.id, lines: [line(amox, "Viên", 7)] },
+      {
+        customerId: customer.id,
+        prescriptionId: created.body.data.id,
+        lines: [line(amox, "Viên", 7)],
+      },
       stage.pharmacist,
     ).expect(201);
 
-    const item = await prisma.prescriptionItem.findFirstOrThrow({ where: { prescriptionId: created.body.data.id } });
+    const item = await prisma.prescriptionItem.findFirstOrThrow({
+      where: { prescriptionId: created.body.data.id },
+    });
     expect(item.dispensedBaseQuantity).toBe(15);
     const savedLines = await prisma.invoiceLine.findMany({ where: { productId: amox.id } });
     expect(savedLines).toHaveLength(2);
@@ -325,15 +394,28 @@ describe("Bán hàng", () => {
     // Bán vượt số kê bị chặn.
     const over = await sell(
       stage,
-      { customerId: customer.id, prescriptionId: created.body.data.id, lines: [line(amox, "Viên", 6)] },
+      {
+        customerId: customer.id,
+        prescriptionId: created.body.data.id,
+        lines: [line(amox, "Viên", 6)],
+      },
       stage.pharmacist,
     ).expect(422);
     expect(over.body.error.code).toBe("PRESCRIBED_QUANTITY_EXCEEDED");
-    expect((await prisma.prescriptionItem.findFirstOrThrow({ where: { id: item.id } })).dispensedBaseQuantity).toBe(15);
+    expect(
+      (await prisma.prescriptionItem.findFirstOrThrow({ where: { id: item.id } }))
+        .dispensedBaseQuantity,
+    ).toBe(15);
   });
 
   it("giá vốn trên hóa đơn giữ nguyên khi nhập thêm cùng lô về sau", async () => {
-    await makeBatch(stage, { product: para, batchNumber: "GIU-GIA", quantity: 100, unitCost: 1000, expiryInDays: 90 });
+    await makeBatch(stage, {
+      product: para,
+      batchNumber: "GIU-GIA",
+      quantity: 100,
+      unitCost: 1000,
+      expiryInDays: 90,
+    });
     const sale = await sell(stage, { lines: [line(para, "Viên", 10)] }).expect(201);
 
     const before = await prisma.invoiceAllocation.findFirstOrThrow({

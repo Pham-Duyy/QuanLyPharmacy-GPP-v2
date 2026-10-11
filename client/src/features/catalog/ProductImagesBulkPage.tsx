@@ -1,6 +1,22 @@
-import { ClearOutlined, CloudUploadOutlined, PictureOutlined, UploadOutlined } from "@ant-design/icons";
+import {
+  ClearOutlined,
+  CloudUploadOutlined,
+  PictureOutlined,
+  UploadOutlined,
+} from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
-import { Alert, Button, Checkbox, Progress, Skeleton, Space, Table, Tag, Tooltip, Upload } from "antd";
+import {
+  Alert,
+  Button,
+  Checkbox,
+  Progress,
+  Skeleton,
+  Space,
+  Table,
+  Tag,
+  Tooltip,
+  Upload,
+} from "antd";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
 import { getErrorMessage, http } from "../../api/http.js";
@@ -8,7 +24,11 @@ import type { Envelope, Paged, ProductListItem } from "../../api/types.js";
 import { PageHeader } from "../../ui/PageHeader.js";
 import { useAuth } from "../auth/auth-context.js";
 import { matchImageFiles, type FileMatch, type MatchTarget } from "./products/match-image-files.js";
-import { IMAGE_ACCEPT, MAX_IMAGES_PER_PRODUCT, uploadProductImage } from "./products/product-image-upload.js";
+import {
+  IMAGE_ACCEPT,
+  MAX_IMAGES_PER_PRODUCT,
+  uploadProductImage,
+} from "./products/product-image-upload.js";
 import { ProductThumb } from "./products/ProductThumb.js";
 
 type RowStatus = "pending" | "uploading" | "done" | "error" | "skipped";
@@ -113,7 +133,10 @@ export function ProductImagesBulkPage() {
       const product = row.product!;
       const already = used.get(product.id) ?? (row.hadImage ? 1 : 0);
       if (already >= MAX_IMAGES_PER_PRODUCT) {
-        update(row.key, { status: "skipped", note: `Mỗi sản phẩm tối đa ${MAX_IMAGES_PER_PRODUCT} ảnh` });
+        update(row.key, {
+          status: "skipped",
+          note: `Mỗi sản phẩm tối đa ${MAX_IMAGES_PER_PRODUCT} ảnh`,
+        });
       } else {
         update(row.key, { status: "uploading", note: null });
         try {
@@ -157,10 +180,20 @@ export function ProductImagesBulkPage() {
         title="Tải ảnh sản phẩm hàng loạt"
         extra={
           <Space wrap>
-            <Button icon={<ClearOutlined />} onClick={clearAll} disabled={running || rows.length === 0}>
+            <Button
+              icon={<ClearOutlined />}
+              onClick={clearAll}
+              disabled={running || rows.length === 0}
+            >
               Xóa danh sách
             </Button>
-            <Button type="primary" icon={<CloudUploadOutlined />} onClick={() => void runUpload()} loading={running} disabled={pending === 0}>
+            <Button
+              type="primary"
+              icon={<CloudUploadOutlined />}
+              onClick={() => void runUpload()}
+              loading={running}
+              disabled={pending === 0}
+            >
               Tải lên {pending > 0 ? `${pending} ảnh` : ""}
             </Button>
           </Space>
@@ -173,25 +206,40 @@ export function ProductImagesBulkPage() {
         title="Cách đặt tên tệp"
         description={
           <>
-            Một ảnh cho mỗi mặt hàng: đặt tên tệp bằng <b>mã sản phẩm</b> — ví dụ <code>TH0019.jpg</code> — hoặc bằng{" "}
-            <b>đúng tên sản phẩm</b> — <code>Amlodipin 5mg.jpg</code>. Muốn nhiều ảnh cho cùng một mặt hàng thì thêm số ở cuối:{" "}
-            <code>TH0019-2.jpg</code>, <code>TH0019-3.jpg</code>. Nhận JPG, PNG, WEBP tối đa 15 MB mỗi ảnh; phần mềm tự thu nhỏ và xóa
-            thông tin vị trí trong ảnh trước khi lưu. Ảnh đầu tiên của mỗi mặt hàng trở thành ảnh chính.
+            Một ảnh cho mỗi mặt hàng: đặt tên tệp bằng <b>mã sản phẩm</b> — ví dụ{" "}
+            <code>TH0019.jpg</code> — hoặc bằng <b>đúng tên sản phẩm</b> —{" "}
+            <code>Amlodipin 5mg.jpg</code>. Muốn nhiều ảnh cho cùng một mặt hàng thì thêm số ở cuối:{" "}
+            <code>TH0019-2.jpg</code>, <code>TH0019-3.jpg</code>. Nhận JPG, PNG, WEBP tối đa 15 MB
+            mỗi ảnh; phần mềm tự thu nhỏ và xóa thông tin vị trí trong ảnh trước khi lưu. Ảnh đầu
+            tiên của mỗi mặt hàng trở thành ảnh chính.
           </>
         }
         className="image-alert"
       />
 
       {products.isLoading ? <Skeleton active /> : null}
-      {products.isError ? <Alert type="error" showIcon title="Không tải được danh mục sản phẩm" description={getErrorMessage(products.error, "Hãy thử lại")} /> : null}
+      {products.isError ? (
+        <Alert
+          type="error"
+          showIcon
+          title="Không tải được danh mục sản phẩm"
+          description={getErrorMessage(products.error, "Hãy thử lại")}
+        />
+      ) : null}
 
       {products.data ? (
         <p className="image-rules">
-          Danh mục có {products.data.length} mặt hàng đang kinh doanh, trong đó <b>{withoutImage}</b> mặt hàng chưa có ảnh nào.
+          Danh mục có {products.data.length} mặt hàng đang kinh doanh, trong đó{" "}
+          <b>{withoutImage}</b> mặt hàng chưa có ảnh nào.
         </p>
       ) : null}
 
-      <Checkbox className="image-bulk-pick" checked={directory} disabled={running} onChange={(event) => setDirectory(event.target.checked)}>
+      <Checkbox
+        className="image-bulk-pick"
+        checked={directory}
+        disabled={running}
+        onChange={(event) => setDirectory(event.target.checked)}
+      >
         Chọn nguyên một thư mục ảnh (bỏ dấu nếu muốn chọn từng tệp)
       </Checkbox>
 
@@ -213,7 +261,9 @@ export function ProductImagesBulkPage() {
           <UploadOutlined />
         </p>
         <p className="image-dropzone-text">
-          {directory ? "Bấm để chọn một thư mục ảnh, hoặc kéo thư mục vào đây" : "Bấm để chọn nhiều ảnh, hoặc kéo cả nhóm ảnh vào đây"}
+          {directory
+            ? "Bấm để chọn một thư mục ảnh, hoặc kéo thư mục vào đây"
+            : "Bấm để chọn nhiều ảnh, hoặc kéo cả nhóm ảnh vào đây"}
         </p>
       </Upload.Dragger>
 
@@ -241,7 +291,9 @@ export function ProductImagesBulkPage() {
                 title: "Ảnh",
                 dataIndex: "previewUrl",
                 width: 72,
-                render: (_value, row) => <ProductThumb src={row.previewUrl} alt={row.file.name} size={48} />,
+                render: (_value, row) => (
+                  <ProductThumb src={row.previewUrl} alt={row.file.name} size={48} />
+                ),
               },
               {
                 title: "Tệp",
@@ -297,7 +349,9 @@ export function ProductImagesBulkPage() {
         <Alert
           type={failed > 0 ? "warning" : "success"}
           showIcon
-          title={failed > 0 ? `Đã tải ${uploaded} ảnh, ${failed} ảnh lỗi` : `Đã tải xong ${uploaded} ảnh`}
+          title={
+            failed > 0 ? `Đã tải ${uploaded} ảnh, ${failed} ảnh lỗi` : `Đã tải xong ${uploaded} ảnh`
+          }
           description="Ảnh hiện ngay trong danh mục và ở quầy bán hàng."
           action={
             <Link to="/san-pham">

@@ -105,7 +105,13 @@ describe("Hai quầy bán cùng lúc", () => {
       name: "Paracetamol 500mg",
       units: [["Viên", 1, 2000]],
     });
-    await makeBatch(stage, { product: para, batchNumber: "CUOI", quantity: 10, unitCost: 1000, expiryInDays: 90 });
+    await makeBatch(stage, {
+      product: para,
+      batchNumber: "CUOI",
+      quantity: 10,
+      unitCost: 1000,
+      expiryInDays: 90,
+    });
 
     const { results, waiters } = await coordinate(
       Prisma.sql`SELECT id FROM batches WHERE batch_number = 'CUOI' FOR UPDATE`,
@@ -125,10 +131,30 @@ describe("Hai quầy bán cùng lúc", () => {
   });
 
   it("hai giỏ hàng chạm hai lô theo thứ tự ngược nhau: không deadlock", async () => {
-    const one = await makeProduct(stage, { code: "TH0001", name: "Thuốc A", units: [["Viên", 1, 2000]] });
-    const two = await makeProduct(stage, { code: "TH0002", name: "Thuốc B", units: [["Viên", 1, 3000]] });
-    await makeBatch(stage, { product: one, batchNumber: "A1", quantity: 100, unitCost: 1000, expiryInDays: 90 });
-    await makeBatch(stage, { product: two, batchNumber: "B1", quantity: 100, unitCost: 1500, expiryInDays: 90 });
+    const one = await makeProduct(stage, {
+      code: "TH0001",
+      name: "Thuốc A",
+      units: [["Viên", 1, 2000]],
+    });
+    const two = await makeProduct(stage, {
+      code: "TH0002",
+      name: "Thuốc B",
+      units: [["Viên", 1, 3000]],
+    });
+    await makeBatch(stage, {
+      product: one,
+      batchNumber: "A1",
+      quantity: 100,
+      unitCost: 1000,
+      expiryInDays: 90,
+    });
+    await makeBatch(stage, {
+      product: two,
+      batchNumber: "B1",
+      quantity: 100,
+      unitCost: 1500,
+      expiryInDays: 90,
+    });
 
     // Hai quầy gõ giỏ hàng theo thứ tự ngược nhau; máy chủ phải khóa lô theo
     // một thứ tự cố định để không khóa chéo.
@@ -152,7 +178,13 @@ describe("Hai quầy bán cùng lúc", () => {
       drugClass: null,
       units: [["Viên", 1, 10_000]],
     });
-    await makeBatch(stage, { product: vitamin, batchNumber: "TP1", quantity: 500, unitCost: 4000, expiryInDays: 200 });
+    await makeBatch(stage, {
+      product: vitamin,
+      batchNumber: "TP1",
+      quantity: 500,
+      unitCost: 4000,
+      expiryInDays: 200,
+    });
     await api()
       .put("/api/v1/loyalty/settings")
       .set(h())
@@ -167,7 +199,9 @@ describe("Hai quầy bán cùng lúc", () => {
       })
       .expect(200);
 
-    const customer = await prisma.customer.create({ data: { fullName: "Chị Lan", phone: "0900000005" } });
+    const customer = await prisma.customer.create({
+      data: { fullName: "Chị Lan", phone: "0900000005" },
+    });
     await sell(stage, { customerId: customer.id, lines: [line(vitamin, "Viên", 30)] }).expect(201);
 
     const { results, waiters } = await coordinate(
@@ -183,7 +217,11 @@ describe("Hai quầy bán cùng lúc", () => {
         () =>
           sell(
             stage,
-            { customerId: customer.id, lines: [line(vitamin, "Viên", 10)], loyaltyRedeemPoints: 30 },
+            {
+              customerId: customer.id,
+              lines: [line(vitamin, "Viên", 10)],
+              loyaltyRedeemPoints: 30,
+            },
             stage.pharmacist,
           ),
       ],
@@ -213,8 +251,16 @@ describe("Hai quầy bán cùng lúc", () => {
       drugClass: "RX",
       units: [["Viên", 1, 3000]],
     });
-    await makeBatch(stage, { product: amox, batchNumber: "RX1", quantity: 100, unitCost: 1200, expiryInDays: 180 });
-    const customer = await prisma.customer.create({ data: { fullName: "Anh Nam", phone: "0900000006" } });
+    await makeBatch(stage, {
+      product: amox,
+      batchNumber: "RX1",
+      quantity: 100,
+      unitCost: 1200,
+      expiryInDays: 180,
+    });
+    const customer = await prisma.customer.create({
+      data: { fullName: "Anh Nam", phone: "0900000006" },
+    });
 
     const created = await api()
       .post("/api/v1/prescriptions")
@@ -223,7 +269,14 @@ describe("Hai quầy bán cùng lúc", () => {
         customerId: customer.id,
         prescriberName: "BS. Trần Văn A",
         prescribedDate: dayKey(0),
-        items: [{ productId: amox.id, drugNameText: "Amoxicillin 500mg", unitId: amox.units["Viên"]!, quantity: 10 }],
+        items: [
+          {
+            productId: amox.id,
+            drugNameText: "Amoxicillin 500mg",
+            unitId: amox.units["Viên"]!,
+            quantity: 10,
+          },
+        ],
       })
       .expect(201);
     await api()
@@ -239,13 +292,21 @@ describe("Hai quầy bán cùng lúc", () => {
         () =>
           sell(
             stage,
-            { customerId: customer.id, prescriptionId: created.body.data.id, lines: [line(amox, "Viên", 7)] },
+            {
+              customerId: customer.id,
+              prescriptionId: created.body.data.id,
+              lines: [line(amox, "Viên", 7)],
+            },
             stage.pharmacist,
           ),
         () =>
           sell(
             stage,
-            { customerId: customer.id, prescriptionId: created.body.data.id, lines: [line(amox, "Viên", 7)] },
+            {
+              customerId: customer.id,
+              prescriptionId: created.body.data.id,
+              lines: [line(amox, "Viên", 7)],
+            },
             stage.pharmacistB,
           ),
       ],
@@ -260,8 +321,18 @@ describe("Hai quầy bán cùng lúc", () => {
   });
 
   it("hủy và trả hàng cùng một hóa đơn: chỉ một nghiệp vụ hoàn tất", async () => {
-    const para = await makeProduct(stage, { code: "TH0004", name: "Thuốc C", units: [["Viên", 1, 2000]] });
-    await makeBatch(stage, { product: para, batchNumber: "HD1", quantity: 100, unitCost: 1000, expiryInDays: 90 });
+    const para = await makeProduct(stage, {
+      code: "TH0004",
+      name: "Thuốc C",
+      units: [["Viên", 1, 2000]],
+    });
+    await makeBatch(stage, {
+      product: para,
+      batchNumber: "HD1",
+      quantity: 100,
+      unitCost: 1000,
+      expiryInDays: 90,
+    });
     const sale = await sell(stage, { lines: [line(para, "Viên", 10)] }).expect(201);
 
     const { results, waiters } = await coordinate(
@@ -280,7 +351,13 @@ describe("Hai quầy bán cùng lúc", () => {
             .send({
               disposition: "RESTOCK",
               refundMethod: "CASH",
-              lines: [{ invoiceLineId: sale.body.data.lines[0].id, unitId: para.units["Viên"]!, quantity: 10 }],
+              lines: [
+                {
+                  invoiceLineId: sale.body.data.lines[0].id,
+                  unitId: para.units["Viên"]!,
+                  quantity: 10,
+                },
+              ],
             }),
       ],
     );
@@ -299,8 +376,18 @@ describe("Hai quầy bán cùng lúc", () => {
 
 describe("Nhập hàng đồng thời", () => {
   it("hai phiếu nhập vào cùng một lô đã có: giá vốn bình quân đúng", async () => {
-    const para = await makeProduct(stage, { code: "TH0005", name: "Thuốc D", units: [["Viên", 1, 2000]] });
-    await makeBatch(stage, { product: para, batchNumber: "GOP", quantity: 100, unitCost: 1000, expiryInDays: 400 });
+    const para = await makeProduct(stage, {
+      code: "TH0005",
+      name: "Thuốc D",
+      units: [["Viên", 1, 2000]],
+    });
+    await makeBatch(stage, {
+      product: para,
+      batchNumber: "GOP",
+      quantity: 100,
+      unitCost: 1000,
+      expiryInDays: 400,
+    });
 
     const drafts = await Promise.all([
       draftReceipt(stage, {
@@ -348,7 +435,11 @@ describe("Nhập hàng đồng thời", () => {
   });
 
   it("hai phiếu nhập cùng tạo một lô chưa tồn tại: chỉ một lô, giá vốn đúng", async () => {
-    const para = await makeProduct(stage, { code: "TH0006", name: "Thuốc E", units: [["Viên", 1, 2000]] });
+    const para = await makeProduct(stage, {
+      code: "TH0006",
+      name: "Thuốc E",
+      units: [["Viên", 1, 2000]],
+    });
     const drafts = await Promise.all([
       draftReceipt(stage, {
         lines: [
@@ -390,8 +481,18 @@ describe("Nhập hàng đồng thời", () => {
   });
 
   it("nhập hàng đồng thời với bán hàng: tồn và giá trị tồn vẫn khớp", async () => {
-    const para = await makeProduct(stage, { code: "TH0007", name: "Thuốc F", units: [["Viên", 1, 2000]] });
-    await makeBatch(stage, { product: para, batchNumber: "VUA", quantity: 100, unitCost: 1000, expiryInDays: 400 });
+    const para = await makeProduct(stage, {
+      code: "TH0007",
+      name: "Thuốc F",
+      units: [["Viên", 1, 2000]],
+    });
+    await makeBatch(stage, {
+      product: para,
+      batchNumber: "VUA",
+      quantity: 100,
+      unitCost: 1000,
+      expiryInDays: 400,
+    });
     const pending = await draftReceipt(stage, {
       lines: [
         {
@@ -415,7 +516,9 @@ describe("Nhập hàng đồng thời", () => {
     );
 
     expect(waiters).toBe(2);
-    expect(statusesOf(results).filter((status) => status === 200 || status === 201)).toHaveLength(2);
+    expect(statusesOf(results).filter((status) => status === 200 || status === 201)).toHaveLength(
+      2,
+    );
 
     const batch = await batchOf("VUA");
     expect(batch.quantityOnHand).toBe(190);
@@ -428,8 +531,18 @@ describe("Nhập hàng đồng thời", () => {
 
 describe("Kiểm kê và công nợ khi hai người cùng thao tác", () => {
   it("hai người cùng chốt một đợt kiểm kê: chỉ một phiếu điều chỉnh", async () => {
-    const para = await makeProduct(stage, { code: "TH0008", name: "Thuốc G", units: [["Viên", 1, 2000]] });
-    await makeBatch(stage, { product: para, batchNumber: "KK", quantity: 100, unitCost: 1000, expiryInDays: 120 });
+    const para = await makeProduct(stage, {
+      code: "TH0008",
+      name: "Thuốc G",
+      units: [["Viên", 1, 2000]],
+    });
+    await makeBatch(stage, {
+      product: para,
+      batchNumber: "KK",
+      quantity: 100,
+      unitCost: 1000,
+      expiryInDays: 120,
+    });
 
     const opened = await api()
       .post("/api/v1/stock-counts")
@@ -440,7 +553,11 @@ describe("Kiểm kê và công nợ khi hai người cùng thao tác", () => {
     await api()
       .patch(`/api/v1/stock-counts/${countId}/counts`)
       .set(h(stage.pharmacist))
-      .send({ entries: [{ lineId: opened.body.data.lines[0].id, unitId: para.units["Viên"]!, quantity: 95 }] })
+      .send({
+        entries: [
+          { lineId: opened.body.data.lines[0].id, unitId: para.units["Viên"]!, quantity: 95 },
+        ],
+      })
       .expect(200);
 
     const { results, waiters } = await coordinate(
@@ -458,8 +575,18 @@ describe("Kiểm kê và công nợ khi hai người cùng thao tác", () => {
   });
 
   it("lưu số đếm đồng thời với chốt đợt: số đếm không lọt vào sau khi đã chốt", async () => {
-    const para = await makeProduct(stage, { code: "TH0009", name: "Thuốc H", units: [["Viên", 1, 2000]] });
-    await makeBatch(stage, { product: para, batchNumber: "KK2", quantity: 100, unitCost: 1000, expiryInDays: 120 });
+    const para = await makeProduct(stage, {
+      code: "TH0009",
+      name: "Thuốc H",
+      units: [["Viên", 1, 2000]],
+    });
+    await makeBatch(stage, {
+      product: para,
+      batchNumber: "KK2",
+      quantity: 100,
+      unitCost: 1000,
+      expiryInDays: 120,
+    });
 
     const opened = await api()
       .post("/api/v1/stock-counts")
@@ -500,7 +627,11 @@ describe("Kiểm kê và công nợ khi hai người cùng thao tác", () => {
   });
 
   it("hai lần thanh toán cùng một khoản công nợ: không trả vượt", async () => {
-    const para = await makeProduct(stage, { code: "TH0010", name: "Thuốc I", units: [["Viên", 1, 2000]] });
+    const para = await makeProduct(stage, {
+      code: "TH0010",
+      name: "Thuốc I",
+      units: [["Viên", 1, 2000]],
+    });
     const receipt = await draftReceipt(stage, {
       lines: [
         {
@@ -539,7 +670,11 @@ describe("Kiểm kê và công nợ khi hai người cùng thao tác", () => {
   });
 
   it("thanh toán đồng thời với trả hàng trừ công nợ: tổng giảm nợ không vượt số nợ", async () => {
-    const para = await makeProduct(stage, { code: "TH0011", name: "Thuốc K", units: [["Viên", 1, 2000]] });
+    const para = await makeProduct(stage, {
+      code: "TH0011",
+      name: "Thuốc K",
+      units: [["Viên", 1, 2000]],
+    });
     const receipt = await draftReceipt(stage, {
       lines: [
         {
@@ -592,7 +727,8 @@ describe("Kiểm kê và công nợ khi hai người cùng thao tác", () => {
     // Nợ gốc 100.000. Trả tiền 100.000 và trừ nợ 40.000 không thể cùng ghi
     // nhận: tổng khoản giảm nợ không bao giờ vượt số đã nợ.
     const paid = Number(
-      (await prisma.supplierPaymentAllocation.aggregate({ _sum: { amount: true } }))._sum.amount ?? 0n,
+      (await prisma.supplierPaymentAllocation.aggregate({ _sum: { amount: true } }))._sum.amount ??
+        0n,
     );
     const credited = await prisma.supplierReturn.findFirstOrThrow({
       where: { id: supplierReturn.body.data.id },

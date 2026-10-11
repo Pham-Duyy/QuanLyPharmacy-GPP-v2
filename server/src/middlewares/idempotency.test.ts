@@ -2,7 +2,14 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { Prisma } from "../generated/prisma/client.js";
 import { prisma } from "../db/prisma.js";
-import { api, authHeaders, login, seedFixture, truncateAll, type Fixture } from "../test/helpers.js";
+import {
+  api,
+  authHeaders,
+  login,
+  seedFixture,
+  truncateAll,
+  type Fixture,
+} from "../test/helpers.js";
 import { idempotencyStore, markIdempotentResource } from "../lib/idempotency-context.js";
 import { idempotencyRequestHash, takeOverStaleKey } from "./idempotency.js";
 
@@ -20,7 +27,9 @@ let unitId: string;
 const h = (storeId?: string) => authHeaders(adminToken, storeId ?? fixture.storeId);
 
 function dayOffset(days: number): Date {
-  const vnToday = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Ho_Chi_Minh" }).format(new Date());
+  const vnToday = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Ho_Chi_Minh" }).format(
+    new Date(),
+  );
   const date = new Date(`${vnToday}T00:00:00.000Z`);
   date.setUTCDate(date.getUTCDate() + days);
   return date;
@@ -77,7 +86,12 @@ beforeEach(async () => {
   productId = product.id;
   unitId = product.units[0]!.id;
   await prisma.productPrice.create({
-    data: { productUnitId: unitId, salePrice: 2000n, vatRatePercent: 5, effectiveFrom: dayOffset(-1) },
+    data: {
+      productUnitId: unitId,
+      salePrice: 2000n,
+      vatRatePercent: 5,
+      effectiveFrom: dayOffset(-1),
+    },
   });
   await prisma.batch.create({
     data: {
@@ -297,18 +311,17 @@ describe("Khóa idempotency", () => {
   });
 
   it("thiếu header thì báo lỗi rõ ràng", async () => {
-    const missing = await api()
-      .post("/api/v1/invoices")
-      .set(h())
-      .send(saleBody())
-      .expect(400);
+    const missing = await api().post("/api/v1/invoices").set(h()).send(saleBody()).expect(400);
     expect(missing.body.error.code).toBe("IDEMPOTENCY_KEY_REQUIRED");
   });
 });
 
 describe("Gắn chứng từ vào khóa idempotency", () => {
   /** Chạy một nghiệp vụ giả trong transaction với ngữ cảnh khóa cho trước. */
-  const runBusiness = (context: { key: string; userId: string; ownerToken: string }, marker: string) =>
+  const runBusiness = (
+    context: { key: string; userId: string; ownerToken: string },
+    marker: string,
+  ) =>
     idempotencyStore.run(context, () =>
       prisma.$transaction(async (tx) => {
         const saved = await tx.customer.create({ data: { fullName: marker } });
@@ -354,13 +367,21 @@ describe("Gắn chứng từ vào khóa idempotency", () => {
     // Request mới tiếp quản khóa.
     const newOwner = await takeOverStaleKey(
       { id: stale.id, ownerToken: stale.ownerToken },
-      { storeId: fixture.storeId, method: "POST", path: "/api/v1/invoices", requestHash: saleHash() },
+      {
+        storeId: fixture.storeId,
+        method: "POST",
+        path: "/api/v1/invoices",
+        requestHash: saleHash(),
+      },
     );
     expect(newOwner).not.toBeNull();
 
     // Request cũ vẫn đang chạy và cố ghi tiếp.
     await expect(
-      runBusiness({ key, userId: fixture.adminId, ownerToken: stale.ownerToken }, "CHU_CU_GHI_TIEP"),
+      runBusiness(
+        { key, userId: fixture.adminId, ownerToken: stale.ownerToken },
+        "CHU_CU_GHI_TIEP",
+      ),
     ).rejects.toThrow();
 
     expect(await prisma.customer.count({ where: { fullName: "CHU_CU_GHI_TIEP" } })).toBe(0);

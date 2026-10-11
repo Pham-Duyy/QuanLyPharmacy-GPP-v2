@@ -1,6 +1,27 @@
-import { EditOutlined, FileSearchOutlined, PlusOutlined, PoweroffOutlined, TruckOutlined } from "@ant-design/icons";
+import {
+  EditOutlined,
+  FileSearchOutlined,
+  PlusOutlined,
+  PoweroffOutlined,
+  TruckOutlined,
+} from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { App, Button, Card, Col, Divider, Empty, Form, Input, Modal, Row, Segmented, Table, Tag, Typography } from "antd";
+import {
+  App,
+  Button,
+  Card,
+  Col,
+  Divider,
+  Empty,
+  Form,
+  Input,
+  Modal,
+  Row,
+  Segmented,
+  Table,
+  Tag,
+  Typography,
+} from "antd";
 import { useState } from "react";
 import { getErrorMessage, http } from "../../api/http.js";
 import { type Envelope, type Paged, type SupplierListItem } from "../../api/types.js";
@@ -28,7 +49,12 @@ export function SuppliersPage() {
     queryFn: async () =>
       (
         await http.get<Envelope<Paged<SupplierListItem>>>("/suppliers", {
-          params: { search: term || undefined, page, limit: 20, isActive: status === "inactive" ? "false" : undefined },
+          params: {
+            search: term || undefined,
+            page,
+            limit: 20,
+            isActive: status === "inactive" ? "false" : undefined,
+          },
         })
       ).data.data,
     placeholderData: (previous) => previous,
@@ -47,7 +73,10 @@ export function SuppliersPage() {
         title="Nhà cung cấp"
         extra={
           <>
-            <ExcelMenuButton onImport={can("catalog.manage") ? () => setImporting(true) : undefined} exportType="suppliers" />
+            <ExcelMenuButton
+              onImport={can("catalog.manage") ? () => setImporting(true) : undefined}
+              exportType="suppliers"
+            />
             {can("catalog.manage") ? (
               <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreating(true)}>
                 Thêm nhà cung cấp
@@ -56,7 +85,13 @@ export function SuppliersPage() {
           </>
         }
       />
-      <ExcelImportModal type="suppliers" title="Nhà cung cấp" open={importing} onClose={() => setImporting(false)} onDone={() => void refresh()} />
+      <ExcelImportModal
+        type="suppliers"
+        title="Nhà cung cấp"
+        open={importing}
+        onClose={() => setImporting(false)}
+        onDone={() => void refresh()}
+      />
       <div className="split-layout">
         <Card>
           <div className="toolbar">
@@ -89,7 +124,14 @@ export function SuppliersPage() {
             scroll={{ x: 600 }}
             onRow={(row) => ({ onClick: () => setOpenId(row.id), style: { cursor: "pointer" } })}
             rowClassName={(row) => (row.id === openId ? "row-selected" : "")}
-            locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Không có nhà cung cấp phù hợp" /> }}
+            locale={{
+              emptyText: (
+                <Empty
+                  image={Empty.PRESENTED_IMAGE_SIMPLE}
+                  description="Không có nhà cung cấp phù hợp"
+                />
+              ),
+            }}
             pagination={{
               current: page,
               pageSize: suppliers.data?.pagination.limit ?? 20,
@@ -108,8 +150,18 @@ export function SuppliersPage() {
                   </div>
                 ),
               },
-              { title: "Điện thoại", dataIndex: "phone", width: 140, render: (value: string | null) => <span className="mono">{value ?? "—"}</span> },
-              { title: "Mã số thuế", dataIndex: "taxCode", width: 140, render: (value: string | null) => <span className="mono">{value ?? "—"}</span> },
+              {
+                title: "Điện thoại",
+                dataIndex: "phone",
+                width: 140,
+                render: (value: string | null) => <span className="mono">{value ?? "—"}</span>,
+              },
+              {
+                title: "Mã số thuế",
+                dataIndex: "taxCode",
+                width: 140,
+                render: (value: string | null) => <span className="mono">{value ?? "—"}</span>,
+              },
             ]}
           />
         </Card>
@@ -130,26 +182,43 @@ export function SuppliersPage() {
   );
 }
 
-function SupplierPanel({ supplier, onSaved, onClose }: { supplier: SupplierListItem | null; onSaved: () => Promise<void>; onClose: () => void }) {
+function SupplierPanel({
+  supplier,
+  onSaved,
+  onClose,
+}: {
+  supplier: SupplierListItem | null;
+  onSaved: () => Promise<void>;
+  onClose: () => void;
+}) {
   const { can } = useAuth();
   const { message } = App.useApp();
   const [editing, setEditing] = useState(false);
   const queryClient = useQueryClient();
 
   const changeStatus = useMutation({
-    mutationFn: () => http.post(`/suppliers/${supplier!.id}/${supplier!.isActive ? "deactivate" : "activate"}`),
+    mutationFn: () =>
+      http.post(`/suppliers/${supplier!.id}/${supplier!.isActive ? "deactivate" : "activate"}`),
     onSuccess: async () => {
       void message.success("Đã cập nhật trạng thái nhà cung cấp");
-      await Promise.all([onSaved(), queryClient.invalidateQueries({ queryKey: ["receipt-suppliers"] })]);
+      await Promise.all([
+        onSaved(),
+        queryClient.invalidateQueries({ queryKey: ["receipt-suppliers"] }),
+      ]);
       onClose();
     },
-    onError: (error) => void message.error(getErrorMessage(error, "Không cập nhật được trạng thái")),
+    onError: (error) =>
+      void message.error(getErrorMessage(error, "Không cập nhật được trạng thái")),
   });
 
   if (!supplier) {
     return (
       <Card title="Chi tiết nhà cung cấp">
-        <PanelEmpty icon={<FileSearchOutlined />} title="Chưa chọn nhà cung cấp" description="Bấm vào một dòng để xem hồ sơ và thao tác." />
+        <PanelEmpty
+          icon={<FileSearchOutlined />}
+          title="Chưa chọn nhà cung cấp"
+          description="Bấm vào một dòng để xem hồ sơ và thao tác."
+        />
       </Card>
     );
   }
@@ -191,7 +260,12 @@ function SupplierPanel({ supplier, onSaved, onClose }: { supplier: SupplierListI
             <Button icon={<EditOutlined />} onClick={() => setEditing(true)}>
               Sửa
             </Button>
-            <Button danger={supplier.isActive} icon={<PoweroffOutlined />} loading={changeStatus.isPending} onClick={() => changeStatus.mutate()}>
+            <Button
+              danger={supplier.isActive}
+              icon={<PoweroffOutlined />}
+              loading={changeStatus.isPending}
+              onClick={() => changeStatus.mutate()}
+            >
               {supplier.isActive ? "Ngừng dùng" : "Kích hoạt lại"}
             </Button>
           </div>
@@ -210,8 +284,24 @@ function SupplierPanel({ supplier, onSaved, onClose }: { supplier: SupplierListI
   );
 }
 
-type SupplierForm = { name: string; phone?: string; taxCode?: string; licenseNumber?: string; address?: string };
-function SupplierFormModal({ open, supplier, onClose, onSaved }: { open: boolean; supplier: SupplierListItem | null; onClose: () => void; onSaved: () => Promise<void> }) {
+type SupplierForm = {
+  name: string;
+  phone?: string;
+  taxCode?: string;
+  licenseNumber?: string;
+  address?: string;
+};
+function SupplierFormModal({
+  open,
+  supplier,
+  onClose,
+  onSaved,
+}: {
+  open: boolean;
+  supplier: SupplierListItem | null;
+  onClose: () => void;
+  onSaved: () => Promise<void>;
+}) {
   const { message } = App.useApp();
   const [form] = Form.useForm<SupplierForm>();
   const save = useMutation({
@@ -223,7 +313,8 @@ function SupplierFormModal({ open, supplier, onClose, onSaved }: { open: boolean
         licenseNumber: values.licenseNumber?.trim() || null,
         address: values.address?.trim() || null,
       };
-      if (supplier) await http.patch(`/suppliers/${supplier.id}`, { ...body, version: supplier.version });
+      if (supplier)
+        await http.patch(`/suppliers/${supplier.id}`, { ...body, version: supplier.version });
       else await http.post("/suppliers", body);
     },
     onSuccess: async () => {
@@ -258,9 +349,15 @@ function SupplierFormModal({ open, supplier, onClose, onSaved }: { open: boolean
       }}
       destroyOnHidden
     >
-      <Typography.Paragraph type="secondary">Thông tin này được dùng để lập phiếu nhập và truy xuất nguồn gốc hàng hóa.</Typography.Paragraph>
+      <Typography.Paragraph type="secondary">
+        Thông tin này được dùng để lập phiếu nhập và truy xuất nguồn gốc hàng hóa.
+      </Typography.Paragraph>
       <Form form={form} layout="vertical" requiredMark="optional">
-        <Form.Item name="name" label="Tên nhà cung cấp" rules={[{ required: true, whitespace: true, message: "Nhập tên nhà cung cấp" }]}>
+        <Form.Item
+          name="name"
+          label="Tên nhà cung cấp"
+          rules={[{ required: true, whitespace: true, message: "Nhập tên nhà cung cấp" }]}
+        >
           <Input placeholder="Ví dụ: Công ty Dược Minh An" autoFocus />
         </Form.Item>
         <Divider titlePlacement="start" plain>

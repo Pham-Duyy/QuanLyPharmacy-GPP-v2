@@ -1,4 +1,13 @@
-import { FileTextOutlined, GiftOutlined, InboxOutlined, PrinterOutlined, RightOutlined, SettingOutlined, ShoppingCartOutlined, TeamOutlined } from "@ant-design/icons";
+import {
+  FileTextOutlined,
+  GiftOutlined,
+  InboxOutlined,
+  PrinterOutlined,
+  RightOutlined,
+  SettingOutlined,
+  ShoppingCartOutlined,
+  TeamOutlined,
+} from "@ant-design/icons";
 import { Breadcrumb, Card } from "antd";
 import type { ReactNode } from "react";
 import { useSearchParams } from "react-router";
@@ -45,9 +54,12 @@ const GROUPS: SettingGroup[] = [
       {
         key: "mau-in-phieu",
         label: "Mẫu in phiếu",
-        description: "Phiếu nhập kho, phiếu trả hàng, phiếu điều chỉnh tồn: tiêu đề, khổ giấy, chữ ký",
+        description:
+          "Phiếu nhập kho, phiếu trả hàng, phiếu điều chỉnh tồn: tiêu đề, khổ giấy, chữ ký",
         icon: <PrinterOutlined />,
-        render: (open) => <DocumentTemplateSettings onOpenInvoiceTemplate={() => open("mau-in-hoa-don")} />,
+        render: (open) => (
+          <DocumentTemplateSettings onOpenInvoiceTemplate={() => open("mau-in-hoa-don")} />
+        ),
       },
     ],
   },
@@ -94,7 +106,11 @@ export function SettingsPage() {
                     <li key={section.key}>
                       <button
                         type="button"
-                        className={section.key === active.section.key ? "settings-nav-item active" : "settings-nav-item"}
+                        className={
+                          section.key === active.section.key
+                            ? "settings-nav-item active"
+                            : "settings-nav-item"
+                        }
                         aria-current={section.key === active.section.key ? "page" : undefined}
                         onClick={() => open(section.key)}
                       >
@@ -115,7 +131,11 @@ export function SettingsPage() {
         <section className="settings-content" aria-label={active.section.label}>
           <Breadcrumb
             className="settings-breadcrumb"
-            items={[{ title: "Cài đặt" }, { title: active.group.label }, { title: active.section.label }]}
+            items={[
+              { title: "Cài đặt" },
+              { title: active.group.label },
+              { title: active.section.label },
+            ]}
           />
           {active.section.render(open)}
         </section>

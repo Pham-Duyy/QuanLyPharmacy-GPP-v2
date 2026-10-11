@@ -23,7 +23,9 @@ const prisma = new PrismaClient({
 const DEMO_PASSWORD = "Demo@12345";
 
 function dayOffset(days: number): Date {
-  const vnToday = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Ho_Chi_Minh" }).format(new Date());
+  const vnToday = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Ho_Chi_Minh" }).format(
+    new Date(),
+  );
   const date = new Date(`${vnToday}T00:00:00.000Z`);
   date.setUTCDate(date.getUTCDate() + days);
   return date;
@@ -65,7 +67,9 @@ async function ensureBatchWithLedger(
 
   const now = new Date();
   const prefix = `PN-${(await prisma.store.findUniqueOrThrow({ where: { id: storeId } })).code}-${new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Ho_Chi_Minh" }).format(now).replace(/-/g, "")}-`;
-  const countToday = await prisma.goodsReceipt.count({ where: { storeId, code: { startsWith: prefix } } });
+  const countToday = await prisma.goodsReceipt.count({
+    where: { storeId, code: { startsWith: prefix } },
+  });
   const quantity = existing ? missing : item.baseQuantity;
   const lineCost = BigInt(item.unitCost) * BigInt(quantity);
 
@@ -233,7 +237,11 @@ async function main(): Promise<void> {
 
   // 4. Khách hàng đã có điểm, chương trình tích điểm đang bật --------------
   await prisma.setting.upsert({
-    where: { id: (await prisma.setting.findFirst({ where: { key: "loyaltySettings", storeId: store.id } }))?.id ?? "00000000-0000-0000-0000-000000000000" },
+    where: {
+      id:
+        (await prisma.setting.findFirst({ where: { key: "loyaltySettings", storeId: store.id } }))
+          ?.id ?? "00000000-0000-0000-0000-000000000000",
+    },
     update: {},
     create: {
       key: "loyaltySettings",
@@ -257,7 +265,9 @@ async function main(): Promise<void> {
     (await prisma.customer.create({
       data: { fullName: "Chị Lan (demo)", phone: "0901234567", address: "12 Lê Lợi, Q.1" },
     }));
-  const hasPoints = await prisma.loyaltyTransaction.findFirst({ where: { customerId: demoCustomer.id } });
+  const hasPoints = await prisma.loyaltyTransaction.findFirst({
+    where: { customerId: demoCustomer.id },
+  });
   if (!hasPoints) {
     await prisma.loyaltyTransaction.create({
       data: {
@@ -313,13 +323,17 @@ async function main(): Promise<void> {
 
   // 6. Phiếu nhập còn nháp để kiểm nhập ngay trong buổi demo ----------------
   const supplier = await prisma.supplier.findFirstOrThrow({ orderBy: { createdAt: "asc" } });
-  const draft = await prisma.goodsReceipt.findFirst({ where: { supplierInvoiceNumber: "DEMO-0001" } });
+  const draft = await prisma.goodsReceipt.findFirst({
+    where: { supplierInvoiceNumber: "DEMO-0001" },
+  });
   if (!draft) {
     const day = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Ho_Chi_Minh" })
       .format(new Date())
       .replace(/-/g, "");
     const prefix = `PN-${store.code}-${day}-`;
-    const countToday = await prisma.goodsReceipt.count({ where: { storeId: store.id, code: { startsWith: prefix } } });
+    const countToday = await prisma.goodsReceipt.count({
+      where: { storeId: store.id, code: { startsWith: prefix } },
+    });
     const goodsAmount = 20n * 70_000n;
     await prisma.goodsReceipt.create({
       data: {
@@ -340,9 +354,12 @@ async function main(): Promise<void> {
             {
               lineNo: 1,
               productId: para.id,
-              productUnitId: para.units.find((unit) => unit.conversionToBase === 100)?.id ?? paraBase.id,
+              productUnitId:
+                para.units.find((unit) => unit.conversionToBase === 100)?.id ?? paraBase.id,
               quantity: 20,
-              baseQuantity: 20 * (para.units.find((unit) => unit.conversionToBase === 100)?.conversionToBase ?? 1),
+              baseQuantity:
+                20 *
+                (para.units.find((unit) => unit.conversionToBase === 100)?.conversionToBase ?? 1),
               unitCost: 70_000n,
               lineCost: goodsAmount,
               batchNumber: "DEMO-NHAP",

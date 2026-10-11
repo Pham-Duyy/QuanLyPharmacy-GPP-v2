@@ -18,7 +18,10 @@ export const PRODUCT_TYPE: Record<string, { text: string; tone: string }> = {
 const vnd = new Intl.NumberFormat("vi-VN");
 
 /** "1.500 đ / viên". Giá 0 là giá hợp lệ; chưa có giá thì trả `null` để hiển thị "Chưa đặt giá". */
-export function priceText(salePrice: number | null | undefined, unitName: string | null | undefined): string | null {
+export function priceText(
+  salePrice: number | null | undefined,
+  unitName: string | null | undefined,
+): string | null {
   if (salePrice === null || salePrice === undefined) return null;
   return `${vnd.format(salePrice)} đ${unitName ? ` / ${unitName.toLowerCase()}` : ""}`;
 }
@@ -28,7 +31,9 @@ export function stockText(quantity: number, unitName: string | null | undefined)
 }
 
 /** Dòng phụ dưới tên: mã · nhóm hàng (hoặc hoạt chất nếu có). */
-export function subtitle(item: Pick<ProductListItem, "code" | "categoryName" | "ingredients">): string {
+export function subtitle(
+  item: Pick<ProductListItem, "code" | "categoryName" | "ingredients">,
+): string {
   const ingredients = item.ingredients
     .map((ingredient) => [ingredient.name, ingredient.strengthText].filter(Boolean).join(" "))
     .join(", ");

@@ -18,7 +18,11 @@ async function nextCountCode(tx: Tx, storeId: string, storeCode: string): Promis
  * Mở đợt kiểm kê: chụp danh sách lô đang có tồn trong phạm vi đã chọn.
  * Lô biệt trữ vẫn phải đếm vì hàng vẫn nằm trên kệ, chỉ là chưa bán được.
  */
-export async function openCount(storeId: string, userId: string, input: OpenCountInput): Promise<string> {
+export async function openCount(
+  storeId: string,
+  userId: string,
+  input: OpenCountInput,
+): Promise<string> {
   const store = await prisma.store.findUniqueOrThrow({ where: { id: storeId } });
 
   let scopeLabel: string | null = null;
@@ -35,7 +39,9 @@ export async function openCount(storeId: string, userId: string, input: OpenCoun
       storeId,
       quantityOnHand: { gt: 0 },
       ...(input.scopeType === "CATEGORY" ? { product: { categoryId: input.scopeValue! } } : {}),
-      ...(input.scopeType === "SHELF" ? { shelfLocation: { equals: input.scopeValue!, mode: "insensitive" } } : {}),
+      ...(input.scopeType === "SHELF"
+        ? { shelfLocation: { equals: input.scopeValue!, mode: "insensitive" } }
+        : {}),
     },
     include: { product: { select: { name: true } } },
     orderBy: [{ shelfLocation: "asc" }, { expiryDate: "asc" }],
@@ -59,7 +65,9 @@ export async function openCount(storeId: string, userId: string, input: OpenCoun
       // chặn cuối nếu hai người bấm mở cùng lúc.
       const open = await tx.stockCount.findFirst({ where: { storeId, status: "COUNTING" } });
       if (open) {
-        throw AppError.invalidState(`Đang có đợt kiểm kê ${open.code} chưa chốt. Chốt hoặc hủy đợt đó trước khi mở đợt mới.`);
+        throw AppError.invalidState(
+          `Đang có đợt kiểm kê ${open.code} chưa chốt. Chốt hoặc hủy đợt đó trước khi mở đợt mới.`,
+        );
       }
 
       const count = await tx.stockCount.create({
@@ -99,7 +107,10 @@ async function requireOpenCountTx(tx: Tx, storeId: string, countId: string) {
   await lockStockCount(tx, storeId, countId);
   const count = await tx.stockCount.findFirst({ where: { id: countId, storeId } });
   if (!count) throw AppError.notFound("Không tìm thấy đợt kiểm kê");
-  if (count.status !== "COUNTING") throw AppError.invalidState(`Đợt kiểm kê đã ${count.status === "CLOSED" ? "chốt" : "hủy"}, không sửa được nữa`);
+  if (count.status !== "COUNTING")
+    throw AppError.invalidState(
+      `Đợt kiểm kê đã ${count.status === "CLOSED" ? "chốt" : "hủy"}, không sửa được nữa`,
+    );
   return count;
 }
 
@@ -110,10 +121,16 @@ export async function addLine(storeId: string, countId: string, batchId: string)
     const batch = await tx.batch.findFirst({ where: { id: batchId, storeId } });
     if (!batch) throw AppError.notFound("Không tìm thấy lô trong kho cửa hàng này");
 
-    const existing = await tx.stockCountLine.findFirst({ where: { stockCountId: countId, batchId } });
+    const existing = await tx.stockCountLine.findFirst({
+      where: { stockCountId: countId, batchId },
+    });
     if (existing) return existing.id;
 
-    const last = await tx.stockCountLine.findFirst({ where: { stockCountId: countId }, orderBy: { lineNo: "desc" }, select: { lineNo: true } });
+    const last = await tx.stockCountLine.findFirst({
+      where: { stockCountId: countId },
+      orderBy: { lineNo: "desc" },
+      select: { lineNo: true },
+    });
     const line = await tx.stockCountLine.create({
       data: {
         stockCountId: countId,
@@ -135,7 +152,12 @@ export type SaveResult = { saved: number; cleared: number };
  * số đếm**, không phải lúc mở đợt: hàng bán ra sau khi đếm xong một mặt
  * hàng không bị tính thành thất thoát.
  */
-export async function saveCounts(storeId: string, countId: string, userId: string, input: SaveCountsInput): Promise<SaveResult> {
+export async function saveCounts(
+  storeId: string,
+  countId: string,
+  userId: string,
+  input: SaveCountsInput,
+): Promise<SaveResult> {
   const lineIds = input.entries.map((entry) => entry.lineId);
   const lines = await prisma.stockCountLine.findMany({
     where: { id: { in: lineIds }, stockCountId: countId },
@@ -143,7 +165,11 @@ export async function saveCounts(storeId: string, countId: string, userId: strin
   });
   const byId = new Map(lines.map((line) => [line.id, line]));
 
-  const unitIds = [...new Set(input.entries.map((entry) => entry.unitId).filter((value): value is string => Boolean(value)))];
+  const unitIds = [
+    ...new Set(
+      input.entries.map((entry) => entry.unitId).filter((value): value is string => Boolean(value)),
+    ),
+  ];
   const units = await prisma.productUnit.findMany({ where: { id: { in: unitIds } } });
   const unitById = new Map(units.map((unit) => [unit.id, unit]));
 
@@ -184,7 +210,9 @@ export async function saveCounts(storeId: string, countId: string, userId: strin
         const sensoryFailed = entry.sensoryFailed ?? line.sensoryFailed;
         const note = entry.note === undefined ? line.note : (entry.note ?? null);
         if (sensoryFailed && !note) {
-          throw AppError.validation("Cảm quan không đạt thì ghi lý do vào ghi chú (ví dụ: vỉ bị ẩm, viên đổi màu)");
+          throw AppError.validation(
+            "Cảm quan không đạt thì ghi lý do vào ghi chú (ví dụ: vỉ bị ẩm, viên đổi màu)",
+          );
         }
         const unit = entry.unitId ? unitById.get(entry.unitId) : undefined;
         if (!unit) throw AppError.validation("Thiếu đơn vị đếm");
@@ -193,7 +221,10 @@ export async function saveCounts(storeId: string, countId: string, userId: strin
         }
 
         // Đọc lại tồn ngay lúc ghi, không dùng số đã đọc ở đầu hàm.
-        const batch = await tx.batch.findUniqueOrThrow({ where: { id: line.batchId }, select: { quantityOnHand: true } });
+        const batch = await tx.batch.findUniqueOrThrow({
+          where: { id: line.batchId },
+          select: { quantityOnHand: true },
+        });
         await tx.stockCountLine.update({
           where: { id: line.id },
           data: {
@@ -223,7 +254,12 @@ export type CloseResult = { countId: string; adjustmentId: string | null; differ
  * `DRAFT` để người khác duyệt (P4 — người duyệt khác người lập). Dòng chưa
  * đếm **không** bị coi là đếm được 0; chúng chỉ đơn giản không vào phiếu.
  */
-export async function closeCount(storeId: string, countId: string, auth: AuthContext, note: string | null): Promise<CloseResult> {
+export async function closeCount(
+  storeId: string,
+  countId: string,
+  auth: AuthContext,
+  note: string | null,
+): Promise<CloseResult> {
   const store = await prisma.store.findUniqueOrThrow({ where: { id: storeId } });
 
   return prisma.$transaction(
@@ -235,13 +271,20 @@ export async function closeCount(storeId: string, countId: string, auth: AuthCon
         include: { batch: { select: { productId: true } } },
         orderBy: { lineNo: "asc" },
       });
-      if (lines.length === 0) throw AppError.validation("Chưa đếm dòng nào, không chốt được đợt kiểm kê");
+      if (lines.length === 0)
+        throw AppError.validation("Chưa đếm dòng nào, không chốt được đợt kiểm kê");
 
-      const differences = lines.filter((line) => line.countedBaseQuantity !== line.systemBaseQuantityAtCount);
+      const differences = lines.filter(
+        (line) => line.countedBaseQuantity !== line.systemBaseQuantityAtCount,
+      );
       let adjustmentId: string | null = null;
 
       if (differences.length > 0) {
-        const adjustmentCode = await nextDocumentCode(tx, storeId, `DC-${store.code}-${codeDay()}-`);
+        const adjustmentCode = await nextDocumentCode(
+          tx,
+          storeId,
+          `DC-${store.code}-${codeDay()}-`,
+        );
 
         const adjustment = await tx.stockAdjustment.create({
           data: {
@@ -279,7 +322,8 @@ export async function closeCount(storeId: string, countId: string, auth: AuthCon
           version: { increment: 1 },
         },
       });
-      if (moved.count === 0) throw AppError.invalidState("Đợt kiểm kê vừa được chốt hoặc hủy bởi người khác");
+      if (moved.count === 0)
+        throw AppError.invalidState("Đợt kiểm kê vừa được chốt hoặc hủy bởi người khác");
 
       await tx.auditLog.create({
         data: {
@@ -288,7 +332,12 @@ export async function closeCount(storeId: string, countId: string, auth: AuthCon
           action: "STOCK_COUNT_CLOSE",
           resourceType: "stock_count",
           resourceId: countId,
-          after: { code: count.code, countedLines: lines.length, differenceLines: differences.length, adjustmentId },
+          after: {
+            code: count.code,
+            countedLines: lines.length,
+            differenceLines: differences.length,
+            adjustmentId,
+          },
         },
       });
 
@@ -298,14 +347,26 @@ export async function closeCount(storeId: string, countId: string, auth: AuthCon
   );
 }
 
-export async function cancelCount(storeId: string, countId: string, auth: AuthContext, reason: string | null): Promise<void> {
+export async function cancelCount(
+  storeId: string,
+  countId: string,
+  auth: AuthContext,
+  reason: string | null,
+): Promise<void> {
   await prisma.$transaction(async (tx) => {
     const count = await requireOpenCountTx(tx, storeId, countId);
     const moved = await tx.stockCount.updateMany({
       where: { id: countId, storeId, status: "COUNTING" },
-      data: { status: "CANCELLED", closedBy: auth.userId, closedAt: new Date(), note: reason ?? count.note, version: { increment: 1 } },
+      data: {
+        status: "CANCELLED",
+        closedBy: auth.userId,
+        closedAt: new Date(),
+        note: reason ?? count.note,
+        version: { increment: 1 },
+      },
     });
-    if (moved.count === 0) throw AppError.invalidState("Đợt kiểm kê vừa được chốt hoặc hủy bởi người khác");
+    if (moved.count === 0)
+      throw AppError.invalidState("Đợt kiểm kê vừa được chốt hoặc hủy bởi người khác");
     await tx.auditLog.create({
       data: {
         storeId,
@@ -360,12 +421,26 @@ export async function getDetail(storeId: string, countId: string, auth: AuthCont
         orderBy: { lineNo: "asc" },
         include: {
           countedByUser: { select: { fullName: true } },
-          batch: { select: { batchNumber: true, expiryDate: true, quantityOnHand: true, unitCost: true, shelfLocation: true, status: true, version: true } },
+          batch: {
+            select: {
+              batchNumber: true,
+              expiryDate: true,
+              quantityOnHand: true,
+              unitCost: true,
+              shelfLocation: true,
+              status: true,
+              version: true,
+            },
+          },
           product: {
             select: {
               code: true,
               name: true,
-              units: { where: { isActive: true }, select: { id: true, name: true, conversionToBase: true }, orderBy: { conversionToBase: "asc" } },
+              units: {
+                where: { isActive: true },
+                select: { id: true, name: true, conversionToBase: true },
+                orderBy: { conversionToBase: "asc" },
+              },
             },
           },
         },
@@ -376,7 +451,10 @@ export async function getDetail(storeId: string, countId: string, auth: AuthCont
 
   const showCost = auth.can("stock.cost.read");
   const lines: CountLineView[] = count.lines.map((line) => {
-    const difference = line.countedBaseQuantity === null || line.systemBaseQuantityAtCount === null ? null : line.countedBaseQuantity - line.systemBaseQuantityAtCount;
+    const difference =
+      line.countedBaseQuantity === null || line.systemBaseQuantityAtCount === null
+        ? null
+        : line.countedBaseQuantity - line.systemBaseQuantityAtCount;
     const unitCost = line.batch.unitCost === null ? null : Number(line.batch.unitCost);
     return {
       id: line.id,
@@ -399,7 +477,10 @@ export async function getDetail(storeId: string, countId: string, auth: AuthCont
       countedAt: line.countedAt,
       countedByName: line.countedByUser?.fullName ?? null,
       differenceBaseQuantity: difference,
-      differenceValue: showCost && difference !== null && unitCost !== null ? Math.round(difference * unitCost) : null,
+      differenceValue:
+        showCost && difference !== null && unitCost !== null
+          ? Math.round(difference * unitCost)
+          : null,
       note: line.note,
       sensoryFailed: line.sensoryFailed,
       batchStatus: line.batch.status,
@@ -454,8 +535,13 @@ function summarize(lines: CountLineView[], showCost: boolean) {
     surplusLines: surplus.length,
     shortageLines: shortage.length,
     surplusBaseQuantity: surplus.reduce((sum, line) => sum + line.differenceBaseQuantity!, 0),
-    shortageBaseQuantity: shortage.reduce((sum, line) => sum + Math.abs(line.differenceBaseQuantity!), 0),
-    differenceValue: showCost ? differences.reduce((sum, line) => sum + (line.differenceValue ?? 0), 0) : null,
+    shortageBaseQuantity: shortage.reduce(
+      (sum, line) => sum + Math.abs(line.differenceBaseQuantity!),
+      0,
+    ),
+    differenceValue: showCost
+      ? differences.reduce((sum, line) => sum + (line.differenceValue ?? 0), 0)
+      : null,
   };
 }
 
@@ -479,13 +565,18 @@ export async function list(storeId: string, query: { status?: string }) {
       ...toHeader(count),
       totalLines: count._count.lines,
       countedLines: counted.length,
-      differenceLines: counted.filter((line) => line.countedBaseQuantity !== line.systemBaseQuantityAtCount).length,
+      differenceLines: counted.filter(
+        (line) => line.countedBaseQuantity !== line.systemBaseQuantityAtCount,
+      ).length,
     };
   });
 }
 
 /** Đợt đang đếm của cửa hàng, để giao diện mở thẳng vào việc đang dở. */
 export async function getOpen(storeId: string) {
-  const open = await prisma.stockCount.findFirst({ where: { storeId, status: "COUNTING" }, select: { id: true, code: true } });
+  const open = await prisma.stockCount.findFirst({
+    where: { storeId, status: "COUNTING" },
+    select: { id: true, code: true },
+  });
   return open ?? null;
 }

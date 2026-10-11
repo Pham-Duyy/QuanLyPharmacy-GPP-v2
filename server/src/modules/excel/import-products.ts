@@ -1,6 +1,14 @@
 import { prisma } from "../../db/prisma.js";
 import { getCurrentPrices } from "../catalog/products.service.js";
-import { COMMIT_TIMEOUT_MS, RowReader, fold, headerMap, type ImportDefinition, type ImportIssue, type PlannedRow } from "./import-kit.js";
+import {
+  COMMIT_TIMEOUT_MS,
+  RowReader,
+  fold,
+  headerMap,
+  type ImportDefinition,
+  type ImportIssue,
+  type PlannedRow,
+} from "./import-kit.js";
 import { asChoice, asInt, asNumber, asText, type ColumnDef } from "./workbook.js";
 
 const PRODUCT_TYPE_CHOICES = {
@@ -28,18 +36,50 @@ const DRUG_CLASS_CHOICES = {
   "Kiểm soát đặc biệt": "CONTROLLED",
 } as const;
 
-export const DRUG_CLASS_LABEL: Record<string, string> = { RX: "Kê đơn", OTC: "Không kê đơn", CONTROLLED: "Kiểm soát đặc biệt" };
+export const DRUG_CLASS_LABEL: Record<string, string> = {
+  RX: "Kê đơn",
+  OTC: "Không kê đơn",
+  CONTROLLED: "Kiểm soát đặc biệt",
+};
 
 const STATUS_CHOICES = { "Đang kinh doanh": true, "Ngừng kinh doanh": false } as const;
 
 /** Cột dùng chung cho mẫu nhập và file xuất: xuất ra, sửa trong Excel, nhập lại được ngay. */
 export const PRODUCT_COLUMNS: ColumnDef[] = [
-  { key: "code", header: "Mã sản phẩm", required: true, width: 14, note: "Mã duy nhất. Mã đã có thì cập nhật, mã mới thì tạo sản phẩm mới." },
+  {
+    key: "code",
+    header: "Mã sản phẩm",
+    required: true,
+    width: 14,
+    note: "Mã duy nhất. Mã đã có thì cập nhật, mã mới thì tạo sản phẩm mới.",
+  },
   { key: "name", header: "Tên sản phẩm", required: true, width: 38 },
-  { key: "productType", header: "Loại hàng", required: true, width: 14, note: "Thuốc, TPCN, Thiết bị y tế, Mỹ phẩm, Khác. Không đổi được loại hàng của sản phẩm đã có." },
-  { key: "drugClass", header: "Phân loại thuốc", width: 18, note: "Bắt buộc với Thuốc: Kê đơn, Không kê đơn, Kiểm soát đặc biệt. Để trống với hàng không phải thuốc." },
-  { key: "category", header: "Nhóm hàng", required: true, width: 22, note: "Tên nhóm hàng. Chưa có thì hệ thống tạo mới." },
-  { key: "ingredients", header: "Hoạt chất", width: 26, note: "Nhiều hoạt chất cách nhau bằng dấu chấm phẩy (;). Cần để kiểm tra trùng hoạt chất và dị ứng khi bán." },
+  {
+    key: "productType",
+    header: "Loại hàng",
+    required: true,
+    width: 14,
+    note: "Thuốc, TPCN, Thiết bị y tế, Mỹ phẩm, Khác. Không đổi được loại hàng của sản phẩm đã có.",
+  },
+  {
+    key: "drugClass",
+    header: "Phân loại thuốc",
+    width: 18,
+    note: "Bắt buộc với Thuốc: Kê đơn, Không kê đơn, Kiểm soát đặc biệt. Để trống với hàng không phải thuốc.",
+  },
+  {
+    key: "category",
+    header: "Nhóm hàng",
+    required: true,
+    width: 22,
+    note: "Tên nhóm hàng. Chưa có thì hệ thống tạo mới.",
+  },
+  {
+    key: "ingredients",
+    header: "Hoạt chất",
+    width: 26,
+    note: "Nhiều hoạt chất cách nhau bằng dấu chấm phẩy (;). Cần để kiểm tra trùng hoạt chất và dị ứng khi bán.",
+  },
   { key: "strengthText", header: "Hàm lượng", width: 14 },
   { key: "dosageForm", header: "Dạng bào chế", width: 18 },
   { key: "packagingText", header: "Quy cách đóng gói", width: 22 },
@@ -47,16 +87,51 @@ export const PRODUCT_COLUMNS: ColumnDef[] = [
   { key: "manufacturer", header: "Nhà sản xuất", width: 22 },
   { key: "countryOfOrigin", header: "Nước sản xuất", width: 14 },
   { key: "storageCondition", header: "Điều kiện bảo quản", width: 24 },
-  { key: "minStock", header: "Tồn tối thiểu", kind: "int", width: 12, note: "Tính theo đơn vị cơ bản. Dùng để cảnh báo tồn thấp." },
-  { key: "baseUnit", header: "Đơn vị cơ bản", required: true, width: 14, note: "Đơn vị nhỏ nhất (Viên, Gói, Chai…). Không đổi được với sản phẩm đã có." },
-  { key: "basePrice", header: "Giá bán đơn vị cơ bản", kind: "money", width: 18, note: "Để trống nếu không đổi giá. Giá mới được lưu thành phiên bản giá mới." },
+  {
+    key: "minStock",
+    header: "Tồn tối thiểu",
+    kind: "int",
+    width: 12,
+    note: "Tính theo đơn vị cơ bản. Dùng để cảnh báo tồn thấp.",
+  },
+  {
+    key: "baseUnit",
+    header: "Đơn vị cơ bản",
+    required: true,
+    width: 14,
+    note: "Đơn vị nhỏ nhất (Viên, Gói, Chai…). Không đổi được với sản phẩm đã có.",
+  },
+  {
+    key: "basePrice",
+    header: "Giá bán đơn vị cơ bản",
+    kind: "money",
+    width: 18,
+    note: "Để trống nếu không đổi giá. Giá mới được lưu thành phiên bản giá mới.",
+  },
   { key: "baseBarcode", header: "Mã vạch đơn vị cơ bản", width: 18 },
   { key: "largeUnit", header: "Đơn vị lớn", width: 12, note: "Tùy chọn: Hộp, Vỉ, Lọ…" },
-  { key: "largeConversion", header: "Quy đổi đơn vị lớn", kind: "int", width: 14, note: "1 đơn vị lớn = bao nhiêu đơn vị cơ bản. Không sửa được quy đổi của đơn vị đã có." },
+  {
+    key: "largeConversion",
+    header: "Quy đổi đơn vị lớn",
+    kind: "int",
+    width: 14,
+    note: "1 đơn vị lớn = bao nhiêu đơn vị cơ bản. Không sửa được quy đổi của đơn vị đã có.",
+  },
   { key: "largePrice", header: "Giá bán đơn vị lớn", kind: "money", width: 16 },
   { key: "largeBarcode", header: "Mã vạch đơn vị lớn", width: 18 },
-  { key: "vat", header: "VAT (%)", kind: "percent", width: 9, note: "Thuế suất áp cho giá mới. Để trống: giữ thuế suất hiện tại (sản phẩm mới là 0)." },
-  { key: "status", header: "Trạng thái", width: 16, note: "Đang kinh doanh hoặc Ngừng kinh doanh. Để trống: giữ nguyên." },
+  {
+    key: "vat",
+    header: "VAT (%)",
+    kind: "percent",
+    width: 9,
+    note: "Thuế suất áp cho giá mới. Để trống: giữ thuế suất hiện tại (sản phẩm mới là 0).",
+  },
+  {
+    key: "status",
+    header: "Trạng thái",
+    width: 16,
+    note: "Đang kinh doanh hoặc Ngừng kinh doanh. Để trống: giữ nguyên.",
+  },
 ];
 
 type UnitPlan = { name: string; conversion: number; price: number | null; barcode: string | null };
@@ -149,15 +224,28 @@ export const productsImport: ImportDefinition<ProductRowData> = {
     const canPrice = ctx.auth.can("price.manage");
     // Giá hiện hành để người không có quyền giá vẫn nhập lại được tệp đã xuất
     // (giá giữ nguyên thì bỏ qua, chỉ báo lỗi khi thật sự đổi giá).
-    const currentPrices = canPrice ? new Map() : await getCurrentPrices(existing.flatMap((product) => product.units.map((unit) => unit.id)), null);
+    const currentPrices = canPrice
+      ? new Map()
+      : await getCurrentPrices(
+          existing.flatMap((product) => product.units.map((unit) => unit.id)),
+          null,
+        );
 
     // Mã vạch trong CSDL để phát hiện trùng với đơn vị khác.
-    const barcodesInFile = rows.flatMap((row) => [row.values["baseBarcode"], row.values["largeBarcode"]]).filter(Boolean).map(String);
+    const barcodesInFile = rows
+      .flatMap((row) => [row.values["baseBarcode"], row.values["largeBarcode"]])
+      .filter(Boolean)
+      .map(String);
     const barcodeOwners = await prisma.productBarcode.findMany({
       where: { barcode: { in: barcodesInFile } },
       include: { productUnit: { select: { name: true, product: { select: { code: true } } } } },
     });
-    const ownerOf = new Map(barcodeOwners.map((row) => [row.barcode, `${row.productUnit.product.code}/${row.productUnit.name}`]));
+    const ownerOf = new Map(
+      barcodeOwners.map((row) => [
+        row.barcode,
+        `${row.productUnit.product.code}/${row.productUnit.name}`,
+      ]),
+    );
 
     const seenCodes = new Map<string, number>();
     const seenBarcodes = new Map<string, number>();
@@ -169,10 +257,16 @@ export const productsImport: ImportDefinition<ProductRowData> = {
       const v = raw.values;
       const code = r.read("code", () => asText(v["code"], 50, "Mã sản phẩm"));
       const name = r.read("name", () => asText(v["name"], 300, "Tên sản phẩm"));
-      const productType = r.read("productType", () => asChoice(v["productType"], "Loại hàng", PRODUCT_TYPE_CHOICES));
-      const drugClass = r.read("drugClass", () => asChoice(v["drugClass"], "Phân loại thuốc", DRUG_CLASS_CHOICES));
+      const productType = r.read("productType", () =>
+        asChoice(v["productType"], "Loại hàng", PRODUCT_TYPE_CHOICES),
+      );
+      const drugClass = r.read("drugClass", () =>
+        asChoice(v["drugClass"], "Phân loại thuốc", DRUG_CLASS_CHOICES),
+      );
       const category = r.read("category", () => asText(v["category"], 200, "Nhóm hàng"));
-      const ingredientList = r.read("ingredients", () => splitList(asText(v["ingredients"], 1000, "Hoạt chất")));
+      const ingredientList = r.read("ingredients", () =>
+        splitList(asText(v["ingredients"], 1000, "Hoạt chất")),
+      );
       const fields: Record<string, string | null> = {};
       for (const [key, label, max] of [
         ["strengthText", "Hàm lượng", 100],
@@ -187,11 +281,17 @@ export const productsImport: ImportDefinition<ProductRowData> = {
       }
       const minStock = r.read("minStock", () => asInt(v["minStock"], "Tồn tối thiểu", { min: 0 }));
       const baseUnit = r.read("baseUnit", () => asText(v["baseUnit"], 50, "Đơn vị cơ bản"));
-      let basePrice = r.read("basePrice", () => asInt(v["basePrice"], "Giá bán đơn vị cơ bản", { min: 0 }));
+      let basePrice = r.read("basePrice", () =>
+        asInt(v["basePrice"], "Giá bán đơn vị cơ bản", { min: 0 }),
+      );
       const baseBarcode = r.read("baseBarcode", () => asText(v["baseBarcode"], 50, "Mã vạch"));
       const largeUnit = r.read("largeUnit", () => asText(v["largeUnit"], 50, "Đơn vị lớn"));
-      const largeConversion = r.read("largeConversion", () => asInt(v["largeConversion"], "Quy đổi đơn vị lớn", { min: 2 }));
-      let largePrice = r.read("largePrice", () => asInt(v["largePrice"], "Giá bán đơn vị lớn", { min: 0 }));
+      const largeConversion = r.read("largeConversion", () =>
+        asInt(v["largeConversion"], "Quy đổi đơn vị lớn", { min: 2 }),
+      );
+      let largePrice = r.read("largePrice", () =>
+        asInt(v["largePrice"], "Giá bán đơn vị lớn", { min: 0 }),
+      );
       const largeBarcode = r.read("largeBarcode", () => asText(v["largeBarcode"], 50, "Mã vạch"));
       const vat = r.read("vat", () => asNumber(v["vat"], "VAT", { min: 0, max: 100 }));
       const status = r.read("status", () => asChoice(v["status"], "Trạng thái", STATUS_CHOICES));
@@ -202,12 +302,20 @@ export const productsImport: ImportDefinition<ProductRowData> = {
       r.require("category", category);
       r.require("baseUnit", baseUnit);
 
-      if (productType === "DRUG" && !drugClass) r.fail("drugClass", "Thuốc bắt buộc có phân loại kê đơn");
-      if (productType && productType !== "DRUG" && drugClass) r.fail("drugClass", "Hàng không phải thuốc thì để trống phân loại thuốc");
-      if (largeUnit && !largeConversion) r.fail("largeConversion", "Có đơn vị lớn thì phải có quy đổi");
-      if (!largeUnit && (largeConversion || largePrice !== null || largeBarcode)) r.fail("largeUnit", "Thiếu tên đơn vị lớn");
-      if (largeUnit && baseUnit && fold(largeUnit) === fold(baseUnit)) r.fail("largeUnit", "Đơn vị lớn trùng tên đơn vị cơ bản");
-      for (const [key, barcode] of [["baseBarcode", baseBarcode], ["largeBarcode", largeBarcode]] as const) {
+      if (productType === "DRUG" && !drugClass)
+        r.fail("drugClass", "Thuốc bắt buộc có phân loại kê đơn");
+      if (productType && productType !== "DRUG" && drugClass)
+        r.fail("drugClass", "Hàng không phải thuốc thì để trống phân loại thuốc");
+      if (largeUnit && !largeConversion)
+        r.fail("largeConversion", "Có đơn vị lớn thì phải có quy đổi");
+      if (!largeUnit && (largeConversion || largePrice !== null || largeBarcode))
+        r.fail("largeUnit", "Thiếu tên đơn vị lớn");
+      if (largeUnit && baseUnit && fold(largeUnit) === fold(baseUnit))
+        r.fail("largeUnit", "Đơn vị lớn trùng tên đơn vị cơ bản");
+      for (const [key, barcode] of [
+        ["baseBarcode", baseBarcode],
+        ["largeBarcode", largeBarcode],
+      ] as const) {
         if (!barcode) continue;
         if (barcode.length < 6) r.fail(key, "Mã vạch tối thiểu 6 ký tự");
         const seen = seenBarcodes.get(barcode);
@@ -223,45 +331,79 @@ export const productsImport: ImportDefinition<ProductRowData> = {
 
       const current = code ? byCode.get(code) : undefined;
       if (current) {
-        if (productType && current.productType !== productType) r.fail("productType", `Không đổi được loại hàng qua Excel (đang là ${PRODUCT_TYPE_LABEL[current.productType]})`);
+        if (productType && current.productType !== productType)
+          r.fail(
+            "productType",
+            `Không đổi được loại hàng qua Excel (đang là ${PRODUCT_TYPE_LABEL[current.productType]})`,
+          );
         if (productType === "DRUG" && drugClass && current.drugClass !== drugClass) {
-          r.fail("drugClass", `Không đổi được phân loại thuốc qua Excel (đang là ${DRUG_CLASS_LABEL[current.drugClass ?? ""]})`);
+          r.fail(
+            "drugClass",
+            `Không đổi được phân loại thuốc qua Excel (đang là ${DRUG_CLASS_LABEL[current.drugClass ?? ""]})`,
+          );
         }
         const currentBase = current.units.find((unit) => unit.conversionToBase === 1);
-        if (baseUnit && currentBase && fold(currentBase.name) !== fold(baseUnit)) r.fail("baseUnit", `Đơn vị cơ bản đang là "${currentBase.name}", không đổi được`);
-        const currentLarge = largeUnit ? current.units.find((unit) => fold(unit.name) === fold(largeUnit)) : undefined;
+        if (baseUnit && currentBase && fold(currentBase.name) !== fold(baseUnit))
+          r.fail("baseUnit", `Đơn vị cơ bản đang là "${currentBase.name}", không đổi được`);
+        const currentLarge = largeUnit
+          ? current.units.find((unit) => fold(unit.name) === fold(largeUnit))
+          : undefined;
         if (currentLarge && largeConversion && currentLarge.conversionToBase !== largeConversion) {
-          r.fail("largeConversion", `Đơn vị ${currentLarge.name} đang quy đổi ${currentLarge.conversionToBase}, không sửa được quy đổi`);
+          r.fail(
+            "largeConversion",
+            `Đơn vị ${currentLarge.name} đang quy đổi ${currentLarge.conversionToBase}, không sửa được quy đổi`,
+          );
         }
         if (!canPrice) {
           const unchanged = (unitName: string | null, price: number | null) => {
-            const unit = unitName ? current.units.find((item) => fold(item.name) === fold(unitName)) : undefined;
+            const unit = unitName
+              ? current.units.find((item) => fold(item.name) === fold(unitName))
+              : undefined;
             const existingPrice = unit ? currentPrices.get(unit.id) : undefined;
-            return price !== null && existingPrice !== undefined && Number(existingPrice.salePrice) === price && (vat === null || Number(existingPrice.vatRatePercent) === vat);
+            return (
+              price !== null &&
+              existingPrice !== undefined &&
+              Number(existingPrice.salePrice) === price &&
+              (vat === null || Number(existingPrice.vatRatePercent) === vat)
+            );
           };
           if (unchanged(baseUnit, basePrice)) basePrice = null;
           if (unchanged(largeUnit, largePrice)) largePrice = null;
         }
         const unitNames = new Map(current.units.map((unit) => [unit.id, fold(unit.name)]));
-        for (const [key, barcode, unitName] of [["baseBarcode", baseBarcode, baseUnit], ["largeBarcode", largeBarcode, largeUnit]] as const) {
+        for (const [key, barcode, unitName] of [
+          ["baseBarcode", baseBarcode, baseUnit],
+          ["largeBarcode", largeBarcode, largeUnit],
+        ] as const) {
           if (!barcode) continue;
           const owner = ownerOf.get(barcode);
-          const ownUnit = current.units.find((unit) => unit.barcodes.some((item) => item.barcode === barcode));
-          if (owner && !(ownUnit && unitName && unitNames.get(ownUnit.id) === fold(unitName))) r.fail(key, `Mã vạch ${barcode} đang thuộc ${owner}`);
+          const ownUnit = current.units.find((unit) =>
+            unit.barcodes.some((item) => item.barcode === barcode),
+          );
+          if (owner && !(ownUnit && unitName && unitNames.get(ownUnit.id) === fold(unitName)))
+            r.fail(key, `Mã vạch ${barcode} đang thuộc ${owner}`);
         }
       } else {
-        for (const [key, barcode] of [["baseBarcode", baseBarcode], ["largeBarcode", largeBarcode]] as const) {
+        for (const [key, barcode] of [
+          ["baseBarcode", baseBarcode],
+          ["largeBarcode", largeBarcode],
+        ] as const) {
           const owner = barcode ? ownerOf.get(barcode) : undefined;
           if (owner) r.fail(key, `Mã vạch ${barcode} đang thuộc ${owner}`);
         }
       }
 
-      if ((basePrice !== null || largePrice !== null) && !canPrice) r.fail(basePrice !== null ? "basePrice" : "largePrice", "Tài khoản không có quyền đổi giá bán — giữ nguyên giá cũ hoặc để trống cột giá");
+      if ((basePrice !== null || largePrice !== null) && !canPrice)
+        r.fail(
+          basePrice !== null ? "basePrice" : "largePrice",
+          "Tài khoản không có quyền đổi giá bán — giữ nguyên giá cũ hoặc để trống cột giá",
+        );
       issues.push(...r.issues);
       if (r.issues.length > 0 || !code || !name || !productType || !category || !baseUnit) continue;
 
       if (!categoryKeys.has(fold(category))) newCategories.add(category);
-      for (const item of ingredientList ?? []) if (!ingredientKeys.has(fold(item))) newIngredients.add(item);
+      for (const item of ingredientList ?? [])
+        if (!ingredientKeys.has(fold(item))) newIngredients.add(item);
 
       planned.push({
         row: raw.rowNumber,
@@ -280,14 +422,28 @@ export const productsImport: ImportDefinition<ProductRowData> = {
           minStock,
           isActive: status,
           base: { name: baseUnit, conversion: 1, price: basePrice, barcode: baseBarcode },
-          large: largeUnit && largeConversion ? { name: largeUnit, conversion: largeConversion, price: largePrice, barcode: largeBarcode } : null,
+          large:
+            largeUnit && largeConversion
+              ? {
+                  name: largeUnit,
+                  conversion: largeConversion,
+                  price: largePrice,
+                  barcode: largeBarcode,
+                }
+              : null,
           vat,
         },
       });
     }
 
-    if (newCategories.size > 0) notes.push(`Sẽ tạo ${newCategories.size} nhóm hàng mới: ${[...newCategories].slice(0, 10).join(", ")}${newCategories.size > 10 ? "…" : ""}`);
-    if (newIngredients.size > 0) notes.push(`Sẽ tạo ${newIngredients.size} hoạt chất mới: ${[...newIngredients].slice(0, 10).join(", ")}${newIngredients.size > 10 ? "…" : ""}`);
+    if (newCategories.size > 0)
+      notes.push(
+        `Sẽ tạo ${newCategories.size} nhóm hàng mới: ${[...newCategories].slice(0, 10).join(", ")}${newCategories.size > 10 ? "…" : ""}`,
+      );
+    if (newIngredients.size > 0)
+      notes.push(
+        `Sẽ tạo ${newIngredients.size} hoạt chất mới: ${[...newIngredients].slice(0, 10).join(", ")}${newIngredients.size > 10 ? "…" : ""}`,
+      );
     return { rows: planned, issues, notes };
   },
 
@@ -299,8 +455,12 @@ export const productsImport: ImportDefinition<ProductRowData> = {
     await prisma.$transaction(
       async (tx) => {
         const categories = await tx.category.findMany({ select: { id: true, name: true } });
-        const categoryId = new Map(categories.map((category) => [fold(category.name), category.id]));
-        const ingredients = await tx.activeIngredient.findMany({ select: { id: true, name: true } });
+        const categoryId = new Map(
+          categories.map((category) => [fold(category.name), category.id]),
+        );
+        const ingredients = await tx.activeIngredient.findMany({
+          select: { id: true, name: true },
+        });
         const ingredientId = new Map(ingredients.map((item) => [fold(item.name), item.id]));
 
         async function ensureCategory(key: string, name: string): Promise<string> {
@@ -323,7 +483,9 @@ export const productsImport: ImportDefinition<ProductRowData> = {
 
         for (const { data } of plan.rows) {
           const catId = await ensureCategory(data.categoryKey, data.categoryName);
-          const optional = Object.fromEntries(Object.entries(data.fields).filter(([, value]) => value !== null));
+          const optional = Object.fromEntries(
+            Object.entries(data.fields).filter(([, value]) => value !== null),
+          );
           let productId: string;
 
           if (data.existingId) {
@@ -359,17 +521,26 @@ export const productsImport: ImportDefinition<ProductRowData> = {
 
           if (data.ingredients) {
             const ids = await Promise.all(data.ingredients.map(ensureIngredient));
-            await tx.productIngredient.deleteMany({ where: { productId, ingredientId: { notIn: ids } } });
+            await tx.productIngredient.deleteMany({
+              where: { productId, ingredientId: { notIn: ids } },
+            });
             for (const id of ids) {
               await tx.productIngredient.upsert({
                 where: { productId_ingredientId: { productId, ingredientId: id } },
-                create: { productId, ingredientId: id, strengthText: data.fields["strengthText"] ?? null },
+                create: {
+                  productId,
+                  ingredientId: id,
+                  strengthText: data.fields["strengthText"] ?? null,
+                },
                 update: {},
               });
             }
           }
 
-          const units = await tx.productUnit.findMany({ where: { productId }, include: { barcodes: true } });
+          const units = await tx.productUnit.findMany({
+            where: { productId },
+            include: { barcodes: true },
+          });
           for (const spec of [data.base, data.large]) {
             if (!spec) continue;
             let unit = units.find((item) => fold(item.name) === fold(spec.name));
@@ -382,7 +553,8 @@ export const productsImport: ImportDefinition<ProductRowData> = {
                     conversionToBase: spec.conversion,
                     isSellable: true,
                     // Đơn vị cơ bản của sản phẩm mới là đơn vị bán mặc định.
-                    isDefaultSaleUnit: spec.conversion === 1 && !units.some((item) => item.isDefaultSaleUnit),
+                    isDefaultSaleUnit:
+                      spec.conversion === 1 && !units.some((item) => item.isDefaultSaleUnit),
                   },
                 })),
                 barcodes: [],
@@ -390,22 +562,42 @@ export const productsImport: ImportDefinition<ProductRowData> = {
               units.push(unit);
             }
             if (spec.barcode && !unit.barcodes.some((item) => item.barcode === spec.barcode)) {
-              await tx.productBarcode.create({ data: { productUnitId: unit.id, barcode: spec.barcode } });
+              await tx.productBarcode.create({
+                data: { productUnitId: unit.id, barcode: spec.barcode },
+              });
             }
-            if (spec.price !== null) priceChanges.push({ unitId: unit.id, price: spec.price, vat: data.vat });
+            if (spec.price !== null)
+              priceChanges.push({ unitId: unit.id, price: spec.price, vat: data.vat });
           }
         }
 
         // Giá: chỉ tạo phiên bản mới khi khác giá chung hiện hành (theo đúng cơ chế phiên bản giá).
         if (priceChanges.length > 0) {
-          const current = await getCurrentPrices(priceChanges.map((item) => item.unitId), null, new Date(), tx);
+          const current = await getCurrentPrices(
+            priceChanges.map((item) => item.unitId),
+            null,
+            new Date(),
+            tx,
+          );
           const now = new Date();
           for (const change of priceChanges) {
             const existingPrice = current.get(change.unitId);
             const vat = change.vat ?? (existingPrice ? Number(existingPrice.vatRatePercent) : 0);
-            if (existingPrice && Number(existingPrice.salePrice) === change.price && Number(existingPrice.vatRatePercent) === vat) continue;
+            if (
+              existingPrice &&
+              Number(existingPrice.salePrice) === change.price &&
+              Number(existingPrice.vatRatePercent) === vat
+            )
+              continue;
             await tx.productPrice.create({
-              data: { productUnitId: change.unitId, storeId: null, salePrice: BigInt(change.price), vatRatePercent: vat, effectiveFrom: now, createdBy: userId },
+              data: {
+                productUnitId: change.unitId,
+                storeId: null,
+                salePrice: BigInt(change.price),
+                vatRatePercent: vat,
+                effectiveFrom: now,
+                createdBy: userId,
+              },
             });
           }
         }

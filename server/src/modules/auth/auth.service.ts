@@ -184,8 +184,14 @@ export async function describeMe(auth: AuthContext) {
   // Chức năng đã bật ở từng cửa hàng, để giao diện ẩn trang chưa dùng tới.
   const storeIds = stores.map((store) => store.id);
   const [einvoiceOn, syncOn] = await Promise.all([
-    prisma.eInvoiceStoreConfig.findMany({ where: { storeId: { in: storeIds }, enabled: true }, select: { storeId: true } }),
-    prisma.nationalSyncStoreConfig.findMany({ where: { storeId: { in: storeIds }, enabled: true }, select: { storeId: true } }),
+    prisma.eInvoiceStoreConfig.findMany({
+      where: { storeId: { in: storeIds }, enabled: true },
+      select: { storeId: true },
+    }),
+    prisma.nationalSyncStoreConfig.findMany({
+      where: { storeId: { in: storeIds }, enabled: true },
+      select: { storeId: true },
+    }),
   ]);
   const einvoiceStores = new Set(einvoiceOn.map((row) => row.storeId));
   const syncStores = new Set(syncOn.map((row) => row.storeId));

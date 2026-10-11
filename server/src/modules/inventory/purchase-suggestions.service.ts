@@ -75,7 +75,10 @@ type LastPurchaseRow = {
   received_at: Date;
 };
 
-export async function buildSuggestions(storeId: string, query: SuggestionQuery): Promise<Suggestion[]> {
+export async function buildSuggestions(
+  storeId: string,
+  query: SuggestionQuery,
+): Promise<Suggestion[]> {
   const windowStart = new Date(Date.now() - query.windowDays * 86_400_000);
 
   const [overview, lastPurchases, products] = await Promise.all([
@@ -122,7 +125,14 @@ export async function buildSuggestions(storeId: string, query: SuggestionQuery):
     `),
     prisma.product.findMany({
       where: { isActive: true },
-      select: { id: true, units: { where: { isActive: true }, select: { id: true, name: true, conversionToBase: true }, orderBy: { conversionToBase: "asc" } } },
+      select: {
+        id: true,
+        units: {
+          where: { isActive: true },
+          select: { id: true, name: true, conversionToBase: true },
+          orderBy: { conversionToBase: "asc" },
+        },
+      },
     }),
   ]);
 
@@ -130,20 +140,30 @@ export async function buildSuggestions(storeId: string, query: SuggestionQuery):
   const [sold, drafts] = await Promise.all([
     prisma.invoiceLine.groupBy({
       by: ["productId"],
-      where: { productId: { in: productIds }, invoice: { storeId, status: "COMPLETED", soldAt: { gte: windowStart } } },
+      where: {
+        productId: { in: productIds },
+        invoice: { storeId, status: "COMPLETED", soldAt: { gte: windowStart } },
+      },
       _sum: { baseQuantity: true },
     }),
     // Phiếu nhập nháp: chỉ báo cho người đặt hàng biết, không coi là hàng đang về.
     prisma.goodsReceiptLine.findMany({
       where: { productId: { in: productIds }, goodsReceipt: { storeId, status: "DRAFT" } },
-      select: { productId: true, quantity: true, productUnit: { select: { conversionToBase: true } } },
+      select: {
+        productId: true,
+        quantity: true,
+        productUnit: { select: { conversionToBase: true } },
+      },
     }),
   ]);
 
   const soldByProduct = new Map(sold.map((row) => [row.productId, row._sum.baseQuantity ?? 0]));
   const draftByProduct = new Map<string, number>();
   for (const line of drafts) {
-    draftByProduct.set(line.productId, (draftByProduct.get(line.productId) ?? 0) + line.quantity * line.productUnit.conversionToBase);
+    draftByProduct.set(
+      line.productId,
+      (draftByProduct.get(line.productId) ?? 0) + line.quantity * line.productUnit.conversionToBase,
+    );
   }
   const unitsByProduct = new Map(products.map((product) => [product.id, product.units]));
   const lastByProduct = new Map(lastPurchases.map((row) => [row.product_id, row]));
@@ -153,7 +173,12 @@ export async function buildSuggestions(storeId: string, query: SuggestionQuery):
     const baseUnit = units.find((unit) => unit.conversionToBase === 1) ?? units[0];
     const last = lastByProduct.get(row.product_id);
     // Ưu tiên đặt theo đúng đơn vị của lần nhập trước, nếu không thì đơn vị lớn nhất.
-    const orderUnit = (last ? units.find((unit) => unit.conversionToBase === last.conversion_to_base) : undefined) ?? units.at(-1) ?? baseUnit;
+    const orderUnit =
+      (last
+        ? units.find((unit) => unit.conversionToBase === last.conversion_to_base)
+        : undefined) ??
+      units.at(-1) ??
+      baseUnit;
 
     const soldBaseQuantity = soldByProduct.get(row.product_id) ?? 0;
     const avgDaily = soldBaseQuantity / query.windowDays;
@@ -161,7 +186,10 @@ export async function buildSuggestions(storeId: string, query: SuggestionQuery):
     const available = row.sellable;
 
     // Mục tiêu: đủ bán trong kỳ tới cộng thời gian chờ hàng, và không dưới tồn tối thiểu.
-    const target = Math.max(Math.ceil(avgDaily * (query.coverDays + query.leadTimeDays)), row.min_stock_base_quantity);
+    const target = Math.max(
+      Math.ceil(avgDaily * (query.coverDays + query.leadTimeDays)),
+      row.min_stock_base_quantity,
+    );
     const missing = Math.max(0, target - available);
 
     const conversion = orderUnit?.conversionToBase ?? 1;
@@ -198,16 +226,32 @@ export async function buildSuggestions(storeId: string, query: SuggestionQuery):
       suggestedBaseQuantity,
       suggestedOrderQuantity,
       reason,
-      lastSupplier: last?.supplier_id && last.supplier_name ? { id: last.supplier_id, name: last.supplier_name } : null,
+      lastSupplier:
+        last?.supplier_id && last.supplier_name
+          ? { id: last.supplier_id, name: last.supplier_name }
+          : null,
       lastUnitCost,
       lastReceivedAt: last?.received_at ?? null,
       estimatedCost: lastUnitCost === null ? null : lastUnitCost * suggestedOrderQuantity,
     } satisfies Suggestion;
   });
 
-  const needed = query.onlyNeeded ? suggestions.filter((item) => item.suggestedOrderQuantity > 0) : suggestions;
-  const severity: Record<Suggestion["reason"], number> = { OUT_OF_STOCK: 0, BELOW_MIN: 1, RUNNING_OUT: 2, REFILL: 3, OK: 4 };
-  return needed.sort((a, b) => severity[a.reason] - severity[b.reason] || (a.daysOfStock ?? 9999) - (b.daysOfStock ?? 9999) || a.name.localeCompare(b.name, "vi"));
+  const needed = query.onlyNeeded
+    ? suggestions.filter((item) => item.suggestedOrderQuantity > 0)
+    : suggestions;
+  const severity: Record<Suggestion["reason"], number> = {
+    OUT_OF_STOCK: 0,
+    BELOW_MIN: 1,
+    RUNNING_OUT: 2,
+    REFILL: 3,
+    OK: 4,
+  };
+  return needed.sort(
+    (a, b) =>
+      severity[a.reason] - severity[b.reason] ||
+      (a.daysOfStock ?? 9999) - (b.daysOfStock ?? 9999) ||
+      a.name.localeCompare(b.name, "vi"),
+  );
 }
 
 export function summarize(suggestions: Suggestion[]) {
@@ -218,7 +262,8 @@ export function summarize(suggestions: Suggestion[]) {
     runningOut: suggestions.filter((item) => item.reason === "RUNNING_OUT").length,
     refill: suggestions.filter((item) => item.reason === "REFILL").length,
     estimatedCost: suggestions.reduce((sum, item) => sum + (item.estimatedCost ?? 0), 0),
-    suppliers: [...new Set(suggestions.map((item) => item.lastSupplier?.name).filter(Boolean))].length,
+    suppliers: [...new Set(suggestions.map((item) => item.lastSupplier?.name).filter(Boolean))]
+      .length,
     withoutSupplier: suggestions.filter((item) => !item.lastSupplier).length,
   };
 }

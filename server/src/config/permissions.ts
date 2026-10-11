@@ -23,8 +23,14 @@ export const PERMISSIONS: Array<{ code: string; description: string }> = [
   { code: "stock.adjust.create", description: "Lập phiếu điều chỉnh tồn" },
   { code: "stock.adjust.approve", description: "Duyệt, từ chối phiếu điều chỉnh" },
   { code: "stock.opening_balance", description: "Nhập tồn đầu kỳ" },
-  { code: "stock.transfer.create", description: "Lập, xuất và hủy phiếu chuyển hàng sang cửa hàng khác" },
-  { code: "stock.transfer.receive", description: "Nhận và kiểm nhập hàng chuyển đến từ cửa hàng khác" },
+  {
+    code: "stock.transfer.create",
+    description: "Lập, xuất và hủy phiếu chuyển hàng sang cửa hàng khác",
+  },
+  {
+    code: "stock.transfer.receive",
+    description: "Nhận và kiểm nhập hàng chuyển đến từ cửa hàng khác",
+  },
   { code: "batch.quarantine", description: "Biệt trữ, mở khóa lô" },
   { code: "recall.manage", description: "Tạo, đóng thông báo thu hồi" },
   { code: "quality_report.manage", description: "Ghi sổ khiếu nại và phản ứng có hại của thuốc" },
