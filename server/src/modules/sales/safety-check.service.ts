@@ -132,7 +132,7 @@ export async function runSafetyCheck(tx: Tx, params: SafetyParams): Promise<Safe
   }
 
   // 3. Tồn bán được, tính theo đơn vị nhỏ nhất và chỉ đếm lô bán được.
-  const minRemainingDays = await getSetting("minRemainingShelfLifeDays", storeId);
+  const minRemainingDays = await getSetting("minRemainingShelfLifeDays", storeId, tx);
   const batches = await findSellableBatches(tx, storeId, productIds, minRemainingDays);
   const sellable = sumByProduct(batches);
 
@@ -229,7 +229,7 @@ export async function runSafetyCheck(tx: Tx, params: SafetyParams): Promise<Safe
   }
 
   // 7. Lô sắp hết hạn: chỉ nhắc, không chặn và không cần ghi nhận.
-  const nearExpiryDays = await getSetting("nearExpiryWarningDays", storeId);
+  const nearExpiryDays = await getSetting("nearExpiryWarningDays", storeId, tx);
   const threshold = new Date(businessDateNow());
   threshold.setUTCDate(threshold.getUTCDate() + nearExpiryDays);
 

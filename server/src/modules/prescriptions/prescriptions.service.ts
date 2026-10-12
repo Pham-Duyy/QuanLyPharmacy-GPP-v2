@@ -92,7 +92,7 @@ export async function createDraft(
   return prisma.$transaction(async (tx) => {
     const items = await resolveItems(tx, input.items);
 
-    const validityDays = await getSetting("prescriptionValidityDays", storeId);
+    const validityDays = await getSetting("prescriptionValidityDays", storeId, tx);
     const validUntil = input.validUntil ?? addDays(input.prescribedDate, validityDays);
 
     const prescription = await tx.prescription.create({

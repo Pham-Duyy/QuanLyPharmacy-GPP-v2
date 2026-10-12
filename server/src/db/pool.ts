@@ -6,11 +6,14 @@ import { env } from "../config/env.js";
  * Lượt sau Prisma sẽ dùng lại chính pool này qua driver adapter,
  * nên không có hai nguồn kết nối song song.
  */
+/** Thời gian tối đa một lệnh chờ lấy kết nối khi bể đang đầy. */
+export const CONNECTION_WAIT_MS = 5_000;
+
 export const pool = new Pool({
   connectionString: env.DATABASE_URL,
   max: 10,
   idleTimeoutMillis: 30_000,
-  connectionTimeoutMillis: 5_000,
+  connectionTimeoutMillis: CONNECTION_WAIT_MS,
 });
 
 export type DatabaseHealth = {

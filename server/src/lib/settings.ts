@@ -1,4 +1,5 @@
 import { prisma } from "../db/prisma.js";
+import type { Prisma } from "../generated/prisma/client.js";
 import { vnDay } from "./dates.js";
 
 /**
@@ -23,12 +24,18 @@ export type SettingKey = keyof typeof DEFAULTS;
 /**
  * Đọc một cài đặt. Cửa hàng có giá trị riêng thì dùng giá trị đó, không có
  * thì lấy giá trị chung toàn chuỗi, vẫn không có thì dùng mặc định ở trên.
+ *
+ * Gọi bên trong giao dịch thì phải truyền `client` là giao dịch đó. Đọc bằng
+ * kết nối chung trong lúc đang giữ kết nối của giao dịch sẽ xin thêm một kết
+ * nối nữa: khi các giao dịch chiếm hết bể, chúng đứng chờ nhau đến hết thời
+ * gian chờ (đã gặp khi thử 20 hóa đơn cùng lúc).
  */
 export async function getSetting<K extends SettingKey>(
   key: K,
   storeId: string | null,
+  client: Prisma.TransactionClient = prisma,
 ): Promise<(typeof DEFAULTS)[K]> {
-  const rows = await prisma.setting.findMany({
+  const rows = await client.setting.findMany({
     where: {
       key,
       ...(storeId ? { OR: [{ storeId }, { storeId: null }] } : { storeId: null }),

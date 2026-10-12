@@ -1,5 +1,6 @@
 import { Prisma } from "../../generated/prisma/client.js";
 import { prisma } from "../../db/prisma.js";
+import { CONNECTION_WAIT_MS } from "../../db/pool.js";
 import { AppError } from "../../lib/app-error.js";
 import { markIdempotentResource } from "../../lib/idempotency-context.js";
 import { codeDay, nextDocumentCode } from "../../lib/document-code.js";
@@ -51,7 +52,7 @@ async function nextInvoiceCode(tx: Tx, storeId: string, storeCode: string): Prom
 
 /** Hạn mức giảm giá cao nhất trong các vai trò của người bán (contract §6.6). */
 async function discountLimitPercent(tx: Tx, userId: string, storeId: string): Promise<number> {
-  const limits = await getSetting("discountLimitPercent", storeId);
+  const limits = await getSetting("discountLimitPercent", storeId, tx);
   const assignments = await tx.userRole.findMany({
     where: { userId, OR: [{ storeId }, { storeId: null }] },
     include: { role: { select: { code: true } } },
@@ -416,7 +417,7 @@ export async function createInvoice(
       await markIdempotentResource(tx, "invoice", invoice.id);
       return invoice.id;
     },
-    { timeout: 20_000 },
+    { timeout: 20_000, maxWait: CONNECTION_WAIT_MS },
   );
 }
 
@@ -565,7 +566,7 @@ async function allocateBatches(
   input: CreateInvoiceInput,
 ): Promise<Map<number, Allocation[]>> {
   const productIds = [...new Set(lines.map((line) => line.productId))];
-  const minRemainingDays = await getSetting("minRemainingShelfLifeDays", storeId);
+  const minRemainingDays = await getSetting("minRemainingShelfLifeDays", storeId, tx);
   const locked = await lockSellableBatches(tx, storeId, productIds, minRemainingDays);
 
   const fefo = [...locked].sort(
@@ -648,7 +649,7 @@ export async function voidInvoice(
         throw AppError.invalidState("Hóa đơn đã có phiếu trả, không hủy được");
       }
 
-      const window = await getSetting("invoiceVoidWindow", storeId);
+      const window = await getSetting("invoiceVoidWindow", storeId, tx);
       if (
         window === "SAME_BUSINESS_DAY" &&
         existing.businessDate.getTime() !== businessDateNow().getTime()
@@ -733,7 +734,7 @@ export async function voidInvoice(
         },
       });
     },
-    { timeout: 20_000 },
+    { timeout: 20_000, maxWait: CONNECTION_WAIT_MS },
   );
 }
 
