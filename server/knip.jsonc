@@ -1,0 +1,13 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  // Tệp cấu hình Prisma 7 mang tên riêng, nạp qua `prisma ... --config prisma7.config.ts`.
+  "prisma": {
+    "config": ["prisma7.config.ts"],
+  },
+  "ignoreDependencies": [
+    // Mã Prisma sinh ra trong src/generated (không thuộc diện quét) mới import gói này.
+    "@prisma/client",
+    // pino nạp theo tên dạng chuỗi (transport target) trong src/lib/http-logger.ts.
+    "pino-pretty",
+  ],
+}
