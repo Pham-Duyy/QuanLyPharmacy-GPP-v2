@@ -52,6 +52,20 @@ export function isDatabaseBusy(error: unknown): boolean {
   );
 }
 
+/**
+ * Chuỗi không phải UUID đi tới CSDL, thường là mã sai định dạng trên đường dẫn
+ * (`/invoices/abc`). PostgreSQL báo 22P02 trên kiểu uuid; Prisma gói lại thành
+ * P2007 (truy vấn thường) hoặc P2010 (truy vấn raw), giữ mã gốc trong `meta`.
+ */
+export function isInvalidUuid(error: unknown): boolean {
+  if (!(error instanceof Prisma.PrismaClientKnownRequestError)) return false;
+  const cause = (
+    error.meta?.["driverAdapterError"] as
+      { cause?: { originalCode?: string; originalMessage?: string } } | undefined
+  )?.cause;
+  return cause?.originalCode === "22P02" && /type uuid/.test(cause.originalMessage ?? "");
+}
+
 /** Bọc một thao tác ghi để lỗi CSDL được dịch sang AppError. */
 export async function withMappedErrors<T>(
   run: () => Promise<T>,
