@@ -293,7 +293,6 @@ Quy tắc:
 | `supplier_debt.read` | Xem công nợ nhà cung cấp |
 | `supplier_payment.manage` | Ghi nhận thanh toán cho nhà cung cấp |
 | `loyalty.manage` | Điều chỉnh điểm tích lũy của khách bằng tay |
-| `ai.use` | Dùng tính năng AI |
 | `einvoice.manage` | Cấu hình và phát hành hóa đơn điện tử |
 
 ### 4.2 Bốn vai trò và quyền bổ sung theo cửa hàng
@@ -347,7 +346,6 @@ Mô hình cập nhật ngày 30/09/2026. `admin`: quản lý; `pharmacist`: dư�
 | `supplier_debt.read` | ✓ |  |  | ✓ |
 | `supplier_payment.manage` | ✓ |  |  |  |
 | `loyalty.manage` | ✓ |  |  |  |
-| `ai.use` |  | ✓ |  |  |
 | `national_sync.read` | ✓ | ✓ |  | ✓ |
 | `national_sync.manage` | ✓ |  |  |  |
 | `einvoice.manage` | ✓ |  |  |  |
@@ -407,7 +405,7 @@ Phiếu `CONFIRMED` không sửa, không hủy. Sai sót sau khi xác nhận x�
 | Từ | Sang | Endpoint | Permission |
 |---|---|---|---|
 | (mới) | `DRAFT` | `POST /prescriptions` | `prescription.create` |
-| `DRAFT` | `PENDING_REVIEW` | `POST /prescriptions/{id}/scan` (OCR, sau MVP) hoặc `POST /prescriptions/{id}/submit` | `prescription.create` |
+| `DRAFT` | `PENDING_REVIEW` | `POST /prescriptions/{id}/submit` | `prescription.create` |
 | `DRAFT`, `PENDING_REVIEW` | `VERIFIED` | `POST /prescriptions/{id}/verify` | `prescription.verify` |
 | `DRAFT`, `PENDING_REVIEW` | `REJECTED` | `POST /prescriptions/{id}/reject` | `prescription.verify` |
 | `VERIFIED` | `PARTIALLY_DISPENSED` | Tự động khi bán một phần | (theo hóa đơn) |
@@ -1032,7 +1030,6 @@ Cài đặt (`loyaltySettings`, theo cửa hàng, không có thì lấy bản ch
 | POST | `/prescriptions/{id}/submit` | `DRAFT` → `PENDING_REVIEW` | `prescription.create` |
 | POST | `/prescriptions/{id}/verify` | Dược sĩ xác nhận → `VERIFIED` | `prescription.verify` |
 | POST | `/prescriptions/{id}/reject` | Từ chối; bắt buộc `reason` | `prescription.verify` |
-| POST | `/prescriptions/{id}/scan` | OCR ảnh đơn → `PENDING_REVIEW`; **sau MVP** | `prescription.create`, `ai.use` |
 
 Trường chính của đơn: `customerId` (có thể trống), `externalCode` (mã đơn thuốc điện tử nếu có), `prescriberName`, `facilityName`, `diagnosisText`, `prescribedDate`, `validUntil`, `status`, `verifiedBy`, `verifiedAt`.
 
@@ -1041,7 +1038,6 @@ Mỗi dòng đơn: `productId` (có thể trống khi thuốc chưa có trong da
 Quy tắc:
 
 - Khi `verify`: mọi dòng thuốc kê đơn phải gắn `productId`; `verifiedBy` lấy từ phiên đăng nhập, không nhận từ body.
-- Kết quả OCR (sau MVP) chỉ đưa đơn về `PENDING_REVIEW`, lưu độ tin cậy từng trường và phần không đọc được; không bao giờ tự chuyển sang `VERIFIED`.
 - Ảnh đơn: chỉ nhận JPEG, PNG, PDF (kiểm tra theo nội dung tệp), giới hạn dung lượng, xóa EXIF, lưu ngoài thư mục public, chỉ truy cập qua URL có chữ ký và hạn ngắn; mỗi lần tải lên là một phiên bản mới.
 - Danh mục bác sĩ riêng (`/doctors`): sau MVP; MVP lưu tên người kê đơn và cơ sở khám ngay trên đơn. **[Đã chốt – P15]**
 
@@ -1181,7 +1177,7 @@ có nhiều dòng cùng một thuốc và máy khách không chỉ định, máy
 
 ### 14.2 Xử lý của backend
 
-Tất cả các bước dưới đây nằm trong **một transaction**. Không gọi dịch vụ bên ngoài (AI, cổng thanh toán) trong transaction.
+Tất cả các bước dưới đây nằm trong **một transaction**. Không gọi dịch vụ bên ngoài (cổng thanh toán, hóa đơn điện tử, hệ thống quốc gia) trong transaction.
 
 1. Kiểm tra sản phẩm đang kinh doanh; `unitId` thuộc sản phẩm (`422 UNIT_NOT_IN_PRODUCT`).
 2. Quy đổi mỗi dòng sang `baseQuantity`.
@@ -1387,26 +1383,15 @@ không hiển thị tỷ lệ so sánh khi `comparisonExact = false`.
 
 ---
 
-## 20. AI
+## 20. AI [Đã chốt – 11/10/2026: không làm]
 
-| Method | Endpoint | Mô tả | Quyền | Giai đoạn |
-|---|---|---|---|---|
-| POST | `/ai/assistant/query` | Trợ lý tra cứu cho nhân viên: thuốc cùng hoạt chất, tồn, hạn dùng. Chỉ đọc dữ liệu qua các hàm truy vấn định sẵn | `ai.use` | Trong MVP nhưng làm sau cùng; bỏ nếu thiếu thời gian **[Đã chốt – P17]** |
-| POST | `/prescriptions/{id}/scan` | OCR ảnh đơn (§12) | `prescription.create`, `ai.use` | Sau MVP |
-| POST | `/ai/explanations` | Giải thích một cảnh báo của `/sales/safety-check` bằng lời dễ hiểu | `ai.use` | Sau MVP |
-| GET | `/ai/inventory-forecast` | Đọc kết quả dự báo nhập hàng do job nền tính sẵn | `report.inventory` | Sau MVP |
+Phần mềm không dùng AI. Ngày 11/10/2026 quyết định bỏ toàn bộ kế hoạch AI trước đây: trợ lý tra cứu (P17), đọc ảnh đơn bằng OCR, AI giải thích cảnh báo, dự báo nhập hàng bằng AI. Bảng `ai_logs` và quyền `ai.use` (khai báo sẵn từ đầu, chưa từng dùng) gỡ ở migration `20261011150000_remove_ai`.
 
-**Hiện trạng:** chưa làm endpoint nào trong bảng trên, kể cả trợ lý tra cứu. Lược đồ có sẵn bảng `ai_logs` và quyền `ai.use` đã khai báo để làm sau; chưa có mã nào ghi vào bảng hay kiểm tra quyền đó.
+Những việc từng định giao cho AI được làm theo cách tất định:
 
-Đã bỏ khỏi API v1: `POST /ai/chatbot` **[Đã chốt]**, `POST /ai/ocr-prescription` (gộp vào `/prescriptions/{id}/scan`), `POST /ai/drug-interaction-check` và `POST /ai/allergy-check` (thay bằng §13).
-
-Nguyên tắc (giữ từ bản gốc, bổ sung):
-
-- AI chỉ hỗ trợ; không tự quyết định bán thuốc, chẩn đoán, kê đơn hay thay thuốc.
-- Không có endpoint AI nào ghi trực tiếp vào chứng từ, tồn kho hay trạng thái. Mọi kết quả chỉ trở thành dữ liệu sau khi người có permission xác nhận qua endpoint nghiệp vụ.
-- Không gửi thông tin định danh khách hàng tới AI provider. **MVP không gửi ảnh đơn thuốc ra ngoài** vì chưa làm OCR. Khi làm OCR sau MVP: mặc định **che thông tin định danh trên ảnh trước khi gửi** (họ tên, địa chỉ, số điện thoại của bệnh nhân); nếu không che được thì phải có sự đồng ý của khách và ghi nhận lại. Quyết định này được xem lại ngay trước khi bắt đầu làm OCR. **[Đã chốt – P8]**
-- Mọi lượt gọi ghi `ai_logs`: người dùng, tính năng, model và phiên bản, đầu vào đã lọc, kết quả, người xác nhận, có chấp nhận hay không. Chỉ người có `audit.read` được xem.
-- Có giới hạn số lượt gọi theo người dùng và trần chi phí mỗi ngày. AI lỗi thì các nghiệp vụ bán hàng vẫn chạy bình thường.
+- Đơn thuốc: lấy bằng mã đơn điện tử (§12.1), gõ hoặc quét mã vạch/QR bằng máy quét hay camera; không đọc chữ trên ảnh đơn.
+- Tương tác, dị ứng, trùng hoạt chất: kiểm tra an toàn theo dữ liệu và luật (§13).
+- Gợi ý nhập hàng: đề xuất đặt hàng theo tốc độ bán và tồn tối thiểu (§10.5).
 
 ---
 
@@ -1557,7 +1542,7 @@ Giá trị trong ô luôn được ghi dạng dữ liệu, không bao giờ là 
 | Danh mục | Nhóm, sản phẩm, đơn vị quy đổi, hoạt chất, giá và VAT, giảm giá, nhà cung cấp (§6, §7) |
 | Kho | Lô và trạng thái lô (§8); phiếu nhập (§9); tồn, thẻ kho, điều chỉnh, tồn đầu kỳ (§10) |
 | Bán hàng | Kiểm tra an toàn tất định (§13); hóa đơn, hủy hóa đơn, in K80 (§14); trả hàng (§15) |
-| Đơn thuốc, khách hàng | Đơn thuốc nhập tay và bước verify (§12, trừ OCR); khách hàng và hồ sơ sức khỏe (§11) |
+| Đơn thuốc, khách hàng | Đơn thuốc nhập tay và bước verify (§12); khách hàng và hồ sơ sức khỏe (§11) |
 | GPP | Thu hồi (§16); sổ nhiệt độ – độ ẩm (§17) |
 | Báo cáo | Dashboard, doanh thu, bán chạy, xuất – nhập – tồn, hạn dùng (§19) |
 
@@ -1568,7 +1553,7 @@ Về mô hình chuỗi: dữ liệu và API có phạm vi cửa hàng từ đầ
 **Sau MVP**
 
 - Đơn đặt hàng nhà cung cấp: đã có đề xuất đặt hàng (§10.5), chưa có chứng từ đơn hàng riêng gửi nhà cung cấp.
-- Danh mục bác sĩ; OCR đơn thuốc; AI giải thích cảnh báo; dự báo nhập hàng nâng cao (đã có đề xuất đặt hàng cơ bản ở §10.5).
+- Danh mục bác sĩ; dự báo nhập hàng nâng cao (đã có đề xuất đặt hàng cơ bản ở §10.5).
 - Ngăn biệt trữ theo số lượng.
 - Tích hợp cổng thanh toán.
 - MFA.

@@ -46,7 +46,6 @@ model Store {
   storageLocations    StorageLocation[]
   storageLogs         StorageLog[]
   auditLogs           AuditLog[]
-  aiLogs              AiLog[]
   stockCounts         StockCount[]
   expiryPlans         BatchExpiryPlan[]
   supplierPayments    SupplierPayment[]
@@ -90,7 +89,6 @@ model User {
   assignedUserRoles         UserRole[]                 @relation("UserRoleAssignedBy")
   refreshSessions           RefreshSession[]
   auditLogs                 AuditLog[]
-  aiLogs                    AiLog[]
   productPrices             ProductPrice[]
   settingsUpdated           Setting[]
   goodsReceiptsCreated      GoodsReceipt[]             @relation("GoodsReceiptCreatedBy")
@@ -1101,33 +1099,6 @@ model StorageLog {
   @@index([storageLocationId, recordedAt(sort: Desc)])
   @@index([storeId, businessDate])
   @@map("storage_logs")
-}
-
-/// Nhật ký mọi lượt dùng AI. inputRedacted chỉ chứa dữ liệu đã lọc bỏ
-/// thông tin định danh (contract §20).
-model AiLog {
-  id            BigInt   @id @default(autoincrement())
-  occurredAt    DateTime @default(now()) @map("occurred_at") @db.Timestamptz(6)
-  storeId       String?  @map("store_id") @db.Uuid
-  userId        String?  @map("user_id") @db.Uuid
-  feature       String
-  model         String
-  modelVersion  String?  @map("model_version")
-  inputRedacted Json?    @map("input_redacted")
-  output        Json?
-  accepted      Boolean?
-  confirmedBy   String?  @map("confirmed_by") @db.Uuid
-  latencyMs     Int?     @map("latency_ms")
-  inputTokens   Int?     @map("input_tokens")
-  outputTokens  Int?     @map("output_tokens")
-  estimatedCost Decimal? @map("estimated_cost") @db.Decimal(12, 2)
-
-  store Store? @relation(fields: [storeId], references: [id])
-  user  User?  @relation(fields: [userId], references: [id])
-
-  @@index([occurredAt(sort: Desc)])
-  @@index([userId])
-  @@map("ai_logs")
 }
 
 /// Đợt kiểm kê kho: chụp danh sách lô cần đếm, ghi số đếm thực tế rồi chốt

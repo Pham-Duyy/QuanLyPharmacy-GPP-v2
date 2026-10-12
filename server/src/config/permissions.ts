@@ -62,7 +62,6 @@ export const PERMISSIONS: Array<{ code: string; description: string }> = [
   { code: "supplier_debt.read", description: "Xem công nợ nhà cung cấp" },
   { code: "supplier_payment.manage", description: "Ghi nhận thanh toán cho nhà cung cấp" },
   { code: "loyalty.manage", description: "Điều chỉnh điểm tích lũy của khách bằng tay" },
-  { code: "ai.use", description: "Dùng tính năng AI" },
   { code: "national_sync.read", description: "Xem trạng thái liên thông CSDL Dược quốc gia" },
   { code: "einvoice.manage", description: "Cấu hình và phát hành hóa đơn điện tử" },
   {
@@ -144,7 +143,6 @@ export const ROLES: Array<{ code: string; name: string; permissions: string[] }>
       "storage_log.write",
       "report.inventory",
       "controlled.read",
-      "ai.use",
       "national_sync.read",
     ],
   },
