@@ -1,4 +1,10 @@
-import { CheckCircleFilled, SafetyCertificateOutlined } from "@ant-design/icons";
+import {
+  CheckCircleFilled,
+  ClockCircleOutlined,
+  LoadingOutlined,
+  SafetyCertificateOutlined,
+  WarningFilled,
+} from "@ant-design/icons";
 import { Checkbox, Input, Spin, Tag } from "antd";
 import type { SafetyResult } from "../../../api/types.js";
 
@@ -115,5 +121,42 @@ export function SafetyPanel({
         </div>
       ) : null}
     </div>
+  );
+}
+
+/** Trạng thái kiểm tra an toàn rút gọn, đặt cạnh nút thanh toán. */
+export function SafetyStatus({
+  active,
+  loading,
+  failed,
+  blockingCount,
+  missingAckCount,
+}: {
+  active: boolean;
+  loading: boolean;
+  failed: boolean;
+  blockingCount: number;
+  missingAckCount: number;
+}) {
+  return !active ? null : loading ? (
+    <span className="pos-status">
+      <LoadingOutlined /> Đang kiểm tra an toàn
+    </span>
+  ) : failed ? (
+    <span className="pos-status is-danger">
+      <WarningFilled /> Chưa kiểm tra được
+    </span>
+  ) : blockingCount > 0 ? (
+    <span className="pos-status is-danger">
+      <WarningFilled /> Có vấn đề chặn bán
+    </span>
+  ) : missingAckCount > 0 ? (
+    <span className="pos-status is-warning">
+      <ClockCircleOutlined /> Cần ghi nhận {missingAckCount} cảnh báo
+    </span>
+  ) : (
+    <span className="pos-status is-ok">
+      <SafetyCertificateOutlined /> Đã kiểm tra an toàn
+    </span>
   );
 }

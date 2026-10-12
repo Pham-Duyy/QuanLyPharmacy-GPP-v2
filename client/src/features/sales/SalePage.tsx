@@ -1,137 +1,66 @@
 import {
-  BankOutlined,
   BarcodeOutlined,
-  CheckCircleFilled,
-  ClockCircleOutlined,
-  CloseOutlined,
   CreditCardOutlined,
   DeleteOutlined,
-  DollarOutlined,
-  EditOutlined,
-  EnvironmentOutlined,
-  FileProtectOutlined,
   FileTextOutlined,
-  GiftOutlined,
-  LoadingOutlined,
-  MinusOutlined,
-  PlusOutlined,
-  PrinterOutlined,
-  SafetyCertificateOutlined,
   ShoppingCartOutlined,
-  UserAddOutlined,
-  UserOutlined,
   WarningFilled,
 } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  App,
-  AutoComplete,
-  Button,
-  Checkbox,
-  Dropdown,
-  Input,
-  InputNumber,
-  Modal,
-  Select,
-  Space,
-  Tag,
-  Typography,
-} from "antd";
+import { App, Button, Checkbox, Tag } from "antd";
 import type { InputRef } from "antd";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
 import { getCommittedResource, getErrorMessage, http } from "../../api/http.js";
 import { useSubmitKey } from "../../api/submit-key.js";
-import {
-  formatVnd,
-  type CustomerDetail,
-  type CustomerSearchItem,
-  type Envelope,
-  type Invoice,
-  type Paged,
-  type PrescriptionDetail,
-  type PrescriptionListItem,
-  type ProductDetail,
-  type ProductListItem,
-  type SafetyResult,
+import type {
+  CustomerDetail,
+  Envelope,
+  Invoice,
+  Paged,
+  PrescriptionDetail,
+  ProductDetail,
+  ProductListItem,
+  SafetyResult,
 } from "../../api/types.js";
-import { formatDateTime, formatNumber } from "../../ui/format.js";
+import { formatNumber } from "../../ui/format.js";
 import { PageHeader } from "../../ui/PageHeader.js";
-import { useDebounced } from "../../ui/useDebounced.js";
 import { useAuth } from "../auth/auth-context.js";
 import {
   maxRedeemablePoints,
   useCustomerLoyalty,
   useLoyaltySettings,
 } from "../loyalty/loyalty-api.js";
-import { ERX_CODE, findErxCode, importEPrescription } from "../prescriptions/eprescription-api.js";
+import { importEPrescription } from "../prescriptions/eprescription-api.js";
 import { CameraScanButton } from "../scanning/CameraScan.js";
 import { productCodeFromScan } from "../scanning/scan-codes.js";
-import { ProductThumb } from "../catalog/products/ProductThumb.js";
 import { printDocument, printInvoice, printUrl } from "../printing/printing.js";
 import { cashShiftKeys } from "./cash-shift-api.js";
 import { CashShiftBar } from "./CashShiftBar.js";
 import { MAX_SALE_DRAFTS, readDrafts, writeDrafts, type SaleDraft } from "./pos/drafts.js";
 import { PosCatalog } from "./pos/PosCatalog.js";
-import { prescriptionCartLines, productsToFetch, remainingText } from "./pos/prescription-cart.js";
+import { prescriptionCartLines, productsToFetch } from "./pos/prescription-cart.js";
 import { applyScan, pendingPicks, scanConfirmsLine } from "./pos/scan-confirm.js";
 import { ControlledBuyerCard, type ControlledBuyer } from "./pos/ControlledBuyerCard.js";
-import { SafetyPanel } from "./pos/SafetyPanel.js";
-
-type CartLine = {
-  key: string;
-  product: ProductDetail;
-  unitId: string;
-  quantity: number;
-  /** Chỉ có ý nghĩa với thuốc kê đơn: dòng nào của đơn thuốc đang chọn khớp với dòng này. */
-  prescriptionItemId: string | null;
-  /** Cách dùng in nhãn; chưa sửa (undefined) thì lấy liều dùng ghi trên đơn thuốc. */
-  usage?: string;
-  /** Số lần quét mã khớp vào dòng này (quét xác nhận lấy đúng thuốc). */
-  scanned: number;
-  /** Dòng tự điền từ đơn thuốc, người bán còn phải đi lấy. */
-  fromPrescription?: boolean;
-};
-
-type Customer = Pick<CustomerSearchItem, "id" | "fullName" | "phone">;
-
-/** Giá trị đặc biệt trong ô chọn đơn: lấy đơn điện tử theo mã đang gõ. */
-const ERX_OPTION = "__erx__";
-
-/** Thuốc kê đơn hoặc thuốc kiểm soát đặc biệt đều cần đơn thuốc mới bán được (contract §14.2). */
-function needsPrescription(drugClass: string | null): boolean {
-  return drugClass === "RX" || drugClass === "CONTROLLED";
-}
-
-/** Che bớt số điện thoại khi hiển thị ở quầy (kết quả tìm kiếm đã che sẵn từ máy chủ). */
-function maskPhone(phone: string | null): string | null {
-  if (!phone) return null;
-  if (phone.includes("*") || phone.length < 8) return phone;
-  return `${phone.slice(0, 3)}***${phone.slice(-4)}`;
-}
-
-const vnd = new Intl.NumberFormat("vi-VN");
-const money = (value: number) => `${vnd.format(value)} đ`;
-
-const PAYMENT_METHODS = [
-  { value: "CASH", label: "Tiền mặt", icon: <DollarOutlined /> },
-  { value: "BANK_TRANSFER", label: "Chuyển khoản", icon: <BankOutlined /> },
-  { value: "CARD", label: "Thẻ", icon: <CreditCardOutlined /> },
-];
-
-/** Mệnh giá gợi ý cho "Khách đưa": đúng số tiền, rồi làm tròn lên các mệnh giá hay gặp. */
-function quickTenders(total: number): number[] {
-  if (total <= 0) return [];
-  const candidates = [
-    total,
-    ...[10_000, 50_000, 100_000, 200_000, 500_000].map((step) => Math.ceil(total / step) * step),
-  ];
-  return [...new Set(candidates)]
-    .filter((value) => value >= total)
-    .sort((a, b) => a - b)
-    .slice(0, 3);
-}
-
+import { SafetyPanel, SafetyStatus } from "./pos/SafetyPanel.js";
+import { NewCustomerModal } from "./pos/NewCustomerModal.js";
+import { PosCartLines } from "./pos/PosCartLines.js";
+import { PosCustomerRow } from "./pos/PosCustomerRow.js";
+import { PosDiscount } from "./pos/PosDiscount.js";
+import { PosDraftsMenu } from "./pos/PosDraftsMenu.js";
+import { PosLoyaltyBox } from "./pos/PosLoyaltyBox.js";
+import { PosPrescriptionField } from "./pos/PosPrescriptionField.js";
+import { PosTender } from "./pos/PosTender.js";
+import { SaleDoneModal } from "./pos/SaleDoneModal.js";
+import {
+  type CartLine,
+  type Customer,
+  lineTotal,
+  matchingPrescriptionItems,
+  money,
+  needsPrescription,
+  usageOf,
+} from "./pos/sale-cart.js";
 /**
  * Màn hình bán hàng. Giao diện chỉ gửi ý định bán; đơn giá, VAT, lô FEFO và
  * tổng tiền đều do máy chủ tính (contract §14.1), nên phần tổng ở đây chỉ là
@@ -159,30 +88,14 @@ export function SalePage() {
   const [tendered, setTendered] = useState<number | null>(null);
   const [printAfterPayment, setPrintAfterPayment] = useState(true);
   const [printLabels, setPrintLabels] = useState(true);
-  const [editingUsage, setEditingUsage] = useState<string | null>(null);
   const [newCustomerOpen, setNewCustomerOpen] = useState(false);
-  const [newCustomerName, setNewCustomerName] = useState("");
-  const [newCustomerPhone, setNewCustomerPhone] = useState("");
   const [done, setDone] = useState<Invoice | null>(null);
   // Nháp lưu trên máy theo cửa hàng; đổi cửa hàng thì đọc lại danh sách của cửa hàng mới.
   const [draftCache, setDraftCache] = useState(() => ({ storeId, list: readDrafts(storeId) }));
   const [restoringDraft, setRestoringDraft] = useState(false);
-  const customerTerm = useDebounced(customerSearch.trim(), 250);
   const [params, setParams] = useSearchParams();
   const preselectId = params.get("khach");
   const drafts = draftCache.storeId === storeId ? draftCache.list : readDrafts(storeId);
-
-  // Chỉ tìm khi gõ đủ 3 ký tự, khớp đúng quy tắc GET /customers (contract §11).
-  const customerSearchResults = useQuery({
-    queryKey: ["customer-search", customerTerm],
-    enabled: customerTerm.length >= 3,
-    queryFn: async () =>
-      (
-        await http.get<Envelope<CustomerSearchItem[]>>("/customers", {
-          params: { search: customerTerm },
-        })
-      ).data.data,
-  });
 
   const loyaltyQuery = useLoyaltySettings();
   const loyaltyProgram = loyaltyQuery.data?.settings;
@@ -190,24 +103,6 @@ export function SalePage() {
     customer?.id ?? null,
     Boolean(loyaltyProgram?.enabled),
   );
-
-  const createCustomer = useMutation({
-    mutationFn: async () =>
-      (
-        await http.post<Envelope<CustomerDetail>>("/customers", {
-          fullName: newCustomerName.trim() || null,
-          phone: newCustomerPhone.trim() || null,
-        })
-      ).data.data,
-    onSuccess: (created) => {
-      setCustomer({ id: created.id, fullName: created.fullName, phone: created.phone });
-      setNewCustomerOpen(false);
-      setNewCustomerName("");
-      setNewCustomerPhone("");
-      void message.success("Đã tạo và chọn khách hàng cho đơn bán");
-    },
-    onError: (error) => void message.error(getErrorMessage(error, "Không thể tạo khách hàng")),
-  });
 
   const cartLines = useMemo(
     () =>
@@ -218,18 +113,6 @@ export function SalePage() {
       })),
     [cart],
   );
-
-  // Tải một lần rồi lọc theo mã hoặc tên khách ngay trên trình duyệt. Endpoint
-  // chỉ lọc được một trạng thái mỗi lần gọi, nên lấy hết rồi tự lọc còn dùng
-  // bán tiếp được: VERIFIED hoặc PARTIALLY_DISPENSED (contract §5.4).
-  const verifiedPrescriptions = useQuery({
-    queryKey: ["usable-prescriptions"],
-    enabled: can("prescription.read"),
-    queryFn: async () =>
-      (await http.get<Envelope<PrescriptionListItem[]>>("/prescriptions")).data.data.filter(
-        (item) => item.status === "VERIFIED" || item.status === "PARTIALLY_DISPENSED",
-      ),
-  });
 
   // Thuốc kiểm soát đặc biệt: phải ghi người mua vào sổ theo dõi trước khi bán.
   const controlledLines = cart.filter((line) => line.product.drugClass === "CONTROLLED");
@@ -301,7 +184,7 @@ export function SalePage() {
       unitId: line.unitId,
       quantity: line.quantity,
       prescriptionItemId: line.prescriptionItemId,
-      usageInstruction: usageOf(line) || null,
+      usageInstruction: usageOf(line, prescription) || null,
     })),
     discount:
       discountValue > 0
@@ -496,14 +379,6 @@ export function SalePage() {
     }
   }
 
-  /** Dòng đơn thuốc còn khớp được với một sản phẩm: đúng thuốc, chưa bán hết theo đơn. */
-  function matchingPrescriptionItems(productId: string, source = prescription) {
-    return (source?.items ?? []).filter(
-      (item) =>
-        item.productId === productId && (item.baseQuantity ?? 0) > item.dispensedBaseQuantity,
-    );
-  }
-
   /**
    * Thêm sản phẩm vào đơn. `unitId` là đơn vị người bán chọn ở danh sách;
    * `scannedCode` là mã vạch vừa quét (quét mã hộp thì thêm một hộp).
@@ -534,7 +409,7 @@ export function SalePage() {
 
       // Thuốc kê đơn thì thử khớp sẵn vào đơn đang chọn nếu chỉ có đúng một dòng phù hợp.
       const candidates = needsPrescription(product.drugClass)
-        ? matchingPrescriptionItems(product.id)
+        ? matchingPrescriptionItems(product.id, prescription)
         : [];
       const prescriptionItemId = candidates.length === 1 ? candidates[0]!.id : null;
       const newLine = (): CartLine => ({
@@ -609,23 +484,8 @@ export function SalePage() {
     }
   }
 
-  /** Cách dùng sẽ in nhãn: chữ người bán ghi, không có thì liều dùng trên đơn thuốc. */
-  function usageOf(line: CartLine): string {
-    if (line.usage !== undefined) return line.usage.trim();
-    const item = prescription?.items.find((candidate) => candidate.id === line.prescriptionItemId);
-    return item?.dosageInstruction?.trim() ?? "";
-  }
-
   function updateLine(key: string, patch: Partial<CartLine>) {
     setCart((current) => current.map((item) => (item.key === key ? { ...item, ...patch } : item)));
-  }
-
-  function unitOf(line: CartLine) {
-    return line.product.units.find((unit) => unit.id === line.unitId);
-  }
-
-  function lineTotal(line: CartLine): number {
-    return (unitOf(line)?.currentPrice?.salePrice ?? 0) * line.quantity;
   }
 
   const subtotal = cart.reduce((sum, line) => sum + lineTotal(line), 0);
@@ -843,31 +703,6 @@ export function SalePage() {
     });
   }
 
-  const safetyStatus =
-    cart.length === 0 ? null : safety.isFetching ? (
-      <span className="pos-status">
-        <LoadingOutlined /> Đang kiểm tra an toàn
-      </span>
-    ) : safety.isError ? (
-      <span className="pos-status is-danger">
-        <WarningFilled /> Chưa kiểm tra được
-      </span>
-    ) : blocking.length > 0 ? (
-      <span className="pos-status is-danger">
-        <WarningFilled /> Có vấn đề chặn bán
-      </span>
-    ) : missingAck.length > 0 ? (
-      <span className="pos-status is-warning">
-        <ClockCircleOutlined /> Cần ghi nhận {missingAck.length} cảnh báo
-      </span>
-    ) : (
-      <span className="pos-status is-ok">
-        <SafetyCertificateOutlined /> Đã kiểm tra an toàn
-      </span>
-    );
-
-  const discountLimitedByRole = !can("sale.discount");
-
   return (
     <div className="sale-page">
       <PageHeader
@@ -912,46 +747,12 @@ export function SalePage() {
               Đơn mới
             </Tag>
             <span className="pos-head-actions">
-              {drafts.length > 0 ? (
-                <Dropdown
-                  trigger={["click"]}
-                  placement="bottomRight"
-                  menu={{
-                    items: drafts.map((draft) => ({
-                      key: draft.id,
-                      label: (
-                        <span className="pos-draft-item">
-                          <strong>{draft.customer?.fullName ?? "Khách lẻ"}</strong>
-                          <small>
-                            {draft.lines.length} sản phẩm · {formatDateTime(draft.savedAt)}
-                          </small>
-                        </span>
-                      ),
-                      extra: (
-                        <Button
-                          size="small"
-                          type="text"
-                          danger
-                          icon={<DeleteOutlined />}
-                          aria-label="Xóa đơn nháp"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            removeDraft(draft.id);
-                          }}
-                        />
-                      ),
-                    })),
-                    onClick: ({ key }) => {
-                      const draft = drafts.find((item) => item.id === key);
-                      if (draft) requestOpenDraft(draft);
-                    },
-                  }}
-                >
-                  <Button type="text" icon={<FileTextOutlined />} loading={restoringDraft}>
-                    Đơn nháp ({drafts.length})
-                  </Button>
-                </Dropdown>
-              ) : null}
+              <PosDraftsMenu
+                drafts={drafts}
+                loading={restoringDraft}
+                onOpen={requestOpenDraft}
+                onRemove={removeDraft}
+              />
               <Button
                 type="text"
                 danger
@@ -965,302 +766,37 @@ export function SalePage() {
           </div>
 
           <div className="pos-attach">
-            <div className="pos-attach-row">
-              {customer ? (
-                <div className="pos-field">
-                  <UserOutlined />
-                  <strong>{customer.fullName ?? "Khách chưa có tên"}</strong>
-                  <span className="muted">{maskPhone(customer.phone) ?? "Không có SĐT"}</span>
-                  <Button
-                    type="text"
-                    size="small"
-                    icon={<EditOutlined />}
-                    aria-label="Đổi khách hàng"
-                    onClick={() => {
-                      setCustomer(null);
-                      setRedeemPoints(0);
-                    }}
-                  />
-                </div>
-              ) : (
-                <AutoComplete
-                  className="pos-field-input"
-                  value={customerSearch}
-                  onChange={setCustomerSearch}
-                  options={(customerSearchResults.data ?? []).map((item) => ({
-                    value: item.id,
-                    label: `${item.fullName ?? "Chưa rõ tên"}${item.phone ? ` · ${item.phone}` : ""}`,
-                  }))}
-                  onSelect={(id) => {
-                    const found = customerSearchResults.data?.find((item) => item.id === id);
-                    if (found) setCustomer(found);
-                    setCustomerSearch("");
-                  }}
-                  notFoundContent={
-                    customerTerm.length >= 3 && !customerSearchResults.isFetching
-                      ? "Không tìm thấy khách"
-                      : null
-                  }
-                >
-                  <Input
-                    prefix={<UserOutlined />}
-                    placeholder="Khách lẻ · tìm tên hoặc SĐT (≥ 3 ký tự)"
-                    allowClear
-                    aria-label="Tìm khách hàng"
-                  />
-                </AutoComplete>
-              )}
-              {can("customer.manage") ? (
-                <Button icon={<UserAddOutlined />} onClick={() => setNewCustomerOpen(true)}>
-                  Thêm khách hàng
-                </Button>
-              ) : null}
-            </div>
+            <PosCustomerRow
+              customer={customer}
+              onChange={(next) => {
+                setCustomer(next);
+                if (!next) setRedeemPoints(0);
+              }}
+              search={customerSearch}
+              onSearchChange={setCustomerSearch}
+              onAddNew={can("customer.manage") ? () => setNewCustomerOpen(true) : undefined}
+            />
 
-            {prescription ? (
-              <>
-                <div className="pos-field pos-field-rx">
-                  <FileProtectOutlined />
-                  <span>
-                    Đơn thuốc: <strong>{prescription.code}</strong>
-                  </span>
-                  <span className="muted">{prescription.customer?.fullName ?? "Khách lẻ"}</span>
-                  <Button
-                    type="text"
-                    size="small"
-                    icon={<CloseOutlined />}
-                    aria-label="Bỏ đơn thuốc"
-                    onClick={clearPrescription}
-                  />
-                </div>
-                {prescriptionPending > 0 ? (
-                  <Button
-                    block
-                    type="dashed"
-                    icon={<PlusOutlined />}
-                    onClick={() => void addPrescriptionLines(prescription, cart)}
-                  >
-                    Thêm {prescriptionPending} thuốc theo đơn
-                  </Button>
-                ) : null}
-              </>
-            ) : can("prescription.read") ? (
-              <div className="pos-attach-row">
-                <AutoComplete
-                  className="pos-field-input"
-                  value={prescriptionSearch}
-                  onChange={setPrescriptionSearch}
-                  filterOption={(input, option) =>
-                    typeof option?.label === "string" &&
-                    option.label.toLowerCase().includes(input.toLowerCase())
-                  }
-                  options={[
-                    // Gõ hoặc quét đúng mã đơn điện tử: lấy đơn từ hệ thống quốc gia ngay tại quầy.
-                    ...(ERX_CODE.test(prescriptionSearch.trim())
-                      ? [
-                          {
-                            value: ERX_OPTION,
-                            label: `Lấy đơn điện tử ${prescriptionSearch.trim()}`,
-                          },
-                        ]
-                      : []),
-                    ...(verifiedPrescriptions.data ?? []).map((item) => ({
-                      value: item.id,
-                      label: `${item.code} — ${item.customer?.fullName ?? item.patientName ?? "Khách lẻ"}`,
-                    })),
-                  ]}
-                  notFoundContent={
-                    verifiedPrescriptions.data?.length === 0
-                      ? "Chưa có đơn thuốc đã xác nhận"
-                      : null
-                  }
-                  onSelect={async (id) => {
-                    if (id === ERX_OPTION) {
-                      await loadEPrescription(prescriptionSearch.trim());
-                      return;
-                    }
-                    await attachPrescription(id);
-                  }}
-                >
-                  <Input
-                    prefix={<FileProtectOutlined />}
-                    placeholder="Đơn thuốc: chọn đơn đã xác nhận, hoặc quét mã đơn điện tử"
-                    allowClear
-                    aria-label="Chọn đơn thuốc"
-                  />
-                </AutoComplete>
-                <CameraScanButton
-                  title="Quét mã đơn thuốc điện tử bằng camera"
-                  accept={findErxCode}
-                  wrongCodeMessage="Mã vừa đọc không phải mã đơn thuốc điện tử (14 ký tự, đuôi -c, -n, -h hoặc -y)."
-                  onDetected={(code) => void loadEPrescription(code)}
-                />
-              </div>
-            ) : null}
+            <PosPrescriptionField
+              prescription={prescription}
+              pending={prescriptionPending}
+              canRead={can("prescription.read")}
+              search={prescriptionSearch}
+              onSearchChange={setPrescriptionSearch}
+              onAttach={attachPrescription}
+              onLoadErx={loadEPrescription}
+              onClear={clearPrescription}
+              onAddLines={() => prescription && void addPrescriptionLines(prescription, cart)}
+            />
           </div>
 
-          <div className="pos-cart">
-            {cart.length === 0 ? (
-              <div className="pos-cart-empty">
-                <ShoppingCartOutlined />
-                <strong>Chưa có thuốc trong đơn</strong>
-                <span>Quét mã vạch hoặc bấm “Thêm” ở danh sách bên trái.</span>
-              </div>
-            ) : (
-              <>
-                <div className="pos-cart-head" aria-hidden>
-                  <span>Thuốc / Đơn vị</span>
-                  <span>Số lượng</span>
-                  <span className="col-num">Thành tiền</span>
-                  <span />
-                </div>
-                {cart.map((line) => {
-                  const unit = unitOf(line);
-                  const rx = needsPrescription(line.product.drugClass);
-                  const candidates = rx ? matchingPrescriptionItems(line.product.id) : [];
-                  const price = unit?.currentPrice?.salePrice;
-                  return (
-                    <div className="pos-cart-line" key={line.key}>
-                      <div className="pos-cart-product">
-                        <ProductThumb
-                          src={line.product.images?.[0]?.thumbUrl}
-                          alt={line.product.name}
-                          size={44}
-                        />
-                        <div className="pos-cart-text">
-                          <strong>{line.product.name}</strong>
-                          {line.product.shelfLocation || scanning ? (
-                            <span className="pos-cart-tags">
-                              {line.product.shelfLocation ? (
-                                <span className="pos-shelf">
-                                  <EnvironmentOutlined /> {line.product.shelfLocation}
-                                </span>
-                              ) : null}
-                              {scanning ? (
-                                line.scanned > 0 ? (
-                                  <span className="pos-scan is-ok">
-                                    <CheckCircleFilled /> Đã quét
-                                  </span>
-                                ) : (
-                                  <span className="pos-scan">
-                                    <BarcodeOutlined /> Chưa quét
-                                  </span>
-                                )
-                              ) : null}
-                            </span>
-                          ) : null}
-                          <span className="pos-cart-unit">
-                            <Select
-                              size="small"
-                              variant="borderless"
-                              value={line.unitId}
-                              aria-label={`Đơn vị ${line.product.name}`}
-                              onChange={(unitId) => updateLine(line.key, { unitId })}
-                              options={line.product.units
-                                .filter(
-                                  (item) => item.isSellable !== false && item.isActive !== false,
-                                )
-                                .map((item) => ({ value: item.id, label: item.name }))}
-                              popupMatchSelectWidth={false}
-                            />
-                            <span className="muted">
-                              ·{" "}
-                              {price === null || price === undefined
-                                ? "Chưa đặt giá"
-                                : money(price)}
-                            </span>
-                          </span>
-                          {rx ? (
-                            candidates.length === 0 ? (
-                              <Typography.Text type="danger" className="pos-cart-rx">
-                                <WarningFilled />{" "}
-                                {prescription ? "Không có trong đơn thuốc" : "Cần chọn đơn thuốc"}
-                              </Typography.Text>
-                            ) : (
-                              <Select
-                                size="small"
-                                className="pos-cart-rx"
-                                value={line.prescriptionItemId ?? undefined}
-                                placeholder="Chọn dòng đơn thuốc"
-                                onChange={(prescriptionItemId) =>
-                                  updateLine(line.key, { prescriptionItemId })
-                                }
-                                options={candidates.map((item) => ({
-                                  value: item.id,
-                                  label: `${remainingText(item, line.product.units.find((candidate) => candidate.conversionToBase === 1)?.name)} còn lại theo đơn`,
-                                }))}
-                              />
-                            )
-                          ) : null}
-                          {editingUsage === line.key ? (
-                            <Input
-                              size="small"
-                              autoFocus
-                              className="pos-cart-usage"
-                              maxLength={300}
-                              placeholder="Ví dụ: Uống 1 viên x 2 lần/ngày sau ăn"
-                              defaultValue={usageOf(line)}
-                              aria-label={`Cách dùng ${line.product.name}`}
-                              onBlur={(event) => {
-                                updateLine(line.key, { usage: event.target.value });
-                                setEditingUsage(null);
-                              }}
-                              onPressEnter={(event) => {
-                                updateLine(line.key, { usage: event.currentTarget.value });
-                                setEditingUsage(null);
-                              }}
-                            />
-                          ) : (
-                            <Button
-                              type="link"
-                              size="small"
-                              className="pos-cart-usage"
-                              onClick={() => setEditingUsage(line.key)}
-                            >
-                              {usageOf(line) ? `Cách dùng: ${usageOf(line)}` : "+ Cách dùng"}
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                      <div className="pos-qty">
-                        <Button
-                          icon={<MinusOutlined />}
-                          aria-label={`Giảm số lượng ${line.product.name}`}
-                          disabled={line.quantity <= 1}
-                          onClick={() =>
-                            updateLine(line.key, { quantity: Math.max(1, line.quantity - 1) })
-                          }
-                        />
-                        <InputNumber
-                          min={1}
-                          precision={0}
-                          controls={false}
-                          value={line.quantity}
-                          onChange={(quantity) => updateLine(line.key, { quantity: quantity ?? 1 })}
-                          aria-label={`Số lượng ${line.product.name}`}
-                        />
-                        <Button
-                          icon={<PlusOutlined />}
-                          aria-label={`Tăng số lượng ${line.product.name}`}
-                          onClick={() => updateLine(line.key, { quantity: line.quantity + 1 })}
-                        />
-                      </div>
-                      <strong className="col-num pos-cart-total">{money(lineTotal(line))}</strong>
-                      <Button
-                        type="text"
-                        danger
-                        icon={<DeleteOutlined />}
-                        aria-label={`Xóa ${line.product.name} khỏi đơn`}
-                        onClick={() =>
-                          setCart((current) => current.filter((item) => item.key !== line.key))
-                        }
-                      />
-                    </div>
-                  );
-                })}
-              </>
-            )}
-          </div>
+          <PosCartLines
+            cart={cart}
+            prescription={prescription}
+            scanning={scanning}
+            onUpdate={updateLine}
+            onRemove={(key) => setCart((current) => current.filter((item) => item.key !== key))}
+          />
 
           {controlledLines.length > 0 ? (
             <ControlledBuyerCard
@@ -1297,92 +833,29 @@ export function SalePage() {
               <span>Tạm tính</span>
               <strong>{money(subtotal)}</strong>
             </div>
-            <div className="pos-summary-row pos-discount">
-              <span>Giảm giá</span>
-              <Space.Compact>
-                <Select
-                  value={discountType}
-                  onChange={setDiscountType}
-                  aria-label="Kiểu giảm giá"
-                  options={[
-                    { value: "AMOUNT", label: "đ" },
-                    { value: "PERCENT", label: "%" },
-                  ]}
-                  disabled={discountLimitedByRole}
-                />
-                <InputNumber<number>
-                  min={0}
-                  max={discountType === "PERCENT" ? 100 : undefined}
-                  value={discountValue}
-                  onChange={(value) => setDiscountValue(value ?? 0)}
-                  formatter={(value) => (value ? Number(value).toLocaleString("vi-VN") : "0")}
-                  parser={(value) => Number((value ?? "").replace(/\D/g, ""))}
-                  aria-label="Mức giảm giá"
-                  disabled={discountLimitedByRole}
-                />
-              </Space.Compact>
-            </div>
-            {discountValue > 0 ? (
-              <Input
-                placeholder="Lý do giảm giá (bắt buộc)"
-                value={discountReason}
-                onChange={(event) => setDiscountReason(event.target.value)}
-                aria-label="Lý do giảm giá"
-              />
-            ) : null}
-            {estimatedDiscount > 0 ? (
-              <div className="pos-summary-row muted">
-                <span>Giảm tạm tính</span>
-                <span>−{money(estimatedDiscount)}</span>
-              </div>
-            ) : null}
+            <PosDiscount
+              type={discountType}
+              onTypeChange={setDiscountType}
+              value={discountValue}
+              onValueChange={setDiscountValue}
+              reason={discountReason}
+              onReasonChange={setDiscountReason}
+              disabled={!can("sale.discount")}
+              estimated={estimatedDiscount}
+            />
             {loyaltyProgram?.enabled && customer ? (
-              <div className="pos-loyalty">
-                <div className="pos-loyalty-head">
-                  <span>
-                    <GiftOutlined /> Điểm của khách
-                  </span>
-                  <strong>
-                    {customerLoyalty.isLoading ? "…" : `${formatNumber(pointsAvailable)} điểm`}
-                  </strong>
-                </div>
-                {canRedeem ? (
-                  <>
-                    <div className="pos-loyalty-input">
-                      <InputNumber<number>
-                        min={0}
-                        max={maxRedeem}
-                        step={loyaltyProgram.minRedeemPoints || 1}
-                        value={redeemPoints}
-                        onChange={(value) => setRedeemPoints(value ?? 0)}
-                        aria-label="Số điểm khách muốn đổi"
-                        placeholder="Số điểm đổi"
-                      />
-                      <Button size="small" onClick={() => setRedeemPoints(maxRedeem)}>
-                        Đổi tối đa {formatNumber(maxRedeem)}
-                      </Button>
-                      {redeemPoints > 0 ? (
-                        <Button size="small" type="text" onClick={() => setRedeemPoints(0)}>
-                          Bỏ
-                        </Button>
-                      ) : null}
-                    </div>
-                    <span className="muted">
-                      {appliedRedeem > 0
-                        ? `Giảm ${money(loyaltyDiscount)} · sau đơn này còn ${formatNumber(pointsAvailable - appliedRedeem)} điểm`
-                        : `Mỗi lần đổi từ ${formatNumber(loyaltyProgram.minRedeemPoints)} điểm, 1 điểm = ${money(loyaltyProgram.pointValue)}`}
-                    </span>
-                  </>
-                ) : (
-                  <span className="muted">
-                    {loyaltyEligibleSubtotal === 0
-                      ? "Giỏ hàng chưa có mặt hàng nào được đổi điểm."
-                      : pointsAvailable < loyaltyProgram.minRedeemPoints
-                        ? `Cần tối thiểu ${formatNumber(loyaltyProgram.minRedeemPoints)} điểm mới đổi được.`
-                        : `Hóa đơn này chỉ giảm được tối đa ${loyaltyProgram.maxRedeemPercent}% giá trị hàng tính điểm, chưa đủ một lần đổi.`}
-                  </span>
-                )}
-              </div>
+              <PosLoyaltyBox
+                program={loyaltyProgram}
+                loading={customerLoyalty.isLoading}
+                pointsAvailable={pointsAvailable}
+                canRedeem={canRedeem}
+                maxRedeem={maxRedeem}
+                redeemPoints={redeemPoints}
+                onRedeemChange={setRedeemPoints}
+                appliedRedeem={appliedRedeem}
+                loyaltyDiscount={loyaltyDiscount}
+                eligibleSubtotal={loyaltyEligibleSubtotal}
+              />
             ) : null}
             {appliedRedeem > 0 ? (
               <div className="pos-summary-row muted">
@@ -1396,67 +869,15 @@ export function SalePage() {
             </div>
           </div>
 
-          <div className="pos-pay-methods" role="radiogroup" aria-label="Hình thức thanh toán">
-            {PAYMENT_METHODS.map((method) => (
-              <button
-                key={method.value}
-                type="button"
-                role="radio"
-                aria-checked={paymentMethod === method.value}
-                className={
-                  paymentMethod === method.value ? "pos-pay-method is-active" : "pos-pay-method"
-                }
-                onClick={() => setPaymentMethod(method.value)}
-              >
-                {method.icon} {method.label}
-              </button>
-            ))}
-          </div>
-
-          {cash ? (
-            <div className="pos-tender">
-              <div className="pos-summary-row">
-                <span>Khách đưa</span>
-                <InputNumber<number>
-                  className="pos-tender-input"
-                  min={0}
-                  step={1000}
-                  value={tendered}
-                  onChange={setTendered}
-                  suffix="đ"
-                  placeholder="Để trống nếu không cần tiền thừa"
-                  formatter={(value) => (value ? Number(value).toLocaleString("vi-VN") : "")}
-                  parser={(value) => Number((value ?? "").replace(/\D/g, ""))}
-                  aria-label="Khách đưa"
-                />
-              </div>
-              {quickTenders(estimatedTotal).length > 0 ? (
-                <div className="pos-quick-tender">
-                  {quickTenders(estimatedTotal).map((value) => (
-                    <button
-                      key={value}
-                      type="button"
-                      className={tendered === value ? "is-active" : undefined}
-                      onClick={() => setTendered(value)}
-                    >
-                      {money(value)}
-                    </button>
-                  ))}
-                </div>
-              ) : null}
-              {estimatedChange !== null ? (
-                <div className="pos-summary-row pos-change">
-                  <span>Tiền thừa</span>
-                  <strong>{money(estimatedChange)}</strong>
-                </div>
-              ) : shortfall !== null ? (
-                <div className="pos-summary-row pos-shortfall">
-                  <span>Còn thiếu</span>
-                  <strong>{money(shortfall)}</strong>
-                </div>
-              ) : null}
-            </div>
-          ) : null}
+          <PosTender
+            total={estimatedTotal}
+            paymentMethod={paymentMethod}
+            onMethodChange={setPaymentMethod}
+            tendered={tendered}
+            onTenderedChange={setTendered}
+            change={estimatedChange}
+            shortfall={shortfall}
+          />
 
           <div className="pos-status-row">
             <Checkbox
@@ -1465,7 +886,7 @@ export function SalePage() {
             >
               In hóa đơn
             </Checkbox>
-            {cart.some((line) => usageOf(line)) ? (
+            {cart.some((line) => usageOf(line, prescription)) ? (
               <Checkbox
                 checked={printLabels}
                 onChange={(event) => setPrintLabels(event.target.checked)}
@@ -1473,7 +894,13 @@ export function SalePage() {
                 In nhãn cách dùng
               </Checkbox>
             ) : null}
-            {safetyStatus}
+            <SafetyStatus
+              active={cart.length > 0}
+              loading={safety.isFetching}
+              failed={safety.isError}
+              blockingCount={blocking.length}
+              missingAckCount={missingAck.length}
+            />
           </div>
           {cart.length > 0 && !canSell && !safety.isFetching ? (
             <p className="pos-blocked">
@@ -1516,124 +943,20 @@ export function SalePage() {
         </section>
       </div>
 
-      <Modal
+      <NewCustomerModal
         open={newCustomerOpen}
-        title="Thêm khách hàng mới"
-        okText="Tạo và chọn"
-        cancelText="Hủy"
-        confirmLoading={createCustomer.isPending}
-        okButtonProps={{ disabled: !newCustomerName.trim() && !newCustomerPhone.trim() }}
-        onOk={() => createCustomer.mutate()}
-        onCancel={() => setNewCustomerOpen(false)}
-      >
-        <Space orientation="vertical" style={{ width: "100%" }}>
-          <Typography.Text type="secondary">
-            Nhập ít nhất họ tên hoặc số điện thoại. Thông tin sức khỏe chỉ được bổ sung khi khách
-            đồng ý.
-          </Typography.Text>
-          <Input
-            placeholder="Họ và tên"
-            value={newCustomerName}
-            onChange={(event) => setNewCustomerName(event.target.value)}
-            autoFocus
-          />
-          <Input
-            placeholder="Số điện thoại"
-            inputMode="tel"
-            value={newCustomerPhone}
-            onChange={(event) => setNewCustomerPhone(event.target.value)}
-          />
-        </Space>
-      </Modal>
+        onClose={() => setNewCustomerOpen(false)}
+        onCreated={(created) => {
+          setCustomer(created);
+          setNewCustomerOpen(false);
+        }}
+      />
 
-      <Modal
-        open={done !== null}
-        onCancel={() => setDone(null)}
+      <SaleDoneModal
+        invoice={done}
+        onClose={() => setDone(null)}
         afterClose={() => searchRef.current?.focus()}
-        title={null}
-        width={460}
-        footer={
-          <div className="sale-done-actions">
-            <Button
-              icon={<PrinterOutlined />}
-              onClick={() => done && void printInvoice(done.id, message)}
-            >
-              In lại hóa đơn
-            </Button>
-            {done?.lines.some((line) => line.usageInstruction) ? (
-              <Button
-                icon={<PrinterOutlined />}
-                onClick={() => void printDocument(printUrl.usageLabels(done.id), message)}
-              >
-                In nhãn cách dùng
-              </Button>
-            ) : null}
-            <Button type="primary" autoFocus onClick={() => setDone(null)}>
-              Bán đơn mới
-            </Button>
-          </div>
-        }
-      >
-        {done ? (
-          <div className="sale-done">
-            <CheckCircleFilled className="sale-done-icon" />
-            <h3>Thanh toán thành công</h3>
-            <span className="mono">{done.code}</span>
-            <div className="sale-done-total">{formatVnd(done.totalAmount)}</div>
-            {done.changeAmount !== null ? (
-              <div className="sale-done-change">
-                Tiền thừa trả khách <strong>{formatVnd(done.changeAmount)}</strong>
-              </div>
-            ) : null}
-            <dl className="sale-done-summary">
-              <div>
-                <dt>Tạm tính</dt>
-                <dd>{formatVnd(done.subtotal)}</dd>
-              </div>
-              <div>
-                <dt>Giảm giá</dt>
-                <dd>
-                  {done.discountAmount - done.loyaltyDiscountAmount > 0
-                    ? `−${formatVnd(done.discountAmount - done.loyaltyDiscountAmount)}`
-                    : formatVnd(0)}
-                </dd>
-              </div>
-              <div>
-                <dt>Trong đó VAT</dt>
-                <dd>{formatVnd(done.vatAmount)}</dd>
-              </div>
-              {done.loyaltyPointsRedeemed > 0 ? (
-                <div>
-                  <dt>Đổi điểm</dt>
-                  <dd>
-                    {formatNumber(done.loyaltyPointsRedeemed)} điểm · −
-                    {formatVnd(done.loyaltyDiscountAmount)}
-                  </dd>
-                </div>
-              ) : null}
-              {done.loyaltyPointsEarned > 0 ? (
-                <div>
-                  <dt>Điểm tích được</dt>
-                  <dd>+{formatNumber(done.loyaltyPointsEarned)} điểm</dd>
-                </div>
-              ) : null}
-            </dl>
-            <div className="sale-done-batches">
-              <span>Lô đã xuất (FEFO)</span>
-              {done.lines.flatMap((line) =>
-                line.allocations.map((allocation) => (
-                  <div key={allocation.id}>
-                    <span>
-                      {line.productName} · lô <span className="mono">{allocation.batchNumber}</span>
-                    </span>
-                    <strong>{allocation.baseQuantity}</strong>
-                  </div>
-                )),
-              )}
-            </div>
-          </div>
-        ) : null}
-      </Modal>
+      />
     </div>
   );
 }
