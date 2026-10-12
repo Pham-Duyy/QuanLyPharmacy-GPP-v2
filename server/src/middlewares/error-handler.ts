@@ -1,6 +1,7 @@
 import type { ErrorRequestHandler, RequestHandler } from "express";
 import { MulterError } from "multer";
 import { AppError } from "../lib/app-error.js";
+import { isDatabaseBusy } from "../lib/prisma-errors.js";
 import { sendError } from "../lib/respond.js";
 import { isProduction } from "../config/env.js";
 
@@ -35,6 +36,12 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
         ? "Tệp vượt quá dung lượng cho phép"
         : "Không tải được tệp lên";
     sendError(res, 422, "VALIDATION_ERROR", message);
+    return;
+  }
+
+  if (isDatabaseBusy(err)) {
+    req.log?.warn({ err }, "CSDL tạm hết kết nối");
+    sendError(res, 503, "SERVICE_BUSY", "Máy chủ đang bận, vui lòng thử lại sau ít giây");
     return;
   }
 

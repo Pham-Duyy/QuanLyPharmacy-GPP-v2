@@ -1,5 +1,6 @@
 import { Prisma } from "../../generated/prisma/client.js";
 import { prisma } from "../../db/prisma.js";
+import { CONNECTION_WAIT_MS } from "../../db/pool.js";
 import { AppError } from "../../lib/app-error.js";
 import { markIdempotentResource } from "../../lib/idempotency-context.js";
 import { codeDay, nextDocumentCode } from "../../lib/document-code.js";
@@ -82,7 +83,7 @@ export async function createReturn(
       if (invoice.prescriptionId) await lockPrescriptionItems(tx, invoice.prescriptionId);
 
       // Hạn nhận trả tính từ ngày bán (contract §15, P6).
-      const windowDays = await getSetting("returnWindowDays", storeId);
+      const windowDays = await getSetting("returnWindowDays", storeId, tx);
       const deadline = new Date(invoice.businessDate);
       deadline.setUTCDate(deadline.getUTCDate() + windowDays);
       if (businessDateNow() > deadline) {
@@ -344,7 +345,7 @@ export async function createReturn(
       await markIdempotentResource(tx, "return", saved.id);
       return saved.id;
     },
-    { timeout: 20_000 },
+    { timeout: 20_000, maxWait: CONNECTION_WAIT_MS },
   );
 }
 

@@ -38,6 +38,20 @@ function toAppError(error: unknown, context: { conflictMessage?: string } = {}):
   return error;
 }
 
+/**
+ * CSDL tạm hết kết nối: bể kết nối đầy quá thời gian chờ (thông báo của `pg`)
+ * hoặc Prisma không mở kịp giao dịch (P2028). Lỗi tạm thời, gửi lại là được.
+ */
+export function isDatabaseBusy(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  if (error.message.includes("timeout exceeded when trying to connect")) return true;
+  return (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === "P2028" &&
+    error.message.includes("Unable to start a transaction")
+  );
+}
+
 /** Bọc một thao tác ghi để lỗi CSDL được dịch sang AppError. */
 export async function withMappedErrors<T>(
   run: () => Promise<T>,

@@ -268,6 +268,76 @@ describe("Mã chứng từ khi tạo đồng thời", () => {
   });
 });
 
+/**
+ * Bể kết nối có 10 kết nối. Trước đây giao dịch bán, hủy, trả hàng đọc cài đặt
+ * bằng kết nối chung trong khi đang giữ kết nối của giao dịch: từ khoảng 10 lệnh
+ * cùng lúc, mọi giao dịch đứng chờ nhau đến hết 5 giây rồi trả lỗi 500.
+ */
+describe("Nhiều nghiệp vụ cùng lúc, vượt số kết nối của bể", () => {
+  it("20 hóa đơn gửi đồng thời đều lập được, kể cả hóa đơn có giảm giá", async () => {
+    const para = await makeProduct({
+      code: "TH0020",
+      name: "Paracetamol 500mg",
+      price: 2000,
+      quantity: 500,
+    });
+
+    const results = await Promise.all(
+      Array.from({ length: 20 }, (_, index) =>
+        sell(
+          index % 2
+            ? {
+                lines: [line(para, 2)],
+                discount: { type: "AMOUNT", value: 100, reason: "Khách quen" },
+              }
+            : { lines: [line(para, 2)] },
+          index % 4 === 0 ? pharmacistToken : adminToken,
+        ),
+      ),
+    );
+
+    expect(results.map((item) => item.status)).toEqual(Array(20).fill(201));
+    expect(await stockOf(para)).toBe(460);
+  });
+
+  it("12 lần hủy và 12 lần trả hàng đồng thời đều hoàn tất", async () => {
+    const para = await makeProduct({
+      code: "TH0021",
+      name: "Efferalgan",
+      price: 3000,
+      quantity: 500,
+    });
+    const sales = [];
+    for (let index = 0; index < 24; index++) {
+      sales.push((await sell({ lines: [line(para, 3)] }).expect(201)).body.data);
+    }
+
+    const results = await Promise.all([
+      ...sales.slice(0, 12).map((sale) =>
+        api()
+          .post(`/api/v1/invoices/${sale.id}/void`)
+          .set({ ...h(pharmacistToken), ...idem() })
+          .send({ reason: "Khách bỏ đơn" }),
+      ),
+      ...sales.slice(12).map((sale) =>
+        api()
+          .post(`/api/v1/invoices/${sale.id}/returns`)
+          .set({ ...h(pharmacistToken), ...idem() })
+          .send({
+            disposition: "RESTOCK",
+            refundMethod: "CASH",
+            lines: [{ invoiceLineId: sale.lines[0].id, unitId: para.unitId, quantity: 1 }],
+          }),
+      ),
+    ]);
+
+    expect(results.slice(0, 12).map((item) => item.status)).toEqual(Array(12).fill(200));
+    expect(results.slice(12).map((item) => item.status)).toEqual(Array(12).fill(201));
+    // 500 − 24 × 3 + 12 × 3 (hủy) + 12 × 1 (trả) = 476.
+    expect(await stockOf(para)).toBe(476);
+  });
+});
+
 describe("Đổi điểm khi hai hóa đơn chạy đồng thời", () => {
   it("không đổi vượt số điểm còn lại của khách", async () => {
     const vitamin = await makeProduct({
