@@ -1,7 +1,7 @@
 import type { ErrorRequestHandler, RequestHandler } from "express";
 import { MulterError } from "multer";
 import { AppError } from "../lib/app-error.js";
-import { isDatabaseBusy } from "../lib/prisma-errors.js";
+import { isDatabaseBusy, isInvalidUuid } from "../lib/prisma-errors.js";
 import { sendError } from "../lib/respond.js";
 import { isProduction } from "../config/env.js";
 
@@ -36,6 +36,13 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
         ? "Tệp vượt quá dung lượng cho phép"
         : "Không tải được tệp lên";
     sendError(res, 422, "VALIDATION_ERROR", message);
+    return;
+  }
+
+  // Mã sai định dạng không trỏ tới bản ghi nào: coi như không tìm thấy, không phải lỗi máy chủ.
+  if (isInvalidUuid(err)) {
+    req.log?.warn({ err }, "Mã không đúng định dạng UUID");
+    sendError(res, 404, "NOT_FOUND", "Không tìm thấy dữ liệu, mã không đúng định dạng");
     return;
   }
 
