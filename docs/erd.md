@@ -27,7 +27,7 @@
 | Nhóm bảng | Kiểu khóa | Lý do |
 |---|---|---|
 | Nghiệp vụ (products, batches, invoices…) | `uuid` mặc định `gen_random_uuid()` | Sinh được ở tầng ứng dụng trước khi ghi, không lộ số lượng bản ghi, hợp với quy ước “ID là chuỗi mờ” |
-| Sổ chỉ ghi thêm (`stock_movements`, `audit_logs`, `ai_logs`, `storage_logs`, `idempotency_keys`) | `bigint GENERATED ALWAYS AS IDENTITY` | Tăng dần theo thứ tự ghi nên dùng luôn làm con trỏ phân trang; chỉ mục nhỏ và ghi nhanh hơn `uuid` |
+| Sổ chỉ ghi thêm (`stock_movements`, `audit_logs`, `storage_logs`, `idempotency_keys`) | `bigint GENERATED ALWAYS AS IDENTITY` | Tăng dần theo thứ tự ghi nên dùng luôn làm con trỏ phân trang; chỉ mục nhỏ và ghi nhanh hơn `uuid` |
 | Bảng nối (`user_roles`, `role_permissions`, `product_ingredients`) | Khóa chính tổ hợp | Không cần id riêng |
 
 `gen_random_uuid()` có sẵn trong PostgreSQL 13 trở lên, không cần cài extension.
@@ -43,7 +43,7 @@
 | Thời điểm | `timestamptz` | Lưu UTC, hiển thị theo giờ Việt Nam |
 | Ngày nghiệp vụ, hạn dùng | `date` | Không kèm giờ |
 | Trạng thái, mã loại | `text` + `CHECK (... IN (...))` | Xem 1.4 |
-| Dữ liệu tự do | `jsonb` | `before`/`after` của audit log, kết quả AI |
+| Dữ liệu tự do | `jsonb` | `before`/`after` của audit log |
 
 ### 1.4 Vì sao dùng `text + CHECK` thay cho kiểu `ENUM`
 
@@ -94,7 +94,7 @@ Nhóm đã xác định sẽ mở rộng thành chuỗi, nên `store_id` có m�
 | Mức | Ý nghĩa | Bảng |
 |---|---|---|
 | **Dùng chung toàn chuỗi** | Một bản duy nhất, mọi cửa hàng thấy như nhau | `categories`, `active_ingredients`, `products`, `product_ingredients`, `product_units`, `product_barcodes`, `suppliers`, `roles`, `permissions`, `customers` và hai bảng hồ sơ sức khỏe, `recalls`, `recall_items` |
-| **Riêng theo cửa hàng** | Có cột `store_id uuid NOT NULL` | `batches`, `stock_movements`, `goods_receipts`, `stock_adjustments`, `invoices`, `returns`, `prescriptions`, `storage_locations`, `storage_logs`, `audit_logs`, `ai_logs` |
+| **Riêng theo cửa hàng** | Có cột `store_id uuid NOT NULL` | `batches`, `stock_movements`, `goods_receipts`, `stock_adjustments`, `invoices`, `returns`, `prescriptions`, `storage_locations`, `storage_logs`, `audit_logs` |
 | **Chung nhưng ghi đè được** | `store_id NULL` nghĩa là áp dụng toàn chuỗi | `product_prices`, `settings`, `user_roles` |
 
 Khách hàng dùng chung toàn chuỗi để khách mua ở cửa hàng nào cũng tra được lịch sử và hồ sơ dị ứng. Đơn thuốc có `store_id` là **nơi tiếp nhận**, nhưng vẫn bán được ở cửa hàng khác trong chuỗi vì dữ liệu đơn là chung.
@@ -170,9 +170,9 @@ Mọi truy vấn thuộc phạm vi cửa hàng phải lọc theo `store_id`. Có
 | Kho | `batches`, `stock_movements`, `goods_receipts`, `goods_receipt_lines`, `stock_adjustments`, `stock_adjustment_lines`, `recalls`, `recall_items` |
 | Khách hàng, đơn thuốc | `customers`, `customer_health_profiles`, `customer_allergies`, `prescriptions`, `prescription_items`, `prescription_images` |
 | Bán hàng | `invoices`, `invoice_lines`, `invoice_allocations`, `invoice_safety_acks`, `returns`, `return_lines` |
-| GPP, AI | `storage_locations`, `storage_logs`, `ai_logs` |
+| GPP | `storage_locations`, `storage_logs` |
 
-Tổng cộng 41 bảng cho MVP.
+Tổng cộng 40 bảng cho MVP.
 
 ### Sơ đồ tổng quan
 
@@ -734,7 +734,7 @@ Mỗi dòng trả trỏ tới **dòng phân bổ lô**, không chỉ trỏ tới
 
 ---
 
-## 8. Nhóm GPP và AI
+## 8. Nhóm GPP
 
 ### 8.1 `storage_locations` và `storage_logs`
 
@@ -742,12 +742,6 @@ Mỗi dòng trả trỏ tới **dòng phân bổ lô**, không chỉ trỏ tới
 - `storage_logs`: `id bigint identity PK`, `store_id uuid NOT NULL`, `storage_location_id uuid`, `recorded_at timestamptz`, `business_date date`, `temperature_c numeric(4,1)`, `humidity_percent numeric(5,2) NULL`, `out_of_range boolean`, `note`, `recorded_by`, `corrects_log_id bigint NULL`, `created_at`.
 
 Bản ghi sai không sửa và không xóa; ghi bản mới trỏ `corrects_log_id` về bản cũ. Chỉ mục `(storage_location_id, recorded_at DESC)` và `(store_id, business_date)`.
-
-### 8.2 `ai_logs`
-
-`id bigint identity PK`, `occurred_at`, `user_id`, `feature text`, `model text`, `model_version text`, `input_redacted jsonb`, `output jsonb`, `accepted boolean NULL`, `confirmed_by uuid NULL`, `latency_ms integer`, `input_tokens`, `output_tokens`, `estimated_cost numeric(12,2)`.
-
-`input_redacted` chỉ chứa dữ liệu đã lọc bỏ thông tin định danh, đúng nguyên tắc ở §20 contract.
 
 ---
 
@@ -872,7 +866,7 @@ Nếu dược sĩ chọn `DISPOSE`, có thêm một dòng `DISPOSAL` `−30` và
 5. `customers`, `customer_health_profiles`, `customer_allergies`, `prescriptions`, `prescription_items`, `prescription_images`.
 6. `invoices`, `invoice_lines`, `invoice_allocations`, `invoice_safety_acks`, `returns`, `return_lines`.
 7. `stock_adjustments`, `stock_adjustment_lines`, `stock_movements`.
-8. `storage_locations`, `storage_logs`, `ai_logs`, `idempotency_keys`, `audit_logs`, `refresh_sessions`.
+8. `storage_locations`, `storage_logs`, `idempotency_keys`, `audit_logs`, `refresh_sessions`.
 9. Các `CHECK` phức tạp, chỉ mục từng phần, chỉ mục trigram và lệnh thu hồi quyền — viết tay trong migration SQL.
 
 Migration viết tay trong thư mục mới dưới `server/prisma/migrations/` rồi áp bằng `npm run db:migrate` (`prisma migrate deploy`), không dùng `prisma migrate dev` — xem README mục "Cơ sở dữ liệu và migration". Những ràng buộc ở bước 9 Prisma không mô tả được trong `schema.prisma`, nên lệnh tự sinh migration sẽ đề nghị xóa chúng, trong khi chúng chính là phần bảo vệ dữ liệu quan trọng nhất.
