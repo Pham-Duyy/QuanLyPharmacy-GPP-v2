@@ -33,6 +33,10 @@ export const PERMISSIONS: Array<{ code: string; description: string }> = [
   },
   { code: "batch.quarantine", description: "Biệt trữ, mở khóa lô" },
   { code: "recall.manage", description: "Tạo, đóng thông báo thu hồi" },
+  {
+    code: "recall.contact",
+    description: "Xem khách đã mua lô bị thu hồi tại cửa hàng mình, ghi đã liên hệ",
+  },
   { code: "quality_report.manage", description: "Ghi sổ khiếu nại và phản ứng có hại của thuốc" },
   { code: "invoice.read", description: "Xem hóa đơn, phiếu trả" },
   { code: "invoice.create", description: "Bán hàng, chạy kiểm tra an toàn" },
@@ -128,6 +132,7 @@ export const ROLES: Array<{ code: string; name: string; permissions: string[] }>
       "stock.adjust.create",
       "batch.quarantine",
       "quality_report.manage",
+      "recall.contact",
       "invoice.read",
       "invoice.create",
       "cash_shift.manage",

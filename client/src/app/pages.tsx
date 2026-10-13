@@ -278,7 +278,7 @@ export const PAGES = [
     path: "/thu-hoi",
     label: "Thu hồi thuốc",
     icon: <NotificationOutlined />,
-    permission: "recall.manage",
+    permission: ["recall.manage", "recall.contact"],
     keywords: "thu hoi thuoc so lo cong van khach da mua",
   },
   {

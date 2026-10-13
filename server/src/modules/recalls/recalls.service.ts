@@ -185,15 +185,32 @@ export async function getDetail(recallId: string) {
 }
 
 /**
+ * Phạm vi khách hàng được xem và ghi liên hệ. Chủ nhà thuốc (recall.manage)
+ * thấy cả chuỗi; dược sĩ (recall.contact) chỉ thấy khách của cửa hàng đang chọn,
+ * vì danh sách có số điện thoại khách.
+ */
+function contactStoreScope(auth: AuthContext): string | null {
+  if (auth.can("recall.manage")) return null;
+  if (!auth.storeId) {
+    throw new AppError(400, "STORE_REQUIRED", "Chọn cửa hàng để xem khách đã mua lô bị thu hồi");
+  }
+  return auth.storeId;
+}
+
+/**
  * Hóa đơn và khách hàng đã mua các lô bị thu hồi, để liên hệ thu hồi hàng.
  * Mỗi lần xem đều ghi audit vì đây là dữ liệu liên hệ khách hàng (contract §18).
  */
 export async function getAffectedSales(recallId: string, auth: AuthContext) {
   const recall = await prisma.recall.findUnique({ where: { id: recallId } });
   if (!recall) throw AppError.notFound("Không tìm thấy thông báo thu hồi");
+  const storeId = contactStoreScope(auth);
 
   const allocations = await prisma.invoiceAllocation.findMany({
-    where: { batch: { recallId } },
+    where: {
+      batch: { recallId },
+      ...(storeId ? { invoiceLine: { invoice: { storeId } } } : {}),
+    },
     include: {
       batch: { select: { batchNumber: true } },
       invoiceLine: {
@@ -257,8 +274,12 @@ export async function markContacted(
   auth: AuthContext,
   note: string | null,
 ): Promise<void> {
+  const storeId = contactStoreScope(auth);
   const sold = await prisma.invoiceAllocation.findFirst({
-    where: { batch: { recallId }, invoiceLine: { invoiceId } },
+    where: {
+      batch: { recallId },
+      invoiceLine: { invoiceId, ...(storeId ? { invoice: { storeId } } : {}) },
+    },
     select: { id: true },
   });
   if (!sold) throw AppError.notFound("Hóa đơn này không bán lô nào của thông báo thu hồi");
@@ -287,7 +308,10 @@ export async function unmarkContacted(
   invoiceId: string,
   auth: AuthContext,
 ): Promise<void> {
-  const removed = await prisma.recallContact.deleteMany({ where: { recallId, invoiceId } });
+  const storeId = contactStoreScope(auth);
+  const removed = await prisma.recallContact.deleteMany({
+    where: { recallId, invoiceId, ...(storeId ? { invoice: { storeId } } : {}) },
+  });
   if (removed.count === 0) throw AppError.notFound("Hóa đơn này chưa được đánh dấu đã liên hệ");
   await prisma.auditLog.create({
     data: {
