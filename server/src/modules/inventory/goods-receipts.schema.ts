@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { dateKey, vnDay } from "../../lib/dates.js";
 
 /** Tuổi thọ tối thiểu hợp lý giữa ngày sản xuất và hạn dùng; ngắn hơn gần như chắc chắn là nhập nhầm. */
 export const MIN_SHELF_LIFE_DAYS = 30;
@@ -13,11 +14,11 @@ const lineSchema = z
     batchNumber: z.string().trim().min(1, "Thiếu số lô").max(50),
     manufactureDate: z.coerce
       .date()
-      .refine((value) => value.getTime() <= Date.now(), "Ngày sản xuất không được ở tương lai")
+      .refine((value) => dateKey(value) <= vnDay(), "Ngày sản xuất không được ở tương lai")
       .nullish(),
     expiryDate: z.coerce
       .date()
-      .refine((value) => value.getTime() > Date.now(), "Hạn dùng phải sau hôm nay"),
+      .refine((value) => dateKey(value) > vnDay(), "Hạn dùng phải sau hôm nay"),
   })
   .refine(
     (line) =>

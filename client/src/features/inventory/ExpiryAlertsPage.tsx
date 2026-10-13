@@ -33,6 +33,7 @@ import { formatVnd, type Envelope } from "../../api/types.js";
 import { formatDate, formatDateTime, formatNumber } from "../../ui/format.js";
 import { PageHeader } from "../../ui/PageHeader.js";
 import { useAuth } from "../auth/auth-context.js";
+import { daysLeftLabel, isExpired } from "./expiry-status.js";
 
 type BucketKey = "EXPIRED" | "D30" | "D60" | "D90";
 type ExpiryAction = "RETURN_SUPPLIER" | "PRIORITIZE_SALE" | "DISCOUNT" | "DISPOSE";
@@ -241,10 +242,8 @@ export function ExpiryAlertsPage() {
       render: (value: string, row: ExpiryRow) => (
         <div className="cell-main">
           <span className="cell-title">{formatDate(value)}</span>
-          <span className={row.daysLeft < 0 ? "count-diff-minus" : "cell-sub"}>
-            {row.daysLeft < 0
-              ? `Đã quá hạn ${formatNumber(Math.abs(row.daysLeft))} ngày`
-              : `Còn ${formatNumber(row.daysLeft)} ngày`}
+          <span className={isExpired(row.daysLeft) ? "count-diff-minus" : "cell-sub"}>
+            {daysLeftLabel(row.daysLeft)}
           </span>
         </div>
       ),
@@ -297,7 +296,7 @@ export function ExpiryAlertsPage() {
             </span>
           </div>
         ) : (
-          <Tag variant="filled" color={row.daysLeft < 0 ? "red" : "orange"}>
+          <Tag variant="filled" color={isExpired(row.daysLeft) ? "red" : "orange"}>
             Chưa có kế hoạch
           </Tag>
         ),
@@ -431,7 +430,7 @@ export function ExpiryAlertsPage() {
             pagination={
               (data.data?.items.length ?? 0) > 30 ? { pageSize: 30, size: "small" } : false
             }
-            rowClassName={(row) => (row.daysLeft < 0 ? "count-row-diff" : "")}
+            rowClassName={(row) => (isExpired(row.daysLeft) ? "count-row-diff" : "")}
             locale={{
               emptyText: (
                 <Empty description="Không có lô nào trong nhóm này — kho đang sạch hạn dùng" />
@@ -482,18 +481,19 @@ export function ExpiryAlertsPage() {
             layout="vertical"
             initialValues={{
               action:
-                editing.plan?.action ?? (editing.daysLeft < 0 ? "DISPOSE" : "RETURN_SUPPLIER"),
+                editing.plan?.action ??
+                (isExpired(editing.daysLeft) ? "DISPOSE" : "RETURN_SUPPLIER"),
               dueDate: editing.plan?.dueDate ? dayjs(editing.plan.dueDate) : null,
               note: editing.plan?.note ?? "",
             }}
             onFinish={(values) => savePlan.mutate({ ...values, batchId: editing.batchId })}
           >
             <Alert
-              type={editing.daysLeft < 0 ? "error" : "warning"}
+              type={isExpired(editing.daysLeft) ? "error" : "warning"}
               showIcon
               className="count-banner"
               title={`${editing.productName} · ${formatNumber(editing.quantityOnHand)} ${editing.baseUnitName}`}
-              description={`HSD ${formatDate(editing.expiryDate)} · ${editing.daysLeft < 0 ? `đã quá hạn ${formatNumber(Math.abs(editing.daysLeft))} ngày` : `còn ${formatNumber(editing.daysLeft)} ngày`}${editing.lastSupplier ? ` · nhập từ ${editing.lastSupplier.name}` : ""}`}
+              description={`HSD ${formatDate(editing.expiryDate)} · ${daysLeftLabel(editing.daysLeft).toLowerCase()}${editing.lastSupplier ? ` · nhập từ ${editing.lastSupplier.name}` : ""}`}
             />
             <Form.Item
               name="action"

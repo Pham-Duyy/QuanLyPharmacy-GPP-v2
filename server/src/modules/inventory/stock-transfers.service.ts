@@ -65,7 +65,8 @@ function blockReason(
     return `Lô ${batch.batchNumber} đang bị thu hồi, không chuyển được`;
   if (batch.status === "QUARANTINED")
     return `Lô ${batch.batchNumber} đang biệt trữ, không chuyển được`;
-  if (batch.expiryDate < today) return `Lô ${batch.batchNumber} đã hết hạn, không chuyển được`;
+  // Hết hạn từ chính ngày ghi trên bao bì, cùng cách tính với quầy bán.
+  if (batch.expiryDate <= today) return `Lô ${batch.batchNumber} đã hết hạn, không chuyển được`;
   return null;
 }
 
@@ -86,7 +87,7 @@ export async function listTransferable(storeId: string, search: string | undefin
       storeId,
       status: "AVAILABLE",
       quantityOnHand: { gt: 0 },
-      expiryDate: { gte: today },
+      expiryDate: { gt: today },
       product: {
         OR: [{ drugClass: null }, { drugClass: { not: "CONTROLLED" } }],
         ...(search
@@ -267,7 +268,7 @@ export async function ship(storeId: string, transferId: string, auth: AuthContex
           WHERE id = ${line.sourceBatchId}::uuid
             AND store_id = ${storeId}::uuid
             AND status = 'AVAILABLE'
-            AND expiry_date >= ${today}::date
+            AND expiry_date > ${today}::date
             AND quantity_on_hand >= ${line.baseQuantity}
           RETURNING quantity_on_hand, unit_cost
         `);
