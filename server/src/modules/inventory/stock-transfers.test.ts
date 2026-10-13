@@ -368,11 +368,14 @@ describe("Chuyển hàng — chặn lô không được chuyển", () => {
     const quarantined = await batchAt(fixture.storeId, "Q1", 10, 1000);
     await prisma.batch.update({ where: { id: quarantined.id }, data: { status: "QUARANTINED" } });
     const expired = await batchAt(fixture.storeId, "E1", 10, 1000, -1);
+    // Hết hạn đúng hôm nay: quầy bán đã không bán được thì cũng không chuyển đi.
+    const expiresToday = await batchAt(fixture.storeId, "E0", 10, 1000, 0);
 
     for (const [batch, text] of [
       [recalled, "thu hồi"],
       [quarantined, "biệt trữ"],
       [expired, "hết hạn"],
+      [expiresToday, "hết hạn"],
     ] as const) {
       const response = await draft([{ batchId: batch.id, quantity: 1 }]).expect(422);
       expect(response.body.error).toMatchObject({ code: "BATCH_NOT_TRANSFERABLE" });

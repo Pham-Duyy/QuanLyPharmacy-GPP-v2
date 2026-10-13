@@ -22,7 +22,7 @@ type ExpiryAction = (typeof EXPIRY_ACTIONS)[number];
 
 /** Mốc chia nhóm theo số ngày còn lại. */
 const BUCKETS = [
-  { key: "EXPIRED", label: "Đã hết hạn", maxDays: -1 },
+  { key: "EXPIRED", label: "Đã hết hạn", maxDays: 0 },
   { key: "D30", label: "Còn dưới 30 ngày", maxDays: 30 },
   { key: "D60", label: "Còn 31 – 60 ngày", maxDays: 60 },
   { key: "D90", label: "Còn 61 – 90 ngày", maxDays: 90 },
@@ -71,8 +71,9 @@ export type ExpiryQuery = {
   onlyWithoutPlan: boolean;
 };
 
+/** Hết hạn từ chính ngày ghi trên bao bì (còn 0 ngày), cùng cách tính với quầy bán. */
 function bucketOf(daysLeft: number): BucketKey {
-  if (daysLeft < 0) return "EXPIRED";
+  if (daysLeft <= 0) return "EXPIRED";
   if (daysLeft <= 30) return "D30";
   if (daysLeft <= 60) return "D60";
   return "D90";

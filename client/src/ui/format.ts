@@ -21,7 +21,11 @@ export function vnDateKey(date = new Date()): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: VN_TIME_ZONE }).format(date);
 }
 
-/** Số ngày từ hôm nay tới một ngày (âm nghĩa là đã qua). */
+/**
+ * Số ngày từ hôm nay (theo giờ Việt Nam) tới một ngày yyyy-mm-dd hoặc giá trị
+ * cột ngày máy chủ trả về (âm nghĩa là đã qua). So hai ngày với nhau, không so
+ * với giờ hiện tại: từ 0 tới 7 giờ sáng ngày UTC còn là hôm trước.
+ */
 export function daysUntil(value: string): number {
-  return Math.ceil((new Date(value).getTime() - Date.now()) / 86_400_000);
+  return Math.round((Date.parse(value.slice(0, 10)) - Date.parse(vnDateKey())) / 86_400_000);
 }

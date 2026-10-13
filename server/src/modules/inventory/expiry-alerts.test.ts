@@ -124,6 +124,16 @@ describe("Danh sách hàng cận hạn", () => {
     });
   });
 
+  it("lô hết hạn đúng hôm nay vào nhóm Đã hết hạn, cùng cách tính với quầy bán", async () => {
+    await makeBatch("HOMNAY", 0, 12, 1000);
+    await makeBatch("MAI", 1, 8, 1000);
+
+    const data = await list();
+    expect(row(data, "HOMNAY")).toMatchObject({ bucket: "EXPIRED", daysLeft: 0 });
+    expect(row(data, "MAI")).toMatchObject({ bucket: "D30", daysLeft: 1 });
+    expect(data.summary.byBucket.EXPIRED).toMatchObject({ batches: 1, quantity: 12 });
+  });
+
   it("giá trị tồn chỉ hiện với người có quyền xem giá vốn", async () => {
     await makeBatch("D30", 10, 100, 1000);
     const forPharmacist = await list("", pharmacistToken);
