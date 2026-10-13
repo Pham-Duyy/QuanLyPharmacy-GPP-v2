@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../src/generated/prisma/client.js";
 import { PERMISSIONS, ROLES } from "../src/config/permissions.js";
+import { DEFAULT_STORAGE_LOCATIONS } from "../src/modules/inventory/storage-location-defaults.js";
 import { CATEGORIES, INGREDIENTS, SUPPLIERS, PRODUCTS } from "./seed-catalog.js";
 
 /**
@@ -27,17 +28,6 @@ const SETTINGS: Array<{ key: string; value: unknown }> = [
   { key: "invoiceVoidWindow", value: "SAME_BUSINESS_DAY" },
   { key: "discountLimitPercent", value: { pharmacist: 10 } },
   { key: "storageLogPerDay", value: 2 },
-];
-
-const STORAGE_LOCATIONS = [
-  { code: "RETAIL_AREA", name: "Khu bán lẻ", minTempC: null, maxTempC: 30, maxHumidityPercent: 75 },
-  {
-    code: "FRIDGE",
-    name: "Tủ lạnh bảo quản thuốc",
-    minTempC: 2,
-    maxTempC: 8,
-    maxHumidityPercent: null,
-  },
 ];
 
 async function seedStore() {
@@ -122,7 +112,7 @@ async function seedSettingsAndLocations(storeId: string) {
     }
   }
 
-  for (const location of STORAGE_LOCATIONS) {
+  for (const location of DEFAULT_STORAGE_LOCATIONS) {
     await prisma.storageLocation.upsert({
       where: { storeId_code: { storeId, code: location.code } },
       update: { name: location.name },

@@ -1,6 +1,7 @@
 import { CheckCircleOutlined, ExperimentOutlined, WarningOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  Alert,
   App,
   Button,
   Card,
@@ -29,6 +30,7 @@ import {
 } from "../../api/types.js";
 import { PageHeader } from "../../ui/PageHeader.js";
 import { useAuth } from "../auth/auth-context.js";
+import { StorageLocationsTab } from "./StorageLocationsTab.js";
 
 type LocationOption = { id: string; code: string; name: string };
 
@@ -36,6 +38,7 @@ type LocationOption = { id: string; code: string; name: string };
 export function StorageLogsPage() {
   const { can } = useAuth();
   const [month, setMonth] = useState(dayjs().format("YYYY-MM"));
+  const [tab, setTab] = useState("record");
 
   const summary = useQuery({
     queryKey: ["storage-log-summary", month],
@@ -62,11 +65,20 @@ export function StorageLogsPage() {
       <PageHeader icon={<ExperimentOutlined />} title="Nhiệt độ – độ ẩm" />
       <Card>
         <Tabs
+          activeKey={tab}
+          onChange={setTab}
           items={[
             {
               key: "record",
               label: "Ghi nhận",
-              children: <RecordTab locations={locations} canWrite={can("storage_log.write")} />,
+              children: (
+                <RecordTab
+                  locations={locations}
+                  canWrite={can("storage_log.write")}
+                  noLocations={summary.isSuccess && locations.length === 0}
+                  onOpenLocations={() => setTab("locations")}
+                />
+              ),
             },
             {
               key: "summary",
@@ -80,6 +92,11 @@ export function StorageLogsPage() {
                 />
               ),
             },
+            {
+              key: "locations",
+              label: "Khu vực bảo quản",
+              children: <StorageLocationsTab canManage={can("store.manage")} />,
+            },
           ]}
         />
       </Card>
@@ -87,7 +104,17 @@ export function StorageLogsPage() {
   );
 }
 
-function RecordTab({ locations, canWrite }: { locations: LocationOption[]; canWrite: boolean }) {
+function RecordTab({
+  locations,
+  canWrite,
+  noLocations,
+  onOpenLocations,
+}: {
+  locations: LocationOption[];
+  canWrite: boolean;
+  noLocations: boolean;
+  onOpenLocations: () => void;
+}) {
   const [location, setLocation] = useState<string>();
   const [outOfRangeOnly, setOutOfRangeOnly] = useState(false);
   const queryClient = useQueryClient();
@@ -112,6 +139,20 @@ function RecordTab({ locations, canWrite }: { locations: LocationOption[]; canWr
 
   return (
     <Row gutter={[16, 16]}>
+      {noLocations ? (
+        <Col span={24}>
+          <Alert
+            type="warning"
+            showIcon
+            title="Cửa hàng chưa có khu vực bảo quản nên chưa ghi được sổ"
+            action={
+              <Button size="small" onClick={onOpenLocations}>
+                Mở khu vực bảo quản
+              </Button>
+            }
+          />
+        </Col>
+      ) : null}
       {canWrite ? (
         <Col xs={24} xl={8}>
           <RecordForm locations={locations} onSaved={refresh} />

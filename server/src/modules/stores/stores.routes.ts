@@ -10,6 +10,7 @@ import { authenticate } from "../../middlewares/authenticate.js";
 import { requirePermission } from "../../middlewares/require-permission.js";
 import { storeContext } from "../../middlewares/store-context.js";
 import type { AuthContext } from "../auth/auth.context.js";
+import { createDefaultLocations } from "../inventory/storage-locations.service.js";
 import { createStoreSchema, patchStoreSchema } from "./stores.schema.js";
 
 export const storesRouter = Router();
@@ -124,6 +125,9 @@ storesRouter.post("/stores", requirePermission("store.manage"), async (req, res)
               assignedBy: auth.userId,
             })),
           });
+
+        // Cửa hàng mới có sẵn hai khu bảo quản để ghi sổ nhiệt độ – độ ẩm ngay (GPP).
+        await createDefaultLocations(tx, created.id);
 
         await tx.auditLog.create({
           data: {
