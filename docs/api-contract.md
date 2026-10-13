@@ -1307,11 +1307,16 @@ hiệu giữa tiền hoàn ứng với tổng số đã trả *sau* lần này v
 | GET | `/storage-logs` | Lọc `location`, `from`, `to`, `outOfRange` | `storage_log.read` |
 | POST | `/storage-logs` | Ghi một lần đo | `storage_log.write` |
 | GET | `/storage-logs/summary` | `?month=2026-09`: bảng theo ngày để in, đánh dấu lần đo bị thiếu hoặc vượt ngưỡng | `storage_log.read` |
+| GET | `/storage-locations` | Khu vực bảo quản của cửa hàng đang chọn, khu đang dùng trước | `storage_log.read` |
+| POST | `/storage-locations` | Thêm khu: `name`, `minTempC`, `maxTempC`, `maxHumidityPercent` (để trống là không xét); mã `KV01`, `KV02`... máy tự đặt | `store.manage` |
+| PATCH | `/storage-locations/{id}` | Sửa tên, ngưỡng, `isActive` (ngưng dùng, không xóa) | `store.manage` |
+| POST | `/storage-locations/defaults` | Cửa hàng chưa có khu nào: tạo khu bán lẻ và tủ lạnh mặc định; đã có khu thì 409 | `store.manage` |
 
 - Request: `location` (ví dụ `RETAIL_AREA`, `FRIDGE`), `recordedAt`, `temperatureC` (một chữ số thập phân), `humidityPercent`, `note`.
-- Backend tự đặt `outOfRange` theo ngưỡng cấu hình của từng khu vực. Mặc định: khu bán lẻ ≤ 30 °C và độ ẩm ≤ 75 %; tủ lạnh 2–8 °C. Sửa được trong cài đặt, và phải đối chiếu lại với văn bản GPP đang có hiệu lực trước khi vận hành thật. **[Đã chốt – P16]**
+- Backend tự đặt `outOfRange` theo ngưỡng cấu hình của từng khu vực. Mặc định: khu bán lẻ ≤ 30 °C và độ ẩm ≤ 75 %; tủ lạnh 2–8 °C. Chủ nhà thuốc sửa được ở thẻ Khu vực bảo quản của trang Nhiệt độ – độ ẩm, và phải đối chiếu lại với văn bản GPP đang có hiệu lực trước khi vận hành thật. **[Đã chốt – P16]**
 - Nhắc ghi sổ 2 lần mỗi ngày (`storageLogPerDay = 2`, sửa được); `GET /storage-logs/summary` đánh dấu ngày còn thiếu lần đo.
 - Bản ghi không sửa, không xóa. Ghi nhầm thì tạo bản ghi mới có `correctsLogId` trỏ tới bản cũ.
+- Mở cửa hàng mới (`POST /stores`) tự tạo hai khu mặc định. Sửa ngưỡng chỉ áp cho lần đo ghi sau; lần đo cũ giữ nguyên `outOfRange` lúc ghi.
 
 ---
 

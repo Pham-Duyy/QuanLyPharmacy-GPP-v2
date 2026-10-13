@@ -678,6 +678,17 @@ export type StorageLogSummaryLocation = {
   days: StorageLogSummaryDay[];
 };
 
+/** Khu vực bảo quản của cửa hàng và ngưỡng dùng để đánh dấu lần đo vượt ngưỡng. */
+export type StorageLocationItem = {
+  id: string;
+  code: string;
+  name: string;
+  minTempC: number | null;
+  maxTempC: number | null;
+  maxHumidityPercent: number | null;
+  isActive: boolean;
+};
+
 // --- Người dùng và vai trò (contract §21) -----------------------------------
 
 type UserRoleAssignment = {

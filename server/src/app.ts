@@ -27,6 +27,7 @@ import { stockAdjustmentsRouter } from "./modules/inventory/stock-adjustments.ro
 import { openingBalanceRouter } from "./modules/inventory/opening-balance.routes.js";
 import { batchesRouter } from "./modules/inventory/batches.routes.js";
 import { inventoryRouter } from "./modules/inventory/inventory.routes.js";
+import { storageLocationsRouter } from "./modules/inventory/storage-locations.routes.js";
 import { storageLogsRouter } from "./modules/inventory/storage-logs.routes.js";
 import { prescriptionsRouter } from "./modules/prescriptions/prescriptions.routes.js";
 import { prescriptionImagesRouter } from "./modules/prescriptions/prescription-images.routes.js";
@@ -96,6 +97,7 @@ export function createApp() {
   app.use("/api/v1", batchesRouter);
   app.use("/api/v1", inventoryRouter);
   app.use("/api/v1", storageLogsRouter);
+  app.use("/api/v1", storageLocationsRouter);
   app.use("/api/v1", prescriptionsRouter);
   app.use("/api/v1", prescriptionImagesRouter);
   app.use("/api/v1", dashboardRouter);

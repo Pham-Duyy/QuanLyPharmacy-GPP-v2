@@ -36,6 +36,8 @@ const ACTION_LABEL: Record<string, string> = {
   STOCK_TRANSFER_CANCEL: "Hủy phiếu chuyển hàng",
   STOCK_TRANSFER_RECEIVE: "Nhận hàng chuyển đến",
   STOCK_TRANSFER_SHIP: "Xuất hàng chuyển đi",
+  STORAGE_LOCATION_CREATE: "Thêm khu vực bảo quản",
+  STORAGE_LOCATION_UPDATE: "Sửa khu vực bảo quản",
   STORE_CREATE: "Mở cửa hàng",
   STORE_DEACTIVATE: "Ngừng cửa hàng",
   USER_ACTIVATE: "Kích hoạt tài khoản",
