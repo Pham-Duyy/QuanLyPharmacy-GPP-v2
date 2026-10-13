@@ -5,7 +5,7 @@ import { sendData } from "../../lib/respond.js";
 import { parseOrThrow } from "../../lib/validate.js";
 import { authenticate } from "../../middlewares/authenticate.js";
 import { idempotency } from "../../middlewares/idempotency.js";
-import { requirePermission } from "../../middlewares/require-permission.js";
+import { requireAnyPermission, requirePermission } from "../../middlewares/require-permission.js";
 import { storeContext } from "../../middlewares/store-context.js";
 import { createRecallSchema } from "./recalls.schema.js";
 import * as service from "./recalls.service.js";
@@ -17,15 +17,29 @@ export const recallsRouter = Router();
 // "/api/v1", nếu dùng .use() không kèm đường dẫn thì middleware này chạy
 // cho MỌI request đi qua (kể cả của router khác đăng ký sau, như
 // /prescriptions) và đòi permission recall.manage một cách sai chỗ.
-recallsRouter.use("/recalls", authenticate, storeContext, requirePermission("recall.manage"));
+//
+// Chủ nhà thuốc (recall.manage) làm mọi việc. Dược sĩ (recall.contact) xem đợt
+// thu hồi, xem khách đã mua và ghi đã liên hệ trong phạm vi cửa hàng của mình;
+// tạo và đóng đợt chỉ recall.manage.
+recallsRouter.use(
+  "/recalls",
+  authenticate,
+  storeContext,
+  requireAnyPermission("recall.manage", "recall.contact"),
+);
 
-recallsRouter.post("/recalls", idempotency, async (req, res) => {
-  const input = parseOrThrow(createRecallSchema, req.body);
-  const id = await withMappedErrors(() => service.createRecall(req.auth!, input), {
-    conflictMessage: "Số công văn thu hồi này đã được dùng",
-  });
-  sendData(res, await service.getDetail(id), 201);
-});
+recallsRouter.post(
+  "/recalls",
+  requirePermission("recall.manage"),
+  idempotency,
+  async (req, res) => {
+    const input = parseOrThrow(createRecallSchema, req.body);
+    const id = await withMappedErrors(() => service.createRecall(req.auth!, input), {
+      conflictMessage: "Số công văn thu hồi này đã được dùng",
+    });
+    sendData(res, await service.getDetail(id), 201);
+  },
+);
 
 recallsRouter.get("/recalls", async (req, res) => {
   const query = req.query as Record<string, string | undefined>;
@@ -64,8 +78,13 @@ recallsRouter.delete("/recalls/:id/contacts/:invoiceId", async (req, res) => {
   sendData(res, { invoiceId: String(req.params.invoiceId), contacted: false });
 });
 
-recallsRouter.post("/recalls/:id/close", idempotency, async (req, res) => {
-  const id = String(req.params.id);
-  await withMappedErrors(() => service.closeRecall(id, req.auth!));
-  sendData(res, await service.getDetail(id));
-});
+recallsRouter.post(
+  "/recalls/:id/close",
+  requirePermission("recall.manage"),
+  idempotency,
+  async (req, res) => {
+    const id = String(req.params.id);
+    await withMappedErrors(() => service.closeRecall(id, req.auth!));
+    sendData(res, await service.getDetail(id));
+  },
+);

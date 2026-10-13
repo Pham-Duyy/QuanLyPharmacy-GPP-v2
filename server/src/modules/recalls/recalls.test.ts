@@ -309,3 +309,94 @@ describe("Khách hàng bị ảnh hưởng bởi thu hồi", () => {
     expect(batchId).toBeTruthy();
   });
 });
+
+describe("Dược sĩ liên hệ khách khi thu hồi", () => {
+  it("chỉ thấy và chỉ ghi liên hệ khách của cửa hàng mình, không tạo hay đóng đợt", async () => {
+    await makeBatch("L1", 100);
+    await prisma.batch.create({
+      data: {
+        storeId: fixture.otherStoreId,
+        productId,
+        batchNumber: "L1",
+        expiryDate: dayOffset(365),
+        quantityOnHand: 50,
+      },
+    });
+    const [here, there] = await Promise.all([
+      prisma.customer.create({ data: { fullName: "Khách cửa hàng 1", phone: "0900000011" } }),
+      prisma.customer.create({ data: { fullName: "Khách cửa hàng 2", phone: "0900000012" } }),
+    ]);
+    const sell = (storeId: string, customerId: string) =>
+      api()
+        .post("/api/v1/invoices")
+        .set({ ...authHeaders(adminToken, storeId), ...idem() })
+        .send({ customerId, lines: [{ productId, unitId, quantity: 2 }] })
+        .expect(201);
+    const saleHere = await sell(fixture.storeId, here.id);
+    const saleThere = await sell(fixture.otherStoreId, there.id);
+
+    const recallId = (
+      await createRecall({
+        documentNumber: "CV-030",
+        issuedAt: new Date().toISOString(),
+        items: [{ productId, batchNumber: "L1" }],
+      }).expect(201)
+    ).body.data.id as string;
+
+    const pharmacist = (await login("duocsi")).token;
+    const asPharmacist = authHeaders(pharmacist, fixture.storeId);
+
+    const list = await api().get("/api/v1/recalls").set(asPharmacist).expect(200);
+    expect(list.body.data.map((item: { id: string }) => item.id)).toEqual([recallId]);
+
+    const affected = await api()
+      .get(`/api/v1/recalls/${recallId}/affected-sales`)
+      .set(asPharmacist)
+      .expect(200);
+    expect(affected.body.data.map((item: { invoiceId: string }) => item.invoiceId)).toEqual([
+      saleHere.body.data.id,
+    ]);
+    // Không chọn cửa hàng thì không xem được danh sách có số điện thoại khách.
+    await api()
+      .get(`/api/v1/recalls/${recallId}/affected-sales`)
+      .set(authHeaders(pharmacist))
+      .expect(400);
+
+    await api()
+      .post(`/api/v1/recalls/${recallId}/contacts`)
+      .set(asPharmacist)
+      .send({ invoiceId: saleHere.body.data.id, note: "Đã gọi điện" })
+      .expect(200);
+    await api()
+      .post(`/api/v1/recalls/${recallId}/contacts`)
+      .set(asPharmacist)
+      .send({ invoiceId: saleThere.body.data.id })
+      .expect(404);
+
+    // Chủ nhà thuốc thấy cả chuỗi và đã thấy liên hệ dược sĩ vừa ghi.
+    const all = await api()
+      .get(`/api/v1/recalls/${recallId}/affected-sales`)
+      .set(authHeaders(adminToken))
+      .expect(200);
+    expect(all.body.data).toHaveLength(2);
+    expect(
+      all.body.data.find((item: { invoiceId: string }) => item.invoiceId === saleHere.body.data.id)
+        .contact,
+    ).toMatchObject({ note: "Đã gọi điện" });
+
+    await api()
+      .post("/api/v1/recalls")
+      .set({ ...asPharmacist, ...idem() })
+      .send({
+        documentNumber: "CV-031",
+        issuedAt: new Date().toISOString(),
+        items: [{ productId, batchNumber: "L1" }],
+      })
+      .expect(403);
+    await api()
+      .post(`/api/v1/recalls/${recallId}/close`)
+      .set({ ...asPharmacist, ...idem() })
+      .send({})
+      .expect(403);
+  });
+});

@@ -267,7 +267,8 @@ Quy tắc:
 | `stock.transfer.create` | Lập, xuất và hủy phiếu chuyển hàng sang cửa hàng khác (§10.9) |
 | `stock.transfer.receive` | Nhận và kiểm nhập hàng chuyển đến từ cửa hàng khác (§10.9) |
 | `batch.quarantine` | Biệt trữ, mở khóa lô |
-| `recall.manage` | Tạo, đóng thông báo thu hồi; xem danh sách khách đã mua lô bị thu hồi |
+| `recall.manage` | Tạo, đóng thông báo thu hồi; xem danh sách khách đã mua lô bị thu hồi ở mọi cửa hàng |
+| `recall.contact` | Xem thông báo thu hồi, khách đã mua lô bị thu hồi tại cửa hàng đang chọn và ghi đã liên hệ (§16) |
 | `quality_report.manage` | Ghi sổ khiếu nại và phản ứng có hại của thuốc (§17.1) |
 | `invoice.read` | Xem hóa đơn, phiếu trả |
 | `invoice.create` | Bán hàng, chạy kiểm tra an toàn |
@@ -321,6 +322,7 @@ Mô hình cập nhật ngày 30/09/2026. `admin`: quản lý; `pharmacist`: dư�
 | `stock.transfer.receive` | ✓ |  | ✓ |  |
 | `batch.quarantine` | ✓ | ✓ |  |  |
 | `recall.manage` | ✓ |  |  |  |
+| `recall.contact` |  | ✓ |  |  |
 | `quality_report.manage` | ✓ | ✓ |  |  |
 | `invoice.read` | ✓ | ✓ |  | ✓ |
 | `invoice.create` |  | ✓ |  |  |
@@ -1286,11 +1288,11 @@ hiệu giữa tiền hoàn ứng với tổng số đã trả *sau* lần này v
 | Method | Endpoint | Mô tả | Quyền |
 |---|---|---|---|
 | POST | `/recalls` | Tạo thông báo thu hồi; cần `Idempotency-Key` | `recall.manage` |
-| GET | `/recalls` | Danh sách | `recall.manage` |
-| GET | `/recalls/{id}` | Chi tiết, các lô bị ảnh hưởng ở mọi cửa hàng (`productCode`, `productName`, `batchNumber`, cửa hàng, trạng thái, tồn), tồn còn lại | `recall.manage` |
-| GET | `/recalls/{id}/affected-sales` | Hóa đơn và khách hàng đã mua các lô bị thu hồi, kèm `contact` (người, giờ, ghi chú đã liên hệ) hoặc `null`; ghi audit | `recall.manage` |
-| POST | `/recalls/{id}/contacts` | Đánh dấu đã liên hệ khách của một hóa đơn: `invoiceId`, `note`. Ghi lại thì cập nhật. Hóa đơn không bán lô nào của thu hồi: 404. Audit `RECALL_CUSTOMER_CONTACTED` (GPP mục III.4c: thông báo thu hồi cho khách) | `recall.manage` |
-| DELETE | `/recalls/{id}/contacts/{invoiceId}` | Bỏ đánh dấu khi ghi nhầm; audit `RECALL_CUSTOMER_CONTACT_REMOVED` | `recall.manage` |
+| GET | `/recalls` | Danh sách | `recall.manage` hoặc `recall.contact` |
+| GET | `/recalls/{id}` | Chi tiết, các lô bị ảnh hưởng ở mọi cửa hàng (`productCode`, `productName`, `batchNumber`, cửa hàng, trạng thái, tồn), tồn còn lại | `recall.manage` hoặc `recall.contact` |
+| GET | `/recalls/{id}/affected-sales` | Hóa đơn và khách hàng đã mua các lô bị thu hồi, kèm `contact` (người, giờ, ghi chú đã liên hệ) hoặc `null`; ghi audit. Người chỉ có `recall.contact` chỉ thấy hóa đơn của cửa hàng đang chọn, thiếu `X-Store-Id` thì 400 `STORE_REQUIRED` | `recall.manage` hoặc `recall.contact` |
+| POST | `/recalls/{id}/contacts` | Đánh dấu đã liên hệ khách của một hóa đơn: `invoiceId`, `note`. Ghi lại thì cập nhật. Hóa đơn không bán lô nào của thu hồi: 404. Audit `RECALL_CUSTOMER_CONTACTED` (GPP mục III.4c: thông báo thu hồi cho khách). Người chỉ có `recall.contact` chỉ ghi được cho hóa đơn của cửa hàng đang chọn | `recall.manage` hoặc `recall.contact` |
+| DELETE | `/recalls/{id}/contacts/{invoiceId}` | Bỏ đánh dấu khi ghi nhầm; audit `RECALL_CUSTOMER_CONTACT_REMOVED` | `recall.manage` hoặc `recall.contact` |
 | POST | `/recalls/{id}/close` | Đóng khi tồn các lô bị thu hồi bằng 0 | `recall.manage` |
 
 - Request tạo: `documentNumber` (số công văn), `issuedBy`, `issuedAt` (ngày, dạng `YYYY-MM-DD`), `reason`, `items: [{ productId, batchNumber }]`.

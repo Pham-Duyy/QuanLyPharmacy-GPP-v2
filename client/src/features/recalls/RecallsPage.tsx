@@ -36,6 +36,7 @@ import type { Envelope, Paged, ProductListItem } from "../../api/types.js";
 import { formatDate, formatDateTime, formatNumber } from "../../ui/format.js";
 import { useDebounced } from "../../ui/useDebounced.js";
 import { PageHeader } from "../../ui/PageHeader.js";
+import { useAuth } from "../auth/auth-context.js";
 
 type RecallStatus = "OPEN" | "CLOSED";
 
@@ -155,6 +156,10 @@ function ProductPicker({
 
 export function RecallsPage() {
   const { message, modal } = App.useApp();
+  const { can } = useAuth();
+  // Dược sĩ (recall.contact) xem đợt thu hồi và ghi đã liên hệ khách của cửa hàng mình;
+  // tạo và đóng đợt chỉ chủ nhà thuốc (recall.manage).
+  const canManage = can("recall.manage");
   const screens = Grid.useBreakpoint();
   const queryClient = useQueryClient();
   // Hóa đơn đang ghi "đã liên hệ" và ghi chú đang gõ.
@@ -321,19 +326,23 @@ export function RecallsPage() {
         icon={<SafetyCertificateOutlined />}
         title="Thông báo thu hồi thuốc"
         extra={
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreating(true)}>
-            Tạo thông báo
-          </Button>
+          canManage ? (
+            <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreating(true)}>
+              Tạo thông báo
+            </Button>
+          ) : null
         }
       />
 
-      <Alert
-        type="warning"
-        showIcon
-        icon={<AlertOutlined />}
-        style={{ marginBottom: 16 }}
-        title="Tạo thông báo sẽ ngừng bán mọi lô khớp trên tất cả cửa hàng"
-      />
+      {canManage ? (
+        <Alert
+          type="warning"
+          showIcon
+          icon={<AlertOutlined />}
+          style={{ marginBottom: 16 }}
+          title="Tạo thông báo sẽ ngừng bán mọi lô khớp trên tất cả cửa hàng"
+        />
+      ) : null}
 
       <Card>
         <Space wrap style={{ marginBottom: 14 }}>
@@ -478,7 +487,7 @@ export function RecallsPage() {
         onClose={() => setSelectedId(null)}
         size={screens.lg ? 860 : "default"}
         extra={
-          detailData?.status === "OPEN" && detailData.remainingBaseQuantity === 0 ? (
+          canManage && detailData?.status === "OPEN" && detailData.remainingBaseQuantity === 0 ? (
             <Popconfirm
               title="Đóng thông báo thu hồi?"
               description="Chỉ đóng sau khi xác nhận đã xử lý hết tồn các lô bị ảnh hưởng."
@@ -625,7 +634,7 @@ export function RecallsPage() {
             <div>
               <Space style={{ marginBottom: 8 }}>
                 <Typography.Title level={5} style={{ margin: 0 }}>
-                  Khách đã mua các lô này
+                  {canManage ? "Khách đã mua các lô này" : "Khách đã mua các lô này tại cửa hàng"}
                 </Typography.Title>
                 <Button
                   size="small"
