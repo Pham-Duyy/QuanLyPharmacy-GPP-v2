@@ -175,6 +175,9 @@ const CODE128 = [
   "2331112",
 ];
 const CODE128_START_B = 104;
+const CODE128_START_C = 105;
+/** Trong bộ C: chuyển sang bộ B cho ký tự kế tiếp trở đi. */
+const CODE128_C_TO_B = 100;
 const CODE128_STOP = 106;
 
 /** Số kiểm của mã EAN: nhân xen kẽ 1 và 3 từ phải sang trái. */
@@ -226,15 +229,31 @@ function encodeEan8(value: string): string {
   return `101${left}01010${right}101`;
 }
 
-/** Code128 bộ B: in được chữ và số, dùng cho mã nội bộ của nhà thuốc. */
+function code128B(character: string): number {
+  const code = character.charCodeAt(0) - 32;
+  if (code < 0 || code > 94) {
+    throw new Error(`Ký tự "${character}" không in được bằng Code128 bộ B`);
+  }
+  return code;
+}
+
+/**
+ * Code128: mã có chữ in bằng bộ B. Mã toàn số từ 4 chữ số in bằng bộ C, mỗi ký
+ * hiệu chứa hai chữ số nên ngắn gần một nửa: mã 13 số sai số kiểm EAN in bộ B
+ * dài khoảng 59 mm, tràn tem 50 mm và mất vạch hai đầu, máy quét không đọc được.
+ */
 function encodeCode128(value: string): string {
-  const codes = [CODE128_START_B];
-  for (const character of value) {
-    const code = character.charCodeAt(0) - 32;
-    if (code < 0 || code > 94) {
-      throw new Error(`Ký tự "${character}" không in được bằng Code128 bộ B`);
+  const codes: number[] = [];
+  if (/^\d{4,}$/.test(value)) {
+    // Số chữ số lẻ: các cặp in bộ C, chữ số cuối chuyển sang bộ B.
+    const paired = value.length - (value.length % 2);
+    codes.push(CODE128_START_C);
+    for (let index = 0; index < paired; index += 2) {
+      codes.push(Number(value.slice(index, index + 2)));
     }
-    codes.push(code);
+    if (paired < value.length) codes.push(CODE128_C_TO_B, code128B(value.at(-1)!));
+  } else {
+    codes.push(CODE128_START_B, ...[...value].map(code128B));
   }
   const checksum =
     codes.reduce((total, code, index) => total + code * (index === 0 ? 1 : index), 0) % 103;
@@ -278,7 +297,7 @@ export type BarcodeOptions = {
 export function barcodeSvg(
   value: string,
   options: BarcodeOptions = {},
-): { svg: string; kind: BarcodeKind; widthMm: number } {
+): { svg: string; kind: BarcodeKind; widthMm: number; modules: number } {
   const kind = detectKind(value);
   const bars = encodeBars(value, kind);
   const moduleMm = options.moduleMm ?? 0.33;
@@ -304,5 +323,6 @@ export function barcodeSvg(
     svg: `<svg xmlns="http://www.w3.org/2000/svg" width="${widthMm}mm" height="${heightMm}mm" viewBox="0 0 ${widthMm} ${heightMm}" shape-rendering="crispEdges"><g fill="#000">${rects.join("")}</g></svg>`,
     kind,
     widthMm,
+    modules: bars.length,
   };
 }

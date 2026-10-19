@@ -235,6 +235,25 @@ describe("In tem mã vạch", () => {
 
     expect(response.text).toContain("8935049500005");
     expect(warningsOf(response)[0]!.message).toContain("sai số kiểm");
+
+    // Tem 50 mm, lề 1,2 mm mỗi bên: mã vạch phải chừa đủ 10 module trắng mỗi đầu.
+    // Trước đây mã 13 số in Code128 bộ B dài 59 mm, bị cắt mất hai đầu, không quét được.
+    const barcodeWidth = Number(/<svg[^>]*width="([\d.]+)mm"/.exec(response.text)![1]);
+    expect(barcodeWidth + 2 * 10 * 0.33).toBeLessThanOrEqual(50 - 2 * 1.2);
+    expect(warningsOf(response).some((warning) => warning.message.includes("quá dài"))).toBe(false);
+  });
+
+  it("mã dài trên khổ tem nhỏ thì thu vạch lại và cảnh báo", async () => {
+    const wrong = await makeProduct("TH0004", "Thuốc mã dài", { pill: "8935049500005" });
+    const response = await print({
+      size: "35x22",
+      items: [{ productId: wrong.id, unitId: wrong.pillId, quantity: 1 }],
+    }).expect(200);
+
+    const barcodeWidth = Number(/<svg[^>]*width="([\d.]+)mm"/.exec(response.text)![1]);
+    // Không thu vạch dưới 0,25 mm: 123 module của mã 13 số.
+    expect(barcodeWidth).toBeCloseTo(123 * 0.25, 2);
+    expect(warningsOf(response).some((warning) => warning.message.includes("quá dài"))).toBe(true);
   });
 
   it("kiểm tra dữ liệu đầu vào và quyền", async () => {
