@@ -108,6 +108,33 @@ type PreparedLabel = {
 
 export type LabelRender = { html: string; labelCount: number; warnings: LabelWarning[] };
 
+/** Lề trái, phải của tem, mm (dùng cả trong CSS của trang tem). */
+const LABEL_PAD_X_MM = 1.2;
+/** Khoảng trắng mỗi bên mã vạch, tính bằng module; thiếu thì máy quét không bắt được mã. */
+const QUIET_ZONE_MODULES = 10;
+/** Vạch mảnh nhất nhỏ hơn mức này thì nhiều máy quét đọc sai. */
+const MIN_MODULE_MM = 0.25;
+
+/**
+ * Vẽ mã vạch vừa bề ngang tem, chừa đủ khoảng trắng hai bên. Mã dài thì thu
+ * vạch nhỏ lại, nhưng không dưới mức máy quét đọc được; vẫn không vừa thì
+ * báo `tooLong` để cảnh báo người in chọn khổ tem lớn hơn.
+ */
+function fitBarcode(
+  value: string,
+  spec: SizeSpec,
+): ReturnType<typeof barcodeSvg> & { tooLong: boolean } {
+  const drawn = barcodeSvg(value, { heightMm: spec.barcodeHeight, moduleMm: spec.moduleMm });
+  const usable = spec.width - 2 * LABEL_PAD_X_MM;
+  const fitted = usable / (drawn.modules + 2 * QUIET_ZONE_MODULES);
+  if (fitted >= spec.moduleMm) return { ...drawn, tooLong: false };
+  const moduleMm = Math.max(MIN_MODULE_MM, Math.floor(fitted * 1000) / 1000);
+  return {
+    ...barcodeSvg(value, { heightMm: spec.barcodeHeight, moduleMm }),
+    tooLong: fitted < MIN_MODULE_MM,
+  };
+}
+
 export async function renderLabels(
   storeId: string,
   items: LabelItemInput[],
@@ -211,10 +238,13 @@ export async function renderLabels(
 
     let drawn;
     try {
-      drawn = barcodeSvg(barcodeValue, {
-        heightMm: SIZES[options.size].barcodeHeight,
-        moduleMm: SIZES[options.size].moduleMm,
-      });
+      drawn = fitBarcode(barcodeValue, SIZES[options.size]);
+      if (drawn.tooLong) {
+        warnings.push({
+          productName: product.name,
+          message: `Mã ${barcodeValue} quá dài cho khổ ${SIZES[options.size].label}, máy quét có thể không đọc được; nên chọn khổ tem lớn hơn`,
+        });
+      }
     } catch {
       throw AppError.validation(
         `${product.name}: mã "${barcodeValue}" có ký tự không in được thành mã vạch`,
@@ -291,7 +321,7 @@ function renderHtml(
   body { margin: 0; font-family: "Segoe UI", Roboto, Arial, sans-serif; color: #000; -webkit-print-color-adjust: exact; }
   ${layout}
   .label {
-    padding: 1mm 1.2mm;
+    padding: 1mm ${LABEL_PAD_X_MM}mm;
     display: flex;
     flex-direction: column;
     align-items: center;
