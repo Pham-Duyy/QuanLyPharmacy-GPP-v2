@@ -124,6 +124,21 @@ describe("Danh sách hàng cận hạn", () => {
     });
   });
 
+  it("xếp hạn dùng gần nhất trước, cùng ngày hết hạn thì lô còn nhiều hàng trước", async () => {
+    await makeBatch("IT", 20, 10);
+    await makeBatch("NHIEU", 20, 300);
+    await makeBatch("GAN", 10, 5);
+    await makeBatch("XA", 45, 1000);
+
+    const data = await list();
+    expect(data.items.map((item: { batchNumber: string }) => item.batchNumber)).toEqual([
+      "GAN",
+      "NHIEU",
+      "IT",
+      "XA",
+    ]);
+  });
+
   it("lô hết hạn đúng hôm nay vào nhóm Đã hết hạn, cùng cách tính với quầy bán", async () => {
     await makeBatch("HOMNAY", 0, 12, 1000);
     await makeBatch("MAI", 1, 8, 1000);

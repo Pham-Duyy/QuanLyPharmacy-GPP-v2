@@ -86,7 +86,8 @@ export async function listExpiring(storeId: string, auth: AuthContext, query: Ex
 
   const batches = await prisma.batch.findMany({
     where: { storeId, quantityOnHand: { gt: 0 }, expiryDate: { lte: limit } },
-    orderBy: [{ expiryDate: "asc" }],
+    // Hạn dùng gần nhất trước; cùng ngày hết hạn thì lô còn nhiều hàng trước (cần xử lý gấp hơn).
+    orderBy: [{ expiryDate: "asc" }, { quantityOnHand: "desc" }, { batchNumber: "asc" }],
     include: {
       product: {
         select: {
