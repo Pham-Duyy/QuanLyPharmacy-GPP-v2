@@ -6,6 +6,7 @@ import {
   BarChartOutlined,
   BellOutlined,
   BulbOutlined,
+  CalendarOutlined,
   CarOutlined,
   ContainerOutlined,
   ControlOutlined,
@@ -94,10 +95,17 @@ export const PAGES = [
   },
   {
     path: "/bao-cao",
-    label: "Báo cáo",
+    label: "Báo cáo kinh doanh",
     icon: <BarChartOutlined />,
     permission: "report.sales",
     keywords: "doanh thu loi nhuan lai gop",
+  },
+  {
+    path: "/tong-ket-thang",
+    label: "Tổng kết tháng",
+    icon: <CalendarOutlined />,
+    permission: "report.sales",
+    keywords: "tong ket thang nhap xuat ton ban chay ban cham ton lau chua ban duoc",
   },
 
   // --- Giao dịch bán --------------------------------------------------------

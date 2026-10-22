@@ -13,6 +13,7 @@ export type ExportType =
   | "stock-count"
   | "invoices"
   | "goods-receipts"
+  | "period-summary"
   | "rx-sales"
   | "controlled-ledger"
   | "purchase-order"

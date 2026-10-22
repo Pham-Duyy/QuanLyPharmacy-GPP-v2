@@ -7,6 +7,7 @@ import { getCurrentPrices, getStockSummary } from "../catalog/products.service.j
 import { DRUG_CLASS_LABEL, PRODUCT_COLUMNS, PRODUCT_TYPE_LABEL } from "./import-products.js";
 import { buildLedger } from "../controlled/controlled.service.js";
 import { buildSuggestions } from "../inventory/purchase-suggestions.service.js";
+import { getPeriodSummary } from "../reports/period-summary.service.js";
 import { CUSTOMER_COLUMNS, SUPPLIER_COLUMNS } from "./import-partners.js";
 import type { ColumnDef, SheetSpec } from "./workbook.js";
 
@@ -777,6 +778,112 @@ export const goodsReceiptsExport: ExportDefinition = {
             expiryDate: line.expiryDate,
           })),
         ),
+      },
+    ];
+  },
+};
+
+const asDay = (value: string | null) => (value ? new Date(`${value}T00:00:00.000Z`) : null);
+
+/** Tổng kết kỳ (trang Tổng kết tháng): tổng quan, nhập, xếp hạng bán, hàng đứng yên, nhập – xuất – tồn. */
+export const periodSummaryExport: ExportDefinition = {
+  type: "period-summary",
+  title: "Tổng kết tháng: nhập, bán, hàng đứng yên, nhập – xuất – tồn",
+  permission: ["report.sales"],
+  needsStore: true,
+  dated: true,
+  async build(ctx) {
+    const storeId = requireStore(ctx);
+    const report = await getPeriodSummary(
+      storeId,
+      ctx.auth,
+      ctx.from,
+      new Date(ctx.to.getTime() + 86_400_000),
+    );
+    const { purchases, sales, idle } = report.summary;
+    const product = [
+      { key: "code", header: "Mã sản phẩm", width: 13 },
+      { key: "name", header: "Tên sản phẩm", width: 36 },
+      { key: "unit", header: "Đơn vị", width: 9 },
+    ] satisfies ColumnDef[];
+    const overview: Array<[string, number | string | null]> = [
+      ["Số phiếu nhập", purchases.receipts],
+      ["Số mặt hàng nhập", purchases.products],
+      ["Tiền hàng", purchases.goodsAmount],
+      ["Chiết khấu", purchases.discountAmount],
+      ["Thuế GTGT", purchases.vatAmount],
+      ["Tổng tiền nhập (phải trả NCC)", purchases.totalCost],
+      ["Trả nhà cung cấp", purchases.supplierReturnValue],
+      ["Doanh thu thuần", sales.netRevenue],
+      ["Số hóa đơn", sales.invoiceCount],
+      ["Số mặt hàng bán được", sales.products],
+      ["Lãi gộp", sales.grossProfit],
+      ["Mặt hàng còn tồn mà không bán được", idle.products],
+      ["Giá trị tồn của hàng không bán được", idle.value],
+    ];
+    return [
+      {
+        name: "Tổng quan",
+        columns: [
+          { key: "label", header: "Chỉ tiêu", width: 38 },
+          { key: "value", header: "Giá trị", kind: "money", width: 18 },
+        ],
+        rows: overview.map(([label, value]) => ({ label, value })),
+      },
+      {
+        name: "Nhập hàng",
+        columns: [
+          ...product,
+          { key: "quantity", header: "Số lượng nhập", kind: "int", width: 13 },
+          { key: "amount", header: "Tiền nhập (đã gồm CK, VAT)", kind: "money", width: 16 },
+          { key: "receipts", header: "Số phiếu", kind: "int", width: 9 },
+          { key: "suppliers", header: "Nhà cung cấp", width: 40 },
+        ],
+        rows: report.purchases.map((row) => ({ ...row, suppliers: row.suppliers.join(", ") })),
+      },
+      {
+        name: "Xếp hạng bán",
+        columns: [
+          { key: "rank", header: "Hạng", kind: "int", width: 7 },
+          ...product,
+          { key: "quantity", header: "Số lượng bán", kind: "int", width: 12 },
+          { key: "revenue", header: "Doanh thu thuần", kind: "money", width: 15 },
+          { key: "grossProfit", header: "Lãi gộp", kind: "money", width: 14 },
+          { key: "invoices", header: "Số hóa đơn", kind: "int", width: 10 },
+          { key: "share", header: "Tỷ trọng (%)", kind: "percent", width: 11 },
+        ],
+        rows: report.sales.map((row, index) => ({ rank: index + 1, ...row })),
+      },
+      {
+        name: "Chưa bán - tồn lâu",
+        columns: [
+          ...product,
+          { key: "stock", header: "Tồn cuối kỳ", kind: "int", width: 11 },
+          { key: "value", header: "Giá trị tồn", kind: "money", width: 14 },
+          { key: "lastSoldDate", header: "Lần bán gần nhất", kind: "date", width: 14 },
+          { key: "daysIdle", header: "Số ngày không bán", kind: "int", width: 12 },
+          { key: "lastReceivedDate", header: "Lần nhập gần nhất", kind: "date", width: 14 },
+          { key: "nearestExpiry", header: "Hạn dùng gần nhất", kind: "date", width: 14 },
+        ],
+        rows: report.idle.map((row) => ({
+          ...row,
+          lastSoldDate: asDay(row.lastSoldDate) ?? "Chưa từng bán",
+          lastReceivedDate: asDay(row.lastReceivedDate),
+          nearestExpiry: asDay(row.nearestExpiry),
+        })),
+      },
+      {
+        name: "Nhập - xuất - tồn",
+        columns: [
+          ...product,
+          { key: "opening", header: "Tồn đầu kỳ", kind: "int", width: 11 },
+          { key: "received", header: "Nhập mua", kind: "int", width: 10 },
+          { key: "otherIn", header: "Nhập khác", kind: "int", width: 10 },
+          { key: "sold", header: "Xuất bán", kind: "int", width: 10 },
+          { key: "otherOut", header: "Xuất khác", kind: "int", width: 10 },
+          { key: "closing", header: "Tồn cuối kỳ", kind: "int", width: 11 },
+        ],
+        rows: report.movements,
       },
     ];
   },

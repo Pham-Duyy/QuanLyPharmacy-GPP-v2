@@ -86,6 +86,10 @@ const QualityReportsPage = page(
 );
 const RecallsPage = page(() => import("../features/recalls/RecallsPage.js"), "RecallsPage");
 const ReportsPage = page(() => import("../features/reports/ReportsPage.js"), "ReportsPage");
+const MonthlySummaryPage = page(
+  () => import("../features/reports/MonthlySummaryPage.js"),
+  "MonthlySummaryPage",
+);
 
 /**
  * Thành phần của từng trang đã đăng ký. Kiểu `Record<PagePath, …>` bắt buộc
@@ -97,6 +101,7 @@ export const PAGE_ELEMENTS: Record<PagePath, ReactNode> = {
   "/ban-hang": <SalePage />,
   "/khach-hang": <CustomersPage />,
   "/bao-cao": <ReportsPage />,
+  "/tong-ket-thang": <MonthlySummaryPage />,
   "/hoa-don": <InvoicesPage />,
   "/tra-hang": <ReturnsPage />,
   "/ca-thu-ngan": <CashShiftsPage />,

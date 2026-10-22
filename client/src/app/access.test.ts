@@ -149,6 +149,7 @@ describe("sidebar theo quyền", () => {
     // Dược sĩ thấy hồ sơ GPP nhưng không có report.sales.
     expect(keys).toContain("gpp");
     expect(keys).not.toContain("/bao-cao");
+    expect(keys).not.toContain("reports");
     expect(keys).toContain("/ban-hang");
 
     const purchasing = entries.find(
@@ -175,6 +176,16 @@ describe("sidebar theo quyền", () => {
 
   it("người đủ quyền thấy 9 mục cấp đầu", () => {
     expect(visibleSidebar(ALL)).toHaveLength(9);
+  });
+
+  it("nhóm Báo cáo gồm báo cáo kinh doanh và tổng kết tháng", () => {
+    const reports = visibleSidebar(canFor("admin")).find(
+      (entry) => entry.kind === "group" && entry.key === "reports",
+    );
+    expect(reports?.kind === "group" ? reports.pages.map((page) => page.path) : []).toEqual([
+      "/bao-cao",
+      "/tong-ket-thang",
+    ]);
   });
 
   it("hóa đơn điện tử, liên thông chưa bật thì dược sĩ không thấy; quản lý vẫn thấy để bật", () => {
