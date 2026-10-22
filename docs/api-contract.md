@@ -1364,6 +1364,7 @@ Nghi lỗi chất lượng thì biệt trữ lô bằng `POST /inventory/batches
 | GET | `/reports/top-selling` | `from`, `to`, `limit` | `report.sales` |
 | GET | `/reports/stock-movement` | Xuất – nhập – tồn theo sản phẩm hoặc lô trong kỳ | `report.inventory` |
 | GET | `/reports/expiry` | `withinDays=90`: lô còn tồn sắp hết hạn hoặc đã hết hạn | `report.inventory` |
+| GET | `/reports/monthly?month=YYYY-MM` | Tổng kết tháng: nhập hàng, xếp hạng bán, hàng đứng yên, nhập – xuất – tồn (xem dưới) | `report.sales` |
 
 Đã bỏ khỏi bản gốc: `/inventory/stock-report` (trùng `/reports/stock-movement`), `/reports/expiry-warning` (đổi tên thành `/reports/expiry`).
 
@@ -1392,6 +1393,18 @@ giá vốn hoàn của hàng trả về bán lại trong kỳ):
 
 Giao diện phải nói rõ ảnh hưởng theo đúng chiều của từng loại thiếu hụt, và
 không hiển thị tỷ lệ so sánh khi `comparisonExact = false`.
+
+**`GET /reports/monthly` — tổng kết tháng.** Tháng đang chạy thì tính tới hết hôm nay (`partial = true`); tháng chưa tới trả `422`. Trả về `summary` (4 ô tổng) và năm danh sách theo thuốc:
+
+| Phần | Quy tắc |
+|---|---|
+| `purchases` | Phiếu mua (`PURCHASE`) đã kiểm nhập, theo **ngày nhận hàng** — cùng mốc với trang Phiếu nhập. Không tính tồn đầu kỳ và hàng nhận chuyển. `amount` của từng thuốc đã chia phần chiết khấu và VAT của phiếu theo tiền hàng, nên cộng lại đúng `summary.purchases.totalCost` (số phải trả nhà cung cấp). |
+| `supplierReturns` | Phiếu trả nhà cung cấp đã xác nhận trong tháng. |
+| `sales` | Cùng luật với `/reports/summary`: hóa đơn `COMPLETED` trong tháng trừ hàng khách trả lập trong tháng; tổng các thuốc khớp `netRevenue` và `grossProfit`. Số lượng theo đơn vị cơ sở. Máy chủ trả theo doanh thu giảm dần; giao diện xếp lại theo số lượng hoặc đảo chiều, hạng 1 luôn là bán nhiều nhất. |
+| `idle` | Thuốc **còn tồn cuối tháng** mà cả tháng không có hóa đơn nào. `daysIdle` tính từ lần bán cuối (chưa từng bán thì từ lần đầu có hàng) tới cuối tháng; "tồn lâu" là lọc `daysIdle` ≥ 30/60/90 trên danh sách này. Giá trị tồn = tồn cuối tháng của từng lô × giá vốn hiện tại của lô; `withoutCost` báo lô chưa có giá vốn. |
+| `movements` | Nhập – xuất – tồn từ sổ kho, đơn vị cơ sở: `opening + received + otherIn − sold − otherOut = closing`. `sold` = bán − hủy hóa đơn − khách trả về kho; "khác" gồm tồn đầu kỳ, chuyển kho, điều chỉnh, xuất hủy, trả nhà cung cấp. |
+
+Tiền nhập, lãi gộp và giá trị tồn là `null` khi không có `stock.cost.read`. Bản Excel `period-summary` (§ Nhập / xuất Excel) dùng đúng các số này.
 
 ---
 
@@ -1534,6 +1547,7 @@ Loại xuất:
 | `stock-count` | `stock.read` | Có | Bảng đếm của đợt kiểm kê đang mở, không kèm tồn hệ thống (§10.7) |
 | `invoices` | `invoice.read` | Có | Sheet "Hóa đơn" và "Chi tiết" (kèm lô xuất) |
 | `goods-receipts` | `goods_receipt.read` | Có | Sheet "Phiếu nhập" và "Chi tiết" (lô, ngày sản xuất, hạn dùng) |
+| `period-summary` | `report.sales` | Có | Tổng kết kỳ `from`–`to` (trang Tổng kết tháng gửi đúng một tháng): sheet Tổng quan, Nhập hàng, Xếp hạng bán, Chưa bán - tồn lâu, Nhập - xuất - tồn — cùng số với `GET /reports/monthly` (§19) |
 | `purchase-order` | `stock.read` | Có | Đơn đặt hàng gợi ý (§10.5), xếp theo nhà cung cấp |
 | `rx-sales` | `prescription.read` | Có | Sổ theo dõi bán thuốc kê đơn và thuốc kiểm soát đặc biệt: người bệnh, đơn thuốc, người kê, cơ sở khám chữa bệnh, chẩn đoán, số lô, hạn dùng, người bán |
 | `controlled-ledger` | `controlled.read` | Có | Sổ thuốc kiểm soát đặc biệt (§10.8): sheet Tổng hợp và Chi tiết; ghi audit `EXCEL_EXPORT` |

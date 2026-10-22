@@ -1,5 +1,6 @@
 import {
   AppstoreOutlined,
+  FundOutlined,
   ProfileOutlined,
   SettingOutlined,
   ShoppingOutlined,
@@ -14,8 +15,9 @@ import type { PagePath } from "./pages.js";
  * `PagePath` chặn ngay lúc biên dịch).
  *
  * 8 điểm vào chính theo công việc hằng ngày, Quản trị gập ở cuối. Việc dùng
- * nhiều nhất (Quầy bán, Tổng quan, Khách hàng, Báo cáo) mở bằng một lần bấm;
- * phần còn lại tối đa hai lần: mở nhóm rồi chọn trang.
+ * nhiều nhất (Quầy bán, Tổng quan, Khách hàng) mở bằng một lần bấm; phần còn
+ * lại tối đa hai lần: mở nhóm rồi chọn trang (Báo cáo gồm báo cáo kinh doanh
+ * và tổng kết tháng).
  */
 export type SidebarEntry =
   | { kind: "page"; path: PagePath }
@@ -60,7 +62,13 @@ export const SIDEBAR: readonly SidebarEntry[] = [
     icon: <SolutionOutlined />,
     paths: ["/kiem-soat-dac-biet", "/so-nhiet-do", "/thu-hoi", "/khieu-nai", "/lien-thong-duoc"],
   },
-  { kind: "page", path: "/bao-cao" },
+  {
+    kind: "group",
+    key: "reports",
+    label: "Báo cáo",
+    icon: <FundOutlined />,
+    paths: ["/bao-cao", "/tong-ket-thang"],
+  },
   {
     kind: "group",
     key: "admin",

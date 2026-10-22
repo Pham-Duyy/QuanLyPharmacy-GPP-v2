@@ -36,7 +36,7 @@ type Totals = {
  * Phần hàng trả về bán lại được (RESTOCK) được trừ ra theo đúng giá vốn của
  * lần bán gốc; hàng trả để tiêu hủy vẫn tính là giá vốn đã mất.
  */
-async function getTotals(storeId: string, from: Date, to: Date): Promise<Totals> {
+export async function getTotals(storeId: string, from: Date, to: Date): Promise<Totals> {
   const [revenueRow] = await prisma.$queryRaw<
     Array<{ revenue: bigint; invoice_count: bigint }>
   >(Prisma.sql`
@@ -128,7 +128,7 @@ type CostCounts = Omit<CostQuality, "comparisonExact">;
  * Đếm phần đóng góp giá vốn của một kỳ: dòng bán trong kỳ và dòng hàng trả
  * nhập lại kho trong kỳ (kể cả khi hóa đơn gốc thuộc kỳ trước).
  */
-async function getCostCounts(storeId: string, from: Date, to: Date): Promise<CostCounts> {
+export async function getCostCounts(storeId: string, from: Date, to: Date): Promise<CostCounts> {
   const [row] = await prisma.$queryRaw<
     Array<{
       sale_lines: number;
@@ -190,7 +190,7 @@ async function getCostCounts(storeId: string, from: Date, to: Date): Promise<Cos
   };
 }
 
-function netOf(totals: Totals): { netRevenue: number; grossProfit: number } {
+export function netOf(totals: Totals): { netRevenue: number; grossProfit: number } {
   const netRevenue = totals.revenue - totals.refund;
   const netCogs = totals.cogs - totals.restockedCost;
   return { netRevenue, grossProfit: netRevenue - netCogs };
