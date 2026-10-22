@@ -1,5 +1,6 @@
 import { prisma } from "../../db/prisma.js";
 import { AppError } from "../../lib/app-error.js";
+import { dateKey } from "../../lib/dates.js";
 import { businessDateNow } from "../../lib/settings.js";
 import type { AuthContext } from "../auth/auth.context.js";
 
@@ -46,6 +47,24 @@ type ExpiryPlanView = {
   version: number;
 };
 
+/**
+ * Cách xếp các lô trong cùng một nhóm. `quantity` so theo đơn vị cơ sở (viên,
+ * gói…) nên chỉ so được giữa các thuốc cùng đơn vị; `value` cần quyền xem giá vốn.
+ */
+export const EXPIRY_SORTS = ["quantity", "expiry", "value"] as const;
+type ExpirySort = (typeof EXPIRY_SORTS)[number];
+
+/** Nhóm hiển thị: "EXPIRED" cho mọi lô đã hết hạn, còn lại là tháng hết hạn "YYYY-MM". */
+type ExpiryGroup = {
+  key: string;
+  label: string;
+  batches: number;
+  /** Tổng giá trị tồn cả nhóm; null khi không có quyền xem giá vốn. */
+  value: number | null;
+  /** Số lô chưa có giá vốn: khi lớn hơn 0 thì `value` chưa đủ. */
+  withoutCost: number;
+};
+
 export type ExpiryRow = {
   batchId: string;
   productId: string;
@@ -55,6 +74,7 @@ export type ExpiryRow = {
   expiryDate: Date;
   daysLeft: number;
   bucket: BucketKey;
+  group: string;
   quantityOnHand: number;
   baseUnitName: string;
   shelfLocation: string | null;
@@ -69,6 +89,7 @@ export type ExpiryQuery = {
   horizonDays: number;
   bucket?: BucketKey | undefined;
   onlyWithoutPlan: boolean;
+  sort: ExpirySort;
 };
 
 /** Hết hạn từ chính ngày ghi trên bao bì (còn 0 ngày), cùng cách tính với quầy bán. */
@@ -79,15 +100,54 @@ function bucketOf(daysLeft: number): BucketKey {
   return "D90";
 }
 
+/** Lô hết hạn gom chung một nhóm dù hết từ tháng nào: phải tách khỏi khu bán ngay. */
+function groupOf(bucket: BucketKey, expiryDate: Date): string {
+  return bucket === "EXPIRED" ? "EXPIRED" : dateKey(expiryDate).slice(0, 7);
+}
+
+function groupLabel(key: string): string {
+  if (key === "EXPIRED") return "Đã hết hạn";
+  const [year, month] = key.split("-");
+  return `Tháng ${month}/${year}`;
+}
+
+type Compare = (a: ExpiryRow, b: ExpiryRow) => number;
+const byExpiry: Compare = (a, b) => a.expiryDate.getTime() - b.expiryDate.getTime();
+const byQuantity: Compare = (a, b) => b.quantityOnHand - a.quantityOnHand;
+// Lô chưa có giá vốn xuống cuối, không coi như giá trị 0.
+const byValue: Compare = (a, b) => (b.stockValue ?? -1) - (a.stockValue ?? -1);
+const WITHIN_GROUP: Record<ExpirySort, Compare[]> = {
+  quantity: [byQuantity, byExpiry],
+  expiry: [byExpiry, byQuantity],
+  value: [byValue, byExpiry],
+};
+
+/**
+ * Nhóm "Đã hết hạn" đứng đầu, rồi các tháng tăng dần; trong nhóm xếp theo
+ * `sort`. Chỉ là cách xem danh sách: quầy bán vẫn xuất lô theo FEFO.
+ */
+function compareRows(sort: ExpirySort): Compare {
+  const rank = (row: ExpiryRow) => (row.group === "EXPIRED" ? "" : row.group);
+  return (a, b) => {
+    if (rank(a) !== rank(b)) return rank(a) < rank(b) ? -1 : 1;
+    for (const compare of WITHIN_GROUP[sort]) {
+      const result = compare(a, b);
+      if (result !== 0) return result;
+    }
+    return a.batchNumber.localeCompare(b.batchNumber) || a.productCode.localeCompare(b.productCode);
+  };
+}
+
 export async function listExpiring(storeId: string, auth: AuthContext, query: ExpiryQuery) {
   const today = businessDateNow();
   const limit = new Date(today.getTime() + query.horizonDays * 86_400_000);
   const showCost = auth.can("stock.cost.read");
+  // Thứ tự theo giá trị cũng để lộ giá vốn, nên chặn cả ở đây chứ không chỉ ẩn nút.
+  if (query.sort === "value" && !showCost)
+    throw new AppError(403, "FORBIDDEN", "Sắp theo giá trị tồn cần quyền xem giá vốn");
 
   const batches = await prisma.batch.findMany({
     where: { storeId, quantityOnHand: { gt: 0 }, expiryDate: { lte: limit } },
-    // Hạn dùng gần nhất trước; cùng ngày hết hạn thì lô còn nhiều hàng trước (cần xử lý gấp hơn).
-    orderBy: [{ expiryDate: "asc" }, { quantityOnHand: "desc" }, { batchNumber: "asc" }],
     include: {
       product: {
         select: {
@@ -129,6 +189,7 @@ export async function listExpiring(storeId: string, auth: AuthContext, query: Ex
     const daysLeft = Math.round((batch.expiryDate.getTime() - today.getTime()) / 86_400_000);
     const unitCost = batch.unitCost === null ? null : Number(batch.unitCost);
     const plan = batch.expiryPlans[0];
+    const bucket = bucketOf(daysLeft);
     return {
       batchId: batch.id,
       productId: batch.productId,
@@ -137,7 +198,8 @@ export async function listExpiring(storeId: string, auth: AuthContext, query: Ex
       batchNumber: batch.batchNumber,
       expiryDate: batch.expiryDate,
       daysLeft,
-      bucket: bucketOf(daysLeft),
+      bucket,
+      group: groupOf(bucket, batch.expiryDate),
       quantityOnHand: batch.quantityOnHand,
       baseUnitName: batch.product.units[0]?.name ?? "",
       shelfLocation: batch.shelfLocation,
@@ -164,12 +226,38 @@ export async function listExpiring(storeId: string, auth: AuthContext, query: Ex
     };
   });
 
-  const filtered = rows.filter(
-    (row) =>
-      (query.bucket ? row.bucket === query.bucket : true) &&
-      (query.onlyWithoutPlan ? !row.plan : true),
-  );
-  return { items: filtered, summary: summarize(rows, showCost) };
+  // Gom nhóm sau khi lọc: tổng ở tiêu đề nhóm là của cả nhóm trong kết quả lọc.
+  const filtered = rows
+    .filter(
+      (row) =>
+        (query.bucket ? row.bucket === query.bucket : true) &&
+        (query.onlyWithoutPlan ? !row.plan : true),
+    )
+    .sort(compareRows(query.sort));
+  return {
+    items: filtered,
+    groups: groupsOf(filtered, showCost),
+    summary: summarize(rows, showCost),
+  };
+}
+
+/** Các nhóm theo đúng thứ tự trong `items`; nhóm không còn lô nào thì không có. */
+function groupsOf(rows: ExpiryRow[], showCost: boolean): ExpiryGroup[] {
+  const groups = new Map<string, ExpiryGroup>();
+  for (const row of rows) {
+    const group = groups.get(row.group) ?? {
+      key: row.group,
+      label: groupLabel(row.group),
+      batches: 0,
+      value: showCost ? 0 : null,
+      withoutCost: 0,
+    };
+    group.batches += 1;
+    if (showCost && row.stockValue === null) group.withoutCost += 1;
+    if (group.value !== null) group.value += row.stockValue ?? 0;
+    groups.set(row.group, group);
+  }
+  return [...groups.values()];
 }
 
 function summarize(rows: ExpiryRow[], showCost: boolean) {

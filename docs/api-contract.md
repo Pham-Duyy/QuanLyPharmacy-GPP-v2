@@ -868,12 +868,16 @@ Hàng cận hạn là tiền đang treo: không xử lý kịp thì tới hạn 
 
 | Method | Endpoint | Mô tả | Quyền |
 |---|---|---|---|
-| GET | `/expiry-alerts?horizonDays&bucket&onlyWithoutPlan` | `{ items, summary }`; mặc định 90 ngày | `stock.read` |
+| GET | `/expiry-alerts?horizonDays&bucket&onlyWithoutPlan&sort` | `{ items, groups, summary }`; mặc định 90 ngày | `stock.read` |
 | POST | `/expiry-alerts/plans` | Lập hoặc sửa kế hoạch: `batchId`, `action`, `dueDate`, `note` | `stock.adjust.create` |
 | POST | `/expiry-alerts/plans/{id}/close` | Đóng kế hoạch: `status` (`DONE`/`CANCELLED`), `outcome` | `stock.adjust.create` |
 | GET | `/expiry-alerts/batches/{batchId}/plans` | Lịch sử xử lý của một lô | `stock.read` |
 
 - Nhóm theo số ngày còn lại: `EXPIRED` đã hết hạn · `D30` dưới 30 ngày · `D60` 31–60 ngày · `D90` 61–90 ngày.
+- **Danh sách gom theo tháng**: mọi lô đã hết hạn chung một nhóm `EXPIRED` đứng đầu, sau đó từng tháng hết hạn (`group` = `YYYY-MM`) tăng dần. Ngày hết hạn của từng lô giữ nguyên, không làm tròn về cuối tháng.
+- `sort` chọn thứ tự trong mỗi nhóm: `quantity` (mặc định) tồn nhiều trước, bằng nhau thì hạn sớm trước · `expiry` hạn sớm trước · `value` giá trị tồn lớn trước, lô chưa có giá vốn xuống cuối. Tồn so theo đơn vị cơ sở nên chỉ so được giữa các thuốc cùng đơn vị. `value` cần `stock.cost.read`, thiếu quyền trả `403` vì thứ tự cũng để lộ giá vốn.
+- `groups` theo đúng thứ tự trong `items`, được gom **sau** khi lọc `bucket`/`onlyWithoutPlan`; nhóm không còn lô thì không có. Mỗi nhóm có `batches`, `value` (tổng giá trị tồn cả nhóm; `null` khi không có quyền xem giá vốn) và `withoutCost` (số lô chưa có giá vốn, khi lớn hơn 0 thì `value` chưa đủ). `summary` vẫn tính trên toàn bộ, không theo bộ lọc.
+- Thứ tự này chỉ là cách xem danh sách. Quầy bán vẫn xuất lô theo FEFO (lô đủ điều kiện có hạn gần nhất trước), không phụ thuộc vị trí trên màn hàng cận hạn.
 - `action`: `RETURN_SUPPLIER` trả nhà cung cấp · `PRIORITIZE_SALE` ưu tiên bán · `DISCOUNT` giảm giá đẩy hàng · `DISPOSE` lên lịch xuất hủy.
 - **Mỗi lô chỉ có một kế hoạch đang mở** (ràng buộc ở tầng CSDL). Lập lại cho lô đã có kế hoạch thì cập nhật kế hoạch đó, không tạo thêm.
 - Kế hoạch quá `dueDate` mà chưa đóng thì `overdue = true` và được đếm vào `summary.overduePlans` để báo lại.
