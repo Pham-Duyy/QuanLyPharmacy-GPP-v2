@@ -5,7 +5,7 @@ import { parseOrThrow } from "../../lib/validate.js";
 import { authenticate } from "../../middlewares/authenticate.js";
 import { requirePermission } from "../../middlewares/require-permission.js";
 import { requireStore, storeContext } from "../../middlewares/store-context.js";
-import { EXPIRY_ACTIONS } from "./expiry-alerts.service.js";
+import { EXPIRY_ACTIONS, EXPIRY_SORTS } from "./expiry-alerts.service.js";
 import * as service from "./expiry-alerts.service.js";
 
 export const expiryAlertsRouter = Router();
@@ -18,6 +18,7 @@ const listSchema = z.object({
     .enum(["true", "false"])
     .default("false")
     .transform((value) => value === "true"),
+  sort: z.enum(EXPIRY_SORTS).default("quantity"),
 });
 
 const planSchema = z.object({

@@ -20,27 +20,36 @@ let productId: string;
 
 const h = (token = adminToken) => authHeaders(token, fixture.storeId);
 
+const vnToday = () =>
+  new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Ho_Chi_Minh" }).format(new Date());
+
 function dayOffset(days: number): Date {
-  const vnToday = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Ho_Chi_Minh" }).format(
-    new Date(),
-  );
-  const date = new Date(`${vnToday}T00:00:00.000Z`);
+  const date = new Date(`${vnToday()}T00:00:00.000Z`);
   date.setUTCDate(date.getUTCDate() + days);
   return date;
 }
 
+/** Ngày `day` của tháng sau `monthsAhead` tháng, để test không phụ thuộc hôm nay là ngày mấy. */
+function monthDay(monthsAhead: number, day: number): Date {
+  const [year, month] = vnToday().split("-").map(Number);
+  return new Date(Date.UTC(year!, month! - 1 + monthsAhead, day));
+}
+
+const monthLabel = (date: Date) =>
+  `Tháng ${String(date.getUTCMonth() + 1).padStart(2, "0")}/${date.getUTCFullYear()}`;
+
 async function makeBatch(
   batchNumber: string,
-  daysToExpiry: number,
+  expiry: number | Date,
   quantity = 100,
-  unitCost = 1000,
+  unitCost: number | null = 1000,
 ) {
   const batch = await prisma.batch.create({
     data: {
       storeId: fixture.storeId,
       productId,
       batchNumber,
-      expiryDate: dayOffset(daysToExpiry),
+      expiryDate: typeof expiry === "number" ? dayOffset(expiry) : expiry,
       quantityOnHand: quantity,
       unitCost,
       shelfLocation: "Kệ A1",
@@ -124,19 +133,96 @@ describe("Danh sách hàng cận hạn", () => {
     });
   });
 
-  it("xếp hạn dùng gần nhất trước, cùng ngày hết hạn thì lô còn nhiều hàng trước", async () => {
-    await makeBatch("IT", 20, 10);
-    await makeBatch("NHIEU", 20, 300);
-    await makeBatch("GAN", 10, 5);
-    await makeBatch("XA", 45, 1000);
+  it("gom theo tháng: hết hạn đứng đầu, tháng gần trước, trong tháng lô còn nhiều hàng trước", async () => {
+    await makeBatch("HET_IT", -3, 5);
+    await makeBatch("HET_NHIEU", -10, 200);
+    await makeBatch("A_GAN", monthDay(1, 2), 10);
+    await makeBatch("A_NHIEU", monthDay(1, 28), 500);
+    await makeBatch("A_BANG", monthDay(1, 20), 10);
+    await makeBatch("B_RAT_NHIEU", monthDay(2, 5), 1000);
 
     const data = await list();
+    // Bằng số lượng thì lô hết hạn sớm hơn trước; tháng sau dù nhiều hàng vẫn đứng sau.
     expect(data.items.map((item: { batchNumber: string }) => item.batchNumber)).toEqual([
-      "GAN",
-      "NHIEU",
-      "IT",
-      "XA",
+      "HET_NHIEU",
+      "HET_IT",
+      "A_NHIEU",
+      "A_GAN",
+      "A_BANG",
+      "B_RAT_NHIEU",
     ]);
+    // Mỗi dòng vẫn có ngày hết hạn và số ngày còn lại.
+    expect(row(data, "A_GAN")).toMatchObject({ daysLeft: expect.any(Number) });
+    expect(row(data, "A_GAN")!.expiryDate).toBe(monthDay(1, 2).toISOString());
+
+    const nextKey = monthDay(1, 1).toISOString().slice(0, 7);
+    expect(row(data, "A_GAN")).toMatchObject({ group: nextKey });
+    expect(data.groups).toEqual([
+      { key: "EXPIRED", label: "Đã hết hạn", batches: 2, value: 205000, withoutCost: 0 },
+      {
+        key: nextKey,
+        label: monthLabel(monthDay(1, 1)),
+        batches: 3,
+        value: 520000,
+        withoutCost: 0,
+      },
+      {
+        key: monthDay(2, 1).toISOString().slice(0, 7),
+        label: monthLabel(monthDay(2, 1)),
+        batches: 1,
+        value: 1000000,
+        withoutCost: 0,
+      },
+    ]);
+  });
+
+  it("chọn sắp trong nhóm theo hạn gần nhất hoặc theo giá trị tồn", async () => {
+    await makeBatch("GAN_IT_TIEN", monthDay(1, 3), 10, 100);
+    await makeBatch("XA_NHIEU_TIEN", monthDay(1, 25), 10, 9000);
+    await makeBatch("NHIEU_HANG", monthDay(1, 15), 300, 10);
+    await makeBatch("CHUA_GIA", monthDay(1, 10), 50, null);
+
+    const order = async (sort: string) =>
+      (await list(`?sort=${sort}`)).items.map((item: { batchNumber: string }) => item.batchNumber);
+    expect(await order("expiry")).toEqual([
+      "GAN_IT_TIEN",
+      "CHUA_GIA",
+      "NHIEU_HANG",
+      "XA_NHIEU_TIEN",
+    ]);
+    // Lô chưa có giá vốn xuống cuối, không coi như giá trị 0.
+    expect(await order("value")).toEqual([
+      "XA_NHIEU_TIEN",
+      "NHIEU_HANG",
+      "GAN_IT_TIEN",
+      "CHUA_GIA",
+    ]);
+    expect(await order("quantity")).toEqual([
+      "NHIEU_HANG",
+      "CHUA_GIA",
+      "GAN_IT_TIEN",
+      "XA_NHIEU_TIEN",
+    ]);
+
+    // Tổng nhóm báo rõ có lô chưa có giá vốn để không coi là đủ.
+    expect((await list()).groups[0]).toMatchObject({ batches: 4, value: 94000, withoutCost: 1 });
+    await api().get("/api/v1/expiry-alerts?sort=khac").set(h()).expect(422);
+  });
+
+  it("nhóm tạo sau khi lọc, nhóm không còn lô nào thì không có", async () => {
+    await makeBatch("HET", -2, 10);
+    await makeBatch("THANG_SAU", monthDay(1, 10), 20);
+    const planned = await makeBatch("CO_KE_HOACH", monthDay(2, 10), 30);
+    await plan({ batchId: planned, action: "PRIORITIZE_SALE" }).expect(201);
+
+    const expiredOnly = await list("?bucket=EXPIRED");
+    expect(expiredOnly.groups.map((group: { key: string }) => group.key)).toEqual(["EXPIRED"]);
+
+    const withoutPlan = await list("?onlyWithoutPlan=true");
+    expect(withoutPlan.groups).toHaveLength(2);
+    expect(withoutPlan.groups.map((group: { batches: number }) => group.batches)).toEqual([1, 1]);
+    // Thống kê phía trên vẫn tính trên toàn bộ, không theo bộ lọc.
+    expect(withoutPlan.summary.totalBatches).toBe(3);
   });
 
   it("lô hết hạn đúng hôm nay vào nhóm Đã hết hạn, cùng cách tính với quầy bán", async () => {
@@ -154,6 +240,14 @@ describe("Danh sách hàng cận hạn", () => {
     const forPharmacist = await list("", pharmacistToken);
     expect(row(forPharmacist, "D30")).toMatchObject({ stockValue: null });
     expect(forPharmacist.summary.totalValue).toBeNull();
+    expect(forPharmacist.groups[0]).toMatchObject({ batches: 1, value: null, withoutCost: 0 });
+
+    // Thứ tự theo giá trị cũng để lộ giá vốn nên API chặn, không chỉ ẩn nút trên trang.
+    const bySort = await api()
+      .get("/api/v1/expiry-alerts?sort=value")
+      .set(h(pharmacistToken))
+      .expect(403);
+    expect(bySort.body.error.message).toContain("giá vốn");
   });
 
   it("lọc theo mốc và lọc lô chưa có kế hoạch", async () => {

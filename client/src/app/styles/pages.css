@@ -3778,6 +3778,31 @@
   font-size: 13px;
   color: var(--c-ink-700);
 }
+/* Dòng tiêu đề nhóm tháng trong bảng hàng cận hạn. */
+.app-content .ant-table-tbody > tr.expiry-group-row > td {
+  background: var(--c-surface-2) !important;
+}
+.app-content .ant-table-tbody > tr.expiry-group-row.expired > td {
+  background: var(--tone-red-bg) !important;
+}
+.expiry-group-title {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  align-items: baseline;
+  font-size: 13px;
+}
+.expiry-group-title b {
+  color: var(--c-ink-900);
+}
+.expiry-group-title span {
+  color: var(--c-ink-500);
+}
+.expiry-pager {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
 
 /* Dải lọc nhiều mục: cuộn trong khung thay vì đẩy cả trang tràn ngang. */
 .count-toolbar .ant-segmented {

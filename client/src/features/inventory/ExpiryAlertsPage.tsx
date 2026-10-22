@@ -16,6 +16,7 @@ import {
   Form,
   Input,
   Modal,
+  Pagination,
   Segmented,
   Select,
   Skeleton,
@@ -33,9 +34,16 @@ import { formatVnd, type Envelope } from "../../api/types.js";
 import { formatDate, formatDateTime, formatNumber } from "../../ui/format.js";
 import { PageHeader } from "../../ui/PageHeader.js";
 import { useAuth } from "../auth/auth-context.js";
+import {
+  isGroupHeader,
+  pageWithGroups,
+  type ExpiryGroup,
+  type GroupHeader,
+} from "./expiry-groups.js";
 import { daysLeftLabel, isExpired } from "./expiry-status.js";
 
 type BucketKey = "EXPIRED" | "D30" | "D60" | "D90";
+type ExpirySort = "quantity" | "expiry" | "value";
 type ExpiryAction = "RETURN_SUPPLIER" | "PRIORITIZE_SALE" | "DISCOUNT" | "DISPOSE";
 
 type Plan = {
@@ -62,6 +70,7 @@ type ExpiryRow = {
   expiryDate: string;
   daysLeft: number;
   bucket: BucketKey;
+  group: string;
   quantityOnHand: number;
   baseUnitName: string;
   shelfLocation: string | null;
@@ -81,6 +90,7 @@ type BucketSummary = {
 
 type ExpiryResponse = {
   items: ExpiryRow[];
+  groups: ExpiryGroup[];
   summary: {
     byBucket: Record<BucketKey, BucketSummary>;
     totalBatches: number;
@@ -124,6 +134,33 @@ const BUCKET_TABS: Array<{ value: BucketKey | "ALL"; label: string }> = [
   { value: "D90", label: "61 – 90 ngày" },
 ];
 
+// Tồn so theo đơn vị nhỏ nhất: 1.000 viên và 100 chai không so trực tiếp được.
+const SORTS: Array<{ value: ExpirySort; label: string }> = [
+  { value: "quantity", label: "Tồn nhiều nhất (đơn vị nhỏ nhất)" },
+  { value: "expiry", label: "Hạn gần nhất" },
+  { value: "value", label: "Giá trị tồn lớn nhất" },
+];
+
+const PAGE_SIZE = 30;
+
+/** Tiêu đề nhóm: tổng là của cả nhóm trong kết quả lọc, kể cả phần ở trang khác. */
+function GroupTitle({ header }: { header: GroupHeader }) {
+  const { group } = header;
+  const parts = [`${header.split ? "cả nhóm " : ""}${formatNumber(group.batches)} lô`];
+  if (group.value !== null) parts.push(`Giá trị tồn: ${formatVnd(group.value)}`);
+  if (group.withoutCost > 0)
+    parts.push(`${formatNumber(group.withoutCost)} lô chưa có giá vốn nên chưa tính`);
+  return (
+    <div className="expiry-group-title">
+      <b>
+        {group.label}
+        {header.continued ? " — tiếp theo" : ""}
+      </b>
+      <span>{parts.join(" · ")}</span>
+    </div>
+  );
+}
+
 export function ExpiryAlertsPage() {
   const { can } = useAuth();
   const { message, modal } = App.useApp();
@@ -131,15 +168,19 @@ export function ExpiryAlertsPage() {
   const queryClient = useQueryClient();
   const [bucket, setBucket] = useState<BucketKey | "ALL">("ALL");
   const [onlyWithoutPlan, setOnlyWithoutPlan] = useState(false);
+  const [sort, setSort] = useState<ExpirySort>("quantity");
+  const [page, setPage] = useState(1);
   const [editing, setEditing] = useState<ExpiryRow | null>(null);
   const [historyOf, setHistoryOf] = useState<ExpiryRow | null>(null);
   const [form] = Form.useForm();
   const canPlan = can("stock.adjust.create");
+  const canSeeCost = can("stock.cost.read");
 
   const params = {
     horizonDays: 90,
     bucket: bucket === "ALL" ? undefined : bucket,
     onlyWithoutPlan,
+    sort,
   };
   const data = useQuery({
     queryKey: ["expiry-alerts", params],
@@ -260,6 +301,8 @@ export function ExpiryAlertsPage() {
           </span>
           {row.stockValue !== null ? (
             <span className="cell-sub">{formatVnd(row.stockValue)}</span>
+          ) : canSeeCost ? (
+            <span className="cell-sub">Chưa có giá vốn</span>
           ) : null}
         </div>
       ),
@@ -332,6 +375,26 @@ export function ExpiryAlertsPage() {
       ),
     },
   ];
+
+  // Dòng tiêu đề nhóm trải hết chiều ngang bảng; các cột chỉ vẽ cho dòng lô.
+  const tableColumns = columns.map((column, index) => ({
+    ...column,
+    onCell: (row: ExpiryRow | GroupHeader) =>
+      isGroupHeader(row) ? { colSpan: index === 0 ? columns.length : 0 } : {},
+    render: (value: unknown, row: ExpiryRow | GroupHeader) =>
+      isGroupHeader(row) ? (
+        index === 0 ? (
+          <GroupTitle header={row} />
+        ) : null
+      ) : (
+        column.render(value as never, row)
+      ),
+  }));
+
+  const items = data.data?.items ?? [];
+  const pageCount = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
+  const currentPage = Math.min(page, pageCount);
+  const tableRows = pageWithGroups(items, data.data?.groups ?? [], currentPage, PAGE_SIZE);
 
   return (
     <div>
@@ -409,34 +472,75 @@ export function ExpiryAlertsPage() {
         <div className="count-toolbar">
           <Segmented
             value={bucket}
-            onChange={(value) => setBucket(value as BucketKey | "ALL")}
+            onChange={(value) => {
+              setBucket(value as BucketKey | "ALL");
+              setPage(1);
+            }}
             options={BUCKET_TABS}
           />
           <label className="expiry-filter">
-            <Switch checked={onlyWithoutPlan} onChange={setOnlyWithoutPlan} size="small" /> Chỉ lô
-            chưa có kế hoạch
+            <Switch
+              checked={onlyWithoutPlan}
+              onChange={(checked) => {
+                setOnlyWithoutPlan(checked);
+                setPage(1);
+              }}
+              size="small"
+            />{" "}
+            Chỉ lô chưa có kế hoạch
+          </label>
+          <label className="expiry-filter">
+            Trong mỗi tháng xếp theo
+            <Select
+              size="small"
+              value={sort}
+              onChange={(value) => {
+                setSort(value);
+                setPage(1);
+              }}
+              options={SORTS.filter((item) => item.value !== "value" || canSeeCost)}
+              popupMatchSelectWidth={false}
+            />
           </label>
         </div>
 
         {data.isLoading ? (
           <Skeleton active />
         ) : (
-          <Table
-            rowKey="batchId"
-            size="small"
-            dataSource={data.data?.items ?? []}
-            columns={columns}
-            scroll={{ x: 1100 }}
-            pagination={
-              (data.data?.items.length ?? 0) > 30 ? { pageSize: 30, size: "small" } : false
-            }
-            rowClassName={(row) => (isExpired(row.daysLeft) ? "count-row-diff" : "")}
-            locale={{
-              emptyText: (
-                <Empty description="Không có lô nào trong nhóm này — kho đang sạch hạn dùng" />
-              ),
-            }}
-          />
+          <>
+            <Table<ExpiryRow | GroupHeader>
+              rowKey={(row) => (isGroupHeader(row) ? row.rowKey : row.batchId)}
+              size="small"
+              dataSource={tableRows}
+              columns={tableColumns}
+              scroll={{ x: 1100 }}
+              pagination={false}
+              rowClassName={(row) =>
+                isGroupHeader(row)
+                  ? `expiry-group-row${row.group.key === "EXPIRED" ? " expired" : ""}`
+                  : isExpired(row.daysLeft)
+                    ? "count-row-diff"
+                    : ""
+              }
+              locale={{
+                emptyText: (
+                  <Empty description="Không có lô nào trong nhóm này — kho đang sạch hạn dùng" />
+                ),
+              }}
+            />
+            {items.length > PAGE_SIZE ? (
+              <div className="expiry-pager">
+                <Pagination
+                  size="small"
+                  current={currentPage}
+                  pageSize={PAGE_SIZE}
+                  total={items.length}
+                  showSizeChanger={false}
+                  onChange={setPage}
+                />
+              </div>
+            ) : null}
+          </>
         )}
       </Card>
 
