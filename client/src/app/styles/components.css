@@ -319,6 +319,17 @@
   font-size: 12px;
 }
 
+/* Dòng chính viết bằng span (cell-title) phải đậm như strong, không nhạt như dòng phụ. */
+.cell-main .cell-title {
+  color: var(--c-ink-900);
+  font-size: inherit;
+  font-weight: 600;
+}
+
+.cell-main .cell-title .ant-tag {
+  font-weight: 400;
+}
+
 /* ---------- Nội dung panel chi tiết ---------- */
 
 .detail-stack {

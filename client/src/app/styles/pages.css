@@ -3679,10 +3679,13 @@
   font-weight: 400;
   color: var(--c-ink-500);
 }
-.count-diff-plus {
+.count-diff-plus,
+.cell-main .count-diff-plus {
   color: var(--tone-green);
 }
-.count-diff-minus {
+/* Trong ô nhiều dòng (.cell-main span) vẫn giữ màu đỏ, không bị dòng phụ đè thành xám. */
+.count-diff-minus,
+.cell-main .count-diff-minus {
   color: var(--tone-red);
 }
 .count-toolbar {

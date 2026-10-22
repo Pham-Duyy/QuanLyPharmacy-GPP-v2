@@ -490,7 +490,7 @@ export function ExpiryAlertsPage() {
             Chỉ lô chưa có kế hoạch
           </label>
           <label className="expiry-filter">
-            Trong mỗi tháng xếp theo
+            Trong mỗi nhóm xếp theo
             <Select
               size="small"
               value={sort}
