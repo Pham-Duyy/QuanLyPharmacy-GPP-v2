@@ -4081,6 +4081,15 @@
   font-size: 14px;
   color: var(--c-ink-900);
 }
+/* Ô tìm thuốc nằm cùng hàng với các thẻ; màn hẹp thì thu lại. */
+.period-search {
+  width: 260px;
+}
+@media (max-width: 640px) {
+  .period-search {
+    width: 150px;
+  }
+}
 /* Hạng có thể tới ba chữ số. */
 .rank-badge.period-rank {
   width: auto;
