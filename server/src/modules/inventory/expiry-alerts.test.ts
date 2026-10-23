@@ -119,9 +119,9 @@ describe("Danh sách hàng cận hạn", () => {
     expect(row(data, "D60")).toMatchObject({ bucket: "D60", stockValue: 100000 });
     expect(row(data, "D90")).toMatchObject({ bucket: "D90", stockValue: 60000 });
 
-    expect(data.summary.byBucket.D30).toMatchObject({
+    expect(data.summary.byBucket.D30).toEqual({
+      label: "Còn dưới 30 ngày",
       batches: 1,
-      quantity: 100,
       value: 100000,
       withoutPlan: 1,
     });
@@ -232,7 +232,7 @@ describe("Danh sách hàng cận hạn", () => {
     const data = await list();
     expect(row(data, "HOMNAY")).toMatchObject({ bucket: "EXPIRED", daysLeft: 0 });
     expect(row(data, "MAI")).toMatchObject({ bucket: "D30", daysLeft: 1 });
-    expect(data.summary.byBucket.EXPIRED).toMatchObject({ batches: 1, quantity: 12 });
+    expect(data.summary.byBucket.EXPIRED).toMatchObject({ batches: 1 });
   });
 
   it("giá trị tồn chỉ hiện với người có quyền xem giá vốn", async () => {

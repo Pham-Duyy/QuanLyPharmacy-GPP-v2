@@ -83,7 +83,6 @@ type ExpiryRow = {
 type BucketSummary = {
   label: string;
   batches: number;
-  quantity: number;
   value: number | null;
   withoutPlan: number;
 };
@@ -441,6 +440,12 @@ export function ExpiryAlertsPage() {
           <div className="count-stats">
             {(["EXPIRED", "D30", "D60", "D90"] as BucketKey[]).map((key) => {
               const item = summary.byBucket[key];
+              // Không ghi tổng số lượng: các thuốc khác đơn vị không cộng được, số lượng
+              // từng thuốc theo đơn vị của nó nằm ở bảng bên dưới.
+              const detail = [
+                item.value !== null ? formatVnd(item.value) : "",
+                item.withoutPlan > 0 ? `${formatNumber(item.withoutPlan)} chưa có kế hoạch` : "",
+              ].filter(Boolean);
               return (
                 <div
                   key={key}
@@ -448,13 +453,7 @@ export function ExpiryAlertsPage() {
                 >
                   <span>{item.label}</span>
                   <b>{formatNumber(item.batches)} lô</b>
-                  <span>
-                    {formatNumber(item.quantity)} đơn vị
-                    {item.value !== null ? ` · ${formatVnd(item.value)}` : ""}
-                    {item.withoutPlan > 0
-                      ? ` · ${formatNumber(item.withoutPlan)} chưa có kế hoạch`
-                      : ""}
-                  </span>
+                  {detail.length > 0 ? <span>{detail.join(" · ")}</span> : null}
                 </div>
               );
             })}
