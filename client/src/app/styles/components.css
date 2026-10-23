@@ -490,6 +490,10 @@
   align-items: flex-end;
 }
 
+.cell-center {
+  align-items: center;
+}
+
 /* ---------- Thẻ kho dạng dòng thời gian ---------- */
 
 .ledger-head {
