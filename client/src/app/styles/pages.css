@@ -3774,6 +3774,10 @@
   gap: 6px;
   flex-wrap: wrap;
 }
+/* Cụm nút ở bảng Hàng cận hạn canh giữa ô, cân với các cột canh giữa khác. */
+.expiry-actions.is-centered {
+  justify-content: center;
+}
 .expiry-filter {
   display: inline-flex;
   align-items: center;
