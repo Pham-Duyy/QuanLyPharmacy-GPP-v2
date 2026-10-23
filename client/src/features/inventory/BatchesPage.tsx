@@ -513,7 +513,7 @@ function BatchesTab({
         rowKey="id"
         loading={batches.isFetching}
         dataSource={batches.data?.items ?? []}
-        scroll={{ x: 680 }}
+        scroll={{ x: 760 }}
         onRow={(item) => ({ onClick: () => onSelect(item), style: { cursor: "pointer" } })}
         rowClassName={(item) => (item.id === selectedId ? "row-selected" : "")}
         locale={{
@@ -530,9 +530,12 @@ function BatchesTab({
           showTotal: (total) => `${total} lô`,
         }}
         columns={[
+          // Cột Sản phẩm 30%, các cột ngắn rộng bằng nhau và canh giữa: màn rộng thì
+          // khoảng trống chia đều giữa các cột, không dồn thành một khoảng lớn.
           {
             title: "Sản phẩm",
             key: "product",
+            width: "30%",
             render: (_: unknown, item: BatchListItem) => (
               <div className="cell-main">
                 <strong>{item.productName}</strong>
@@ -545,16 +548,17 @@ function BatchesTab({
           {
             title: "Hạn dùng",
             key: "expiry",
-            width: 130,
+            width: "17.5%",
+            align: "center",
             render: (_: unknown, item: BatchListItem) => <ExpiryCell value={item.expiryDate} />,
           },
           {
             title: "Tồn",
             key: "qty",
-            width: 140,
-            align: "right",
+            width: "17.5%",
+            align: "center",
             render: (_: unknown, item: BatchListItem) => (
-              <div className="cell-main cell-right">
+              <div className="cell-main cell-center">
                 <div>
                   <strong>{formatNumber(item.quantityOnHand)}</strong> {item.baseUnitName}
                 </div>
@@ -567,8 +571,8 @@ function BatchesTab({
                 {
                   title: "Giá vốn",
                   key: "cost",
-                  width: 110,
-                  align: "right" as const,
+                  width: "17.5%",
+                  align: "center" as const,
                   render: (_: unknown, item: BatchListItem) => formatVnd(item.unitCost ?? null),
                 },
               ]
@@ -576,7 +580,8 @@ function BatchesTab({
           {
             title: "Trạng thái",
             key: "status",
-            width: 120,
+            width: "17.5%",
+            align: "center",
             render: (_: unknown, item: BatchListItem) => (
               <Tag color={STATUS[item.status].color}>{STATUS[item.status].label}</Tag>
             ),
@@ -696,7 +701,7 @@ function OverviewTab() {
         rowKey="productId"
         loading={overview.isFetching}
         dataSource={overview.data?.items ?? []}
-        scroll={{ x: 640 }}
+        scroll={{ x: 720 }}
         locale={{
           emptyText: (
             <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Không có sản phẩm phù hợp" />
@@ -714,6 +719,7 @@ function OverviewTab() {
           {
             title: "Sản phẩm",
             key: "product",
+            width: "30%",
             render: (_: unknown, item: InventoryOverviewItem) => (
               <div className="cell-main">
                 <strong>{item.name}</strong>
@@ -726,12 +732,12 @@ function OverviewTab() {
           {
             title: "Bán được",
             key: "sellable",
-            width: 160,
-            align: "right",
+            width: "17.5%",
+            align: "center",
             render: (_: unknown, item: InventoryOverviewItem) => {
               const low = item.stock.sellable < item.minStockBaseQuantity;
               return (
-                <div className="cell-main cell-right">
+                <div className="cell-main cell-center">
                   <strong className={low ? "text-danger" : undefined}>
                     {formatNumber(item.stock.sellable)} {item.baseUnitName ?? ""}
                   </strong>
@@ -744,23 +750,23 @@ function OverviewTab() {
           {
             title: "Biệt trữ",
             key: "quarantined",
-            width: 90,
-            align: "right",
+            width: "17.5%",
+            align: "center",
             render: (_: unknown, item: InventoryOverviewItem) =>
               formatNumber(item.stock.quarantined),
           },
           {
             title: "Thu hồi",
             key: "recalled",
-            width: 90,
-            align: "right",
+            width: "17.5%",
+            align: "center",
             render: (_: unknown, item: InventoryOverviewItem) => formatNumber(item.stock.recalled),
           },
           {
             title: "Hết hạn",
             key: "expired",
-            width: 90,
-            align: "right",
+            width: "17.5%",
+            align: "center",
             render: (_: unknown, item: InventoryOverviewItem) => formatNumber(item.stock.expired),
           },
         ]}
