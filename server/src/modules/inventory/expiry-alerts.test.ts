@@ -114,6 +114,7 @@ describe("Danh sách hàng cận hạn", () => {
       bucket: "D30",
       stockValue: 100000,
       baseUnitName: "Viên",
+      packUnits: [],
       shelfLocation: "Kệ A1",
     });
     expect(row(data, "D60")).toMatchObject({ bucket: "D60", stockValue: 100000 });

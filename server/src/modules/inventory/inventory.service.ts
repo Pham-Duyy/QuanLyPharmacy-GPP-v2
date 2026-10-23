@@ -1,5 +1,6 @@
 import { Prisma } from "../../generated/prisma/client.js";
 import { prisma } from "../../db/prisma.js";
+import { splitUnits, UNIT_FIELDS } from "../catalog/pack-units.js";
 
 export type InventoryOverviewQuery = {
   productId?: string;
@@ -67,11 +68,19 @@ export async function getInventoryOverview(storeId: string, query: InventoryOver
     ORDER BY p.name
   `);
 
+  const units = await prisma.productUnit.findMany({
+    where: { productId: { in: rows.map((row) => row.product_id) } },
+    select: { productId: true, ...UNIT_FIELDS.select },
+  });
+  const unitsOf = (productId: string) =>
+    splitUnits(units.filter((unit) => unit.productId === productId));
+
   return rows.map((row) => ({
     productId: row.product_id,
     code: row.code,
     name: row.name,
     categoryName: row.category_name,
+    ...unitsOf(row.product_id),
     minStockBaseQuantity: row.min_stock_base_quantity,
     stock: {
       sellable: row.sellable,

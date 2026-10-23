@@ -796,6 +796,8 @@ Quy tắc:
 
 Mỗi sản phẩm trả về số lượng theo đơn vị nhỏ nhất, tách thành: bán được, biệt trữ, bị thu hồi, đã hết hạn.
 
+Tồn kho luôn tính theo **đơn vị cơ bản** của từng thuốc (`baseUnitName`); không cộng số lượng của các thuốc khác đơn vị. `/inventory`, `/inventory/batches` và `/expiry-alerts` trả thêm `packUnits` — các đơn vị lớn đang dùng (hộp, vỉ…) kèm hệ số, lớn trước, đơn vị đã ngừng dùng không có — để giao diện ghi dòng phụ quy đổi, ví dụ 931 viên (Hộp = 14, Vỉ = 7) → "= 66 Hộp 1 Vỉ". Quy đổi chỉ để đối chiếu hàng trên kệ; báo cáo và Excel giữ số theo đơn vị cơ bản.
+
 ### 10.2 Thẻ kho [Đã chốt]
 
 | Method | Endpoint | Mô tả | Quyền |

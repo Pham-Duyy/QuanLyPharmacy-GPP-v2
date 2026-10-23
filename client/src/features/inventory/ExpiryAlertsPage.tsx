@@ -32,6 +32,8 @@ import { useNavigate } from "react-router";
 import { getErrorMessage, http } from "../../api/http.js";
 import { formatVnd, type Envelope } from "../../api/types.js";
 import { formatDate, formatDateTime, formatNumber } from "../../ui/format.js";
+import { PackHint } from "../../ui/PackHint.js";
+import type { PackUnit } from "../../ui/packs.js";
 import { PageHeader } from "../../ui/PageHeader.js";
 import { useAuth } from "../auth/auth-context.js";
 import {
@@ -73,6 +75,7 @@ type ExpiryRow = {
   group: string;
   quantityOnHand: number;
   baseUnitName: string;
+  packUnits: PackUnit[];
   shelfLocation: string | null;
   batchStatus: string;
   stockValue: number | null;
@@ -298,6 +301,7 @@ export function ExpiryAlertsPage() {
           <span className="cell-title">
             {formatNumber(value)} {row.baseUnitName}
           </span>
+          <PackHint quantity={value} item={row} />
           {row.stockValue !== null ? (
             <span className="cell-sub">{formatVnd(row.stockValue)}</span>
           ) : canSeeCost ? (

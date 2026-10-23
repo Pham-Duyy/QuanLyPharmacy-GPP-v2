@@ -93,6 +93,29 @@ describe("Danh sách lô", () => {
     expect(response.body.data.items[0].status).toBe("QUARANTINED");
   });
 
+  it("kèm đơn vị lớn để quy đổi số tồn, lớn trước, bỏ đơn vị ngừng dùng", async () => {
+    await prisma.productUnit.createMany({
+      data: [
+        { productId, name: "Vỉ", conversionToBase: 10 },
+        { productId, name: "Hộp", conversionToBase: 100 },
+        { productId, name: "Thùng", conversionToBase: 1000, isActive: false },
+      ],
+    });
+    await makeBatch("AVAILABLE");
+
+    const item = (
+      await api()
+        .get("/api/v1/inventory/batches")
+        .set(authHeaders(adminToken, fixture.storeId))
+        .expect(200)
+    ).body.data.items[0];
+    expect(item.baseUnitName).toBe("Viên");
+    expect(item.packUnits).toEqual([
+      { name: "Hộp", conversionToBase: 100 },
+      { name: "Vỉ", conversionToBase: 10 },
+    ]);
+  });
+
   it("chỉ trả giá vốn cho người có quyền stock.cost.read", async () => {
     await makeBatch("AVAILABLE", fixture.storeId, 85000);
 

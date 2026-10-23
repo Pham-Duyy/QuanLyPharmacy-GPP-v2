@@ -98,6 +98,19 @@ describe("Tồn tổng hợp theo sản phẩm", () => {
       (row: { productId: string }) => row.productId === productId,
     );
     expect(item.stock).toEqual({ sellable: 30, quarantined: 20, recalled: 5, expired: 10 });
+    expect(item).toMatchObject({ baseUnitName: "Viên", packUnits: [] });
+  });
+
+  it("kèm đơn vị lớn đang dùng để quy đổi số tồn", async () => {
+    await prisma.productUnit.create({ data: { productId, name: "Hộp", conversionToBase: 100 } });
+    const response = await api()
+      .get("/api/v1/inventory")
+      .set(authHeaders(adminToken, fixture.storeId))
+      .expect(200);
+    const item = response.body.data.items.find(
+      (row: { productId: string }) => row.productId === productId,
+    );
+    expect(item.packUnits).toEqual([{ name: "Hộp", conversionToBase: 100 }]);
   });
 
   it("lọc belowMinStock: chỉ trả sản phẩm có tồn bán được dưới tối thiểu", async () => {

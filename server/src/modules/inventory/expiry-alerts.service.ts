@@ -3,6 +3,7 @@ import { AppError } from "../../lib/app-error.js";
 import { dateKey } from "../../lib/dates.js";
 import { businessDateNow } from "../../lib/settings.js";
 import type { AuthContext } from "../auth/auth.context.js";
+import { splitUnits, UNIT_FIELDS, type PackUnit } from "../catalog/pack-units.js";
 
 /**
  * Cảnh báo hàng cận hạn, kèm kế hoạch xử lý từng lô.
@@ -77,6 +78,8 @@ export type ExpiryRow = {
   group: string;
   quantityOnHand: number;
   baseUnitName: string;
+  /** Đơn vị lớn (hộp, vỉ…) để giao diện quy đổi số tồn khi đối chiếu kệ. */
+  packUnits: PackUnit[];
   shelfLocation: string | null;
   batchStatus: string;
   /** Giá trị tồn theo giá vốn lô; null khi không có quyền xem giá vốn hoặc lô chưa có giá vốn. */
@@ -154,7 +157,7 @@ export async function listExpiring(storeId: string, auth: AuthContext, query: Ex
           id: true,
           code: true,
           name: true,
-          units: { where: { conversionToBase: 1 }, select: { name: true } },
+          units: UNIT_FIELDS,
         },
       },
       expiryPlans: {
@@ -190,6 +193,7 @@ export async function listExpiring(storeId: string, auth: AuthContext, query: Ex
     const unitCost = batch.unitCost === null ? null : Number(batch.unitCost);
     const plan = batch.expiryPlans[0];
     const bucket = bucketOf(daysLeft);
+    const units = splitUnits(batch.product.units);
     return {
       batchId: batch.id,
       productId: batch.productId,
@@ -201,7 +205,8 @@ export async function listExpiring(storeId: string, auth: AuthContext, query: Ex
       bucket,
       group: groupOf(bucket, batch.expiryDate),
       quantityOnHand: batch.quantityOnHand,
-      baseUnitName: batch.product.units[0]?.name ?? "",
+      baseUnitName: units.baseUnitName ?? "",
+      packUnits: units.packUnits,
       shelfLocation: batch.shelfLocation,
       batchStatus: batch.status,
       stockValue:

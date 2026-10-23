@@ -1,3 +1,5 @@
+import type { PackUnit } from "../ui/packs.js";
+
 /** Khung response chung của backend (contract §2.6). */
 export type Envelope<T> = { success: true; data: T; requestId: string };
 
@@ -82,6 +84,8 @@ export type BatchListItem = {
   productCode: string;
   productName: string;
   baseUnitName: string;
+  /** Đơn vị lớn đang dùng (hộp, vỉ…) để quy đổi số tồn, lớn trước. */
+  packUnits: PackUnit[];
   batchNumber: string;
   manufactureDate: string | null;
   expiryDate: string;
@@ -99,6 +103,8 @@ export type InventoryOverviewItem = {
   code: string;
   name: string;
   categoryName: string;
+  baseUnitName: string | null;
+  packUnits: PackUnit[];
   minStockBaseQuantity: number;
   stock: StockSummary;
 };
