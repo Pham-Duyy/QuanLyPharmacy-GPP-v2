@@ -142,16 +142,16 @@ export function MonthlySummaryPage() {
           <SummaryCards data={data} />
 
           <Card>
-            <div className="count-toolbar">
-              <Input.Search
-                allowClear
-                className="count-search"
-                placeholder="Tìm thuốc theo tên hoặc mã"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-              />
-            </div>
             <Tabs
+              tabBarExtraContent={
+                <Input.Search
+                  allowClear
+                  className="period-search"
+                  placeholder="Tìm thuốc theo tên hoặc mã"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                />
+              }
               items={[
                 {
                   key: "purchases",
@@ -236,15 +236,18 @@ function Note({ children }: { children: ReactNode }) {
 
 function PurchasesTab({ data, rows }: { data: PeriodSummary; rows: PurchaseRow[] }) {
   const totals = data.summary.purchases;
+  // Chỉ ghi phép tính khi tháng có chiết khấu hoặc VAT; không thì tổng tiền nhập là đủ.
+  const breakdown = [
+    totals.discountAmount ? ` − chiết khấu ${formatVnd(totals.discountAmount)}` : "",
+    totals.vatAmount ? ` + VAT ${formatVnd(totals.vatAmount)}` : "",
+  ].join("");
   return (
     <>
       {totals.totalCost !== null ? (
         <Note>
-          Tiền hàng {formatVnd(totals.goodsAmount ?? 0)} − chiết khấu{" "}
-          {formatVnd(totals.discountAmount ?? 0)} + VAT {formatVnd(totals.vatAmount ?? 0)} ={" "}
-          <b>tổng tiền nhập {formatVnd(totals.totalCost)}</b>. Tiền nhập từng thuốc đã gồm phần
-          chiết khấu và VAT của phiếu, cộng lại đúng bằng tổng này. Không tính tồn đầu kỳ và hàng
-          nhận chuyển từ cửa hàng khác.
+          <b>Tổng tiền nhập {formatVnd(totals.totalCost)}</b>
+          {breakdown ? ` = tiền hàng ${formatVnd(totals.goodsAmount ?? 0)}${breakdown}` : ""}, đã
+          gồm chiết khấu và VAT. Không tính tồn đầu kỳ và hàng nhận chuyển.
         </Note>
       ) : null}
       <Table
