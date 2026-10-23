@@ -9,6 +9,7 @@ import { authenticate } from "../../middlewares/authenticate.js";
 import { idempotency } from "../../middlewares/idempotency.js";
 import { requirePermission } from "../../middlewares/require-permission.js";
 import { requireStore, storeContext } from "../../middlewares/store-context.js";
+import { splitUnits, UNIT_FIELDS } from "../catalog/pack-units.js";
 import { locationHints, normalizeShelfLocation } from "./shelf-location.js";
 
 export const batchesRouter = Router();
@@ -56,7 +57,7 @@ batchesRouter.get("/inventory/batches", requirePermission("stock.read"), async (
             id: true,
             code: true,
             name: true,
-            units: { where: { conversionToBase: 1 }, select: { name: true }, take: 1 },
+            units: UNIT_FIELDS,
           },
         },
       },
@@ -70,22 +71,26 @@ batchesRouter.get("/inventory/batches", requirePermission("stock.read"), async (
   sendData(
     res,
     pageResult(
-      batches.map((batch) => ({
-        id: batch.id,
-        productId: batch.product.id,
-        productCode: batch.product.code,
-        productName: batch.product.name,
-        baseUnitName: batch.product.units[0]?.name ?? "Đơn vị cơ bản",
-        batchNumber: batch.batchNumber,
-        manufactureDate: batch.manufactureDate,
-        expiryDate: batch.expiryDate,
-        status: batch.status,
-        quantityOnHand: batch.quantityOnHand,
-        shelfLocation: batch.shelfLocation,
-        note: batch.note,
-        version: batch.version,
-        ...(showCost ? { unitCost: batch.unitCost ? batch.unitCost.toNumber() : null } : {}),
-      })),
+      batches.map((batch) => {
+        const units = splitUnits(batch.product.units);
+        return {
+          id: batch.id,
+          productId: batch.product.id,
+          productCode: batch.product.code,
+          productName: batch.product.name,
+          baseUnitName: units.baseUnitName ?? "Đơn vị cơ bản",
+          packUnits: units.packUnits,
+          batchNumber: batch.batchNumber,
+          manufactureDate: batch.manufactureDate,
+          expiryDate: batch.expiryDate,
+          status: batch.status,
+          quantityOnHand: batch.quantityOnHand,
+          shelfLocation: batch.shelfLocation,
+          note: batch.note,
+          version: batch.version,
+          ...(showCost ? { unitCost: batch.unitCost ? batch.unitCost.toNumber() : null } : {}),
+        };
+      }),
       total,
       page,
     ),

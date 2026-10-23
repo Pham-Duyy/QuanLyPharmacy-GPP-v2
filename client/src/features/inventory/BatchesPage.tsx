@@ -41,6 +41,7 @@ import {
   type StockLedgerPage,
 } from "../../api/types.js";
 import { daysUntil, formatDate, formatDateTime, formatNumber } from "../../ui/format.js";
+import { PackHint } from "../../ui/PackHint.js";
 import { ExcelExportButton } from "../excel/ExcelButtons.js";
 import { ExcelImportModal } from "../excel/ExcelImportModal.js";
 import { PageHeader } from "../../ui/PageHeader.js";
@@ -313,6 +314,7 @@ function BatchPanel({
               <strong>
                 {formatNumber(batch.quantityOnHand)} {batch.baseUnitName}
               </strong>
+              <PackHint quantity={batch.quantityOnHand} item={batch} block />
             </dd>
           </div>
           <div>
@@ -549,12 +551,15 @@ function BatchesTab({
           {
             title: "Tồn",
             key: "qty",
-            width: 110,
+            width: 140,
             align: "right",
             render: (_: unknown, item: BatchListItem) => (
-              <span>
-                <strong>{formatNumber(item.quantityOnHand)}</strong> {item.baseUnitName}
-              </span>
+              <div className="cell-main cell-right">
+                <div>
+                  <strong>{formatNumber(item.quantityOnHand)}</strong> {item.baseUnitName}
+                </div>
+                <PackHint quantity={item.quantityOnHand} item={item} />
+              </div>
             ),
           },
           ...(showCost
@@ -721,15 +726,16 @@ function OverviewTab() {
           {
             title: "Bán được",
             key: "sellable",
-            width: 120,
+            width: 160,
             align: "right",
             render: (_: unknown, item: InventoryOverviewItem) => {
               const low = item.stock.sellable < item.minStockBaseQuantity;
               return (
                 <div className="cell-main cell-right">
                   <strong className={low ? "text-danger" : undefined}>
-                    {formatNumber(item.stock.sellable)}
+                    {formatNumber(item.stock.sellable)} {item.baseUnitName ?? ""}
                   </strong>
+                  <PackHint quantity={item.stock.sellable} item={item} />
                   <span>tối thiểu {formatNumber(item.minStockBaseQuantity)}</span>
                 </div>
               );
