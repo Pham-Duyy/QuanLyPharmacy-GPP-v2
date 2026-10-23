@@ -261,10 +261,13 @@ export function ExpiryAlertsPage() {
 
   const summary = data.data?.summary;
 
+  // Độ rộng theo tỉ lệ, cột ngắn canh giữa: màn rộng thì khoảng trống chia đều
+  // giữa các cột thay vì dồn hết sau tên thuốc (cùng cách với trang Tồn kho).
   const columns = [
     {
       title: "Sản phẩm / lô",
       dataIndex: "productName",
+      width: "23%",
       render: (_: string, row: ExpiryRow) => (
         <div className="cell-main">
           <span className="cell-title">{row.productName}</span>
@@ -281,7 +284,8 @@ export function ExpiryAlertsPage() {
     {
       title: "Hạn dùng",
       dataIndex: "expiryDate",
-      width: 165,
+      width: "12%",
+      align: "center" as const,
       render: (value: string, row: ExpiryRow) => (
         <div className="cell-main">
           <span className="cell-title">{formatDate(value)}</span>
@@ -294,10 +298,10 @@ export function ExpiryAlertsPage() {
     {
       title: "Tồn / giá trị",
       dataIndex: "quantityOnHand",
-      width: 150,
-      align: "right" as const,
+      width: "12%",
+      align: "center" as const,
       render: (value: number, row: ExpiryRow) => (
-        <div className="cell-main" style={{ alignItems: "flex-end" }}>
+        <div className="cell-main cell-center">
           <span className="cell-title">
             {formatNumber(value)} {row.baseUnitName}
           </span>
@@ -313,7 +317,7 @@ export function ExpiryAlertsPage() {
     {
       title: "Nhà cung cấp",
       dataIndex: "lastSupplier",
-      width: 190,
+      width: "16%",
       render: (_: unknown, row: ExpiryRow) =>
         row.lastSupplier ? (
           row.lastSupplier.name
@@ -324,7 +328,7 @@ export function ExpiryAlertsPage() {
     {
       title: "Kế hoạch xử lý",
       dataIndex: "plan",
-      width: 260,
+      width: "22%",
       render: (plan: Plan | null, row: ExpiryRow) =>
         plan ? (
           <div className="cell-main">
@@ -350,9 +354,9 @@ export function ExpiryAlertsPage() {
     {
       title: "",
       dataIndex: "batchId",
-      width: 210,
+      width: "15%",
       render: (_: string, row: ExpiryRow) => (
-        <div className="expiry-actions">
+        <div className="expiry-actions is-centered">
           {canPlan ? (
             <Button
               size="small"

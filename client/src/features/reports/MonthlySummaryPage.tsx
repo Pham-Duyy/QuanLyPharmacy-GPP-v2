@@ -258,12 +258,12 @@ function PurchasesTab({ data, rows }: { data: PeriodSummary; rows: PurchaseRow[]
         scroll={{ x: 760 }}
         locale={emptyText("Tháng này chưa nhập thuốc nào")}
         columns={[
-          productColumn,
+          { ...productColumn, width: "30%" },
           {
             title: "Số lượng nhập",
             dataIndex: "quantity",
-            width: 140,
-            align: "right" as const,
+            width: "15%",
+            align: "center" as const,
             render: quantity,
           },
           ...(data.showCost
@@ -271,17 +271,17 @@ function PurchasesTab({ data, rows }: { data: PeriodSummary; rows: PurchaseRow[]
                 {
                   title: "Tiền nhập",
                   dataIndex: "amount",
-                  width: 140,
-                  align: "right" as const,
+                  width: "15%",
+                  align: "center" as const,
                   render: moneyOrDash,
                 },
               ]
             : []),
-          { title: "Số phiếu", dataIndex: "receipts", width: 90, align: "right" as const },
+          { title: "Số phiếu", dataIndex: "receipts", width: "10%", align: "center" as const },
           {
             title: "Nhà cung cấp",
             dataIndex: "suppliers",
-            width: 260,
+            width: "30%",
             render: (suppliers: string[]) => suppliers.join(", ") || "—",
           },
         ]}
@@ -300,12 +300,12 @@ function PurchasesTab({ data, rows }: { data: PeriodSummary; rows: PurchaseRow[]
             dataSource={data.supplierReturns}
             pagination={pagination(data.supplierReturns.length)}
             columns={[
-              productColumn,
+              { ...productColumn, width: "50%" },
               {
                 title: "Số lượng trả",
                 dataIndex: "quantity",
-                width: 140,
-                align: "right" as const,
+                width: "25%",
+                align: "center" as const,
                 render: quantity,
               },
               ...(data.showCost
@@ -313,8 +313,8 @@ function PurchasesTab({ data, rows }: { data: PeriodSummary; rows: PurchaseRow[]
                     {
                       title: "Giá trị",
                       dataIndex: "value",
-                      width: 140,
-                      align: "right" as const,
+                      width: "25%",
+                      align: "center" as const,
                       render: moneyOrDash,
                     },
                   ]
@@ -369,22 +369,23 @@ function SalesTab({ data, search }: { data: PeriodSummary; search: string }) {
           {
             title: "Hạng",
             dataIndex: "rank",
-            width: 64,
+            width: "7%",
+            align: "center" as const,
             render: (rank: number) => <span className="rank-badge period-rank">{rank}</span>,
           },
-          productColumn,
+          { ...productColumn, width: "28%" },
           {
             title: "Số lượng bán",
             dataIndex: "quantity",
-            width: 140,
-            align: "right" as const,
+            width: "14%",
+            align: "center" as const,
             render: quantity,
           },
           {
             title: "Doanh thu",
             dataIndex: "revenue",
-            width: 140,
-            align: "right" as const,
+            width: "14%",
+            align: "center" as const,
             render: (value: number) => <b>{formatVnd(value)}</b>,
           },
           ...(data.showCost
@@ -392,18 +393,18 @@ function SalesTab({ data, search }: { data: PeriodSummary; search: string }) {
                 {
                   title: "Lãi gộp",
                   dataIndex: "grossProfit",
-                  width: 130,
-                  align: "right" as const,
+                  width: "13%",
+                  align: "center" as const,
                   render: moneyOrDash,
                 },
               ]
             : []),
-          { title: "Số hóa đơn", dataIndex: "invoices", width: 100, align: "right" as const },
+          { title: "Số hóa đơn", dataIndex: "invoices", width: "12%", align: "center" as const },
           {
             title: "Tỷ trọng",
             dataIndex: "share",
-            width: 90,
-            align: "right" as const,
+            width: "12%",
+            align: "center" as const,
             render: (value: number) => `${formatNumber(value)}%`,
           },
         ]}
@@ -454,12 +455,12 @@ function IdleTab({ data, rows }: { data: PeriodSummary; rows: IdleRow[] }) {
         scroll={{ x: 980 }}
         locale={emptyText("Không có thuốc nào đứng yên")}
         columns={[
-          productColumn,
+          { ...productColumn, width: "25%" },
           {
             title: "Tồn cuối tháng",
             dataIndex: "stock",
-            width: 130,
-            align: "right" as const,
+            width: "12.5%",
+            align: "center" as const,
             render: quantity,
           },
           ...(data.showCost
@@ -467,11 +468,11 @@ function IdleTab({ data, rows }: { data: PeriodSummary; rows: IdleRow[] }) {
                 {
                   title: "Giá trị tồn",
                   dataIndex: "value",
-                  width: 130,
-                  align: "right" as const,
+                  width: "12.5%",
+                  align: "center" as const,
                   render: (value: number, row: IdleRow) =>
                     row.withoutCost ? (
-                      <div className="cell-main" style={{ alignItems: "flex-end" }}>
+                      <div className="cell-main cell-center">
                         <span className="cell-title">{formatVnd(value)}</span>
                         <span className="cell-sub">Có lô chưa có giá vốn</span>
                       </div>
@@ -484,27 +485,30 @@ function IdleTab({ data, rows }: { data: PeriodSummary; rows: IdleRow[] }) {
           {
             title: "Lần bán gần nhất",
             dataIndex: "lastSoldDate",
-            width: 140,
+            width: "12.5%",
+            align: "center" as const,
             render: (value: string | null) =>
               value ? formatDate(value) : <Tag variant="filled">Chưa từng bán</Tag>,
           },
           {
             title: "Số ngày không bán",
             dataIndex: "daysIdle",
-            width: 130,
-            align: "right" as const,
+            width: "12.5%",
+            align: "center" as const,
             render: (value: number) => `${formatNumber(value)} ngày`,
           },
           {
             title: "Lần nhập gần nhất",
             dataIndex: "lastReceivedDate",
-            width: 140,
+            width: "12.5%",
+            align: "center" as const,
             render: formatDate,
           },
           {
             title: "Hạn dùng gần nhất",
             dataIndex: "nearestExpiry",
-            width: 140,
+            width: "12.5%",
+            align: "center" as const,
             render: formatDate,
           },
         ]}
@@ -532,6 +536,7 @@ function MovementsTab({ rows }: { rows: MovementRow[] }) {
         columns={[
           {
             ...productColumn,
+            width: "28%",
             render: (_: string, row: MovementRow) => (
               <div className="cell-main">
                 <span className="cell-title">{row.name}</span>
@@ -544,43 +549,43 @@ function MovementsTab({ rows }: { rows: MovementRow[] }) {
           {
             title: "Tồn đầu",
             dataIndex: "opening",
-            width: 100,
-            align: "right" as const,
+            width: "12%",
+            align: "center" as const,
             render: number,
           },
           {
             title: "Nhập mua",
             dataIndex: "received",
-            width: 100,
-            align: "right" as const,
+            width: "12%",
+            align: "center" as const,
             render: number,
           },
           {
             title: "Nhập khác",
             dataIndex: "otherIn",
-            width: 100,
-            align: "right" as const,
+            width: "12%",
+            align: "center" as const,
             render: number,
           },
           {
             title: "Xuất bán",
             dataIndex: "sold",
-            width: 100,
-            align: "right" as const,
+            width: "12%",
+            align: "center" as const,
             render: number,
           },
           {
             title: "Xuất khác",
             dataIndex: "otherOut",
-            width: 100,
-            align: "right" as const,
+            width: "12%",
+            align: "center" as const,
             render: number,
           },
           {
             title: "Tồn cuối",
             dataIndex: "closing",
-            width: 100,
-            align: "right" as const,
+            width: "12%",
+            align: "center" as const,
             render: (value: number) => <b>{formatNumber(value)}</b>,
           },
         ]}
