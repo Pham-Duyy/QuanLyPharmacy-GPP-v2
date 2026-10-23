@@ -264,12 +264,12 @@ function summarize(rows: ExpiryRow[], showCost: boolean) {
   const byBucket = Object.fromEntries(
     BUCKETS.map((bucket) => {
       const items = rows.filter((row) => row.bucket === bucket.key);
+      // Không cộng số lượng: viên, chai, tuýp của các thuốc khác nhau không cộng được.
       return [
         bucket.key,
         {
           label: bucket.label,
           batches: items.length,
-          quantity: items.reduce((sum, row) => sum + row.quantityOnHand, 0),
           value: showCost ? items.reduce((sum, row) => sum + (row.stockValue ?? 0), 0) : null,
           withoutPlan: items.filter((row) => !row.plan).length,
         },
