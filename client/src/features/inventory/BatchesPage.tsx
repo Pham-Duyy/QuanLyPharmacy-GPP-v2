@@ -42,6 +42,7 @@ import {
 } from "../../api/types.js";
 import { daysUntil, formatDate, formatDateTime, formatNumber } from "../../ui/format.js";
 import { PackHint } from "../../ui/PackHint.js";
+import { daysLeftLabel, isExpired } from "./expiry-status.js";
 import { ExcelExportButton } from "../excel/ExcelButtons.js";
 import { ExcelImportModal } from "../excel/ExcelImportModal.js";
 import { PageHeader } from "../../ui/PageHeader.js";
@@ -76,8 +77,8 @@ function ExpiryCell({ value }: { value: string }) {
   return (
     <div className="cell-main">
       <strong>{formatDate(value)}</strong>
-      {days < 0 ? (
-        <span className="text-danger">Đã hết hạn</span>
+      {isExpired(days) ? (
+        <span className="text-danger">{daysLeftLabel(days)}</span>
       ) : days <= 90 ? (
         <span className={days <= 30 ? "text-danger" : "text-warning"}>Còn {days} ngày</span>
       ) : (

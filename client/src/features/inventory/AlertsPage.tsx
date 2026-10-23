@@ -24,6 +24,7 @@ import { PageHeader } from "../../ui/PageHeader.js";
 import { PanelEmpty } from "../../ui/PanelEmpty.js";
 import { StatCard, StatGrid } from "../../ui/StatCard.js";
 import { useAuth } from "../auth/auth-context.js";
+import { daysLeftLabel, isExpired } from "./expiry-status.js";
 
 type Level = "danger" | "warning" | "info";
 type AlertRow = {
@@ -81,13 +82,13 @@ export function AlertsPage() {
     for (const batch of batches.data ?? []) {
       if (batch.quantityOnHand <= 0) continue;
       const days = daysUntil(batch.expiryDate);
-      if (days < 0)
+      if (isExpired(days))
         batchAlerts.push({
           key: `expired-${batch.id}`,
           level: "danger",
           kind: "Đã hết hạn",
           productName: batch.productName,
-          detail: `Lô ${batch.batchNumber} đã hết hạn ${Math.abs(days)} ngày`,
+          detail: `Lô ${batch.batchNumber} ${daysLeftLabel(days).toLowerCase()}`,
           batch,
         });
       else if (days <= 90)
