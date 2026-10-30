@@ -22,6 +22,9 @@ DATA → MONITORING → PROCESSING → ANALYTICS → STORAGE → DASHBOARD → A
 | D4 | AI Agent đặt trong `analytics-service/app/agent/` ở giai đoạn đầu | Tool gọi hàm Python trực tiếp, bớt một service; tách ra sau dễ |
 | D5 | Dashboard gọi qua Node Gateway `/api/v1/bi/*` | Dùng lại đăng nhập và phân quyền theo cửa hàng; analytics-service không mở ra Internet |
 | D6 | Đọc `.xlsx` bằng **calamine**, dự phòng openpyxl | Đo trên 32.000 dòng: calamine 0,6 giây, openpyxl 4 giây; kết quả giống hệt |
+| D7 | Tồn kho lấy từ **tệp tồn hiện tại theo lô** (`inventory.xlsx`), không tự tính nhập − bán; "tồn tính đến" = giờ lưu tệp | Đơn giản, dễ kiểm; tự tính chỉ cần thiếu một chứng từ là sai dây chuyền. Phiếu nhập để Phase 5 |
+| D8 | Tồn kho, hạn dùng (có giá nhập) cần quyền **`report.inventory`**; xếp hạng sản phẩm cần `report.sales` | Giá nhập và tồn là thông tin nhạy cảm với nhân viên bán hàng |
+| D9 | Ngưỡng mặc định trong `config.py`: ADS tính trên 30 ngày; sắp hết khi số ngày tồn < 7 hoặc dưới `min_stock`; tồn cao khi > 90 ngày hoặc trên `max_stock`; tồn chết khi còn tồn mà 30 ngày không bán; hạn dùng 5 mức 0/7/30/90 ngày | Theo master prompt §13, §14; sửa một chỗ là đổi toàn hệ thống |
 
 ## Thành phần
 
@@ -206,6 +209,46 @@ nên version tăng thì các khối tự tải lại, không tải lại trang. 
 Đo thật (Playwright, 32.000 dòng): thêm 5 hóa đơn vào `sales.csv` → thẻ doanh thu tự đổi sau 26,5 giây,
 tăng đúng bằng tổng 5 hóa đơn. **Đạt tiêu chí MVP.**
 
+## Phase 2: thiết kế đã chốt
+
+**Tồn kho** (mỗi thuốc, mỗi cửa hàng; lô đã hết hạn không tính là tồn bán được):
+
+```
+Tồn hiện tại      = Σ quantity các lô chưa hết hạn
+ADS               = số lượng bán 30 ngày gần nhất / 30
+Số ngày tồn       = Tồn hiện tại / ADS        (ADS = 0: "không bán được")
+Giá trị tồn       = Σ quantity × purchase_price
+```
+
+| Trạng thái | Điều kiện |
+|---|---|
+| Hết hàng | tồn = 0 nhưng 30 ngày qua có bán |
+| Sắp hết | tồn < min_stock hoặc số ngày tồn < 7 |
+| Tồn cao | tồn > max_stock hoặc số ngày tồn > 90 |
+| Tồn chết | còn tồn, 30 ngày không bán |
+| Bình thường | còn lại |
+
+**Hạn dùng 5 mức** (ngày còn lại = hạn − hôm nay): đã hết hạn < 0; nguy cấp 0–7; cảnh báo 8–30;
+theo dõi 31–90; bình thường > 90.
+
+**FEFO, số lượng có nguy cơ không kịp bán:** xếp lô theo hạn gần trước, giả định bán đúng thứ tự với tốc độ ADS.
+
+```
+đã_dùng = 0
+mỗi lô theo hạn tăng dần:
+    bán_được    = min(quantity, max(0, ngày_còn_lại − đã_dùng) × ADS)
+    có_nguy_cơ  = quantity − bán_được      (× giá nhập = tiền có thể mất)
+    đã_dùng    += quantity / ADS
+```
+
+Ví dụ: ADS 10 hộp/ngày; lô A 50 hộp còn 7 ngày → bán hết sau 5 ngày, an toàn; lô B 200 hộp còn 12 ngày → chỉ còn
+7 ngày để bán, được 70 hộp, **130 hộp có nguy cơ**.
+
+**Cảnh báo theo luật:** lô hết hạn còn trong kho (nguy cấp); lô nguy cấp/cảnh báo; hàng có nguy cơ không kịp bán;
+hết hàng/sắp hết; doanh thu hôm nay giảm ≥ 20% so với hôm qua cùng giờ; tệp có dòng lỗi.
+
+Thiếu `inventory.xlsx` thì phần bán hàng vẫn chạy; các khối tồn kho báo "Chưa có tệp tồn kho".
+
 ## Lộ trình
 
 | Phase | Nội dung | Trạng thái |
@@ -217,7 +260,12 @@ tăng đúng bằng tổng 5 hóa đơn. **Đạt tiêu chí MVP.**
 | 1.5 | Monitor: watchdog + debounce + kiểm tra ổn định, polling dự phòng, thử lại | Xong |
 | 1.6 | Analytics API (FastAPI) chỉ đọc, chạy chung tiến trình với Monitor: `python main.py serve` | Xong |
 | 1.7 | Node Gateway `/api/v1/bi` (đăng nhập, quyền theo cửa hàng) + trang "Bảng điều hành" tự cập nhật | Xong |
-| 2 | Tồn kho, hạn dùng (5 mức), FEFO, top sản phẩm, cảnh báo | |
+| 2.1 | Schema `inventory.xlsx`, luật kiểm tra, dữ liệu mẫu khớp sales | |
+| 2.2 | Phân tích sản phẩm: top doanh thu/lợi nhuận, lợi nhuận thấp, giảm mạnh, bán chậm, lâu không bán | |
+| 2.3 | Phân tích tồn kho: ADS, số ngày tồn, giá trị tồn, 5 trạng thái | |
+| 2.4 | Hạn dùng 5 mức + FEFO: số lượng và tiền có nguy cơ không kịp bán | |
+| 2.5 | Cảnh báo theo luật; snapshot; Analytics API `/products`, `/inventory`, `/expiry`, `/alerts` | |
+| 2.6 | Gateway (quyền D8) + Bảng điều hành: thẻ KPI tồn kho, khối Cảnh báo, tab Tồn kho / Hạn dùng / Sản phẩm | |
 | 3 | Bất thường (luật → Z-score/IQR), dự báo (MA → Holt-Winters), backtest | |
 | 4 | AI Agent: tool calling, đối chiếu số, nhật ký, bộ câu hỏi đánh giá | |
 | 5 | Gợi ý đặt hàng, ABC, ML nâng cao, nguồn PostgreSQL | |

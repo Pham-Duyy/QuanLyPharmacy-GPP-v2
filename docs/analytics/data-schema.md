@@ -71,7 +71,29 @@ Nguồn sự thật trong code: `analytics-service/app/processor/schemas.py` (c�
 
 Thiếu hẳn một cột bắt buộc, hoặc tệp hỏng, thì cả tệp không xử lý (`LoadError`).
 
-## inventory.xlsx, purchases.xlsx (Phase 2)
+## inventory.xlsx (Phase 2, quyết định D7)
 
-Sẽ bổ sung ở Phase 2: tồn theo lô (`store_code`, `medicine_code`, `batch_code`, `quantity`,
-`purchase_price`, `selling_price`, `expiry_date`, `received_date`, `supplier_id`) và phiếu nhập.
+Tồn hiện tại theo lô. Khóa: (`store_code`, `medicine_code`, `batch_code`). "Tồn tính đến" = giờ lưu tệp.
+
+| Cột | Bắt buộc | Kiểu | Ý nghĩa |
+|---|---|---|---|
+| store_code | ✔ | mã | Cửa hàng, trùng mã trong phần mềm |
+| medicine_code | ✔ | mã | Phải có trong medicines |
+| batch_code | ✔ | mã | Số lô |
+| quantity | ✔ | số ≥ 0 | Số lượng còn |
+| expiry_date | ✔ | ngày | Hạn dùng |
+| purchase_price | | số ≥ 0 | Giá nhập, để tính giá trị tồn |
+| received_date | | ngày | Ngày nhập |
+| supplier | | chữ | Nhà cung cấp |
+
+| Luật | Mức | Ý nghĩa |
+|---|---|---|
+| duplicate_row | error | Trùng (cửa hàng, thuốc, lô) |
+| negative_value | error | Số lượng hoặc giá nhập âm |
+| expiry_before_received | error | Hạn dùng trước ngày nhập |
+| unknown_medicine | error | Mã thuốc không có trong medicines |
+| zero_quantity | warning | Số lượng 0: bỏ qua dòng |
+| expiry_too_far | warning | Hạn dùng quá 10 năm (gõ nhầm năm) |
+| unknown_store | warning | Mã cửa hàng không có trong tệp bán hàng |
+
+Phiếu nhập (`purchases.xlsx`) để Phase 5 (gợi ý đặt hàng).
