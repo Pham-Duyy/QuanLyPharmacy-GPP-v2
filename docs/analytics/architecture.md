@@ -407,6 +407,20 @@ Tab "Hỏi trợ lý AI" trên Bảng điều hành (`client/src/features/bi/Age
   thật, câu trả lời qua đối chiếu 9 số, ngày, giờ.
 - Test: 4 test hàm hiển thị trong `bi-api.test.ts` (nhãn nguồn số, nhãn đối chiếu, câu gợi ý, chi phí).
 
+### Hoàn thiện giao diện Bảng điều hành (sau Phase 4)
+
+Nguyên tắc: ít chữ, mỗi khối một khung cùng kiểu, giải thích cách tính thu vào biểu tượng "?".
+
+- Đầu trang: tiêu đề + một dòng "Cập nhật hh:mm · n phút trước" (chấm xanh khi đang theo dõi tệp); cửa hàng, kỳ, nút
+  "Hỏi AI" mở thẳng tab trợ lý.
+- Cảnh báo: hiện 3 việc nặng nhất, "+n cảnh báo" để mở thêm; mỗi dòng bấm được, tên thuốc một dòng.
+- Thẻ KPI: 5 thẻ một hàng trên máy tính, lưới 2 cột gọn trên điện thoại; số không xuống dòng.
+- Mọi tab dùng khung `Panel` (tiêu đề ngắn, chú thích phạm vi màu nhạt, "?" giải thích, ô tìm bên phải); bảng cuộn ngang
+  trong khung, bộ lọc cuộn ngang trên điện thoại: trang không còn tràn ngang ở màn 390px (trước: tràn 208px, mất 3 cột
+  ở tab Tồn kho).
+- Chất lượng dữ liệu: 3 ô tóm tắt, bảng lỗi chỉ mở khi bấm.
+- Đã kiểm bằng ảnh chụp tự động 7 tab × máy tính 1440px và điện thoại 390px.
+
 ### Bộ đánh giá (bước 4.6, đã chuẩn bị, chưa chạy với Claude thật)
 
 `server/src/modules/bi/agent/eval/` và `npm run eval:agent` (cần analytics-service đang chạy):

@@ -1,4 +1,9 @@
-import { PlusOutlined, RobotOutlined, SendOutlined } from "@ant-design/icons";
+import {
+  PlusOutlined,
+  RobotOutlined,
+  SafetyCertificateOutlined,
+  SendOutlined,
+} from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AxiosError } from "axios";
 import { Alert, Button, Card, Collapse, Input, Space, Tag, Typography } from "antd";
@@ -107,28 +112,28 @@ export function AgentPanel({
         type="info"
         showIcon
         title="Trợ lý AI chưa bật"
-        description="Quản trị cần đặt ANTHROPIC_API_KEY trong server/.env rồi khởi động lại máy chủ. Mọi số liệu trên Bảng điều hành vẫn dùng bình thường, không cần AI."
+        description="Cần ANTHROPIC_API_KEY trong server/.env. Các số liệu khác không cần AI."
       />
     );
   }
 
   return (
     <Card
+      className="bi-panel"
       title={
-        <Space>
-          <RobotOutlined />
-          Hỏi trợ lý AI
-        </Space>
+        <span className="bi-panel-title">
+          <RobotOutlined /> Trợ lý AI
+        </span>
       }
       extra={
         <Space wrap>
           {last ? (
             <Typography.Text type="secondary">
-              Câu {last.conversation.turns}/{last.conversation.maxTurns} của hội thoại
+              {last.conversation.turns}/{last.conversation.maxTurns} câu
             </Typography.Text>
           ) : null}
           {remaining !== undefined ? (
-            <Typography.Text type="secondary">Còn {remaining} câu trong giờ này</Typography.Text>
+            <Typography.Text type="secondary">còn {remaining} lượt/giờ</Typography.Text>
           ) : null}
           <Button
             icon={<PlusOutlined />}
@@ -140,11 +145,10 @@ export function AgentPanel({
         </Space>
       }
     >
-      <Typography.Paragraph type="secondary" className="bi-agent-intro">
-        Trợ lý chỉ đọc số liệu hệ thống đã tính (cùng quyền xem của bạn), không sửa dữ liệu. Mọi con
-        số trong câu trả lời được tự động đối chiếu; câu có số không có nguồn sẽ bị chặn. Câu hỏi
-        không nêu cửa hàng thì dùng phạm vi đang chọn: {store === "ALL" ? "toàn chuỗi" : store}.
-      </Typography.Paragraph>
+      <p className="bi-agent-intro">
+        <SafetyCertificateOutlined /> Chỉ đọc số liệu · mọi con số được đối chiếu tự động · phạm vi{" "}
+        {store === "ALL" ? "toàn chuỗi" : store}
+      </p>
 
       {turns.length === 0 ? (
         <div className="bi-agent-suggestions">
@@ -172,7 +176,7 @@ export function AgentPanel({
           type="info"
           showIcon
           style={{ marginTop: 12 }}
-          title="Hội thoại đã đủ số câu hỏi. Bấm Hội thoại mới để hỏi tiếp."
+          title="Đã đủ 10 câu. Bấm Hội thoại mới để hỏi tiếp."
         />
       ) : (
         <div className="bi-agent-input">
@@ -186,7 +190,7 @@ export function AgentPanel({
             }}
             maxLength={limits?.questionChars ?? 1000}
             autoSize={{ minRows: 1, maxRows: 5 }}
-            placeholder="Ví dụ: Vì sao doanh thu CH03 tuần này giảm? (Enter để gửi, Shift+Enter xuống dòng)"
+            placeholder="Hỏi về doanh thu, tồn kho, hạn dùng…"
             disabled={ask.isPending}
             aria-label="Câu hỏi cho trợ lý AI"
           />
@@ -211,11 +215,7 @@ function TurnView({ turn, pending }: { turn: Turn; pending: boolean }) {
     <div className="bi-agent-turn">
       <div className="bi-agent-question">{turn.question}</div>
       {turn.error ? <Alert type="error" showIcon title={turn.error} /> : null}
-      {pending ? (
-        <Typography.Text type="secondary">
-          Trợ lý đang tra số liệu… (tối đa 60 giây)
-        </Typography.Text>
-      ) : null}
+      {pending ? <Typography.Text type="secondary">Đang tra số liệu…</Typography.Text> : null}
       {reply ? <ReplyView reply={reply} /> : null}
     </div>
   );
@@ -237,8 +237,7 @@ function ReplyView({ reply }: { reply: AgentReply }) {
       <Space wrap size={[6, 6]}>
         <Tag color={TONE_COLORS[check.tone]}>{check.text}</Tag>
         <Typography.Text type="secondary" className="bi-agent-meta">
-          {(reply.durationMs / 1000).toFixed(1).replace(".", ",")} giây · {reply.rounds} vòng · chi
-          phí ước tính {usdText(reply.costUsd)}
+          {(reply.durationMs / 1000).toFixed(1).replace(".", ",")} giây · {usdText(reply.costUsd)}
         </Typography.Text>
       </Space>
       {reply.toolCalls.length > 0 ? (
@@ -248,7 +247,7 @@ function ReplyView({ reply }: { reply: AgentReply }) {
           items={[
             {
               key: "sources",
-              label: `Nguồn số: ${reply.toolCalls.length} lần tra số liệu`,
+              label: `Nguồn số (${reply.toolCalls.length})`,
               children: (
                 <ul className="bi-agent-sources">
                   {reply.toolCalls.map((call, index) => (
@@ -265,9 +264,7 @@ function ReplyView({ reply }: { reply: AgentReply }) {
             },
           ]}
         />
-      ) : (
-        <Typography.Text type="secondary">Không tra số liệu nào.</Typography.Text>
-      )}
+      ) : null}
     </div>
   );
 }

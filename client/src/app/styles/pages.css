@@ -4301,50 +4301,266 @@
   margin-top: 12px;
 }
 
-/* Bảng điều hành (features/bi) */
+/* Bảng điều hành (features/bi): ít chữ, khung đồng nhất, không tràn ngang trên điện thoại */
+.bi-block,
+.bi-panel {
+  margin-bottom: 16px;
+}
+
+.bi-panel.ant-card {
+  border-radius: var(--r-lg, 12px);
+  border-color: var(--c-border);
+  box-shadow: var(--shadow-xs);
+}
+
+.bi-panel > .ant-card-head {
+  min-height: 52px;
+  padding: 0 18px;
+  border-bottom-color: var(--c-border);
+}
+
+.bi-panel > .ant-card-head .ant-card-head-wrapper {
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 0;
+}
+
+.bi-panel > .ant-card-body {
+  padding: 16px 18px;
+}
+
+.bi-panel-title {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--c-ink-900);
+}
+
+.bi-panel-sub {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--c-ink-400);
+}
+
+.bi-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 22px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 10px;
+  background: var(--c-surface-2);
+  color: var(--c-ink-700);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.bi-info-icon {
+  align-self: center;
+  color: var(--c-ink-300);
+  font-size: 14px;
+  cursor: help;
+}
+
+.bi-info-icon:hover {
+  color: var(--c-primary);
+}
+
+.bi-info {
+  max-width: 320px;
+  color: var(--c-ink-700);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.bi-info p {
+  margin: 0 0 6px;
+}
+
+.bi-info p:last-child {
+  margin-bottom: 0;
+}
+
+.bi-search.ant-input-search {
+  width: 220px;
+  max-width: 100%;
+}
+
+.bi-filters {
+  margin: 0 -18px 12px;
+  padding: 0 18px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.bi-filters::-webkit-scrollbar {
+  display: none;
+}
+
+.bi-filters .ant-segmented {
+  min-width: max-content;
+}
+
+.bi-bars {
+  margin-bottom: 16px;
+}
+
+.bi-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 240px;
+  gap: 20px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.bi-split .bi-bars {
+  margin-bottom: 0;
+}
+
+.bi-highlight {
+  display: grid;
+  gap: 2px;
+  padding: 14px 16px;
+  border-radius: var(--r-lg, 12px);
+  background: #fff5f5;
+}
+
+.bi-highlight-label {
+  color: var(--c-ink-500);
+  font-size: 12px;
+}
+
+.bi-highlight-value {
+  color: #c62828;
+  font-size: 22px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.bi-name {
+  white-space: nowrap;
+}
+
+.bi-nowrap {
+  white-space: nowrap;
+}
+
 .bi-freshness {
-  display: flex;
+  display: inline-flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 14px;
-  color: var(--ant-color-text-secondary, #5b6472);
+  gap: 6px;
+  color: var(--c-ink-500);
+  font-size: 13px;
+}
+
+.bi-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--c-ink-300);
+}
+
+.bi-dot.live {
+  background: #16a34a;
+  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.15);
+}
+
+.bi-dot.warn {
+  background: #f59e0b;
+}
+
+.bi-store-select {
+  min-width: 180px;
 }
 
 .bi-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
+  gap: 0 16px;
 }
 
-.bi-quality {
-  display: grid;
-  gap: 6px;
-  margin-bottom: 12px;
+/* Thẻ KPI: 5 cột khi đủ rộng, 2 cột gọn trên điện thoại. */
+.bi-kpis .stat-grid {
+  grid-template-columns: repeat(auto-fit, minmax(176px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
 }
 
-@media (max-width: 992px) {
-  .bi-grid {
-    grid-template-columns: minmax(0, 1fr);
+.bi-kpis .stat-card {
+  padding: 16px;
+}
+
+.bi-kpis .stat-card-value {
+  font-size: 22px;
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
+
+.bi-kpis .stat-card-icon {
+  width: 36px;
+  height: 36px;
+  font-size: 17px;
+}
+
+.bi-kpis .stat-card-hint {
+  white-space: nowrap;
+}
+
+@media (min-width: 993px) and (max-width: 1500px) {
+  .bi-kpis .stat-card {
+    gap: 10px;
+    padding: 14px;
+  }
+
+  .bi-kpis .stat-card-value {
+    font-size: 19px;
   }
 }
 
-/* Năm thẻ KPI nằm cùng một hàng khi đủ rộng để số tiền không xuống dòng. */
-@media (min-width: 1600px) {
-  .bi-kpis .stat-grid {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-  }
+/* Cảnh báo: mỗi dòng là một nút mở tab chi tiết, tên thuốc một dòng. */
+.bi-alerts-card > .ant-card-body {
+  padding: 4px 8px;
 }
 
 .bi-alerts {
   display: grid;
-  gap: 8px;
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .bi-alert {
   display: flex;
-  align-items: flex-start;
-  gap: 8px;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+  padding: 8px 6px;
+  border: 0;
+  border-bottom: 1px solid var(--c-border);
+  background: none;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.bi-alert:last-child {
+  border-bottom: 0;
+}
+
+.bi-alert:hover {
+  background: var(--c-surface-2);
+}
+
+.bi-alert .ant-tag {
+  flex: none;
+  min-width: 78px;
+  margin: 0;
+  text-align: center;
 }
 
 .bi-alert-body {
@@ -4354,99 +4570,144 @@
   min-width: 0;
 }
 
-.bi-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin: 14px 0 10px;
+.bi-alert-body strong {
+  font-weight: 500;
 }
 
-.bi-subtitle {
-  margin: 0 0 8px;
-  font-weight: 600;
-}
-
-/* Hỏi trợ lý AI (Bảng điều hành, bước 4.5) */
-.bi-agent-intro {
-  margin-bottom: 12px;
-}
-
-.bi-agent-suggestions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.bi-agent-suggestions .ant-btn {
-  height: auto;
-  white-space: normal;
-  text-align: left;
-}
-
-.bi-agent-turns {
-  display: grid;
-  gap: 16px;
-  max-height: 60vh;
-  overflow-y: auto;
-  padding-right: 4px;
-}
-
-.bi-agent-turn {
-  display: grid;
-  gap: 8px;
-}
-
-.bi-agent-question {
-  justify-self: end;
-  max-width: 80%;
-  padding: 8px 12px;
-  border-radius: var(--r-lg, 12px);
-  background: var(--c-primary-50);
-  color: var(--c-ink-900);
-  white-space: pre-wrap;
-}
-
-.bi-agent-reply {
-  display: grid;
-  gap: 6px;
-  max-width: 92%;
-}
-
-.bi-agent-answer {
-  padding: 10px 12px;
-  border: 1px solid var(--c-border);
-  border-radius: var(--r-lg, 12px);
-  background: var(--c-surface-2);
-  color: var(--c-ink-900);
-  line-height: 1.6;
-  white-space: pre-wrap;
-}
-
-.bi-agent-meta {
+.bi-alert-items {
+  overflow: hidden;
+  color: var(--c-ink-400);
   font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.bi-agent-sources {
+.bi-alert-go {
+  flex: none;
+  color: var(--c-ink-300);
+  font-size: 11px;
+}
+
+.bi-quality {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.bi-quality-item {
   display: grid;
   gap: 4px;
-  margin: 0;
-  padding-left: 0;
-  list-style: none;
+  padding: 12px 14px;
+  border-radius: var(--r-lg, 12px);
+  background: var(--c-surface-2);
 }
 
-.bi-agent-input {
-  display: flex;
-  gap: 8px;
-  align-items: flex-end;
+.bi-quality-item strong {
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+}
+
+.bi-quality-table {
   margin-top: 14px;
 }
 
+.bi-tabs > .ant-tabs-nav {
+  margin-bottom: 12px;
+}
+
+@media (max-width: 992px) {
+  .bi-grid,
+  .bi-split {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 @media (max-width: 576px) {
-  .bi-agent-question,
-  .bi-agent-reply {
-    max-width: 100%;
+  .bi-panel > .ant-card-head {
+    padding: 0 14px;
+  }
+
+  .bi-panel > .ant-card-body {
+    padding: 14px;
+  }
+
+  .bi-filters {
+    margin: 0 -14px 12px;
+    padding: 0 14px;
+  }
+
+  .bi-search.ant-input-search {
+    width: 100%;
+  }
+
+  .bi-panel > .ant-card-head .ant-card-extra {
+    width: 100%;
+    margin-inline-start: 0;
+  }
+
+  .bi-store-select {
+    min-width: 0;
+  }
+
+  .bi-kpis .stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .page-header-extra:has(.bi-period) {
+    width: 100%;
+  }
+
+  /* Số thẻ lẻ: thẻ cuối trải hết hàng. */
+  .bi-kpis .stat-card:last-child:nth-child(odd) {
+    grid-column: span 2;
+  }
+
+  .bi-kpis .stat-card-hint {
+    white-space: normal;
+  }
+
+  .bi-store-select {
+    flex: 1 1 0;
+  }
+
+  .bi-period {
+    order: 3;
+    width: 100%;
+  }
+
+  .bi-period .ant-segmented-group {
+    display: flex;
+  }
+
+  .bi-period .ant-segmented-item {
+    flex: 1;
+    text-align: center;
+  }
+
+  .analysis-rank-row {
+    grid-template-columns: minmax(96px, 36%) 1fr auto;
+  }
+
+  .bi-kpis .stat-card {
+    padding: 12px;
+  }
+
+  .bi-kpis .stat-card-icon {
+    display: none;
+  }
+
+  .bi-kpis .stat-card-value {
+    font-size: 17px;
+  }
+
+  .bi-kpis .stat-card-label,
+  .bi-kpis .stat-card-hint {
+    font-size: 11px;
+  }
+
+  .bi-alert .ant-tag {
+    min-width: 0;
   }
 }
 

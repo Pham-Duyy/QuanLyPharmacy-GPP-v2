@@ -3,12 +3,13 @@ import {
   ClockCircleOutlined,
   DatabaseOutlined,
   ExclamationCircleOutlined,
+  QuestionCircleOutlined,
+  RightOutlined,
   WarningOutlined,
 } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
-import { Alert, Button, Card, Empty, Input, Segmented, Skeleton, Table, Tag } from "antd";
-import { useState } from "react";
-import { getErrorMessage } from "../../api/http.js";
+import { Alert, Button, Card, Empty, Input, Popover, Segmented, Skeleton, Table, Tag } from "antd";
+import { useState, type ReactNode } from "react";
 import { formatNumber } from "../../ui/format.js";
 import { StatCard, StatGrid } from "../../ui/StatCard.js";
 import { RankBars } from "../analytics/AnalysisCharts.js";
@@ -35,11 +36,12 @@ import {
   type StockStatus,
   type Stockout,
 } from "./bi-api.js";
+import { TABLE_SCROLL, queryState } from "./bi-ui.js";
 
 /**
  * Các khối Phase 2–3 của Bảng điều hành: cảnh báo, thẻ tồn kho, tab Sản phẩm /
  * Tồn kho / Hạn dùng / Bất thường / Dự báo. Chỉ hiển thị số analytics-service đã
- * tính, không tính lại.
+ * tính, không tính lại. Giao diện ít chữ: giải thích cách tính nằm trong biểu tượng "?".
  */
 
 const SEVERITY_COLORS: Record<Severity, string> = {
@@ -82,7 +84,71 @@ const LEVEL_COLORS: Record<ExpiryLevel, string> = {
   normal: "green",
 };
 
-/** Khối cảnh báo nằm đầu trang: việc cần làm ngay, nặng nhất trước. */
+// --- Khung dùng chung -------------------------------------------------------------------------
+
+/** Biểu tượng "?" mở giải thích cách tính: giữ màn hình ít chữ. */
+export function InfoTip({ children }: { children: ReactNode }) {
+  return (
+    <Popover content={<div className="bi-info">{children}</div>} trigger={["hover", "click"]}>
+      <QuestionCircleOutlined className="bi-info-icon" aria-label="Cách đọc số liệu" />
+    </Popover>
+  );
+}
+
+/** Khung chung của mỗi khối: tiêu đề ngắn, "?" giải thích, thao tác bên phải. */
+export function Panel({
+  title,
+  info,
+  extra,
+  children,
+}: {
+  title: ReactNode;
+  info?: ReactNode;
+  extra?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <Card
+      className="bi-panel"
+      title={
+        <span className="bi-panel-title">
+          {title}
+          {info ? <InfoTip>{info}</InfoTip> : null}
+        </span>
+      }
+      extra={extra}
+    >
+      {children}
+    </Card>
+  );
+}
+
+export function EmptyState({ text }: { text: string }) {
+  return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={text} />;
+}
+
+/** Bộ lọc dạng nút: cuộn ngang được trên điện thoại. */
+function Filters({ children }: { children: ReactNode }) {
+  return <div className="bi-filters">{children}</div>;
+}
+
+function Search({ placeholder, onChange }: { placeholder: string; onChange: (v: string) => void }) {
+  return (
+    <Input.Search
+      allowClear
+      size="middle"
+      placeholder={placeholder}
+      className="bi-search"
+      onChange={(event) => onChange(event.target.value)}
+    />
+  );
+}
+
+// --- Cảnh báo, thẻ tồn kho ------------------------------------------------------------------
+
+const ALERTS_SHOWN = 3;
+
+/** Khối cảnh báo đầu trang: 3 việc nặng nhất, phần còn lại gấp lại. */
 export function AlertsPanel({
   store,
   version,
@@ -92,6 +158,7 @@ export function AlertsPanel({
   version: number;
   onOpen: (section: BiAlert["section"]) => void;
 }) {
+  const [expanded, setExpanded] = useState(false);
   const query = useQuery({
     queryKey: ["bi", "alerts", store, version],
     queryFn: () => biApi.alerts(store),
@@ -100,42 +167,47 @@ export function AlertsPanel({
   const alerts = query.data?.alerts ?? [];
   if (query.isLoading) return <Skeleton active paragraph={{ rows: 2 }} />;
   if (alerts.length === 0) {
-    return (
-      <Alert
-        type="success"
-        showIcon
-        style={{ marginBottom: 14 }}
-        title="Không có cảnh báo: tồn kho, hạn dùng và doanh thu đều trong ngưỡng"
-      />
-    );
+    return <Alert type="success" showIcon className="bi-block" title="Không có cảnh báo" />;
   }
+  const shown = expanded ? alerts : alerts.slice(0, ALERTS_SHOWN);
+  const hidden = alerts.length - ALERTS_SHOWN;
   return (
     <Card
       size="small"
-      style={{ marginBottom: 14 }}
+      className="bi-block bi-alerts-card"
       title={
-        <span>
-          <AlertOutlined /> Cảnh báo ({alerts.length})
+        <span className="bi-panel-title">
+          <AlertOutlined /> Cảnh báo <span className="bi-count">{alerts.length}</span>
         </span>
+      }
+      extra={
+        hidden > 0 ? (
+          <Button size="small" type="link" onClick={() => setExpanded(!expanded)}>
+            {expanded ? "Thu gọn" : `+${hidden} cảnh báo`}
+          </Button>
+        ) : null
       }
     >
       <div className="bi-alerts">
-        {alerts.map((alert) => (
-          <div key={alert.code} className={`bi-alert severity-${alert.severity}`}>
+        {shown.map((alert) => (
+          <button
+            key={alert.code}
+            type="button"
+            className="bi-alert"
+            onClick={() => onOpen(alert.section)}
+          >
             <Tag color={SEVERITY_COLORS[alert.severity]}>{SEVERITY_LABELS[alert.severity]}</Tag>
-            <div className="bi-alert-body">
+            <span className="bi-alert-body">
               <strong>{alert.title}</strong>
               {alert.items.length ? (
-                <span className="muted">
+                <span className="bi-alert-items">
                   {alert.items.join(", ")}
                   {alert.count && alert.count > alert.items.length ? "…" : ""}
                 </span>
               ) : null}
-            </div>
-            <Button size="small" type="link" onClick={() => onOpen(alert.section)}>
-              Xem
-            </Button>
-          </div>
+            </span>
+            <RightOutlined className="bi-alert-go" />
+          </button>
         ))}
       </div>
     </Card>
@@ -149,9 +221,9 @@ export function InventoryCards({ overview }: { overview: Overview }) {
       <Alert
         type="info"
         showIcon
-        style={{ marginBottom: 14 }}
+        className="bi-block"
         title="Chưa có tệp tồn kho"
-        description="Đặt inventory.xlsx (tồn theo lô: cửa hàng, mã thuốc, số lô, số lượng, hạn dùng) vào thư mục data/inbox để xem tồn kho và hạn dùng."
+        description="Thêm inventory.xlsx vào data/inbox."
       />
     );
   }
@@ -163,64 +235,62 @@ export function InventoryCards({ overview }: { overview: Overview }) {
           icon={<DatabaseOutlined />}
           label="Giá trị tồn kho"
           value={money(overview.total_stock_value ?? null)}
-          hint={
-            <span className="muted">
-              Theo giá nhập, tệp lưu lúc {clockText(overview.stock_as_of)}
-            </span>
-          }
+          hint={<span className="muted">Giá nhập · {clockText(overview.stock_as_of)}</span>}
         />
         <StatCard
           tone="orange"
           icon={<WarningOutlined />}
           label="Sắp hết / hết hàng"
           value={`${formatNumber(overview.low_stock ?? 0)} / ${formatNumber(overview.out_of_stock ?? 0)}`}
-          hint={<span className="muted">Sản phẩm cần nhập thêm</span>}
+          hint={<span className="muted">Cần nhập thêm</span>}
         />
         <StatCard
           tone="red"
           icon={<ClockCircleOutlined />}
-          label="Lô hết hạn trong 30 ngày"
-          value={formatNumber(overview.expiring_30d_lots ?? 0)}
+          label="Hết hạn ≤ 30 ngày"
+          value={`${formatNumber(overview.expiring_30d_lots ?? 0)} lô`}
           hint={
             overview.expired_lots ? (
-              <span className="trend trend-down">
-                {overview.expired_lots} lô đã hết hạn còn trong kho
-              </span>
+              <span className="trend trend-down">{overview.expired_lots} lô đã hết hạn</span>
             ) : (
-              <span className="muted">Không có lô đã hết hạn</span>
+              <span className="muted">Không có lô quá hạn</span>
             )
           }
         />
         <StatCard
           tone="purple"
           icon={<ExclamationCircleOutlined />}
-          label="Có nguy cơ hết hạn"
+          label="Nguy cơ hết hạn"
           value={money(overview.at_risk_value ?? null)}
-          hint={<span className="muted">Không bán kịp trước hạn (theo FEFO)</span>}
+          hint={<span className="muted">Không bán kịp</span>}
         />
       </StatGrid>
     </div>
   );
 }
 
+// --- Sản phẩm -------------------------------------------------------------------------------
+
 const RANKING_OPTIONS: Array<{ value: ProductRanking; label: string }> = [
-  { value: "revenue", label: "Doanh thu cao" },
-  { value: "profit", label: "Lợi nhuận cao" },
+  { value: "revenue", label: "Doanh thu" },
+  { value: "profit", label: "Lợi nhuận" },
   { value: "low_profit", label: "Biên thấp" },
   { value: "declining", label: "Giảm mạnh" },
   { value: "slow", label: "Bán chậm" },
-  { value: "not_sold", label: "Không bán được" },
+  { value: "not_sold", label: "Không bán" },
 ];
 
 const nameColumn = {
   title: "Thuốc",
   key: "name",
   render: (_: unknown, row: { medicine_name: string | null; medicine_code: string }) => (
-    <span>
+    <span className="bi-name">
       {row.medicine_name ?? row.medicine_code} <span className="muted">{row.medicine_code}</span>
     </span>
   ),
 };
+
+const storeColumn = { title: "CH", dataIndex: "store_code", width: 64 };
 
 const percent = (value: number | null | undefined) =>
   value === null || value === undefined ? "—" : `${value.toLocaleString("vi-VN")}%`;
@@ -241,8 +311,7 @@ export function ProductsTab({
     placeholderData: (previous) => previous,
   });
   const data = query.data;
-  if (query.isError) return <Alert type="warning" showIcon title={getErrorMessage(query.error)} />;
-  if (!data) return <Skeleton active />;
+  if (!data) return <Panel title="Sản phẩm">{queryState(query)}</Panel>;
 
   const stockRanking = ranking === "slow" || ranking === "not_sold";
   const rows: ProductRow[] = stockRanking ? data.stock[ranking] : data[ranking];
@@ -251,7 +320,7 @@ export function ProductsTab({
     {
       title: "#",
       key: "rank",
-      width: 48,
+      width: 44,
       render: (_: unknown, __: ProductRow, index: number) => index + 1,
     },
     nameColumn,
@@ -274,10 +343,10 @@ export function ProductsTab({
       : ranking === "not_sold"
         ? [
             {
-              title: "Lần bán cuối",
+              title: "Bán lần cuối",
               key: "last",
               render: (_: unknown, row: ProductRow) =>
-                row.last_sale ? `${row.days_since_sale} ngày trước` : "Chưa bán bao giờ",
+                row.last_sale ? `${row.days_since_sale} ngày trước` : "Chưa bán",
             },
           ]
         : [
@@ -285,7 +354,7 @@ export function ProductsTab({
             ...(stockRanking
               ? [
                   {
-                    title: "Số đơn",
+                    title: "Đơn",
                     dataIndex: "orders",
                     align: "right" as const,
                     render: formatNumber,
@@ -315,7 +384,7 @@ export function ProductsTab({
             render: formatNumber,
           },
           {
-            title: "Vốn đang nằm",
+            title: "Vốn đọng",
             dataIndex: "stock_value",
             align: "right" as const,
             render: money,
@@ -324,44 +393,51 @@ export function ProductsTab({
       : []),
   ];
 
-  const hint: Record<ProductRanking, string> = {
-    revenue: `${data.label}, xếp theo doanh thu.`,
-    profit: `${data.label}, xếp theo lợi nhuận gộp.`,
-    low_profit: `${data.label}, biên lợi nhuận thấp nhất (chỉ thuốc có từ 3 đơn).`,
-    declining: `So với ${data.previous_label.toLowerCase()} cùng thời điểm (chỉ thuốc kỳ trước có từ 5 đơn).`,
-    slow: "30 ngày gần nhất, thuốc còn tồn có bán nhưng doanh thu thấp nhất.",
-    not_sold: `30 ngày gần nhất không bán được: ${data.stock.not_sold_total} thuốc còn tồn.`,
+  const scope: Record<ProductRanking, string> = {
+    revenue: data.label,
+    profit: data.label,
+    low_profit: data.label,
+    declining: `so với ${data.previous_label.toLowerCase()}`,
+    slow: "30 ngày qua",
+    not_sold: `30 ngày qua · ${data.stock.not_sold_total} thuốc`,
   };
 
   return (
-    <>
-      <Segmented
-        value={ranking}
-        options={RANKING_OPTIONS}
-        onChange={(value) => setRanking(value as ProductRanking)}
-        style={{ marginBottom: 10 }}
-      />
-      <p className="muted" style={{ margin: "0 0 10px" }}>
-        {hint[ranking]}
-        {stockRanking && data.stock.basis === "sales_history"
-          ? " Chưa có tệp tồn kho: xét các thuốc từng bán."
-          : ""}
-      </p>
+    <Panel
+      title={
+        <>
+          Sản phẩm <span className="bi-panel-sub">{scope[ranking]}</span>
+        </>
+      }
+      info={
+        <>
+          Biên thấp: thuốc có từ 3 đơn. Giảm mạnh: so cùng thời điểm kỳ trước, thuốc kỳ trước có từ
+          5 đơn. Bán chậm, không bán: 30 ngày gần nhất, thuốc còn tồn
+          {data.stock.basis === "sales_history" ? " (chưa có tệp tồn: xét thuốc từng bán)" : ""}.
+        </>
+      }
+    >
+      <Filters>
+        <Segmented
+          value={ranking}
+          options={RANKING_OPTIONS}
+          onChange={(value) => setRanking(value as ProductRanking)}
+        />
+      </Filters>
       <Table
         size="small"
         rowKey="medicine_code"
         dataSource={rows}
         columns={columns}
         pagination={false}
-        locale={{
-          emptyText: (
-            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Không có thuốc nào" />
-          ),
-        }}
+        scroll={TABLE_SCROLL}
+        locale={{ emptyText: <EmptyState text="Không có thuốc nào" /> }}
       />
-    </>
+    </Panel>
   );
 }
+
+// --- Tồn kho --------------------------------------------------------------------------------
 
 export function InventoryTab({ store, version }: { store: string; version: number }) {
   const [status, setStatus] = useState<StockStatus | "attention">("attention");
@@ -372,9 +448,14 @@ export function InventoryTab({ store, version }: { store: string; version: numbe
     placeholderData: (previous) => previous,
   });
   const data = query.data;
-  if (query.isError) return <Alert type="warning" showIcon title={getErrorMessage(query.error)} />;
-  if (!data) return <Skeleton active />;
-  if (!data.available) return <Empty description="Chưa có tệp tồn kho" />;
+  if (!data) return <Panel title="Tồn kho">{queryState(query)}</Panel>;
+  if (!data.available) {
+    return (
+      <Panel title="Tồn kho">
+        <EmptyState text="Chưa có tệp tồn kho" />
+      </Panel>
+    );
+  }
 
   const statuses: StockStatus[] = ["out_of_stock", "low", "dead", "high", "normal"];
   const items = data.items.filter(
@@ -382,34 +463,35 @@ export function InventoryTab({ store, version }: { store: string; version: numbe
       (status === "attention" ? item.status !== "normal" : item.status === status) &&
       matchesText(search, item.medicine_name, item.medicine_code, item.store_code),
   );
-  const showStore = store === "ALL";
 
   return (
-    <>
-      <div className="bi-grid">
-        <div>
-          <h4 className="bi-subtitle">Giá trị tồn theo trạng thái</h4>
-          <RankBars
-            bars={statuses.map((key) => ({
-              label: `${STATUS_LABELS[key]} (${data.summary[key].count})`,
-              value: data.summary[key].stock_value ?? 0,
-              color: STATUS_BAR_COLORS[key],
-              share: null,
-            }))}
-            valueFormat="currency"
-          />
-        </div>
-        <div>
-          <h4 className="bi-subtitle">Cách đọc</h4>
-          <p className="muted" style={{ margin: 0 }}>
-            Số ngày tồn = tồn hiện tại / số bán trung bình mỗi ngày (30 ngày qua). Sắp hết: dưới 7
-            ngày hoặc dưới mức tối thiểu. Tồn cao: trên 90 ngày hoặc trên mức tối đa. Tồn chết: còn
-            hàng mà 30 ngày không bán. Lô đã hết hạn không tính vào tồn. Tồn theo tệp lưu lúc{" "}
-            {clockText(data.stock_as_of)}.
-          </p>
-        </div>
+    <Panel
+      title={
+        <>
+          Tồn kho <span className="bi-panel-sub">{clockText(data.stock_as_of)}</span>
+        </>
+      }
+      info={
+        <>
+          Đủ bán = tồn / bán trung bình mỗi ngày (30 ngày). Sắp hết: dưới 7 ngày hoặc dưới mức tối
+          thiểu. Tồn cao: trên 90 ngày hoặc trên mức tối đa. Tồn chết: 30 ngày không bán. Lô hết hạn
+          không tính vào tồn.
+        </>
+      }
+      extra={<Search placeholder="Tìm thuốc, mã, cửa hàng" onChange={setSearch} />}
+    >
+      <div className="bi-bars">
+        <RankBars
+          bars={statuses.map((key) => ({
+            label: `${STATUS_LABELS[key]} · ${data.summary[key].count}`,
+            value: data.summary[key].stock_value ?? 0,
+            color: STATUS_BAR_COLORS[key],
+            share: null,
+          }))}
+          valueFormat="currency"
+        />
       </div>
-      <div className="bi-toolbar">
+      <Filters>
         <Segmented
           value={status}
           onChange={(value) => setStatus(value as StockStatus | "attention")}
@@ -417,29 +499,25 @@ export function InventoryTab({ store, version }: { store: string; version: numbe
             { value: "attention", label: "Cần chú ý" },
             ...statuses.map((key) => ({
               value: key,
-              label: `${STATUS_LABELS[key]} (${data.summary[key].count})`,
+              label: `${STATUS_LABELS[key]} ${data.summary[key].count}`,
             })),
           ]}
         />
-        <Input.Search
-          allowClear
-          placeholder="Tìm thuốc, mã, cửa hàng"
-          style={{ maxWidth: 260 }}
-          onChange={(event) => setSearch(event.target.value)}
-        />
-      </div>
+      </Filters>
       <Table<StockItem>
         size="small"
         rowKey={(item) => `${item.store_code}-${item.medicine_code}`}
         dataSource={items}
         pagination={{ pageSize: 10, hideOnSinglePage: true }}
+        scroll={TABLE_SCROLL}
+        locale={{ emptyText: <EmptyState text="Không có thuốc nào" /> }}
         columns={[
-          ...(showStore ? [{ title: "Cửa hàng", dataIndex: "store_code", width: 90 }] : []),
+          ...(store === "ALL" ? [storeColumn] : []),
           nameColumn,
           {
             title: "Trạng thái",
             dataIndex: "status",
-            width: 120,
+            width: 110,
             render: (value: StockStatus) => (
               <Tag color={STATUS_COLORS[value]}>{STATUS_LABELS[value]}</Tag>
             ),
@@ -452,7 +530,7 @@ export function InventoryTab({ store, version }: { store: string; version: numbe
               `${formatNumber(item.stock_quantity)} ${item.unit ?? ""}`,
           },
           {
-            title: "Bán TB/ngày",
+            title: "Bán/ngày",
             dataIndex: "ads",
             align: "right" as const,
             render: (value: number) => value.toLocaleString("vi-VN", { maximumFractionDigits: 1 }),
@@ -465,17 +543,19 @@ export function InventoryTab({ store, version }: { store: string; version: numbe
               item.days_of_cover === null
                 ? item.status === "dead"
                   ? item.last_sale
-                    ? `bán lần cuối ${item.days_since_sale} ngày trước`
-                    : "chưa bán bao giờ"
+                    ? `${item.days_since_sale} ngày chưa bán`
+                    : "chưa bán"
                   : "—"
                 : `${item.days_of_cover.toLocaleString("vi-VN")} ngày`,
           },
           { title: "Giá trị", dataIndex: "stock_value", align: "right" as const, render: money },
         ]}
       />
-    </>
+    </Panel>
   );
 }
+
+// --- Hạn dùng -------------------------------------------------------------------------------
 
 export function ExpiryTab({ store, version }: { store: string; version: number }) {
   const [level, setLevel] = useState<ExpiryLevel | "risk">("risk");
@@ -486,27 +566,38 @@ export function ExpiryTab({ store, version }: { store: string; version: number }
     placeholderData: (previous) => previous,
   });
   const data = query.data;
-  if (query.isError) return <Alert type="warning" showIcon title={getErrorMessage(query.error)} />;
-  if (!data) return <Skeleton active />;
-  if (!data.available) return <Empty description="Chưa có tệp tồn kho" />;
-  if (!data.levels.expired)
-    return <Empty description="Cửa hàng này không có lô nào trong tệp tồn kho" />;
+  if (!data) return <Panel title="Hạn dùng">{queryState(query)}</Panel>;
+  if (!data.available || !data.levels.expired) {
+    return (
+      <Panel title="Hạn dùng">
+        <EmptyState text={data.available ? "Không có lô nào" : "Chưa có tệp tồn kho"} />
+      </Panel>
+    );
+  }
 
   const levels: ExpiryLevel[] = ["expired", "critical", "warning", "monitor"];
   const source = level === "risk" ? data.risk_lots : data.lots.filter((lot) => lot.level === level);
   const lots = source.filter((lot) =>
     matchesText(search, lot.medicine_name, lot.medicine_code, lot.batch_code, lot.store_code),
   );
-  const showStore = store === "ALL";
 
   return (
-    <>
-      <div className="bi-grid">
-        <div>
-          <h4 className="bi-subtitle">Giá trị theo mức hạn dùng</h4>
+    <Panel
+      title="Hạn dùng"
+      info={
+        <>
+          Nguy cơ: bán theo FEFO (hạn gần bán trước) với tốc độ bán 30 ngày qua, phần còn lại khi lô
+          hết hạn. Chỉ xét lô còn ≤ 90 ngày. Nên giảm giá, đẩy bán hoặc chuyển sang cửa hàng bán
+          chạy hơn.
+        </>
+      }
+      extra={<Search placeholder="Tìm thuốc, số lô" onChange={setSearch} />}
+    >
+      <div className="bi-split">
+        <div className="bi-bars">
           <RankBars
             bars={[...levels, "normal" as const].map((key) => ({
-              label: `${LEVEL_LABELS[key]} (${data.levels[key].lots} lô)`,
+              label: `${LEVEL_LABELS[key].split(" (")[0]} · ${data.levels[key].lots}`,
               value: data.levels[key].value ?? 0,
               color: LEVEL_BAR_COLORS[key],
               share: null,
@@ -514,56 +605,43 @@ export function ExpiryTab({ store, version }: { store: string; version: number }
             valueFormat="currency"
           />
         </div>
-        <div>
-          <h4 className="bi-subtitle">Nguy cơ hết hạn trước khi bán kịp</h4>
-          <p style={{ margin: "0 0 6px" }}>
-            <strong>{data.at_risk?.lots ?? 0} lô</strong>,{" "}
-            {formatNumber(data.at_risk?.quantity ?? 0)} đơn vị,{" "}
-            <strong>{money(data.at_risk?.value ?? null)}</strong>
-          </p>
-          <p className="muted" style={{ margin: 0 }}>
-            Bán theo FEFO (hạn gần bán trước) với tốc độ bán 30 ngày qua; lô nào hết hạn khi chưa
-            bán xong thì phần còn lại là nguy cơ. Chỉ xét lô còn ≤ 90 ngày. Nên giảm giá, đẩy bán
-            hoặc chuyển sang cửa hàng bán chạy hơn.
-          </p>
+        <div className="bi-highlight">
+          <span className="bi-highlight-label">Có nguy cơ không bán kịp</span>
+          <strong className="bi-highlight-value">{money(data.at_risk?.value ?? null)}</strong>
+          <span className="muted">
+            {data.at_risk?.lots ?? 0} lô · {formatNumber(data.at_risk?.quantity ?? 0)} đơn vị
+          </span>
         </div>
       </div>
-      <div className="bi-toolbar">
+      <Filters>
         <Segmented
           value={level}
           onChange={(value) => setLevel(value as ExpiryLevel | "risk")}
           options={[
-            { value: "risk", label: `Có nguy cơ (${data.risk_lots.length})` },
+            { value: "risk", label: `Có nguy cơ ${data.risk_lots.length}` },
             ...levels.map((key) => ({
               value: key,
-              label: `${LEVEL_LABELS[key].split(" (")[0]} (${data.levels[key].lots})`,
+              label: `${LEVEL_LABELS[key].split(" (")[0]} ${data.levels[key].lots}`,
             })),
           ]}
         />
-        <Input.Search
-          allowClear
-          placeholder="Tìm thuốc, số lô, cửa hàng"
-          style={{ maxWidth: 260 }}
-          onChange={(event) => setSearch(event.target.value)}
-        />
-      </div>
+      </Filters>
       <Table<Lot>
         size="small"
         rowKey={(lot) => `${lot.store_code}-${lot.medicine_code}-${lot.batch_code}`}
         dataSource={lots}
         pagination={{ pageSize: 10, hideOnSinglePage: true }}
-        locale={{
-          emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Không có lô nào" />,
-        }}
+        scroll={TABLE_SCROLL}
+        locale={{ emptyText: <EmptyState text="Không có lô nào" /> }}
         columns={[
-          ...(showStore ? [{ title: "Cửa hàng", dataIndex: "store_code", width: 90 }] : []),
+          ...(store === "ALL" ? [storeColumn] : []),
           nameColumn,
           { title: "Số lô", dataIndex: "batch_code" },
           {
             title: "Hạn dùng",
             key: "expiry",
             render: (_: unknown, lot: Lot) => (
-              <span>
+              <span className="bi-nowrap">
                 {lot.expiry_date.split("-").reverse().join("/")}{" "}
                 <Tag color={LEVEL_COLORS[lot.level]}>
                   {lot.days_left < 0 ? `quá ${-lot.days_left} ngày` : `còn ${lot.days_left} ngày`}
@@ -603,16 +681,18 @@ export function ExpiryTab({ store, version }: { store: string; version: number }
           },
         ]}
       />
-    </>
+    </Panel>
   );
 }
 
+// --- Bất thường -----------------------------------------------------------------------------
+
 const KIND_LABELS: Record<string, string> = {
   revenue_drop_day: "Doanh thu tụt",
-  revenue_drop_today: "Doanh thu hôm nay tụt",
+  revenue_drop_today: "Hôm nay tụt",
   revenue_spike: "Doanh thu tăng vọt",
   medicine_drop: "Thuốc bán tụt",
-  medicine_spike: "Thuốc bán tăng vọt",
+  medicine_spike: "Thuốc tăng vọt",
   stock_jump: "Tồn tăng bất thường",
 };
 
@@ -631,28 +711,35 @@ export function AnomaliesTab({ store, version }: { store: string; version: numbe
     queryFn: () => biApi.anomalies(store, 30),
     placeholderData: (previous) => previous,
   });
-  if (query.isError) return <Alert type="warning" showIcon title={getErrorMessage(query.error)} />;
-  if (!query.data) return <Skeleton active />;
-  const events = query.data.events.filter(
-    (event) => direction === "all" || event.direction === direction,
-  );
+  if (!query.data) return <Panel title="Bất thường">{queryState(query)}</Panel>;
+  const all = query.data.events;
+  const events = all.filter((event) => direction === "all" || event.direction === direction);
   return (
-    <>
-      <p className="muted" style={{ marginTop: 0 }}>
-        So mỗi ngày với các cùng thứ trước đó (thứ Hai với thứ Hai), chỉ tính bán lẻ. Một ngày được
-        coi là bất thường khi lệch đủ lớn VÀ đủ hiếm (số đơn cũng lệch tới mức ngẫu nhiên khó gây
-        ra). Các ngày liền nhau gộp thành một đợt. Chấm đỏ trên biểu đồ doanh thu là các ngày này.
-      </p>
-      <Segmented
-        value={direction}
-        onChange={(value) => setDirection(value as "all" | "down" | "up")}
-        options={[
-          { value: "all", label: `Tất cả (${query.data.events.length})` },
-          { value: "down", label: "Tụt" },
-          { value: "up", label: "Tăng vọt" },
-        ]}
-        style={{ marginBottom: 10 }}
-      />
+    <Panel
+      title={
+        <>
+          Bất thường <span className="bi-panel-sub">30 ngày</span>
+        </>
+      }
+      info={
+        <>
+          So mỗi ngày với các cùng thứ trước đó, chỉ tính bán lẻ. Bất thường khi lệch đủ lớn và đủ
+          hiếm (số đơn cũng lệch). Ngày liền nhau gộp thành một đợt; chấm đỏ trên biểu đồ doanh thu
+          là các ngày này.
+        </>
+      }
+    >
+      <Filters>
+        <Segmented
+          value={direction}
+          onChange={(value) => setDirection(value as "all" | "down" | "up")}
+          options={[
+            { value: "all", label: `Tất cả ${all.length}` },
+            { value: "down", label: `Tụt ${all.filter((e) => e.direction === "down").length}` },
+            { value: "up", label: `Tăng ${all.filter((e) => e.direction === "up").length}` },
+          ]}
+        />
+      </Filters>
       <Table<AnomalyEvent>
         size="small"
         rowKey={(event) =>
@@ -660,19 +747,13 @@ export function AnomaliesTab({ store, version }: { store: string; version: numbe
         }
         dataSource={events}
         pagination={{ pageSize: 10, hideOnSinglePage: true }}
-        locale={{
-          emptyText: (
-            <Empty
-              image={Empty.PRESENTED_IMAGE_SIMPLE}
-              description="Không có bất thường trong 30 ngày qua"
-            />
-          ),
-        }}
+        scroll={{ x: 760 }}
+        locale={{ emptyText: <EmptyState text="Không có bất thường" /> }}
         columns={[
           {
             title: "Ngày",
             key: "when",
-            width: 110,
+            width: 100,
             render: (_: unknown, event: AnomalyEvent) =>
               event.start === event.end
                 ? dayText(event.start)
@@ -681,7 +762,7 @@ export function AnomaliesTab({ store, version }: { store: string; version: numbe
           {
             title: "Loại",
             dataIndex: "kind",
-            width: 170,
+            width: 150,
             render: (kind: string, event: AnomalyEvent) => (
               <Tag color={event.direction === "down" ? "red" : "blue"}>
                 {KIND_LABELS[kind] ?? kind}
@@ -690,17 +771,19 @@ export function AnomaliesTab({ store, version }: { store: string; version: numbe
           },
           { title: "Chi tiết", dataIndex: "message" },
           {
-            title: "Phát hiện bằng",
+            title: "Cách phát hiện",
             dataIndex: "methods",
-            width: 140,
+            width: 130,
             render: (methods: string[]) =>
               methods.map((method) => <Tag key={method}>{METHOD_LABELS[method] ?? method}</Tag>),
           },
         ]}
       />
-    </>
+    </Panel>
   );
 }
+
+// --- Dự báo ---------------------------------------------------------------------------------
 
 /** Tab Dự báo: nhu cầu 7 ngày từng thuốc kèm khoảng, sai số; ngày dự kiến hết hàng (cần report.inventory). */
 export function ForecastTab({
@@ -718,8 +801,7 @@ export function ForecastTab({
     queryFn: () => biApi.demandForecast(store),
     placeholderData: (previous) => previous,
   });
-  if (query.isError) return <Alert type="warning" showIcon title={getErrorMessage(query.error)} />;
-  if (!query.data) return <Skeleton active />;
+  if (!query.data) return <Panel title="Dự báo">{queryState(query)}</Panel>;
   const { demand, stockout, data_through: through } = query.data;
   const showStore = store === "ALL";
   const soon = stockout.filter((item) => item.days_until_stockout !== null);
@@ -734,17 +816,15 @@ export function ForecastTab({
 
   return (
     <>
-      <p className="muted" style={{ marginTop: 0 }}>
-        Dữ liệu đến hết {dayText(through)}. Mỗi thuốc ở mỗi cửa hàng chọn mô hình có sai số thấp
-        nhất khi thử dự báo lại 4 tuần qua (lặp lại tuần trước, trung bình 4 tuần theo thứ,
-        Holt-Winters). Sai số đo trên tổng 7 ngày bán lẻ; trung vị {errorText(medianError)}. Bán
-        buôn cộng theo trung bình 28 ngày.
-      </p>
       {inventoryAllowed ? (
-        <Card
-          size="small"
-          title={`Dự kiến hết hàng trong 30 ngày tới (${soon.length})`}
-          style={{ marginBottom: 14 }}
+        <Panel
+          title={
+            <>
+              Sắp hết hàng <span className="bi-count">{soon.length}</span>
+              <span className="bi-panel-sub">30 ngày tới</span>
+            </>
+          }
+          info="Ngày tồn bán được (không tính lô hết hạn) cạn theo nhu cầu dự báo."
         >
           {soon.length ? (
             <Table<Stockout>
@@ -752,8 +832,9 @@ export function ForecastTab({
               rowKey={(item) => `${item.store_code}-${item.medicine_code}`}
               dataSource={soon}
               pagination={{ pageSize: 8, hideOnSinglePage: true }}
+              scroll={{ x: 520 }}
               columns={[
-                ...(showStore ? [{ title: "Cửa hàng", dataIndex: "store_code", width: 90 }] : []),
+                ...(showStore ? [storeColumn] : []),
                 nameColumn,
                 {
                   title: "Tồn bán được",
@@ -775,77 +856,89 @@ export function ForecastTab({
                             : "default"
                       }
                     >
-                      {dayText(item.stockout_date!)} · sau {item.days_until_stockout} ngày
+                      {dayText(item.stockout_date!)} · {item.days_until_stockout} ngày
                     </Tag>
                   ),
                 },
               ]}
             />
           ) : (
-            <Empty
-              image={Empty.PRESENTED_IMAGE_SIMPLE}
-              description="Không thuốc nào dự kiến hết trong 30 ngày"
-            />
+            <EmptyState text="Không thuốc nào sắp hết" />
           )}
-        </Card>
+        </Panel>
       ) : null}
-      <div className="bi-toolbar" style={{ marginTop: 0 }}>
-        <strong>Nhu cầu 7 ngày tới</strong>
-        <Input.Search
-          allowClear
-          placeholder="Tìm thuốc, mã, cửa hàng"
-          style={{ maxWidth: 260 }}
-          onChange={(event) => setSearch(event.target.value)}
-        />
-      </div>
-      <Table<DemandRow>
-        size="small"
-        rowKey={(row) => `${row.store_code}-${row.medicine_code}`}
-        dataSource={rows}
-        pagination={{ pageSize: 10, hideOnSinglePage: true }}
-        columns={[
-          ...(showStore ? [{ title: "Cửa hàng", dataIndex: "store_code", width: 90 }] : []),
-          nameColumn,
-          {
-            title: "7 ngày tới",
-            key: "next",
-            align: "right" as const,
-            render: (_: unknown, row: DemandRow) => (
-              <span>
-                <strong>{formatNumber(Math.round(row.next_7_days))}</strong>
-                {row.next_7_low !== null ? (
-                  <span className="muted">
-                    {" "}
-                    ({formatNumber(Math.round(row.next_7_low))}–
-                    {formatNumber(Math.round(row.next_7_high!))})
-                  </span>
-                ) : null}
-              </span>
-            ),
-          },
-          {
-            title: "So với 7 ngày qua",
-            dataIndex: "change_vs_last_7_pct",
-            align: "right" as const,
-            render: (value: number | null) =>
-              value === null ? (
-                "—"
-              ) : (
-                <span className={value < 0 ? "trend trend-down" : "trend trend-up"}>
-                  {value > 0 ? "+" : ""}
-                  {percent(value)}
+      <Panel
+        title={
+          <>
+            Nhu cầu 7 ngày tới{" "}
+            <span className="bi-panel-sub">sai số ~{errorText(medianError)}</span>
+          </>
+        }
+        info={
+          <>
+            Dữ liệu đến hết {dayText(through)}. Mỗi thuốc ở mỗi cửa hàng chọn mô hình sai số thấp
+            nhất khi thử dự báo lại 4 tuần qua (lặp tuần trước, trung bình theo thứ, Holt-Winters).
+            Sai số đo trên tổng 7 ngày bán lẻ; bán buôn cộng theo trung bình 28 ngày.
+          </>
+        }
+        extra={<Search placeholder="Tìm thuốc, mã" onChange={setSearch} />}
+      >
+        <Table<DemandRow>
+          size="small"
+          rowKey={(row) => `${row.store_code}-${row.medicine_code}`}
+          dataSource={rows}
+          pagination={{ pageSize: 10, hideOnSinglePage: true }}
+          scroll={TABLE_SCROLL}
+          locale={{ emptyText: <EmptyState text="Chưa đủ dữ liệu để dự báo" /> }}
+          columns={[
+            ...(showStore ? [storeColumn] : []),
+            nameColumn,
+            {
+              title: "7 ngày",
+              key: "next",
+              align: "right" as const,
+              render: (_: unknown, row: DemandRow) => (
+                <span className="bi-nowrap">
+                  <strong>{formatNumber(Math.round(row.next_7_days))}</strong>
+                  {row.next_7_low !== null ? (
+                    <span className="muted">
+                      {" "}
+                      {formatNumber(Math.round(row.next_7_low))}–
+                      {formatNumber(Math.round(row.next_7_high!))}
+                    </span>
+                  ) : null}
                 </span>
               ),
-          },
-          { title: "Sai số", dataIndex: "wape_total", align: "right" as const, render: errorText },
-          {
-            title: "30 ngày tới",
-            dataIndex: "next_30_days",
-            align: "right" as const,
-            render: (value: number) => formatNumber(Math.round(value)),
-          },
-        ]}
-      />
+            },
+            {
+              title: "So 7 ngày qua",
+              dataIndex: "change_vs_last_7_pct",
+              align: "right" as const,
+              render: (value: number | null) =>
+                value === null ? (
+                  "—"
+                ) : (
+                  <span className={value < 0 ? "trend trend-down" : "trend trend-up"}>
+                    {value > 0 ? "+" : ""}
+                    {percent(value)}
+                  </span>
+                ),
+            },
+            {
+              title: "Sai số",
+              dataIndex: "wape_total",
+              align: "right" as const,
+              render: errorText,
+            },
+            {
+              title: "30 ngày",
+              dataIndex: "next_30_days",
+              align: "right" as const,
+              render: (value: number) => formatNumber(Math.round(value)),
+            },
+          ]}
+        />
+      </Panel>
     </>
   );
 }

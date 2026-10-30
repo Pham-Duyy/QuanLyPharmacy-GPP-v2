@@ -609,14 +609,14 @@ export function verificationText(reply: Pick<AgentReply, "status" | "verificatio
   if (reply.status === "blocked" && verification) {
     return {
       tone: "error",
-      text: `Đã chặn: ${verification.unverified.length} số không có trong số liệu hệ thống (${verification.unverified.join("; ")})`,
+      text: `Đã chặn: ${verification.unverified.length} số không có nguồn (${verification.unverified.join("; ")})`,
     };
   }
-  if (!verification) return { tone: "default", text: "Không có câu trả lời để đối chiếu" };
-  if (verification.checked === 0) return { tone: "default", text: "Câu trả lời không có con số" };
-  const base = `Đã đối chiếu ${verification.checked} số, ngày, giờ với số liệu hệ thống`;
+  if (!verification) return { tone: "default", text: "Chưa đối chiếu" };
+  if (verification.checked === 0) return { tone: "default", text: "Không có con số" };
+  const base = `Đã đối chiếu ${verification.checked} số`;
   return verification.retried
-    ? { tone: "warning", text: `${base} (trợ lý đã phải sửa một lần)` }
+    ? { tone: "warning", text: `${base} · đã sửa 1 lần` }
     : { tone: "success", text: base };
 }
 

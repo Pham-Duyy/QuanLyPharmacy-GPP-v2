@@ -5,24 +5,11 @@ import {
   PercentageOutlined,
   ReloadOutlined,
   RiseOutlined,
+  RobotOutlined,
   ShoppingOutlined,
 } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
-import {
-  Alert,
-  App,
-  Badge,
-  Button,
-  Card,
-  Empty,
-  Result,
-  Segmented,
-  Select,
-  Skeleton,
-  Table,
-  Tabs,
-  Tag,
-} from "antd";
+import { Alert, App, Button, Result, Segmented, Select, Skeleton, Table, Tabs, Tag } from "antd";
 import { useEffect, useRef, useState } from "react";
 import { getErrorMessage } from "../../api/http.js";
 import { formatNumber } from "../../ui/format.js";
@@ -33,12 +20,15 @@ import { AgentPanel } from "./AgentPanel.js";
 import {
   AlertsPanel,
   AnomaliesTab,
+  EmptyState,
   ExpiryTab,
   ForecastTab,
   InventoryCards,
   InventoryTab,
+  Panel,
   ProductsTab,
 } from "./BiSections.js";
+import { TABLE_SCROLL, queryState } from "./bi-ui.js";
 import {
   ISSUE_LABELS,
   VERSION_POLL_MS,
@@ -63,9 +53,9 @@ const PERIOD_OPTIONS: Array<{ value: Period; label: string }> = [
 
 /** Biểu đồ: hôm nay xem theo ngày, tuần này theo tuần, tháng này theo tháng. */
 const GRAIN_TITLE: Record<Period, string> = {
-  day: "Doanh thu 30 ngày gần nhất và dự báo 14 ngày tới",
-  week: "Doanh thu và lợi nhuận 12 tuần gần nhất",
-  month: "Doanh thu và lợi nhuận 12 tháng gần nhất",
+  day: "30 ngày",
+  week: "12 tuần",
+  month: "12 tháng",
 };
 
 /**
@@ -122,7 +112,11 @@ export function ExecutiveDashboardPage() {
 
   const storeOptions = buildStoreOptions(access.data, summary.data);
   const inventoryAllowed = canSeeInventory(access.data, store);
-  // Bấm "Xem" ở một cảnh báo: mở đúng tab chứa chi tiết.
+  const openTab = (key: string) => {
+    setTab(key);
+    document.querySelector(".bi-tabs")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+  // Bấm một cảnh báo: mở đúng tab chứa chi tiết.
   const openSection = (section: BiAlert["section"]) => {
     const tabs: Record<BiAlert["section"], string> = {
       inventory: "inventory",
@@ -131,9 +125,7 @@ export function ExecutiveDashboardPage() {
       kpi: "overview",
       data_quality: "overview",
     };
-    const target = tabs[section];
-    setTab(target);
-    document.querySelector(".bi-tabs")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    openTab(tabs[section]);
   };
   const kpi = summary.data?.periods[period];
   // Dự báo và bất thường chỉ đổi khi version đổi; vẽ chung lên biểu đồ ngày (bước 3.6).
@@ -159,11 +151,15 @@ export function ExecutiveDashboardPage() {
       <PageHeader
         icon={<FundProjectionScreenOutlined />}
         title="Bảng điều hành"
-        description="Số liệu tự cập nhật khi tệp bán hàng được lưu. Mọi con số do hệ thống tính, không qua AI."
+        description={
+          ready ? (
+            <FreshnessBar asOf={summary.data?.as_of} version={v} health={health.data} />
+          ) : null
+        }
         extra={
           <>
             <Select
-              style={{ minWidth: 200 }}
+              className="bi-store-select"
               value={store}
               options={storeOptions}
               onChange={setChosenStore}
@@ -171,10 +167,16 @@ export function ExecutiveDashboardPage() {
               aria-label="Cửa hàng"
             />
             <Segmented
+              className="bi-period"
               value={period}
               options={PERIOD_OPTIONS}
               onChange={(value) => setPeriod(value as Period)}
             />
+            {ready ? (
+              <Button className="bi-ask" icon={<RobotOutlined />} onClick={() => openTab("agent")}>
+                Hỏi AI
+              </Button>
+            ) : null}
           </>
         }
       />
@@ -183,7 +185,7 @@ export function ExecutiveDashboardPage() {
         <Alert
           type="error"
           showIcon
-          style={{ marginBottom: 14 }}
+          className="bi-block"
           title="Không lấy được số liệu phân tích"
           description={getErrorMessage(version.error)}
           action={
@@ -198,21 +200,19 @@ export function ExecutiveDashboardPage() {
         <Result
           status="info"
           title="Chưa có số liệu"
-          subTitle="Dịch vụ phân tích đang chạy nhưng chưa đọc được tệp dữ liệu nào. Đặt medicines.xlsx và sales.xlsx vào thư mục data/inbox của analytics-service."
+          subTitle="Thêm medicines.xlsx và sales.xlsx vào thư mục data/inbox của analytics-service."
         />
       ) : null}
 
       {ready ? (
         <>
-          <FreshnessBar asOf={summary.data?.as_of} version={v} health={health.data} />
-
           <AlertsPanel store={store} version={v} onOpen={openSection} />
 
           {summary.isError ? (
             <Alert
               type="warning"
               showIcon
-              style={{ marginBottom: 14 }}
+              className="bi-block"
               title={getErrorMessage(summary.error)}
             />
           ) : null}
@@ -228,7 +228,7 @@ export function ExecutiveDashboardPage() {
                   hint={
                     <Trend
                       value={kpi.growth.revenue}
-                      suffix={`so với ${kpi.previous_label.toLowerCase()}`}
+                      suffix={`· ${kpi.previous_label.toLowerCase()}`}
                     />
                   }
                 />
@@ -240,7 +240,7 @@ export function ExecutiveDashboardPage() {
                   hint={
                     <Trend
                       value={kpi.growth.profit}
-                      suffix={`so với ${kpi.previous_label.toLowerCase()}`}
+                      suffix={`· ${kpi.previous_label.toLowerCase()}`}
                     />
                   }
                 />
@@ -257,7 +257,7 @@ export function ExecutiveDashboardPage() {
                     kpi.current.cost_coverage_pct !== null &&
                     kpi.current.cost_coverage_pct < 100 ? (
                       <span className="muted">
-                        Chỉ {kpi.current.cost_coverage_pct}% doanh thu có giá vốn
+                        {kpi.current.cost_coverage_pct}% doanh thu có giá vốn
                       </span>
                     ) : (
                       <span className="muted">Lợi nhuận / doanh thu</span>
@@ -272,19 +272,19 @@ export function ExecutiveDashboardPage() {
                   hint={
                     <Trend
                       value={kpi.growth.orders}
-                      suffix={`so với ${kpi.previous_label.toLowerCase()}`}
+                      suffix={`· ${kpi.previous_label.toLowerCase()}`}
                     />
                   }
                 />
                 <StatCard
                   tone="orange"
                   icon={<ShoppingOutlined />}
-                  label="Giá trị đơn trung bình"
+                  label="Trung bình / đơn"
                   value={money(kpi.current.avg_order_value)}
                   hint={
                     <Trend
                       value={kpi.growth.avg_order_value}
-                      suffix={`so với ${kpi.previous_label.toLowerCase()}`}
+                      suffix={`· ${kpi.previous_label.toLowerCase()}`}
                     />
                   }
                 />
@@ -296,41 +296,49 @@ export function ExecutiveDashboardPage() {
 
           {summary.data?.overview ? <InventoryCards overview={summary.data.overview} /> : null}
 
-          <Card title={GRAIN_TITLE[period]} style={{ marginBottom: 14 }}>
+          <Panel
+            title={
+              <>
+                Doanh thu <span className="bi-panel-sub">{GRAIN_TITLE[period]}</span>
+                {forecast?.status === "ok" ? (
+                  <span className="bi-panel-sub">+ dự báo 14 ngày</span>
+                ) : null}
+              </>
+            }
+            info={
+              <>
+                {chart?.hasPartial ? (
+                  <p>* Kỳ đang diễn ra, số liệu tính đến {clockText(summary.data?.as_of)}.</p>
+                ) : null}
+                {forecast?.status === "ok" ? (
+                  <p>
+                    Nét đứt: dự báo bằng {forecast.model_label}, sai số khi thử lại 4 tuần qua{" "}
+                    {errorText(forecast.wape)} (bán lẻ); dải mờ là khoảng tin cậy ~80%. Không dùng
+                    AI.
+                  </p>
+                ) : forecast?.status === "insufficient_data" ? (
+                  <p>{forecast.message}</p>
+                ) : null}
+                <p>Chấm đỏ: ngày bất thường (xem tab Bất thường).</p>
+              </>
+            }
+          >
             {chart ? (
               chart.labels.length ? (
-                <>
-                  <LineChart
-                    labels={chart.labels}
-                    series={chart.series}
-                    band={chart.band}
-                    markers={chart.markers}
-                    valueFormat="currency"
-                  />
-                  {chart.hasPartial ? (
-                    <p className="muted" style={{ margin: "6px 0 0" }}>
-                      * Kỳ đang diễn ra, số liệu mới tính đến {clockText(summary.data?.as_of)}.
-                    </p>
-                  ) : null}
-                  {forecast?.status === "ok" ? (
-                    <p className="muted" style={{ margin: "4px 0 0" }}>
-                      Nét đứt: dự báo bằng mô hình {forecast.model_label}, sai số khi thử lại 4 tuần
-                      qua {errorText(forecast.wape)} (phần bán lẻ); dải mờ là khoảng tin cậy ~80%.
-                      Dự báo không gọi AI.
-                    </p>
-                  ) : forecast?.status === "insufficient_data" ? (
-                    <p className="muted" style={{ margin: "4px 0 0" }}>
-                      {forecast.message}
-                    </p>
-                  ) : null}
-                </>
+                <LineChart
+                  labels={chart.labels}
+                  series={chart.series}
+                  band={chart.band}
+                  markers={chart.markers}
+                  valueFormat="currency"
+                />
               ) : (
-                <Empty description="Chưa có dữ liệu bán hàng trong khoảng này" />
+                <EmptyState text="Chưa có dữ liệu bán hàng" />
               )
             ) : (
               <Skeleton active />
             )}
-          </Card>
+          </Panel>
 
           <Tabs
             className="bi-tabs"
@@ -339,30 +347,20 @@ export function ExecutiveDashboardPage() {
             items={[
               {
                 key: "overview",
-                label: "Cơ cấu và dữ liệu",
+                label: "Cơ cấu",
                 children: allStores ? (
                   <>
                     <div className="bi-grid">
-                      <BreakdownCard
-                        title="Cơ cấu tháng này theo nhóm thuốc"
-                        by="category"
-                        version={v}
-                      />
-                      <BreakdownCard
-                        title="Doanh thu tháng này theo cửa hàng"
-                        by="store"
-                        version={v}
-                      />
+                      <BreakdownCard title="Nhóm thuốc" by="category" version={v} />
+                      <BreakdownCard title="Cửa hàng" by="store" version={v} />
                     </div>
-                    <BreakdownCard
-                      title="10 thuốc doanh thu cao nhất tháng này"
-                      by="top_medicines"
-                      version={v}
-                    />
+                    <BreakdownCard title="Top 10 thuốc" by="top_medicines" version={v} />
                     <DataQualityCard version={v} />
                   </>
                 ) : (
-                  <Empty description="Cơ cấu toàn chuỗi và chất lượng dữ liệu chỉ dành cho người xem được mọi cửa hàng" />
+                  <Panel title="Cơ cấu">
+                    <EmptyState text="Chỉ dành cho người xem toàn chuỗi" />
+                  </Panel>
                 ),
               },
               {
@@ -398,7 +396,11 @@ export function ExecutiveDashboardPage() {
                 : []),
               {
                 key: "agent",
-                label: "Hỏi trợ lý AI",
+                label: (
+                  <span>
+                    <RobotOutlined /> Hỏi AI
+                  </span>
+                ),
                 children: <AgentPanel store={store} inventoryAllowed={inventoryAllowed} />,
               },
             ]}
@@ -442,20 +444,20 @@ function FreshnessBar({
   health: Awaited<ReturnType<typeof biApi.health>> | undefined;
 }) {
   const failed = health?.last_run?.status === "failed";
+  const watching = Boolean(health?.monitor);
   return (
-    <div className="bi-freshness">
-      <Badge status={failed ? "warning" : "processing"} />
-      <span>
-        Số liệu tính đến <strong>{clockText(asOf)}</strong> · cập nhật{" "}
-        {ageText(health?.snapshot?.age_seconds)} · bản {version}
-      </span>
-      {health?.monitor ? <Tag color="green">Đang theo dõi tệp</Tag> : <Tag>Không theo dõi tệp</Tag>}
+    <span
+      className="bi-freshness"
+      title={`Bản ${version} · ${watching ? "đang theo dõi tệp" : "không theo dõi tệp"}`}
+    >
+      <span className={`bi-dot ${failed ? "warn" : watching ? "live" : ""}`} aria-hidden />
+      Cập nhật {clockText(asOf)} · {ageText(health?.snapshot?.age_seconds)}
       {failed ? (
         <Tag color="orange" title={health?.last_run?.error_message ?? undefined}>
-          Lần đọc tệp gần nhất bị lỗi, đang hiển thị số liệu trước đó
+          Lần đọc tệp gần nhất lỗi
         </Tag>
       ) : null}
-    </div>
+    </span>
   );
 }
 
@@ -475,7 +477,13 @@ function BreakdownCard({
   });
   const rows = query.data?.rows ?? [];
   return (
-    <Card title={title} style={{ marginBottom: 14 }}>
+    <Panel
+      title={
+        <>
+          {title} <span className="bi-panel-sub">tháng này</span>
+        </>
+      }
+    >
       {query.isLoading ? (
         <Skeleton active />
       ) : rows.length ? (
@@ -486,9 +494,9 @@ function BreakdownCard({
           valueFormat="currency"
         />
       ) : (
-        <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Tháng này chưa có doanh thu" />
+        <EmptyState text="Tháng này chưa có doanh thu" />
       )}
-    </Card>
+    </Panel>
   );
 }
 
@@ -499,6 +507,7 @@ const DATASET_LABELS: Record<string, string> = {
 };
 
 function DataQualityCard({ version }: { version: number }) {
+  const [open, setOpen] = useState(false);
   const query = useQuery({
     queryKey: ["bi", "data-quality", version],
     queryFn: biApi.dataQuality,
@@ -506,50 +515,63 @@ function DataQualityCard({ version }: { version: number }) {
   });
   const data = query.data;
   return (
-    <Card title="Chất lượng dữ liệu của lần đọc tệp gần nhất" style={{ marginBottom: 14 }}>
+    <Panel
+      title="Chất lượng dữ liệu"
+      info="Lần đọc tệp gần nhất. Dòng lỗi bị loại khỏi số liệu; dòng cảnh báo vẫn được tính."
+      extra={
+        data?.total ? (
+          <Button size="small" type="link" onClick={() => setOpen(!open)}>
+            {open ? "Ẩn chi tiết" : `${formatNumber(data.total)} dòng có vấn đề`}
+          </Button>
+        ) : null
+      }
+    >
       {!data ? (
-        <Skeleton active />
+        queryState(query)
       ) : (
         <>
           <div className="bi-quality">
             {Object.entries(data.summary).map(([name, item]) => (
-              <div key={name}>
-                <strong>{DATASET_LABELS[name] ?? name}</strong> ({item.file}):{" "}
-                {formatNumber(item.rows_valid)}/{formatNumber(item.rows_read)} dòng hợp lệ
-                {item.rows_rejected ? (
-                  <Tag color="red" style={{ marginLeft: 8 }}>
-                    Loại {formatNumber(item.rows_rejected)} dòng
-                  </Tag>
-                ) : (
-                  <Tag color="green" style={{ marginLeft: 8 }}>
-                    Sạch
-                  </Tag>
-                )}
-                {item.warnings ? (
-                  <Tag color="orange">{formatNumber(item.warnings)} cảnh báo</Tag>
-                ) : null}
+              <div key={name} className="bi-quality-item">
+                <span className="muted">{DATASET_LABELS[name] ?? name}</span>
+                <strong>
+                  {formatNumber(item.rows_valid)}
+                  <span className="muted">/{formatNumber(item.rows_read)}</span>
+                </strong>
+                <span>
+                  {item.rows_rejected ? (
+                    <Tag color="red">−{formatNumber(item.rows_rejected)}</Tag>
+                  ) : (
+                    <Tag color="green">Sạch</Tag>
+                  )}
+                  {item.warnings ? (
+                    <Tag color="orange">{formatNumber(item.warnings)} cảnh báo</Tag>
+                  ) : null}
+                </span>
               </div>
             ))}
           </div>
-          {data.total ? (
+          {open && data.total ? (
             <Table
               size="small"
+              className="bi-quality-table"
               rowKey={(issue) => `${issue.dataset}-${issue.row}-${issue.column}-${issue.code}`}
               dataSource={data.issues}
               pagination={{ pageSize: 8, hideOnSinglePage: true }}
+              scroll={TABLE_SCROLL}
               columns={[
                 {
                   title: "Tệp",
                   dataIndex: "dataset",
-                  width: 120,
+                  width: 110,
                   render: (value: string) => DATASET_LABELS[value] ?? value,
                 },
-                { title: "Dòng", dataIndex: "row", width: 70 },
-                { title: "Cột", dataIndex: "column", width: 140 },
+                { title: "Dòng", dataIndex: "row", width: 64 },
+                { title: "Cột", dataIndex: "column", width: 130 },
                 {
                   title: "Loại",
                   dataIndex: "code",
-                  width: 200,
+                  width: 190,
                   render: (code: string, issue) => (
                     <Tag color={issue.severity === "error" ? "red" : "orange"}>
                       {ISSUE_LABELS[code] ?? code}
@@ -562,6 +584,6 @@ function DataQualityCard({ version }: { version: number }) {
           ) : null}
         </>
       )}
-    </Card>
+    </Panel>
   );
 }

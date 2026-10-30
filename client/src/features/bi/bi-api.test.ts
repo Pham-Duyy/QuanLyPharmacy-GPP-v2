@@ -156,7 +156,7 @@ describe("trợ lý AI", () => {
     const verification = { checked: 4, unverified: [], retried: false };
     expect(verificationText({ status: "answered", verification })).toEqual({
       tone: "success",
-      text: "Đã đối chiếu 4 số, ngày, giờ với số liệu hệ thống",
+      text: "Đã đối chiếu 4 số",
     });
     expect(
       verificationText({ status: "answered", verification: { ...verification, retried: true } })
@@ -169,11 +169,11 @@ describe("trợ lý AI", () => {
       }),
     ).toEqual({
       tone: "error",
-      text: "Đã chặn: 2 số không có trong số liệu hệ thống (25 triệu; 12%)",
+      text: "Đã chặn: 2 số không có nguồn (25 triệu; 12%)",
     });
     expect(
       verificationText({ status: "answered", verification: { ...verification, checked: 0 } }).text,
-    ).toBe("Câu trả lời không có con số");
+    ).toBe("Không có con số");
     expect(verificationText({ status: "timeout", verification: null }).tone).toBe("default");
   });
 
