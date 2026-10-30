@@ -7,3 +7,4 @@ data/inbox/*
 !data/inbox/.gitkeep
 data/samples/*.xlsx
 data/reports/
+data/analytics.db*

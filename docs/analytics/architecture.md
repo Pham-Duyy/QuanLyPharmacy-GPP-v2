@@ -109,6 +109,32 @@ A --> D : câu trả lời + nguồn số liệu
 @enduml
 ```
 
+## Pipeline và Analytics Store (bước 1.4)
+
+Code: `analytics-service/app/pipeline.py`, `app/store/sqlite_store.py`. Lệnh: `python main.py run`, `python main.py status`.
+
+| Tình huống | Đọc lại tệp | Tính lại KPI | Kết quả |
+|---|---|---|---|
+| Tệp đổi nội dung (khác SHA-256) | có | có | `processed`, snapshot mới |
+| Tệp không đổi, snapshot dưới 5 phút | không | không | `unchanged`, không ghi gì |
+| Tệp không đổi, snapshot cũ hơn 5 phút | không (dùng dữ liệu sạch trong bộ nhớ) | có | `refreshed`, snapshot mới |
+| Tệp hỏng, thiếu cột, đang bị khóa | — | — | `failed`, ghi nhật ký, **giữ snapshot tốt gần nhất** |
+
+- Phát hiện thay đổi hai lớp: so kích thước + thời điểm sửa (gần như miễn phí); chỉ khi khác mới tính
+  SHA-256 của nội dung. Mở Excel rồi Lưu mà không sửa gì: hash y nguyên, bỏ qua.
+- Tính lại theo thời gian vì "hôm nay", "tuần này" trôi theo đồng hồ: qua nửa đêm "hôm nay" phải về 0.
+- Trạng thái nhớ qua SQLite: khởi động lại tiến trình, tệp không đổi vẫn được bỏ qua.
+- Ghi run, snapshot, lỗi dữ liệu, kpi_daily trong **một transaction**: ghi đủ hoặc không ghi gì.
+
+| Bảng | Nội dung | Giữ |
+|---|---|---|
+| `runs` | Mỗi lần chạy: thời gian, trạng thái, nguồn kích hoạt, tệp (size, mtime, sha256, số dòng), lỗi, ms | 200 lần |
+| `snapshots` | Kết quả đã tính (JSON): KPI toàn chuỗi + từng cửa hàng, chuỗi 90 ngày, theo tháng, cơ cấu tháng, top 20 thuốc, chất lượng dữ liệu; `version` tăng dần | 30 bản |
+| `data_issues` | Lỗi dữ liệu theo lần chạy có đọc tệp | 20 lần |
+| `kpi_daily` | Doanh thu, giá vốn, lợi nhuận, số đơn, số lượng theo ngày × cửa hàng | Toàn bộ (thay mới mỗi lần đọc tệp) |
+
+Dữ liệu mẫu (32.000 dòng): snapshot khoảng 60 KB, tệp SQLite khoảng 180 KB, một lần xử lý khoảng 1,9 giây.
+
 ## Lộ trình
 
 | Phase | Nội dung | Trạng thái |
@@ -116,7 +142,7 @@ A --> D : câu trả lời + nguồn số liệu
 | 1.1 | Schema chuẩn, dữ liệu mẫu (3 cửa hàng, 60 mặt hàng, 90 ngày) | Xong |
 | 1.2 | Processor: đọc, làm sạch, kiểm tra, báo cáo lỗi dữ liệu | Xong |
 | 1.3 | KPI Engine: doanh thu, giá vốn, lợi nhuận, biên, số đơn, tăng trưởng ([kpi.md](kpi.md)) | Xong |
-| 1.4 | Analytics Store (SQLite) + pipeline | |
+| 1.4 | Analytics Store (SQLite) + pipeline: phát hiện thay đổi bằng size/mtime rồi SHA-256, snapshot có version | Xong |
 | 1.5 | Monitor: watchdog + debounce + hash, polling dự phòng | |
 | 1.6 | FastAPI: `/summary`, `/revenue`, `/sales-trend`, `/health` | |
 | 1.7 | Node Gateway + trang "Bảng điều hành" tự cập nhật | |

@@ -3,7 +3,7 @@
 Dịch vụ Python của **Pharmacy Intelligent Analytics**: theo dõi tệp dữ liệu, xử lý,
 tính chỉ số kinh doanh. Không gọi LLM. Kiến trúc: [docs/analytics/architecture.md](../docs/analytics/architecture.md).
 
-Hiện có: bước 1.1 (schema, dữ liệu mẫu), 1.2 (xử lý dữ liệu), 1.3 (KPI Engine).
+Hiện có: bước 1.1 (schema, dữ liệu mẫu), 1.2 (xử lý dữ liệu), 1.3 (KPI Engine), 1.4 (pipeline + SQLite).
 
 ## Cài đặt (một lần)
 
@@ -39,7 +39,10 @@ python main.py process                         # xử lý và in báo cáo lỗi
 python main.py process --issues-csv data/reports/issues.csv
 python main.py kpi                             # KPI hôm nay / tuần này / tháng này, toàn chuỗi
 python main.py kpi --store CH03 --as-of "2026-10-29 21:00"
-python main.py kpi --json                      # kết quả dạng JSON (bước 1.4 sẽ lưu vào Store)
+python main.py kpi --json                      # kết quả dạng JSON
+python main.py run                             # chạy pipeline, lưu snapshot vào data/analytics.db
+python main.py run --force                     # đọc lại tệp dù không đổi
+python main.py status                          # nhật ký các lần chạy
 python -m pytest -q                            # chạy test
 ```
 
@@ -61,7 +64,9 @@ app/
     periods.py           kỳ báo cáo: hôm nay, tuần này, tháng này và kỳ so sánh
     kpi.py               công thức KPI, tăng trưởng (docs/analytics/kpi.md)
     breakdown.py         chuỗi theo ngày/tuần/tháng, cơ cấu theo nhóm thuốc, cửa hàng…
+  store/sqlite_store.py  Analytics Store: runs, snapshots, data_issues, kpi_daily
+  pipeline.py            Processor → KPI → Store, phát hiện tệp thay đổi
 scripts/generate_sample_data.py
-tests/test_processor.py, tests/test_kpi.py
+tests/test_processor.py, tests/test_kpi.py, tests/test_pipeline.py
 main.py                  lệnh chạy
 ```

@@ -3,11 +3,15 @@
 Lệnh hiện có:
 - process: xử lý một thư mục dữ liệu, in báo cáo chất lượng dữ liệu (bước 1.2)
 - kpi:     tính chỉ số kinh doanh hôm nay / tuần này / tháng này (bước 1.3)
+- run:     chạy pipeline Processor → KPI → lưu snapshot vào SQLite (bước 1.4)
+- status:  xem các lần chạy gần nhất và snapshot hiện tại (bước 1.4)
 Các bước sau sẽ thêm `serve` (API + theo dõi tệp).
 
 Chạy:  python main.py process                  (mặc định: data/samples)
        python main.py process data/inbox --issues-csv data/reports/issues.csv
        python main.py kpi --as-of "2026-10-30 18:00" --store CH01
+       python main.py run             (chạy lại ngay: thêm --force)
+       python main.py status
 """
 
 from __future__ import annotations
@@ -21,7 +25,9 @@ import pandas as pd
 
 from app.analytics import kpi_summary, prepare_sales, sales_breakdown
 from app.analytics.periods import Window
-from app.config import SAMPLES_DIR
+from app.config import ANALYTICS_DB, SAMPLES_DIR
+from app.pipeline import Pipeline
+from app.store import AnalyticsStore
 from app.processor import LoadError, ProcessResult, process_folder
 from app.processor.service import now_local
 
@@ -123,6 +129,45 @@ def command_kpi(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_run(args: argparse.Namespace) -> int:
+    store = AnalyticsStore(args.db)
+    pipeline = Pipeline(args.folder, store)
+    as_of = pd.Timestamp(args.as_of) if args.as_of else None
+    result = pipeline.run(trigger="manual", as_of=as_of, force=args.force)
+    labels = {"processed": "ĐÃ XỬ LÝ", "refreshed": "TÍNH LẠI", "unchanged": "BỎ QUA", "failed": "THẤT BẠI"}
+    print(f"[{labels[result.status]}] {result.message} ({result.duration_ms} ms)")
+    if result.snapshot_version:
+        snapshot = store.latest_snapshot()
+        month = snapshot["kpi"]["ALL"]["periods"]["month"]
+        print(f"Snapshot version {result.snapshot_version}, lần chạy #{result.run_id}, lưu tại {args.db}")
+        print(f"  Cửa hàng: {', '.join(snapshot['stores'])}")
+        print(f"  Doanh thu tháng này (toàn chuỗi): {_money(month['current']['revenue'])} ({_growth(month['growth']['revenue']).strip()})")
+        quality = snapshot["data_quality"]["sales"]
+        print(f"  sales: {_number(quality['rows_valid'])} dòng hợp lệ, loại {quality['rows_rejected']} dòng lỗi")
+    return 1 if result.status == "failed" else 0
+
+
+def command_status(args: argparse.Namespace) -> int:
+    store = AnalyticsStore(args.db)
+    meta = store.latest_snapshot_meta()
+    if meta:
+        print(f"Snapshot hiện tại: version {meta['version']}, tính đến {meta['as_of']}, tạo lúc {meta['created_at']}")
+    else:
+        print("Chưa có snapshot nào: chạy `python main.py run`.")
+    print(f"\n{'#':>4}  {'Bắt đầu':<25} {'Kết quả':<8} {'Nguồn':<8} {'Đọc tệp':<8} {'Hợp lệ':>8} {'Lỗi':>5} {'ms':>6}  Snapshot")
+    for run in store.recent_runs(args.limit):
+        valid = "" if run["rows_valid"] is None else _number(run["rows_valid"])
+        errors = "" if run["error_count"] is None else run["error_count"]
+        reread = "có" if run["reprocessed"] else "không"
+        print(
+            f"{run['id']:>4}  {run['started_at']:<25} {run['status']:<8} {run['trigger']:<8} {reread:<8} "
+            f"{valid:>8} {errors:>5} {run['duration_ms']:>6}  {run['snapshot_version'] or ''}"
+        )
+        if run["error_message"]:
+            print(f"      ↳ {run['error_message']}")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Pharmacy Intelligent Analytics: analytics-service")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -137,6 +182,16 @@ def main() -> int:
     kpi.add_argument("--store", help="Chỉ tính một cửa hàng, ví dụ CH01")
     kpi.add_argument("--json", action="store_true", help="In kết quả dạng JSON")
     kpi.set_defaults(handler=command_kpi)
+    run = commands.add_parser("run", help="Chạy pipeline và lưu snapshot vào SQLite")
+    run.add_argument("folder", nargs="?", type=Path, default=SAMPLES_DIR, help="Thư mục chứa medicines/sales")
+    run.add_argument("--db", type=Path, default=ANALYTICS_DB, help="Tệp SQLite (mặc định data/analytics.db)")
+    run.add_argument("--as-of", help="Thời điểm tính (mặc định: bây giờ)")
+    run.add_argument("--force", action="store_true", help="Đọc lại tệp dù không đổi")
+    run.set_defaults(handler=command_run)
+    status = commands.add_parser("status", help="Xem các lần chạy gần nhất")
+    status.add_argument("--db", type=Path, default=ANALYTICS_DB, help="Tệp SQLite")
+    status.add_argument("--limit", type=int, default=10, help="Số lần chạy hiển thị")
+    status.set_defaults(handler=command_status)
     args = parser.parse_args()
     return args.handler(args)
 
