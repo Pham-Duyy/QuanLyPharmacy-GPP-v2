@@ -1,6 +1,7 @@
 import { http } from "../../api/http.js";
 import { formatVnd, type Envelope } from "../../api/types.js";
 import { foldText } from "../../app/fold-text.js";
+import type { ChartBand, ChartMarker } from "../analytics/AnalysisCharts.js";
 import type { SeriesLine } from "../analytics/analytics-api.js";
 
 /**
@@ -80,6 +81,68 @@ export type Summary = {
 };
 
 export type Severity = "critical" | "high" | "medium" | "low";
+
+export type ForecastPoint = {
+  date: string;
+  value: number;
+  low: number | null;
+  high: number | null;
+};
+
+export type RevenueForecast =
+  | { status: "insufficient_data"; message: string }
+  | {
+      status: "ok";
+      model: string;
+      model_label: string;
+      accuracy_measured: boolean;
+      /** Sai số backtest (WAPE) của phần bán lẻ; null khi chưa đủ dữ liệu để đo. */
+      wape: number | null;
+      points: ForecastPoint[];
+      total: number;
+      change_vs_last_7_pct: number | null;
+      wholesale_per_day?: number;
+    };
+
+export type DemandRow = {
+  store_code: string;
+  medicine_code: string;
+  medicine_name: string | null;
+  model: string;
+  wape_total: number | null;
+  next_7_days: number;
+  next_7_low: number | null;
+  next_7_high: number | null;
+  next_30_days: number;
+  change_vs_last_7_pct: number | null;
+};
+
+export type Stockout = {
+  store_code: string;
+  medicine_code: string;
+  medicine_name: string | null;
+  stock_quantity: number;
+  stockout_date: string | null;
+  days_until_stockout: number | null;
+};
+
+export type AnomalyEvent = {
+  kind: string;
+  severity: Severity;
+  direction: "down" | "up";
+  store_code: string;
+  medicine_code: string | null;
+  medicine_name: string | null;
+  start: string;
+  end: string;
+  days: string[];
+  actual: number;
+  expected: number;
+  change_pct: number | null;
+  message: string;
+  short: string;
+  methods: string[];
+};
 
 export type Overview = {
   stock_as_of: string | null;
@@ -256,7 +319,84 @@ export const biApi = {
   products: (store: string, period: Period) => get<Products>("products", { store, period }),
   inventory: (store: string) => get<Inventory>("inventory", { store }),
   expiry: (store: string) => get<Expiry>("expiry", { store }),
+  anomalies: (store: string, days = 14) =>
+    get<{ since: string; events: AnomalyEvent[] }>("anomalies", { store, days }),
+  revenueForecast: (store: string) =>
+    get<{ data_through: string; revenue: RevenueForecast | null }>("forecast", {
+      store,
+      target: "revenue",
+    }),
+  demandForecast: (store: string) =>
+    get<{ data_through: string; demand: DemandRow[]; stockout: Stockout[] }>("forecast", {
+      store,
+      target: "demand",
+    }),
 };
+
+/** Loại bất thường đánh dấu được trên biểu đồ doanh thu. */
+const REVENUE_ANOMALIES = new Set(["revenue_drop_day", "revenue_drop_today", "revenue_spike"]);
+/** Số ngày dự báo vẽ nối sau biểu đồ 30 ngày. */
+export const CHART_FORECAST_DAYS = 14;
+
+/**
+ * Biểu đồ ngày: doanh thu, lợi nhuận đã qua + đường dự báo nét đứt (kèm dải tin cậy) cho
+ * CHART_FORECAST_DAYS ngày tới + chấm đỏ ở ngày bất thường. Tuần/tháng giữ như cũ.
+ * Hôm nay chưa xong: có cả số đến giờ này (đường liền) và dự báo cả ngày (nét đứt) để so.
+ * Chỉ chấm bất thường của ĐÚNG phạm vi đang xem (`scope`): bất thường riêng của CH03 chấm lên
+ * đường toàn chuỗi sẽ khiến người xem tưởng cả chuỗi bất thường.
+ */
+export function trendWithForecast(
+  trend: Trend,
+  forecast?: RevenueForecast | null,
+  events: AnomalyEvent[] = [],
+  scope = "ALL",
+): {
+  labels: string[];
+  series: SeriesLine[];
+  hasPartial: boolean;
+  band?: ChartBand;
+  markers: ChartMarker[];
+} {
+  const base = trendChart(trend);
+  if (trend.grain !== "day") return { ...base, markers: [] };
+  const dates = trend.points.map((point) => point.period_start);
+  const markers: ChartMarker[] = [];
+  for (const event of events) {
+    if (!REVENUE_ANOMALIES.has(event.kind) || event.store_code !== scope) continue;
+    for (const day of event.days) {
+      const index = dates.indexOf(day);
+      if (index >= 0) markers.push({ index, note: event.message });
+    }
+  }
+  if (!forecast || forecast.status !== "ok") return { ...base, markers };
+
+  const last = dates.at(-1) ?? "";
+  const future = forecast.points.filter((point) => point.date > last).slice(0, CHART_FORECAST_DAYS);
+  const allDates = [...dates, ...future.map((point) => point.date)];
+  const labels = [...base.labels, ...future.map((point) => pointLabel(point.date, "day"))];
+  const pad = (values: Array<number | null>) => [...values, ...future.map(() => null)];
+  const byDate = new Map(forecast.points.map((point) => [point.date, point]));
+  const pick = (field: "value" | "low" | "high") =>
+    allDates.map((date) => {
+      const point = byDate.get(date);
+      return point ? point[field] : null;
+    });
+  return {
+    labels,
+    series: [
+      ...base.series.map((line) => ({ ...line, values: pad(line.values) })),
+      { name: "Dự báo doanh thu", values: pick("value"), dashed: true, color: "#64748b" },
+    ],
+    band: { name: "Khoảng tin cậy ~80%", low: pick("low"), high: pick("high"), color: "#64748b" },
+    markers,
+    hasPartial: base.hasPartial,
+  };
+}
+
+/** "±9%" từ WAPE 0,091. */
+export function errorText(wape: number | null | undefined): string {
+  return wape === null || wape === undefined ? "chưa đo được" : `±${Math.round(wape * 100)}%`;
+}
 
 /** Giá vốn bình quân làm lợi nhuận có phần lẻ; tiền hiển thị tròn đồng. */
 export function money(value: number | null | undefined): string {

@@ -4367,3 +4367,21 @@
   margin: 0 0 8px;
   font-weight: 600;
 }
+
+/* Biểu đồ: chấm ngày bất thường, ghi chú trong tooltip (Bảng điều hành, bước 3.6) */
+.analysis-marker {
+  fill: #e5484d;
+  stroke: var(--c-surface, #fff);
+  stroke-width: 2;
+}
+
+.analysis-marker-dot {
+  background: #e5484d;
+}
+
+.analysis-tooltip-alert {
+  margin-top: 4px;
+  color: #c62828;
+  max-width: 260px;
+  white-space: normal;
+}

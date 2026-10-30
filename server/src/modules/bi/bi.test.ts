@@ -55,6 +55,19 @@ beforeAll(async () => {
     inventory: { version: 7, available: true, items: [] },
     expiry: { version: 7, available: true, lots: [] },
     alerts: ALERTS,
+    anomalies: {
+      version: 7,
+      events: [
+        { kind: "revenue_drop_day", store_code: "NT01" },
+        { kind: "stock_jump", store_code: "NT01" },
+      ],
+    },
+    forecast: {
+      version: 7,
+      target: "demand",
+      demand: [{ medicine_code: "GD001" }],
+      stockout: [{ medicine_code: "GD001" }],
+    },
   });
   process.env["ANALYTICS_SERVICE_URL"] = stub.baseUrl;
 });
@@ -230,5 +243,23 @@ describe("cổng Bảng điều hành /api/v1/bi", () => {
     expect(products.body.data.stock.not_sold[0]).toEqual({ medicine_code: "TB010" });
     expect(stub.requests.at(-1)).toBe("/api/analytics/products?store=NT01&period=week");
     expect((await get("summary", token)).body.data.overview).toBeNull();
+  });
+
+  it("bất thường, dự báo: chuyển tiếp; bỏ phần tồn kho khi thiếu report.inventory", async () => {
+    expect((await get("anomalies?days=7&direction=down", adminToken)).status).toBe(200);
+    expect(stub.requests.at(-1)).toBe("/api/analytics/anomalies?days=7&direction=down&store=ALL");
+    expect((await get("anomalies?days=100", adminToken)).status).toBe(422);
+    const full = await get("forecast?target=demand", adminToken);
+    expect(full.body.data.stockout).toHaveLength(1);
+    expect((await get("forecast?target=weather", adminToken)).status).toBe(422);
+
+    await useTestRole(fixture.pharmacistId, "auditor", fixture.storeId, ["report.inventory"]);
+    const token = (await login("duocsi")).token;
+    const events = (await get("anomalies", token)).body.data.events;
+    expect(events.map((event: { kind: string }) => event.kind)).toEqual(["revenue_drop_day"]);
+    const forecast = await get("forecast?target=demand", token);
+    expect(forecast.body.data.demand).toHaveLength(1);
+    expect(forecast.body.data.stockout).toEqual([]);
+    expect(stub.requests.at(-1)).toBe("/api/analytics/forecast?store=NT01&target=demand");
   });
 });

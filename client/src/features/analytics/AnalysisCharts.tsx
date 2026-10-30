@@ -45,20 +45,37 @@ function niceTicks(minimum: number, maximum: number, count = 4): number[] {
 const HEIGHT = 280;
 const PAD = { top: 16, right: 16, bottom: 34, left: 76 };
 
+/** Dải tô mờ giữa hai đường (ví dụ khoảng tin cậy của dự báo). */
+export type ChartBand = {
+  name: string;
+  low: Array<number | null>;
+  high: Array<number | null>;
+  color?: string;
+};
+/** Chấm đánh dấu trên đường đầu tiên (ví dụ ngày bất thường); `note` hiện khi rê chuột. */
+export type ChartMarker = { index: number; note: string };
+
 export function LineChart({
   labels,
   series,
   valueFormat,
+  band,
+  markers = [],
 }: {
   labels: string[];
   series: SeriesLine[];
   valueFormat: ValueFormat;
+  band?: ChartBand;
+  markers?: ChartMarker[];
 }) {
   const { ref, width } = useWidth(720);
   const [hover, setHover] = useState<number | null>(null);
-  const values = series
-    .flatMap((line) => line.values)
-    .filter((value): value is number => value !== null);
+  const colorOf = (line: SeriesLine, index: number) =>
+    line.color ?? chartColors[index % chartColors.length]!;
+  const values = [
+    ...series.flatMap((line) => line.values),
+    ...(band ? [...band.low, ...band.high] : []),
+  ].filter((value): value is number => value !== null);
   if (labels.length === 0 || values.length === 0)
     return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có dữ liệu" />;
 
@@ -88,6 +105,24 @@ export function LineChart({
     });
     return path;
   };
+
+  // Dải: đi theo đường trên từ trái sang phải, rồi đường dưới từ phải sang trái, đóng lại.
+  const bandPath = (() => {
+    if (!band) return "";
+    const indexes = band.low
+      .map((_, index) => index)
+      .filter((index) => band.low[index] !== null && band.high[index] !== null);
+    if (indexes.length < 2) return "";
+    const top = indexes.map(
+      (index, step) =>
+        `${step ? "L" : "M"}${x(index).toFixed(1)},${y(band.high[index]!).toFixed(1)}`,
+    );
+    const bottom = [...indexes]
+      .reverse()
+      .map((index) => `L${x(index).toFixed(1)},${y(band.low[index]!).toFixed(1)}`);
+    return `${top.join("")}${bottom.join("")}Z`;
+  })();
+  const markerAt = new Map(markers.map((marker) => [marker.index, marker.note]));
 
   const onMove = (event: React.PointerEvent<SVGRectElement>) => {
     const box = event.currentTarget.getBoundingClientRect();
@@ -153,14 +188,18 @@ export function LineChart({
             opacity={0.08}
           />
         ) : null}
+        {bandPath ? (
+          <path d={bandPath} fill={band?.color ?? chartColors[0]} opacity={0.14} />
+        ) : null}
         {series.map((line, index) => (
           <path
             key={line.name}
             d={pathOf(line)}
             fill="none"
-            stroke={chartColors[index % chartColors.length]}
+            stroke={colorOf(line, index)}
             strokeWidth={single ? 2.5 : 2}
             strokeLinejoin="round"
+            strokeDasharray={line.dashed ? "6 5" : undefined}
           />
         ))}
         {labels.length <= 40
@@ -173,13 +212,26 @@ export function LineChart({
                     cy={y(value)}
                     r={hover === index ? 4.5 : 3}
                     fill="var(--c-surface)"
-                    stroke={chartColors[seriesIndex % chartColors.length]}
+                    stroke={colorOf(line, seriesIndex)}
                     strokeWidth={2}
                   />
                 ),
               ),
             )
           : null}
+        {markers.map((marker) => {
+          const value = series[0]?.values[marker.index];
+          if (value === null || value === undefined) return null;
+          return (
+            <circle
+              key={`marker-${marker.index}`}
+              cx={x(marker.index)}
+              cy={y(value)}
+              r={hover === marker.index ? 7 : 5.5}
+              className="analysis-marker"
+            />
+          );
+        })}
         {hover !== null ? (
           <line
             x1={x(hover)}
@@ -205,31 +257,47 @@ export function LineChart({
           style={{ left: Math.min(x(hover) + 12, width - 220), top: PAD.top }}
         >
           <strong>{labels[hover]}</strong>
-          {series.map((line, index) => (
-            <div key={line.name} className="analysis-tooltip-row">
-              <span
-                className="donut-dot"
-                style={{ background: chartColors[index % chartColors.length] }}
-              />
-              <span className="analysis-tooltip-name">{line.name}</span>
+          {series.map((line, index) =>
+            line.values[hover] === null && line.dashed ? null : (
+              <div key={line.name} className="analysis-tooltip-row">
+                <span className="donut-dot" style={{ background: colorOf(line, index) }} />
+                <span className="analysis-tooltip-name">{line.name}</span>
+                <span>
+                  {line.values[hover] === null || line.values[hover] === undefined
+                    ? "—"
+                    : formatFull(line.values[hover]!, valueFormat)}
+                </span>
+              </div>
+            ),
+          )}
+          {band && band.low[hover] !== null && band.low[hover] !== undefined ? (
+            <div className="analysis-tooltip-row">
+              <span className="analysis-tooltip-name">{band.name}</span>
               <span>
-                {line.values[hover] === null ? "—" : formatFull(line.values[hover]!, valueFormat)}
+                {formatCompact(band.low[hover]!, valueFormat)} –{" "}
+                {formatCompact(band.high[hover]!, valueFormat)}
               </span>
             </div>
-          ))}
+          ) : null}
+          {markerAt.has(hover) ? (
+            <div className="analysis-tooltip-alert">{markerAt.get(hover)}</div>
+          ) : null}
         </div>
       ) : null}
       {!single ? (
         <div className="analysis-legend">
           {series.map((line, index) => (
             <span key={line.name} className="analysis-legend-item">
-              <span
-                className="donut-dot"
-                style={{ background: chartColors[index % chartColors.length] }}
-              />
+              <span className="donut-dot" style={{ background: colorOf(line, index) }} />
               {line.name}
             </span>
           ))}
+          {markers.length ? (
+            <span className="analysis-legend-item">
+              <span className="donut-dot analysis-marker-dot" />
+              Ngày bất thường
+            </span>
+          ) : null}
         </div>
       ) : null}
     </div>

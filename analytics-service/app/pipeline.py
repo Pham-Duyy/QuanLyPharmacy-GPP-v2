@@ -259,6 +259,14 @@ class Pipeline:
         return PipelineResult(status, message, run_id, version, _elapsed(started), results)
 
 
+def _named(rows: list[dict], medicines: pd.DataFrame | None) -> list[dict]:
+    """Thêm tên thuốc vào từng dòng (dự báo tính theo mã)."""
+    if medicines is None or medicines.empty:
+        return rows
+    names = medicines.drop_duplicates("medicine_code").set_index("medicine_code")["medicine_name"].to_dict()
+    return [{**row, "medicine_name": names.get(row["medicine_code"])} for row in rows]
+
+
 def stock_totals(inventory: pd.DataFrame) -> pd.DataFrame:
     """Tổng tồn theo (cửa hàng, thuốc), mọi lô kể cả hết hạn: dùng để so giữa hai lần lưu tệp (R3)."""
     return inventory.groupby(["store_code", "medicine_code"], as_index=False)["quantity"].sum()
@@ -385,8 +393,8 @@ def build_snapshot(
             "horizon_days": forecast["horizon_days"],
             # Sai số từng ngày của backtest chỉ cần lúc dựng khoảng tin cậy: bỏ cho snapshot gọn.
             "revenue": {scope: {k: v for k, v in result.items() if k != "errors"} for scope, result in forecast["revenue"].items()},
-            "demand": forecast["demand"],
-            "stockout": stockout,
+            "demand": _named(forecast["demand"], medicines),
+            "stockout": _named(stockout, medicines),
         },
     }
 

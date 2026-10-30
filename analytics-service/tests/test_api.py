@@ -255,3 +255,18 @@ def test_without_inventory_file_sections_say_unavailable(client):
     assert client.get("/api/analytics/expiry").json()["available"] is False
     assert client.get("/api/analytics/summary").json()["overview"]["inventory_available"] is False
     assert client.get("/api/analytics/products").json()["stock"]["basis"] == "sales_history"
+
+
+def test_anomalies_and_forecast_endpoints(stocked):
+    body = stocked.get("/api/analytics/anomalies", params={"days": 60}).json()
+    assert {"events", "since", "version"} <= set(body)
+    assert stocked.get("/api/analytics/anomalies", params={"direction": "sideways"}).status_code == 422
+
+    revenue = stocked.get("/api/analytics/forecast").json()
+    assert revenue["target"] == "revenue"
+    assert revenue["data_through"] == "2026-10-28"
+    assert revenue["revenue"]["status"] == "ok" or "message" in revenue["revenue"]
+
+    demand = stocked.get("/api/analytics/forecast", params={"target": "demand", "store": "CH02"}).json()
+    assert all(row["store_code"] == "CH02" for row in demand["demand"] + demand["stockout"])
+    assert stocked.get("/api/analytics/forecast", params={"target": "weather"}).status_code == 422

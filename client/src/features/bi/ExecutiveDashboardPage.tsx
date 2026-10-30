@@ -29,7 +29,15 @@ import { formatNumber } from "../../ui/format.js";
 import { PageHeader } from "../../ui/PageHeader.js";
 import { StatCard, StatGrid, Trend } from "../../ui/StatCard.js";
 import { LineChart, RankBars } from "../analytics/AnalysisCharts.js";
-import { AlertsPanel, ExpiryTab, InventoryCards, InventoryTab, ProductsTab } from "./BiSections.js";
+import {
+  AlertsPanel,
+  AnomaliesTab,
+  ExpiryTab,
+  ForecastTab,
+  InventoryCards,
+  InventoryTab,
+  ProductsTab,
+} from "./BiSections.js";
 import {
   ISSUE_LABELS,
   VERSION_POLL_MS,
@@ -38,7 +46,8 @@ import {
   canSeeInventory,
   clockText,
   money,
-  trendChart,
+  errorText,
+  trendWithForecast,
   type Alert as BiAlert,
   type BreakdownBy,
   type Period,
@@ -53,7 +62,7 @@ const PERIOD_OPTIONS: Array<{ value: Period; label: string }> = [
 
 /** Biểu đồ: hôm nay xem theo ngày, tuần này theo tuần, tháng này theo tháng. */
 const GRAIN_TITLE: Record<Period, string> = {
-  day: "Doanh thu và lợi nhuận 30 ngày gần nhất",
+  day: "Doanh thu 30 ngày gần nhất và dự báo 14 ngày tới",
   week: "Doanh thu và lợi nhuận 12 tuần gần nhất",
   month: "Doanh thu và lợi nhuận 12 tháng gần nhất",
 };
@@ -117,8 +126,7 @@ export function ExecutiveDashboardPage() {
     const tabs: Record<BiAlert["section"], string> = {
       inventory: "inventory",
       expiry: "expiry",
-      // Tab Bất thường có ở bước 3.6; tới lúc đó mở tab tổng quan.
-      anomalies: "overview",
+      anomalies: "anomalies",
       kpi: "overview",
       data_quality: "overview",
     };
@@ -127,7 +135,23 @@ export function ExecutiveDashboardPage() {
     document.querySelector(".bi-tabs")?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
   const kpi = summary.data?.periods[period];
-  const chart = trend.data ? trendChart(trend.data) : null;
+  // Dự báo và bất thường chỉ đổi khi version đổi; vẽ chung lên biểu đồ ngày (bước 3.6).
+  const revenueForecast = useQuery({
+    queryKey: ["bi", "forecast", "revenue", store, v],
+    queryFn: () => biApi.revenueForecast(store),
+    enabled: ready && period === "day",
+    placeholderData: (previous) => previous,
+  });
+  const anomalies = useQuery({
+    queryKey: ["bi", "anomalies", store, v],
+    queryFn: () => biApi.anomalies(store, 30),
+    enabled: ready,
+    placeholderData: (previous) => previous,
+  });
+  const forecast = period === "day" ? revenueForecast.data?.revenue : null;
+  const chart = trend.data
+    ? trendWithForecast(trend.data, forecast, anomalies.data?.events, store)
+    : null;
 
   return (
     <div>
@@ -275,10 +299,27 @@ export function ExecutiveDashboardPage() {
             {chart ? (
               chart.labels.length ? (
                 <>
-                  <LineChart labels={chart.labels} series={chart.series} valueFormat="currency" />
+                  <LineChart
+                    labels={chart.labels}
+                    series={chart.series}
+                    band={chart.band}
+                    markers={chart.markers}
+                    valueFormat="currency"
+                  />
                   {chart.hasPartial ? (
                     <p className="muted" style={{ margin: "6px 0 0" }}>
                       * Kỳ đang diễn ra, số liệu mới tính đến {clockText(summary.data?.as_of)}.
+                    </p>
+                  ) : null}
+                  {forecast?.status === "ok" ? (
+                    <p className="muted" style={{ margin: "4px 0 0" }}>
+                      Nét đứt: dự báo bằng mô hình {forecast.model_label}, sai số khi thử lại 4 tuần
+                      qua {errorText(forecast.wape)} (phần bán lẻ); dải mờ là khoảng tin cậy ~80%.
+                      Dự báo không gọi AI.
+                    </p>
+                  ) : forecast?.status === "insufficient_data" ? (
+                    <p className="muted" style={{ margin: "4px 0 0" }}>
+                      {forecast.message}
                     </p>
                   ) : null}
                 </>
@@ -327,6 +368,18 @@ export function ExecutiveDashboardPage() {
                 key: "products",
                 label: "Sản phẩm",
                 children: <ProductsTab store={store} period={period} version={v} />,
+              },
+              {
+                key: "anomalies",
+                label: "Bất thường",
+                children: <AnomaliesTab store={store} version={v} />,
+              },
+              {
+                key: "forecast",
+                label: "Dự báo",
+                children: (
+                  <ForecastTab store={store} version={v} inventoryAllowed={inventoryAllowed} />
+                ),
               },
               ...(inventoryAllowed
                 ? [

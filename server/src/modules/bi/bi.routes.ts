@@ -267,3 +267,39 @@ biRouter.get("/bi/alerts", async (req, res) => {
   }
   sendData(res, body);
 });
+
+const anomaliesQuery = z.object({
+  store: storeField,
+  days: z.coerce.number().int().min(1).max(60).default(14),
+  direction: z.enum(["down", "up"]).optional(),
+});
+const forecastQuery = z.object({
+  store: storeField,
+  target: z.enum(["revenue", "demand"]).default("revenue"),
+});
+
+type Anomalies = { events: Array<{ kind: string }>; [key: string]: unknown };
+
+biRouter.get("/bi/anomalies", async (req, res) => {
+  const query = parseOrThrow(anomaliesQuery, req.query);
+  const access = await biAccess(req.auth!);
+  const store = resolveStore(access, query.store);
+  const body = await fetchAnalytics<Anomalies>("anomalies", { ...query, store });
+  // "Tồn tăng bất thường" là số tồn kho: chỉ cho người có report.inventory.
+  if (!canSeeInventory(access, store)) {
+    body.events = body.events.filter((event) => event.kind !== "stock_jump");
+  }
+  sendData(res, body);
+});
+
+type Forecast = { stockout?: unknown[]; [key: string]: unknown };
+
+biRouter.get("/bi/forecast", async (req, res) => {
+  const query = parseOrThrow(forecastQuery, req.query);
+  const access = await biAccess(req.auth!);
+  const store = resolveStore(access, query.store);
+  const body = await fetchAnalytics<Forecast>("forecast", { store, target: query.target });
+  // Nhu cầu dự báo tính từ bán hàng: report.sales là đủ. Ngày hết hàng dựa trên tồn kho: cần report.inventory.
+  if (!canSeeInventory(access, store) && body.stockout) body.stockout = [];
+  sendData(res, body);
+});

@@ -18,9 +18,12 @@ import {
   STATUS_LABELS,
   biApi,
   clockText,
+  errorText,
   matchesText,
   money,
   type Alert as BiAlert,
+  type AnomalyEvent,
+  type DemandRow,
   type ExpiryLevel,
   type Lot,
   type Overview,
@@ -30,11 +33,13 @@ import {
   type Severity,
   type StockItem,
   type StockStatus,
+  type Stockout,
 } from "./bi-api.js";
 
 /**
- * Các khối Phase 2 của Bảng điều hành: cảnh báo, thẻ tồn kho, tab Sản phẩm /
- * Tồn kho / Hạn dùng. Chỉ hiển thị số analytics-service đã tính, không tính lại.
+ * Các khối Phase 2–3 của Bảng điều hành: cảnh báo, thẻ tồn kho, tab Sản phẩm /
+ * Tồn kho / Hạn dùng / Bất thường / Dự báo. Chỉ hiển thị số analytics-service đã
+ * tính, không tính lại.
  */
 
 const SEVERITY_COLORS: Record<Severity, string> = {
@@ -595,6 +600,249 @@ export function ExpiryTab({ store, version }: { store: string; version: number }
               ) : (
                 <span className="muted">bán kịp</span>
               ),
+          },
+        ]}
+      />
+    </>
+  );
+}
+
+const KIND_LABELS: Record<string, string> = {
+  revenue_drop_day: "Doanh thu tụt",
+  revenue_drop_today: "Doanh thu hôm nay tụt",
+  revenue_spike: "Doanh thu tăng vọt",
+  medicine_drop: "Thuốc bán tụt",
+  medicine_spike: "Thuốc bán tăng vọt",
+  stock_jump: "Tồn tăng bất thường",
+};
+
+const METHOD_LABELS: Record<string, string> = { rule: "Luật", robust_z: "Z-score" };
+
+function dayText(iso: string): string {
+  const [, month, day] = iso.split("-");
+  return `${day}/${month}`;
+}
+
+/** Tab Bất thường: các đợt đã gộp (bước 3.3), phương pháp phát hiện, mức lệch. */
+export function AnomaliesTab({ store, version }: { store: string; version: number }) {
+  const [direction, setDirection] = useState<"all" | "down" | "up">("all");
+  const query = useQuery({
+    queryKey: ["bi", "anomalies", store, version],
+    queryFn: () => biApi.anomalies(store, 30),
+    placeholderData: (previous) => previous,
+  });
+  if (query.isError) return <Alert type="warning" showIcon title={getErrorMessage(query.error)} />;
+  if (!query.data) return <Skeleton active />;
+  const events = query.data.events.filter(
+    (event) => direction === "all" || event.direction === direction,
+  );
+  return (
+    <>
+      <p className="muted" style={{ marginTop: 0 }}>
+        So mỗi ngày với các cùng thứ trước đó (thứ Hai với thứ Hai), chỉ tính bán lẻ. Một ngày được
+        coi là bất thường khi lệch đủ lớn VÀ đủ hiếm (số đơn cũng lệch tới mức ngẫu nhiên khó gây
+        ra). Các ngày liền nhau gộp thành một đợt. Chấm đỏ trên biểu đồ doanh thu là các ngày này.
+      </p>
+      <Segmented
+        value={direction}
+        onChange={(value) => setDirection(value as "all" | "down" | "up")}
+        options={[
+          { value: "all", label: `Tất cả (${query.data.events.length})` },
+          { value: "down", label: "Tụt" },
+          { value: "up", label: "Tăng vọt" },
+        ]}
+        style={{ marginBottom: 10 }}
+      />
+      <Table<AnomalyEvent>
+        size="small"
+        rowKey={(event) =>
+          `${event.kind}-${event.store_code}-${event.medicine_code}-${event.start}`
+        }
+        dataSource={events}
+        pagination={{ pageSize: 10, hideOnSinglePage: true }}
+        locale={{
+          emptyText: (
+            <Empty
+              image={Empty.PRESENTED_IMAGE_SIMPLE}
+              description="Không có bất thường trong 30 ngày qua"
+            />
+          ),
+        }}
+        columns={[
+          {
+            title: "Ngày",
+            key: "when",
+            width: 110,
+            render: (_: unknown, event: AnomalyEvent) =>
+              event.start === event.end
+                ? dayText(event.start)
+                : `${dayText(event.start)}–${dayText(event.end)}`,
+          },
+          {
+            title: "Loại",
+            dataIndex: "kind",
+            width: 170,
+            render: (kind: string, event: AnomalyEvent) => (
+              <Tag color={event.direction === "down" ? "red" : "blue"}>
+                {KIND_LABELS[kind] ?? kind}
+              </Tag>
+            ),
+          },
+          { title: "Chi tiết", dataIndex: "message" },
+          {
+            title: "Phát hiện bằng",
+            dataIndex: "methods",
+            width: 140,
+            render: (methods: string[]) =>
+              methods.map((method) => <Tag key={method}>{METHOD_LABELS[method] ?? method}</Tag>),
+          },
+        ]}
+      />
+    </>
+  );
+}
+
+/** Tab Dự báo: nhu cầu 7 ngày từng thuốc kèm khoảng, sai số; ngày dự kiến hết hàng (cần report.inventory). */
+export function ForecastTab({
+  store,
+  version,
+  inventoryAllowed,
+}: {
+  store: string;
+  version: number;
+  inventoryAllowed: boolean;
+}) {
+  const [search, setSearch] = useState("");
+  const query = useQuery({
+    queryKey: ["bi", "forecast", "demand", store, version],
+    queryFn: () => biApi.demandForecast(store),
+    placeholderData: (previous) => previous,
+  });
+  if (query.isError) return <Alert type="warning" showIcon title={getErrorMessage(query.error)} />;
+  if (!query.data) return <Skeleton active />;
+  const { demand, stockout, data_through: through } = query.data;
+  const showStore = store === "ALL";
+  const soon = stockout.filter((item) => item.days_until_stockout !== null);
+  const rows = [...demand]
+    .filter((row) => matchesText(search, row.medicine_name, row.medicine_code, row.store_code))
+    .sort((left, right) => right.next_7_days - left.next_7_days);
+  const errors = demand
+    .map((row) => row.wape_total)
+    .filter((value): value is number => value !== null)
+    .sort((a, b) => a - b);
+  const medianError = errors.length ? errors[Math.floor(errors.length / 2)]! : null;
+
+  return (
+    <>
+      <p className="muted" style={{ marginTop: 0 }}>
+        Dữ liệu đến hết {dayText(through)}. Mỗi thuốc ở mỗi cửa hàng chọn mô hình có sai số thấp
+        nhất khi thử dự báo lại 4 tuần qua (lặp lại tuần trước, trung bình 4 tuần theo thứ,
+        Holt-Winters). Sai số đo trên tổng 7 ngày bán lẻ; trung vị {errorText(medianError)}. Bán
+        buôn cộng theo trung bình 28 ngày.
+      </p>
+      {inventoryAllowed ? (
+        <Card
+          size="small"
+          title={`Dự kiến hết hàng trong 30 ngày tới (${soon.length})`}
+          style={{ marginBottom: 14 }}
+        >
+          {soon.length ? (
+            <Table<Stockout>
+              size="small"
+              rowKey={(item) => `${item.store_code}-${item.medicine_code}`}
+              dataSource={soon}
+              pagination={{ pageSize: 8, hideOnSinglePage: true }}
+              columns={[
+                ...(showStore ? [{ title: "Cửa hàng", dataIndex: "store_code", width: 90 }] : []),
+                nameColumn,
+                {
+                  title: "Tồn bán được",
+                  dataIndex: "stock_quantity",
+                  align: "right" as const,
+                  render: formatNumber,
+                },
+                {
+                  title: "Dự kiến hết",
+                  key: "date",
+                  align: "right" as const,
+                  render: (_: unknown, item: Stockout) => (
+                    <Tag
+                      color={
+                        item.days_until_stockout! <= 7
+                          ? "red"
+                          : item.days_until_stockout! <= 14
+                            ? "orange"
+                            : "default"
+                      }
+                    >
+                      {dayText(item.stockout_date!)} · sau {item.days_until_stockout} ngày
+                    </Tag>
+                  ),
+                },
+              ]}
+            />
+          ) : (
+            <Empty
+              image={Empty.PRESENTED_IMAGE_SIMPLE}
+              description="Không thuốc nào dự kiến hết trong 30 ngày"
+            />
+          )}
+        </Card>
+      ) : null}
+      <div className="bi-toolbar" style={{ marginTop: 0 }}>
+        <strong>Nhu cầu 7 ngày tới</strong>
+        <Input.Search
+          allowClear
+          placeholder="Tìm thuốc, mã, cửa hàng"
+          style={{ maxWidth: 260 }}
+          onChange={(event) => setSearch(event.target.value)}
+        />
+      </div>
+      <Table<DemandRow>
+        size="small"
+        rowKey={(row) => `${row.store_code}-${row.medicine_code}`}
+        dataSource={rows}
+        pagination={{ pageSize: 10, hideOnSinglePage: true }}
+        columns={[
+          ...(showStore ? [{ title: "Cửa hàng", dataIndex: "store_code", width: 90 }] : []),
+          nameColumn,
+          {
+            title: "7 ngày tới",
+            key: "next",
+            align: "right" as const,
+            render: (_: unknown, row: DemandRow) => (
+              <span>
+                <strong>{formatNumber(Math.round(row.next_7_days))}</strong>
+                {row.next_7_low !== null ? (
+                  <span className="muted">
+                    {" "}
+                    ({formatNumber(Math.round(row.next_7_low))}–
+                    {formatNumber(Math.round(row.next_7_high!))})
+                  </span>
+                ) : null}
+              </span>
+            ),
+          },
+          {
+            title: "So với 7 ngày qua",
+            dataIndex: "change_vs_last_7_pct",
+            align: "right" as const,
+            render: (value: number | null) =>
+              value === null ? (
+                "—"
+              ) : (
+                <span className={value < 0 ? "trend trend-down" : "trend trend-up"}>
+                  {value > 0 ? "+" : ""}
+                  {percent(value)}
+                </span>
+              ),
+          },
+          { title: "Sai số", dataIndex: "wape_total", align: "right" as const, render: errorText },
+          {
+            title: "30 ngày tới",
+            dataIndex: "next_30_days",
+            align: "right" as const,
+            render: (value: number) => formatNumber(Math.round(value)),
           },
         ]}
       />

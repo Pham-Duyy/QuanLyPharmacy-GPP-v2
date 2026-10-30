@@ -187,6 +187,8 @@ Monitor ở luồng nền là nơi duy nhất ghi SQLite). Tài liệu tự sinh
 | `/inventory` | `store`, `status` | tồn bán được, ADS, số ngày tồn, 5 trạng thái (2.3) | get_inventory, get_low_stock |
 | `/expiry` | `store`, `level` | lô theo 5 mức hạn, FEFO, hàng có nguy cơ (2.4) | get_expiring_products, get_expired_products |
 | `/alerts` | `store` | cảnh báo theo luật, nặng nhất trước (2.5) | |
+| `/anomalies` | `store`, `days`, `direction` | đợt bất thường đã gộp: luật R1–R3 + Z-score, phương pháp phát hiện (3.3) | get_anomalies |
+| `/forecast` | `store`, `target` (revenue/demand) | doanh thu 30 ngày kèm khoảng tin cậy, sai số backtest; nhu cầu từng thuốc; ngày dự kiến hết hàng (3.5) | get_forecast |
 | `/runs` | `limit` | nhật ký pipeline | |
 
 Đo trên máy chủ thật, 50 lần mỗi endpoint, dữ liệu 32.000 dòng: trung vị 2–3 ms (snapshot), 10–11 ms
@@ -218,6 +220,11 @@ cần `report.inventory` ở phạm vi đang xem (toàn chuỗi: ở mọi cửa
 Bảng điều hành (bước 2.6): khối **Cảnh báo** ở đầu trang (bấm "Xem" mở đúng tab), hàng thẻ KPI tồn kho (giá trị tồn,
 sắp hết/hết hàng, lô hết hạn trong 30 ngày, tiền có nguy cơ hết hạn), và các tab **Cơ cấu và dữ liệu / Sản phẩm /
 Tồn kho / Hạn dùng** (biểu đồ giá trị theo trạng thái và theo mức hạn, bảng có lọc và tìm không dấu).
+
+Phase 3 (bước 3.6) thêm `GET /bi/{anomalies, forecast}`. Không có `report.inventory` thì `/bi/anomalies` bỏ "tồn tăng bất
+thường", `/bi/forecast` bỏ ngày dự kiến hết hàng (nhu cầu dự báo tính từ bán hàng nên vẫn xem được). Bảng điều hành: biểu đồ
+ngày có đường dự báo nét đứt 14 ngày, dải tin cậy ~80%, chấm đỏ ở ngày bất thường của đúng phạm vi đang xem; tab
+**Bất thường** (các đợt, phương pháp phát hiện) và **Dự báo** (ngày hết hàng, nhu cầu 7 ngày kèm khoảng, sai số).
 
 Tự cập nhật: trang hỏi `/bi/version` mỗi 30 giây. Version nằm trong khóa truy vấn của mọi khối số liệu
 nên version tăng thì các khối tự tải lại, không tải lại trang. Độ trễ tối đa ≈ 30 giây (polling)
@@ -307,7 +314,7 @@ không được báo là bất thường từng ngày.
 | 3.3 | Bất thường Level 2: Z-score bền vững theo thứ; gộp bằng chứng; đưa vào Cảnh báo ([kpi.md](kpi.md#bất-thường-level-2-và-gộp-sự-kiện-phase-3-bước-33)) | Xong |
 | 3.4 | Dự báo L1 (trung bình theo thứ) + backtest + WAPE + mô hình ngây thơ ([kpi.md](kpi.md#dự-báo-level-1-và-backtest-phase-3-bước-34)) | Xong |
 | 3.5 | Holt-Winters, chọn mô hình, khoảng tin cậy, ngày dự kiến hết hàng, `forecast_cache` ([kpi.md](kpi.md#holt-winters-khoảng-tin-cậy-ngày-hết-hàng-phase-3-bước-35)) | Xong |
-| 3.6 | Snapshot, API `/anomalies`, `/forecast`, Gateway, Bảng điều hành | |
+| 3.6 | Snapshot, API `/anomalies`, `/forecast`, Gateway, Bảng điều hành | Xong |
 | 4 | AI Agent: tool calling, đối chiếu số, nhật ký, bộ câu hỏi đánh giá | |
 | 5 | Gợi ý đặt hàng, ABC, ML nâng cao, nguồn PostgreSQL | |
 

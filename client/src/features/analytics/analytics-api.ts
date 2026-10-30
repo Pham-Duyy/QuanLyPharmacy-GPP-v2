@@ -32,7 +32,14 @@ export type ColumnSummary = {
   end?: string;
 };
 
-export type SeriesLine = { name: string; values: Array<number | null> };
+export type SeriesLine = {
+  name: string;
+  values: Array<number | null>;
+  /** Nét đứt (ví dụ đường dự báo). */
+  dashed?: boolean;
+  /** Màu riêng; bỏ trống thì lấy theo thứ tự trong bảng màu. */
+  color?: string;
+};
 
 export type ChartSpec =
   | {

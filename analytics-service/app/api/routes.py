@@ -26,6 +26,7 @@ GrainParam = Literal["day", "week", "month"]
 BreakdownParam = Literal["category", "sale_type", "store", "payment_method", "top_medicines"]
 StockStatusParam = Literal["out_of_stock", "low", "dead", "high", "normal"]
 ExpiryLevelParam = Literal["expired", "critical", "warning", "monitor"]
+ForecastTargetParam = Literal["revenue", "demand"]
 # Trên URL là ?store=CH01; trong Python đặt tên store_code để không trùng đối tượng Store.
 StoreParam = Annotated[str, Query(alias="store", description="Mã cửa hàng, hoặc ALL cho toàn chuỗi", max_length=20)]
 
@@ -265,6 +266,33 @@ def create_app(store: AnalyticsStore, monitor=None, *, lifespan=None) -> FastAPI
     def alerts(store_code: StoreParam = "ALL") -> dict[str, Any]:
         snapshot = reader.get()
         return {**_meta(snapshot), "store": store_code.upper(), "alerts": _section(snapshot, "alerts", store_code)}
+
+    @app.get("/api/analytics/anomalies", tags=["Bất thường, dự báo"], summary="Bất thường: luật R1–R3 + Z-score, đã gộp đợt")
+    def anomalies(
+        store_code: StoreParam = "ALL",
+        days: int = Query(14, ge=1, le=60, description="Đợt kết thúc trong ngần này ngày gần nhất"),
+        direction: Literal["down", "up"] | None = Query(None, description="Chỉ tụt (down) hoặc tăng vọt (up)"),
+    ) -> dict[str, Any]:
+        snapshot = reader.get()
+        events = _section(snapshot, "anomalies", store_code)
+        since = (pd.Timestamp(snapshot["as_of"]).normalize() - pd.Timedelta(days=days)).date().isoformat()
+        events = [event for event in events if event["end"] >= since and (direction is None or event["direction"] == direction)]
+        return {**_meta(snapshot), "store": store_code.upper(), "since": since, "events": events}
+
+    @app.get("/api/analytics/forecast", tags=["Bất thường, dự báo"], summary="Dự báo doanh thu 30 ngày, nhu cầu thuốc, ngày hết hàng")
+    def forecast(store_code: StoreParam = "ALL", target: ForecastTargetParam = "revenue") -> dict[str, Any]:
+        snapshot = reader.get()
+        _store_kpi(snapshot, store_code)
+        block = snapshot.get("forecast")
+        if not block:
+            raise HTTPException(503, "Snapshot chưa có dự báo: chờ lần tính kế tiếp")
+        key = store_code.upper()
+        meta = {**_meta(snapshot), "store": key, "target": target, "data_through": block["data_through"]}
+        if target == "revenue":
+            return {**meta, "horizon_days": block["horizon_days"], "revenue": block["revenue"].get(key)}
+        rows = block["demand"] if key == "ALL" else [row for row in block["demand"] if row["store_code"] == key]
+        stockout = block["stockout"] if key == "ALL" else [row for row in block["stockout"] if row["store_code"] == key]
+        return {**meta, "demand": rows, "stockout": stockout}
 
     @app.get("/api/analytics/runs", tags=["Hệ thống"], summary="Nhật ký các lần chạy pipeline")
     def runs(limit: int = Query(20, ge=1, le=200)) -> dict[str, Any]:
