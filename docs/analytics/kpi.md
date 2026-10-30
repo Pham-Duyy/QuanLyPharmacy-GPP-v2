@@ -281,3 +281,25 @@ Snapshot có `classification` cho toàn chuỗi và từng cửa hàng: tóm t�
 
 Đo trên dữ liệu mẫu (61 thuốc, 3 cửa hàng): toàn chuỗi A 29 thuốc (81,3% doanh thu), B 16 (13,8%), C 16 (4,9%); gần như mọi thuốc là X (CV 0,1–0,4), vài thuốc Y ở từng cửa hàng. Dữ liệu mẫu tự sinh nên doanh thu dàn đều và nhu cầu đều hơn thực tế: với dữ liệu thật thường thấy A khoảng 20% số thuốc và nhiều thuốc bán lẻ tẻ ở Y, Z. Test dùng dữ liệu dựng tay để phủ đủ X, Y, Z. Tính 4 phạm vi mất khoảng 0,1 giây.
 
+## Gợi ý đặt hàng theo dự báo (Phase 5, bước 5.2)
+
+Mã: `analytics-service/app/analytics/reorder.py`; tham số trong `app/config.py`. Lệnh: `python main.py reorder [--store CH01]`.
+Chỉ gợi ý, không tạo chứng từ. Trang "Đề xuất đặt hàng" của phần mềm (§10.5) giữ nguyên (quyết định D18).
+
+| Đại lượng | Cách tính |
+|---|---|
+| Kỳ cần đủ P | `lead_time_days` (danh mục, trống = 2) + `REORDER_COVER_DAYS` = 7 |
+| Nhu cầu P ngày | Cộng dự báo từng ngày (bước 3.5, gồm bán buôn trung bình). Thuốc chưa có dự báo: tốc độ bán 30 ngày qua |
+| Tồn an toàn | z(mức phục vụ ô ABC–XYZ, bước 5.1) × 1,25 × sai số tổng 7 ngày (backtest; chưa đo được thì 50%) × nhu cầu 7 ngày × √(P/7); **không vượt nhu cầu P ngày** |
+| Mức cần có | max(nhu cầu P + tồn an toàn, tồn tối thiểu); không quá tồn tối đa; hàng nhóm C không quá 30 ngày bán dự báo |
+| Tồn dùng được | Tồn bán được − phần các lô sẽ hết hạn trước khi bán kịp (FEFO theo dự báo, chỉ lô ≤ 90 ngày) |
+| Số đặt | Mức cần có − tồn dùng được, làm tròn lên theo `pack_size` |
+| Giá, nhà cung cấp | Lô nhập gần nhất của thuốc ở cửa hàng đó; hết sạch thì lô gần nhất ở cả chuỗi; không có thì giá vốn gần nhất trong tệp bán. Nhà cung cấp ghi ở danh mục được ưu tiên |
+| Lý do (gấp → thường) | Hết hàng · Hết trước khi hàng kịp về (ngày dự kiến hết ≤ thời gian chờ) · Dưới tồn tối thiểu · Cần bổ sung cho kỳ tới |
+
+Tại sao chặn tồn an toàn ≤ nhu cầu P: thuốc vừa hết hàng có số bán tụt về 0 vì không có hàng để bán (nhu cầu bị "che"), backtest đo sai số rất cao (Amlodipin CH02: 56%) và công thức đẩy tồn an toàn lên 1.671 viên, hơn cả nhu cầu 1.271.
+
+Đo trên dữ liệu mẫu (30/10 22:00): 10 dòng, 15,2 triệu đ, 5 nhà cung cấp; 4 hết hàng, 1 hết trước khi hàng về, 1 dưới tối thiểu, 4 bổ sung. Cách tính của trang Đề xuất đặt hàng (tốc độ bán 30 ngày × 9 ngày, không tồn an toàn) ra 6 dòng: bỏ sót Bisoprolol, Cefixim, Metronidazol, Que test COVID (dự kiến hết sau 14–22 ngày, tồn còn hơn 9 ngày bán nhưng thấp hơn mức cần khi tính tồn an toàn). Tính gợi ý mất ~0,3 giây; cả pipeline ~5 giây.
+
+Giới hạn: tệp tồn kho chỉ là ảnh chụp hiện tại nên chưa mô phỏng lại được "nếu đặt theo gợi ý thì có hết hàng không" trên quá khứ; nguồn PostgreSQL (bước 5.5) có lịch sử nhập để đo.
+

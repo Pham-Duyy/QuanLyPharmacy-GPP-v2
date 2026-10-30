@@ -50,6 +50,10 @@ MEDICINES = DatasetSchema(
         ColumnSpec("is_prescription", "bool", False, "Thuốc kê đơn (Y/N)", ("ke don", "thuoc ke don")),
         ColumnSpec("min_stock", "int", False, "Tồn tối thiểu", ("ton toi thieu", "ton min")),
         ColumnSpec("max_stock", "int", False, "Tồn tối đa", ("ton toi da", "ton max")),
+        # Phase 5 (quyết định D19), cho gợi ý đặt hàng; để trống thì dùng mặc định trong config.py.
+        ColumnSpec("pack_size", "int", False, "Quy cách: số đơn vị bán nhỏ nhất mỗi đơn vị đặt", ("quy cach", "so luong moi hop", "dong goi")),
+        ColumnSpec("lead_time_days", "int", False, "Số ngày chờ hàng về", ("thoi gian cho", "ngay cho hang", "lead time")),
+        ColumnSpec("supplier", "text", False, "Nhà cung cấp thường đặt", ("nha cung cap", "ncc")),
     ),
 )
 

@@ -12,6 +12,8 @@ from dataclasses import dataclass
 
 import pandas as pd
 
+from app.config import LEAD_TIME_MAX_DAYS
+
 from .cleaner import CleanResult
 from .issues import DataIssue, Severity
 from .loader import ROW_COLUMN
@@ -93,6 +95,15 @@ def _medicine_rules(check: _Collector) -> None:
     for name in ("min_stock", "max_stock"):
         check.flag(data[name] < 0, name, "negative_value", "error", "Tồn kho tối thiểu/tối đa không được âm")
     check.flag(data["min_stock"] > data["max_stock"], "min_stock", "min_above_max", "warning", "Tồn tối thiểu lớn hơn tồn tối đa")
+    # Sai thì chỉ cảnh báo: gợi ý đặt hàng dùng giá trị mặc định cho thuốc đó.
+    check.flag(data["pack_size"] < 1, "pack_size", "invalid_pack_size", "warning", "Quy cách phải từ 1 trở lên: dùng 1")
+    check.flag(
+        (data["lead_time_days"] < 0) | (data["lead_time_days"] > LEAD_TIME_MAX_DAYS),
+        "lead_time_days",
+        "lead_time_out_of_range",
+        "warning",
+        f"Số ngày chờ hàng phải từ 0 đến {LEAD_TIME_MAX_DAYS}: dùng mặc định",
+    )
 
 
 def _sales_rules(check: _Collector, catalog_codes: set[str] | None, now: pd.Timestamp) -> None:

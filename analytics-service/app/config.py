@@ -181,3 +181,21 @@ SERVICE_LEVELS = {
     "BX": 0.95, "BY": 0.95, "BZ": 0.93,
     "CX": 0.93, "CY": 0.92, "CZ": 0.90,
 }
+
+# --- Gợi ý đặt hàng (Phase 5, bước 5.2; quyết định D19, D20) ----------------------------
+
+# Mặc định khi tệp medicines không ghi pack_size / lead_time_days (cột tùy chọn).
+REORDER_DEFAULT_PACK = 1
+REORDER_DEFAULT_LEAD_DAYS = 2
+LEAD_TIME_MAX_DAYS = 60
+# Mỗi lần đặt mua đủ bán ngần này ngày (chu kỳ đặt hàng), cộng thêm thời gian chờ hàng về.
+REORDER_COVER_DAYS = 7
+# Thuốc chưa đo được sai số dự báo (ít lịch sử): coi sai số tổng 7 ngày là 50%.
+REORDER_FALLBACK_ERROR = 0.5
+# Sai số tuyệt đối trung bình → độ lệch chuẩn: σ ≈ 1,25 × MAE khi sai số gần phân phối chuẩn.
+MAE_TO_SIGMA = 1.25
+# Trần tồn sau khi đặt theo nhóm ABC (số ngày bán dự báo): hàng C đặt ít để khỏi đọng vốn, hết hạn.
+REORDER_MAX_DAYS = {"C": 30}
+# Tồn an toàn không vượt ngần này lần nhu cầu của kỳ: thuốc vừa hết hàng có số bán tụt về 0 (nhu cầu bị
+# "che"), backtest đo ra sai số rất cao và đẩy tồn an toàn lên quá mức.
+SAFETY_MAX_SHARE = 1.0

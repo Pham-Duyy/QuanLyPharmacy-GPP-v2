@@ -236,6 +236,63 @@ def command_abc(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_reorder(args: argparse.Namespace) -> int:
+    """Gợi ý đặt hàng theo dự báo (bước 5.2): tồn an toàn theo ABC–XYZ, trừ lô sắp hết hạn, làm tròn quy cách."""
+    from app.analytics.classify import classify
+    from app.analytics.forecast import forecast_bundle, stockout_projection
+    from app.analytics.reorder import REASON_LABELS, reorder_plan
+    from app.analytics.stock import sellable_stock
+
+    try:
+        results = process_folder(args.folder)
+    except (LoadError, FileNotFoundError) as error:
+        print(f"Không xử lý được: {error}", file=sys.stderr)
+        return 1
+    if "inventory" not in results:
+        print(f"Chưa có inventory.xlsx hoặc inventory.csv trong {args.folder}", file=sys.stderr)
+        return 1
+    medicines = results["medicines"].data if "medicines" in results else None
+    inventory = results["inventory"].data
+    as_of = pd.Timestamp(args.as_of) if args.as_of else now_local()
+    sales = prepare_sales(results["sales"].data, medicines)
+    sales = sales[sales["sale_datetime"] < as_of]
+    stores = sorted(sales["store_code"].dropna().unique().tolist())
+    forecast = forecast_bundle(sales, as_of, stores)
+    stockout = stockout_projection(forecast["demand_points"], sellable_stock(inventory, as_of))
+    classes = {store or "ALL": classify(sales, inventory, medicines, as_of, store) for store in [None, *stores]}
+    plan = reorder_plan(sales, inventory, medicines, as_of, forecast, stockout, classes)
+    scope = args.store.upper() if args.store else "ALL"
+    result = plan.get(scope)
+    if result is None:
+        print(f"Không có cửa hàng {scope}", file=sys.stderr)
+        return 1
+    if args.json:
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return 0
+
+    where = "toàn chuỗi" if scope == "ALL" else f"cửa hàng {scope}"
+    print(f"\nGợi ý đặt hàng {where}: đủ bán {result['cover_days']} ngày sau khi hàng về, dữ liệu đến {as_of:%d/%m/%Y %H:%M}")
+    print(f"{result['lines']} dòng, tổng {_money(result['order_value'])} theo giá nhập gần nhất")
+    for part in result["by_reason"].values():
+        if part["lines"]:
+            print(f"  {part['label']:<28} {part['lines']:>3}")
+    print()
+    for item in result["items"][: args.top]:
+        days = "—" if item["days_until_stockout"] is None else f"{item['days_until_stockout']} ngày"
+        print(
+            f"  {item['store_code']} {item['cell']:<3} {item['medicine_name'] or item['medicine_code']:<30}"
+            f" tồn {_number(item['usable_quantity']):>6}  cần {_number(item['target_quantity']):>7}"
+            f"  đặt {_number(item['order_quantity']):>6} {item['unit'] or ''}  {_money(item['order_value']):>14}"
+            f"  hết sau {days:>8}  {REASON_LABELS[item['reason']]}"
+        )
+    if result["lines"] > args.top:
+        print(f"  … và {result['lines'] - args.top} dòng khác")
+    print("\nTheo nhà cung cấp:")
+    for entry in result["by_supplier"]:
+        print(f"  {entry['supplier']:<30} {entry['lines']:>3} dòng  {_money(entry['order_value']):>16}")
+    return 0
+
+
 def command_inventory(args: argparse.Namespace) -> int:
     """Tình trạng tồn kho (bước 2.3): hết hàng, sắp hết, tồn chết, tồn cao."""
     from app.analytics.inventory import STATUS_LABELS, inventory_analysis
@@ -618,6 +675,13 @@ def main() -> int:
     abc.add_argument("--top", type=int, default=20, help="Số thuốc in ra (mặc định 20)")
     abc.add_argument("--json", action="store_true", help="In kết quả dạng JSON")
     abc.set_defaults(handler=command_abc)
+    reorder = commands.add_parser("reorder", help="Gợi ý đặt hàng theo dự báo, tồn an toàn theo ABC–XYZ")
+    reorder.add_argument("folder", nargs="?", type=Path, default=SAMPLES_DIR, help="Thư mục chứa medicines/sales/inventory")
+    reorder.add_argument("--store", help="Một cửa hàng, ví dụ CH01 (mặc định toàn chuỗi)")
+    reorder.add_argument("--as-of", help="Thời điểm tính (mặc định: bây giờ)")
+    reorder.add_argument("--top", type=int, default=30, help="Số dòng in ra (mặc định 30)")
+    reorder.add_argument("--json", action="store_true", help="In kết quả dạng JSON")
+    reorder.set_defaults(handler=command_reorder)
     run = commands.add_parser("run", help="Chạy pipeline và lưu snapshot vào SQLite")
     run.add_argument("folder", nargs="?", type=Path, default=SAMPLES_DIR, help="Thư mục chứa medicines/sales/inventory")
     run.add_argument("--db", type=Path, default=ANALYTICS_DB, help="Tệp SQLite (mặc định data/analytics.db)")

@@ -31,6 +31,7 @@ from app.analytics import (
 )
 from app.analytics.alerts import build_alerts
 from app.analytics.classify import classify
+from app.analytics.reorder import reorder_plan
 from app.analytics.anomaly_events import detect_anomalies
 from app.analytics.forecast import data_key, forecast_bundle, stockout_projection
 from app.analytics.stock import sellable_stock
@@ -46,7 +47,7 @@ Trigger = Literal["manual", "monitor", "refresh"]
 # Các khối mà phiên bản hiện tại luôn ghi vào snapshot.
 SNAPSHOT_KEYS = {
     "kpi", "trend", "breakdown_month", "products", "inventory", "expiry", "alerts", "anomalies", "forecast",
-    "classification",
+    "classification", "reorder",
 }
 Status = Literal["processed", "refreshed", "unchanged", "failed"]
 
@@ -367,6 +368,9 @@ def build_snapshot(
         recent = [event for event in anomalies[key] if event["end"] >= recent_from]
         alerts[key] = build_alerts(stock[key], expiry[key], data_quality if store is None else None, recent)
 
+    # Phase 5 (bước 5.2): gợi ý đặt hàng theo dự báo, tồn an toàn theo ô ABC–XYZ của từng cửa hàng.
+    reorder = reorder_plan(sales, inventory, medicines, as_of, forecast, stockout, classes)
+
     return {
         "generated_at": _now_text(),
         "as_of": as_of.isoformat(),
@@ -393,6 +397,7 @@ def build_snapshot(
         "alerts": alerts,
         "anomalies": anomalies,
         "classification": classes,
+        "reorder": reorder,
         "forecast": None
         if forecast is None
         else {

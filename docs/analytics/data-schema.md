@@ -28,6 +28,9 @@ Nguồn sự thật trong code: `analytics-service/app/processor/schemas.py` (c�
 | is_prescription | | Y/N, Có/Không | Kê đơn |
 | min_stock | | số ≥ 0 | Tồn tối thiểu |
 | max_stock | | số ≥ 0 | Tồn tối đa |
+| pack_size | | số nguyên ≥ 1 | Quy cách, Đóng gói: số đơn vị bán nhỏ nhất mỗi đơn vị đặt (hộp 10 vỉ × 10 viên = 100). Trống: 1 |
+| lead_time_days | | số nguyên 0–60 | Thời gian chờ, Ngày chờ hàng. Trống: 2 ngày |
+| supplier | | chữ | Nhà cung cấp, NCC thường đặt. Trống: lấy theo lô nhập gần nhất trong tệp tồn |
 
 ## sales.xlsx: chi tiết bán hàng (mỗi dòng một mặt hàng trong một hóa đơn)
 
@@ -59,6 +62,8 @@ Nguồn sự thật trong code: `analytics-service/app/processor/schemas.py` (c�
 | unknown_column | warning | mọi tệp | Cột không có trong schema (bỏ qua) |
 | negative_value | error | medicines | Tồn tối thiểu/tối đa âm |
 | min_above_max | warning | medicines | Tồn tối thiểu lớn hơn tối đa |
+| invalid_pack_size | warning | medicines | Quy cách nhỏ hơn 1: gợi ý đặt hàng dùng 1 |
+| lead_time_out_of_range | warning | medicines | Thời gian chờ ngoài 0–60 ngày: dùng mặc định 2 |
 | non_positive_quantity | error | sales | Số lượng ≤ 0 |
 | fractional_quantity | warning | sales | Số lượng có phần lẻ |
 | negative_price | error | sales | Giá bán hoặc giá vốn âm |

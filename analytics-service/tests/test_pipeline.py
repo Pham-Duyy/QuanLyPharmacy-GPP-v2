@@ -92,6 +92,8 @@ def test_first_run_stores_snapshot_matching_kpi_engine(workspace, reads):
     # Bước 5.1: phân loại ABC–XYZ cho toàn chuỗi và từng cửa hàng.
     assert set(snapshot["classification"]) == {"ALL", "CH01", "CH02"}
     assert snapshot["classification"]["ALL"]["summary"]["A"]["count"] >= 1
+    # Bước 5.2: gợi ý đặt hàng cần tệp tồn kho; chưa có thì báo không có.
+    assert snapshot["reorder"]["ALL"]["available"] is ("inventory" in snapshot["source"])
 
     # Bảng theo ngày × cửa hàng, nền cho phát hiện bất thường và dự báo.
     assert store.daily_kpis() == [
