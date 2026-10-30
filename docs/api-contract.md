@@ -1418,7 +1418,7 @@ Ngày 11/10/2026 quyết định không dùng AI. Ngày 30/10/2026 mở lại **
 - Tương tác, dị ứng, trùng hoạt chất: kiểm tra an toàn theo dữ liệu và luật (§13).
 - Gợi ý nhập hàng: đề xuất đặt hàng theo tốc độ bán và tồn tối thiểu (§10.5).
 
-Bảng `ai_logs` và quyền `ai.use` gỡ ở migration `20261011150000_remove_ai` vẫn không dùng lại: trợ lý phân tích dùng quyền báo cáo có sẵn và không lưu nhật ký AI.
+Bảng `ai_logs` và quyền `ai.use` gỡ ở migration `20261011150000_remove_ai` vẫn không dùng lại: trợ lý phân tích (§20.1) và AI Agent (§20.2) dùng quyền báo cáo có sẵn. Trợ lý §20.1 không lưu nhật ký AI; AI Agent §20.2 ghi nhật ký riêng `ai_agent_logs` (migration `20261031090000_ai_agent`) theo yêu cầu kiểm soát của Pharmacy Intelligent Analytics.
 
 ### 20.0. Pharmacy Intelligent Analytics (đang xây dựng)
 
@@ -1460,6 +1460,20 @@ Quy tắc:
 - Kỳ đầu, kỳ cuối chỉ có một phần dữ liệu (tệp bắt đầu giữa tuần, dừng giữa tháng) cũng không tính vào mức tăng/giảm.
 - CSV: nhận dấu phân cách `,` `;` hoặc tab, BOM của Excel, bảng mã UTF-8 hoặc Windows-1258; số kiểu `1.234.567,5` hoặc `1,234,567.5`; thời gian kiểu `2025-03-01`, `2025-03-01 08:30`, `01/03/2025`, `03/2025`, `Tháng 3/2025`, `Q1/2025`. Tệp rỗng hoặc chỉ có tiêu đề: 422.
 - Phản hồi: `source` (`kind` = `csv`/`xlsx`/`chain`, `sheets`, `sheet`, `notes`), `summary`, `plan`, `planSource` (`ai`/`rules`/`provided`), `columnLabels`, `valueFormat`, `result` (kỳ, chuỗi tổng, chuỗi từng nhóm, thống kê tổng và từng nhóm), `charts`, `facts`, `narrative` (`headline`, `findings`, `recommendations`), `narrativeSource` (`ai`/`rules`), `warnings`.
+
+
+### 20.2. AI Agent của Bảng điều hành
+
+Hỏi đáp tiếng Việt trên số liệu analytics-service. Claude chỉ gọi 16 tool chỉ đọc (cùng phân quyền với `/bi/*`), không có tool ghi hay SQL; mọi số trong câu trả lời được đối chiếu tất định với kết quả tool, sai thì yêu cầu sửa một lần, vẫn sai thì chặn. Chi tiết: [architecture.md](analytics/architecture.md#phase-4-ai-agent-thiết-kế-đã-chốt).
+
+| Method | Endpoint | Mô tả | Quyền |
+|---|---|---|---|
+| GET | `/bi/ask/status` | `enabled` (có `ANTHROPIC_API_KEY`), `limits`: `questionsPerHour` 30, `remainingThisHour`, `conversationTurns` 10, `questionChars` 1.000, `timeoutSeconds` 60 | `report.sales` hoặc `report.chain` |
+| POST | `/bi/ask` | JSON: `question` (1–1.000 ký tự), `conversationId` (UUID, tùy chọn: hỏi tiếp hội thoại cũ) | `report.sales` hoặc `report.chain` |
+
+- Phản hồi: `conversationId`, `status` (`answered`, `blocked`, `round_limit`, `timeout`, `refused`, `truncated`, `unavailable`), `answer` (chỉ khi `answered`), `notice` (câu cố định cho các trạng thái còn lại; `blocked`: "Không đủ dữ liệu đã kiểm chứng để trả lời câu này…"), `verification` (`checked`, `unverified`, `retried`), `toolCalls` (`name`, `input`, `ok`, `durationMs`, `error`), `rounds`, `model`, `durationMs`, `usage` (token), `costUsd` (ước tính), `conversation` (`turns`, `maxTurns`, `expiresAt`), `remainingThisHour`, `logId`.
+- Lỗi: `503 AI_DISABLED` (chưa cấu hình khóa), `429 RATE_LIMITED` (quá 30 câu trong 1 giờ, kể cả câu lỗi; thông báo kèm giờ hỏi lại được), `409 AGENT_BUSY` (câu trước của chính người đó chưa xong), `404` (hội thoại không có hoặc của người khác), `409 CONVERSATION_EXPIRED` (quá 24 giờ), `409 CONVERSATION_FULL` (đủ 10 câu).
+- Hội thoại lưu ở `ai_agent_conversations`, chỉ thêm, xóa khi hết hạn. Câu trả lời bị chặn không được lưu vào hội thoại. Mỗi câu hỏi một dòng `ai_agent_logs`: câu hỏi, trạng thái, câu trả lời, tool đã gọi (không lưu số liệu tool trả về), đối chiếu số, token, chi phí, lỗi.
 
 ---
 

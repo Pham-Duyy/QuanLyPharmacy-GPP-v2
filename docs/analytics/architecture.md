@@ -376,6 +376,20 @@ Chi phí ước tính khoảng 1.000–2.000 đ/câu (Opus 5.5: $4 / $20 mỗi t
   (doanh thu cửa hàng A nói thành của B) không bị bắt. Bộ câu hỏi đánh giá ở bước 4.6 đo lỗi loại này.
 - Test: `verify.test.ts` (19 test) và 4 test trong `agent.test.ts` (đúng ngay, sửa một lần, chặn, trả lời không gọi tool).
 
+### Endpoint, nhật ký, hội thoại (bước 4.4, đã làm)
+
+`POST /api/v1/bi/ask`, `GET /api/v1/bi/ask/status` (api-contract §20.2); mã ở `server/src/modules/bi/agent/agent.service.ts`.
+
+- Migration `20261031090000_ai_agent`: bảng `ai_agent_conversations` (lịch sử gửi Claude dạng JSON, `turns` ≤ 10,
+  `expires_at` = tạo + 24 giờ) và `ai_agent_logs` (mỗi câu hỏi một dòng: câu hỏi, trạng thái, câu trả lời, tool đã gọi
+  gồm tên, tham số, thời gian, lỗi; đối chiếu số; token; chi phí; lỗi). Không lưu số liệu tool trả về.
+- Thứ tự kiểm trước khi gọi Claude: có khóa (503) → không có câu khác của chính người đó đang chạy (409) → chưa quá
+  30 câu trong 60 phút, đếm trên nhật ký kể cả câu lỗi (429, báo giờ hỏi lại được) → hội thoại thuộc người hỏi (404),
+  chưa hết hạn, chưa đủ 10 câu (409).
+- Lưu hội thoại bằng điều kiện `turns` chưa đổi (hai yêu cầu cùng lúc thì một bên 409). Lỗi ngoài dự kiến vẫn ghi
+  nhật ký `status = error` rồi trả 500. Hội thoại hết hạn bị xóa khi có câu hỏi mới; nhật ký giữ lại.
+- Test: `agent.routes.test.ts` (7 test, CSDL thật, Claude giả).
+
 ## Lộ trình
 
 | Phase | Nội dung | Trạng thái |
@@ -402,7 +416,7 @@ Chi phí ước tính khoảng 1.000–2.000 đ/câu (Opus 5.5: $4 / $20 mỗi t
 | 4.1 | Lớp tool: định nghĩa (schema chặt), gọi qua Gateway, lọc quyền, cắt gọn kết quả | Xong |
 | 4.2 | Vòng lặp Agent, system prompt, prompt caching, giới hạn (6 vòng, 60 giây), tính chi phí; test bằng Claude giả | Xong |
 | 4.3 | Đối chiếu số, sửa 1 lần, chặn; trả lời "không đủ dữ liệu" | Xong |
-| 4.4 | Nhật ký `ai_agent_logs`, giới hạn tần suất (30 câu/giờ), lưu hội thoại chỉ-thêm | |
+| 4.4 | Nhật ký `ai_agent_logs`, giới hạn tần suất (30 câu/giờ), lưu hội thoại chỉ-thêm | Xong |
 | 4.5 | Giao diện hỏi đáp trên Bảng điều hành: câu gợi ý, tool đã gọi, nguồn số, kết quả đối chiếu | |
 | 4.6 | Bộ ~30 câu hỏi đánh giá; chạy thật cần API key, tốn tiền: báo chi phí và hỏi trước | |
 | 5 | Gợi ý đặt hàng, ABC, ML nâng cao, nguồn PostgreSQL | |

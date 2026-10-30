@@ -4,6 +4,7 @@ import { sendData } from "../../lib/respond.js";
 import { parseOrThrow } from "../../lib/validate.js";
 import { authenticate } from "../../middlewares/authenticate.js";
 import { requireAnyPermission } from "../../middlewares/require-permission.js";
+import { agentStatus, askQuestion } from "./agent/agent.service.js";
 import { fetchAnalytics } from "./bi.client.js";
 import {
   biAccess,
@@ -157,4 +158,20 @@ biRouter.get("/bi/anomalies", async (req, res) => {
 biRouter.get("/bi/forecast", async (req, res) => {
   const query = parseOrThrow(forecastQuery, req.query);
   sendData(res, await getForecast(await biAccess(req.auth!), query));
+});
+
+// --- AI Agent (Phase 4, bước 4.4) -----------------------------------------------------------
+
+const askBody = z.object({
+  question: z.string().trim().min(1, "Câu hỏi trống").max(1_000, "Câu hỏi tối đa 1.000 ký tự"),
+  conversationId: z.uuid("Mã hội thoại không hợp lệ").optional(),
+});
+
+biRouter.get("/bi/ask/status", async (req, res) => {
+  sendData(res, await agentStatus(req.auth!));
+});
+
+biRouter.post("/bi/ask", async (req, res) => {
+  const body = parseOrThrow(askBody, req.body);
+  sendData(res, await askQuestion(req.auth!, body));
 });

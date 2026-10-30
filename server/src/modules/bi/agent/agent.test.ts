@@ -318,10 +318,10 @@ describe("giới hạn", () => {
     const fake = fakeClaude([reply("x")]);
     await expect(
       askAgent({ access: CHAIN, question: "   ", client: fake.client }),
-    ).rejects.toMatchObject({ status: 400 });
+    ).rejects.toMatchObject({ status: 422 });
     await expect(
       askAgent({ access: CHAIN, question: "a".repeat(1_001), client: fake.client }),
-    ).rejects.toMatchObject({ status: 400 });
+    ).rejects.toMatchObject({ status: 422 });
     expect(fake.calls).toHaveLength(0);
   });
 

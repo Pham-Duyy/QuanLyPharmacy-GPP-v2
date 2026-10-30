@@ -138,6 +138,8 @@ model User {
   nationalSyncConfigs       NationalSyncConfig[]
   nationalSyncStoreConfigs  NationalSyncStoreConfig[]
   einvoiceStoreConfigs      EInvoiceStoreConfig[]
+  aiAgentConversations      AiAgentConversation[]
+  aiAgentLogs               AiAgentLog[]
   nationalDrugLinks         NationalDrugLink[]
 
   @@index([defaultStoreId])
@@ -1774,4 +1776,59 @@ model CashMovement {
 
   @@index([shiftId, createdAt], map: "cash_movements_shift_idx")
   @@map("cash_movements")
+}
+
+// ---------------------------------------------------------------------------
+// AI Agent của Bảng điều hành (Pharmacy Intelligent Analytics, Phase 4)
+// ---------------------------------------------------------------------------
+
+/// Hội thoại với AI Agent. `messages` là lịch sử gửi Claude, chỉ thêm, không
+/// sửa (Opus 5.5 gắn khối thinking với đúng lịch sử). Tối đa 10 câu hỏi, hết
+/// hạn 24 giờ sau khi tạo; hết hạn thì xóa, nhật ký vẫn giữ.
+model AiAgentConversation {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  messages  Json     @default("[]")
+  turns     Int      @default(0)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(6)
+
+  user User         @relation(fields: [userId], references: [id])
+  logs AiAgentLog[]
+
+  @@index([expiresAt], map: "ai_agent_conversations_expires_idx")
+  @@map("ai_agent_conversations")
+}
+
+/// Nhật ký mỗi câu hỏi gửi AI Agent (master prompt: log AI requests, tool
+/// calls, errors). Không lưu kết quả tool (số liệu đầy đủ), chỉ tên, tham số,
+/// thời gian, lỗi. Dùng cả để giới hạn 30 câu/giờ mỗi người.
+model AiAgentLog {
+  id               BigInt   @id @default(autoincrement())
+  occurredAt       DateTime @default(now()) @map("occurred_at") @db.Timestamptz(6)
+  userId           String   @map("user_id") @db.Uuid
+  conversationId   String?  @map("conversation_id") @db.Uuid
+  question         String
+  /// answered, blocked, round_limit, timeout, refused, truncated, unavailable, error.
+  status           String
+  answer           String?
+  toolCalls        Json     @default("[]") @map("tool_calls")
+  verification     Json?
+  rounds           Int      @default(0)
+  model            String?
+  inputTokens      Int      @default(0) @map("input_tokens")
+  outputTokens     Int      @default(0) @map("output_tokens")
+  cacheReadTokens  Int      @default(0) @map("cache_read_tokens")
+  cacheWriteTokens Int      @default(0) @map("cache_write_tokens")
+  costUsd          Decimal? @map("cost_usd") @db.Decimal(10, 6)
+  durationMs       Int      @default(0) @map("duration_ms")
+  error            String?
+
+  user         User                 @relation(fields: [userId], references: [id])
+  conversation AiAgentConversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+
+  @@index([userId, occurredAt(sort: Desc)], map: "ai_agent_logs_user_idx")
+  @@index([occurredAt(sort: Desc)], map: "ai_agent_logs_occurred_idx")
+  @@map("ai_agent_logs")
 }

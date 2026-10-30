@@ -129,9 +129,16 @@ export type AgentClient = {
 };
 
 let sdk: Anthropic | null = null;
+let override: AgentClient | null | undefined;
+
+/** Test thay Claude thật bằng Claude giả; `undefined` trở lại client thật. */
+export function overrideAgentClient(client: AgentClient | null | undefined): void {
+  override = client;
+}
 
 /** Client thật; null khi chưa đặt ANTHROPIC_API_KEY. */
 export function claudeClient(): AgentClient | null {
+  if (override !== undefined) return override;
   if (!env.ANTHROPIC_API_KEY) return null;
   sdk ??= new Anthropic({ apiKey: env.ANTHROPIC_API_KEY, maxRetries: 1 });
   const client = sdk;
@@ -213,10 +220,10 @@ export async function askAgent(options: {
   timeoutMs?: number;
 }): Promise<AgentResult> {
   const question = options.question.trim();
-  if (!question) throw new AppError(400, "VALIDATION_ERROR", "Câu hỏi trống");
+  if (!question) throw new AppError(422, "VALIDATION_ERROR", "Câu hỏi trống");
   if (question.length > AGENT_LIMITS.questionChars) {
     throw new AppError(
-      400,
+      422,
       "VALIDATION_ERROR",
       `Câu hỏi dài quá ${AGENT_LIMITS.questionChars} ký tự`,
     );
