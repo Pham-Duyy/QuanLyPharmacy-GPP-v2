@@ -12,6 +12,8 @@ Chưa có: sao lưu trong phần mềm, đơn đặt hàng gửi nhà cung cấp
 - Máy chủ: Node.js + Express
 - CSDL: PostgreSQL 17
 
+**Pharmacy Intelligent Analytics** (đang xây dựng): dịch vụ Python `analytics-service/` tự theo dõi tệp Excel/CSV, xử lý và tính chỉ số kinh doanh không cần gọi AI; AI Agent hỏi đáp nằm phía trên. Xem [docs/analytics/architecture.md](docs/analytics/architecture.md) và [analytics-service/README.md](analytics-service/README.md).
+
 ## Tài liệu thiết kế
 
 | Tài liệu | Nội dung |

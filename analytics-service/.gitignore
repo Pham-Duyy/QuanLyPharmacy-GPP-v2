@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+# Dữ liệu thật của nhà thuốc không đưa lên git; dữ liệu mẫu sinh lại bằng script.
+data/inbox/*
+!data/inbox/.gitkeep
+data/samples/*.xlsx
+data/reports/

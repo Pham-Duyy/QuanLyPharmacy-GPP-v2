@@ -1,0 +1,11 @@
+# Bước 1.1 + 1.2: đọc và xử lý dữ liệu
+pandas>=2.2
+numpy>=1.26
+openpyxl>=3.1
+# Đọc .xlsx nhanh hơn openpyxl khoảng 7 lần; thiếu gói này vẫn chạy được bằng openpyxl
+python-calamine>=0.2
+# Windows không có sẵn dữ liệu múi giờ; zoneinfo cần gói này để hiểu "Asia/Ho_Chi_Minh"
+tzdata>=2024.1
+
+# Kiểm thử
+pytest>=8.0

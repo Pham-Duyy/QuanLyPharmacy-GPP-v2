@@ -1420,6 +1420,10 @@ Ngày 11/10/2026 quyết định không dùng AI. Ngày 30/10/2026 mở lại **
 
 Bảng `ai_logs` và quyền `ai.use` gỡ ở migration `20261011150000_remove_ai` vẫn không dùng lại: trợ lý phân tích dùng quyền báo cáo có sẵn và không lưu nhật ký AI.
 
+### 20.0. Pharmacy Intelligent Analytics (đang xây dựng)
+
+Hướng phát triển chính của phần phân tích từ 30/10/2026: dịch vụ Python riêng `analytics-service/` theo dõi tệp dữ liệu, xử lý và tính chỉ số **không gọi LLM**; AI Agent chỉ là lớp hỏi đáp phía trên, đọc số liệu qua tool định nghĩa sẵn. Kiến trúc, quyết định và lộ trình: [docs/analytics/architecture.md](analytics/architecture.md); schema tệp và luật kiểm tra: [docs/analytics/data-schema.md](analytics/data-schema.md). Trợ lý ở §20.1 giữ lại làm tính năng "hỏi nhanh trên một tệp bất kỳ".
+
 ### 20.1. Trợ lý phân tích dữ liệu kinh doanh
 
 Dữ liệu là bán hàng của chuỗi, hoặc **tệp Excel (.xlsx) hay CSV** người dùng tải lên. Người dùng hỏi bằng tiếng Việt (ví dụ "Phân tích xu hướng doanh thu 12 tháng gần nhất và cho biết chi nhánh nào giảm mạnh nhất"), hệ thống trả về biểu đồ theo thời gian, so sánh giữa các nhóm, mức tăng/giảm và nhận xét. Kiến trúc theo LIDA (Dibia, ACL 2023, [aclanthology.org/2023.acl-demo.11](https://aclanthology.org/2023.acl-demo.11.pdf)):
