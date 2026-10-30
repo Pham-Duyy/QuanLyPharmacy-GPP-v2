@@ -195,3 +195,24 @@ def test_old_snapshots_are_pruned(workspace, monkeypatch):
     assert len(store.recent_runs()) == 5
     with store._connect() as db:
         assert [row[0] for row in db.execute("SELECT version FROM snapshots ORDER BY version")] == [3, 4, 5]
+
+
+def test_inventory_file_is_optional_and_tracked(workspace, reads):
+    """Tồn kho không bắt buộc; thêm hoặc sửa tệp tồn kho cũng sinh snapshot mới."""
+    folder, store = workspace
+    pipeline = Pipeline(folder, store)
+    pipeline.run(as_of=AS_OF)
+    assert set(store.latest_snapshot()["data_quality"]) == {"medicines", "sales"}
+
+    lot = {"store_code": "CH01", "medicine_code": "GD001", "batch_code": "PA2611", "quantity": 100, "expiry_date": datetime(2027, 6, 30)}
+    pd.DataFrame([lot]).to_excel(folder / "inventory.xlsx", index=False)
+    added = pipeline.run(as_of=AS_OF + pd.Timedelta(minutes=1))
+    snapshot = store.latest_snapshot()
+    assert (added.status, added.snapshot_version) == ("processed", 2)
+    assert snapshot["data_quality"]["inventory"]["rows_valid"] == 1
+    assert "inventory" in snapshot["source"]
+
+    pd.DataFrame([lot, {**lot, "batch_code": "PA2612", "quantity": -1}]).to_excel(folder / "inventory.xlsx", index=False)
+    changed = pipeline.run(as_of=AS_OF + pd.Timedelta(minutes=2))
+    assert (changed.status, changed.snapshot_version, reads["count"]) == ("processed", 3, 3)
+    assert store.latest_snapshot()["data_quality"]["inventory"]["by_code"] == {"negative_value": 1}

@@ -1,4 +1,4 @@
-"""Sinh bộ dữ liệu mẫu: medicines.xlsx và sales.xlsx.
+"""Sinh bộ dữ liệu mẫu: medicines.xlsx, sales.xlsx và inventory.xlsx.
 
 Dữ liệu giả lập 3 cửa hàng, 60 mặt hàng, 90 ngày bán, có sẵn vài "câu chuyện"
 để các bước phân tích sau có thứ để phát hiện:
@@ -7,7 +7,12 @@ Dữ liệu giả lập 3 cửa hàng, 60 mặt hàng, 90 ngày bán, có sẵn 
 - Nhóm Hô hấp – ho cảm tăng mạnh trong 30 ngày cuối (mùa cảm cúm).
 - Cuối tuần đông khách hơn ngày thường.
 
-Mặc định chèn thêm 12 dòng lỗi vào sales.xlsx và 2 dòng lỗi vào medicines.xlsx
+Tồn kho theo lô (inventory.xlsx, Phase 2) tính từ tốc độ bán thật của từng
+thuốc ở từng cửa hàng, kèm các tình huống cố ý (xem STORY_LOTS):
+lô đã hết hạn còn trong kho, lô sắp hết hạn mà bán không kịp, thuốc sắp hết,
+hết hàng, tồn quá nhiều, và máy xông TB010 chưa bán được cái nào (tồn chết).
+
+Mặc định chèn thêm 12 dòng lỗi vào sales.xlsx, 2 dòng vào medicines.xlsx và 7 dòng vào inventory.xlsx
 để kiểm tra bộ xử lý dữ liệu. Dùng --errors 0 để có dữ liệu sạch.
 
 Chạy:  python scripts/generate_sample_data.py
@@ -91,6 +96,8 @@ MEDICINES = [
     ("TB007", "Găng tay y tế", "Thiết bị y tế", "Đôi", 1_000, 0.50, 2, (5, 20), False),
     ("TB008", "Băng keo cá nhân", "Thiết bị y tế", "Miếng", 360, 0.65, 5, (5, 20), False),
     ("TB009", "Que test nhanh COVID-19", "Thiết bị y tế", "Que", 32_000, 0.30, 2, (1, 3), False),
+    # Độ phổ biến 0: có trong danh mục, có tồn, nhưng không ai mua (tồn chết).
+    ("TB010", "Máy xông mũi họng", "Thiết bị y tế", "Cái", 650_000, 0.25, 0, (1, 1), False),
 ]
 
 MANUFACTURERS = ["DHG Pharma", "Imexpharm", "Traphaco", "Stada", "Sanofi", "Pymepharco", "Domesco", "OPV"]
@@ -195,6 +202,90 @@ def build_sales(rng: random.Random, days: int, end: date, now: datetime) -> pd.D
     return pd.DataFrame(rows)
 
 
+SUPPLIERS = ["Phano", "Dược Sài Gòn", "Zuellig Pharma", "DKSH", "Vimedimex"]
+
+# Lô cố ý, ghi đè tồn tính tự động của đúng thuốc đó ở đúng cửa hàng.
+# (cửa hàng, mã thuốc, [(số ngày còn hạn, số ngày bán của lô)]): số lượng = số ngày bán × tốc độ bán.
+# Số ngày còn hạn âm là lô đã hết hạn.
+STORY_LOTS = {
+    ("CH01", "KS007"): [(-5, 6), (300, 25)],  # một lô đã hết hạn 5 ngày vẫn nằm trong kho
+    ("CH03", "TH005"): [(-20, 10), (250, 30)],  # lô hết hạn 20 ngày
+    ("CH02", "HH001"): [(5, 15), (400, 20)],  # Siro Prospan: lô còn 5 ngày, cần 15 ngày mới bán hết → nguy cơ
+    ("CH03", "HH002"): [(20, 45), (500, 20)],  # Acetylcystein: lô còn 20 ngày, cần 45 ngày → nguy cơ
+    ("CH01", "GD001"): [(6, 3), (420, 40)],  # Paracetamol: lô còn 6 ngày nhưng 3 ngày là bán hết → an toàn
+    ("CH02", "GD001"): [(380, 2)],  # Paracetamol CH02: chỉ đủ bán 2 ngày → sắp hết
+    ("CH01", "TM001"): [(450, 4)],  # Amlodipin: sắp hết
+    ("CH01", "VT004"): [(200, 140), (600, 80)],  # Omega-3: đủ bán hơn 200 ngày → tồn cao
+    ("CH03", "VT001"): [],  # Vitamin C CH03: hết hàng
+}
+DEAD_STOCK = {"CH01": 3, "CH02": 2, "CH03": 4}  # TB010 tồn ở cả ba cửa hàng
+
+
+def build_inventory(rng: random.Random, sales: pd.DataFrame, end: date) -> pd.DataFrame:
+    """Tồn hiện tại theo lô, suy ra từ tốc độ bán 30 ngày cuối (ADS) của sales sạch."""
+    recent = sales[pd.to_datetime(sales["sale_datetime"]) >= pd.Timestamp(end - timedelta(days=29))]
+    ads = recent.groupby(["store_code", "medicine_code"])["quantity"].sum() / 30
+    costs = {item[0]: item[4] for item in MEDICINES}
+    rows = []
+
+    def lot(store: str, code: str, days_left: int, quantity: float, number: int) -> None:
+        quantity = int(round(quantity))
+        if quantity <= 0:
+            return
+        expiry = end + timedelta(days=days_left)
+        # Thuốc thường có hạn 2–3 năm kể từ khi sản xuất; nhập kho sau sản xuất vài tháng.
+        received = min(expiry - timedelta(days=rng.randint(540, 900)), end - timedelta(days=rng.randint(5, 120)))
+        rows.append(
+            {
+                "store_code": store,
+                "medicine_code": code,
+                "batch_code": f"{code}-{expiry:%y%m}{number:02d}",
+                "quantity": quantity,
+                "expiry_date": expiry,
+                "purchase_price": round(costs[code] * (1 + rng.uniform(-0.02, 0.02)), 2),
+                "received_date": received,
+                "supplier": rng.choice(SUPPLIERS),
+            }
+        )
+
+    for store, *_ in STORES:
+        for code, *_ in MEDICINES:
+            rate = float(ads.get((store, code), 0.0))
+            if (store, code) in STORY_LOTS:
+                for number, (days_left, days_of_sale) in enumerate(STORY_LOTS[store, code], start=1):
+                    lot(store, code, days_left, max(rate, 1) * days_of_sale, number)
+                continue
+            if code == "TB010":
+                lot(store, code, rng.randint(700, 900), DEAD_STOCK[store], 1)
+                continue
+            if rate == 0:
+                continue  # 30 ngày không bán và không nhập: không có trong kho
+            cover = rng.uniform(20, 60)  # đủ bán 20–60 ngày: mức bình thường
+            # Phần lớn còn hạn xa; khoảng 1/8 có lô cũ hạn 8–90 ngày (mức cảnh báo, theo dõi).
+            if rng.random() < 0.125:
+                lot(store, code, rng.randint(8, 90), rate * cover * 0.3, 1)
+                lot(store, code, rng.randint(360, 800), rate * cover * 0.7, 2)
+            else:
+                lot(store, code, rng.randint(150, 800), rate * cover, 1)
+    return pd.DataFrame(rows)
+
+
+def inject_inventory_errors(inventory: pd.DataFrame) -> pd.DataFrame:
+    """Mỗi luật kiểm tra tồn kho một dòng lỗi cố ý."""
+    inventory = inventory.astype(object).copy()
+    picks = iter(range(10, 10 + 7 * 13, 13))
+    duplicate = inventory.iloc[[next(picks)]].copy()  # nhập trùng lô
+    inventory.at[next(picks), "quantity"] = -10  # tồn âm
+    row = next(picks)
+    inventory.at[row, "expiry_date"] = inventory.at[row, "received_date"] - timedelta(days=10)  # hạn trước ngày nhập
+    inventory.at[next(picks), "medicine_code"] = "XX999"  # thuốc không có trong danh mục
+    inventory.at[next(picks), "quantity"] = 0  # tồn 0 (cảnh báo, bỏ qua dòng)
+    row = next(picks)
+    inventory.at[row, "expiry_date"] = inventory.at[row, "expiry_date"].replace(year=2099)  # gõ nhầm năm (cảnh báo)
+    inventory.at[next(picks), "store_code"] = "CH09"  # cửa hàng không có trong sales (cảnh báo)
+    return pd.concat([inventory, duplicate], ignore_index=True)
+
+
 def inject_errors(sales: pd.DataFrame, medicines: pd.DataFrame, end: date) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Chèn lỗi cố ý, mỗi loại một dòng, để kiểm tra Processor bắt được hết."""
     sales = sales.astype(object).copy()
@@ -225,7 +316,7 @@ def inject_errors(sales: pd.DataFrame, medicines: pd.DataFrame, end: date) -> tu
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Sinh dữ liệu mẫu medicines.xlsx và sales.xlsx")
+    parser = argparse.ArgumentParser(description="Sinh dữ liệu mẫu medicines.xlsx, sales.xlsx, inventory.xlsx")
     parser.add_argument("--days", type=int, default=90, help="Số ngày bán hàng (mặc định 90)")
     parser.add_argument("--end-date", type=date.fromisoformat, default=date.today(), help="Ngày cuối, YYYY-MM-DD")
     parser.add_argument("--errors", type=int, choices=[0, 1], default=1, help="1: chèn dòng lỗi mẫu; 0: dữ liệu sạch")
@@ -238,25 +329,33 @@ def main() -> None:
     medicines = build_medicines(rng)
     now = datetime.now(TIMEZONE).replace(tzinfo=None)
     sales = build_sales(rng, args.days, args.end_date, now)
+    # Tồn kho tính từ sales SẠCH, trước khi chèn lỗi; dùng nguồn ngẫu nhiên riêng
+    # để thêm tồn kho không làm đổi dữ liệu bán hàng của cùng một seed.
+    inventory = build_inventory(random.Random(args.seed + 1), sales, args.end_date)
     if args.errors:
         sales, medicines = inject_errors(sales, medicines, args.end_date)
+        inventory = inject_inventory_errors(inventory)
 
     args.out.mkdir(parents=True, exist_ok=True)
     # Không để cùng lúc sales.xlsx và sales.csv: hệ thống ưu tiên .xlsx, dễ nhầm tệp đang dùng.
-    for name in ("medicines", "sales"):
+    names = ("medicines", "sales", "inventory")
+    for name in names:
         other = args.out / f"{name}.{'csv' if args.format == 'xlsx' else 'xlsx'}"
         if other.exists():
             other.unlink()
-    paths = {name: args.out / f"{name}.{args.format}" for name in ("medicines", "sales")}
+    paths = {name: args.out / f"{name}.{args.format}" for name in names}
     if args.format == "csv":
         # Ngày giờ ghi kiểu dd/mm/yyyy HH:MM:SS như Excel Việt Nam xuất CSV.
         medicines.to_csv(paths["medicines"], index=False, encoding="utf-8-sig")
         sales.to_csv(paths["sales"], index=False, encoding="utf-8-sig", date_format="%d/%m/%Y %H:%M:%S")
+        inventory.to_csv(paths["inventory"], index=False, encoding="utf-8-sig", date_format="%d/%m/%Y")
     else:
         medicines.to_excel(paths["medicines"], index=False, sheet_name="medicines")
         sales.to_excel(paths["sales"], index=False, sheet_name="sales")
+        inventory.to_excel(paths["inventory"], index=False, sheet_name="inventory")
     print(f"Đã ghi {len(medicines)} mặt hàng -> {paths['medicines']}")
     print(f"Đã ghi {len(sales):,} dòng bán hàng ({args.days} ngày đến {args.end_date}) -> {paths['sales']}")
+    print(f"Đã ghi {len(inventory):,} lô tồn kho -> {paths['inventory']}")
 
 
 if __name__ == "__main__":

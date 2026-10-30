@@ -10,7 +10,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Literal
 
-ColumnType = Literal["code", "text", "int", "number", "datetime", "bool", "choice"]
+# "date": như "datetime" nhưng bỏ giờ (hạn dùng, ngày nhập chỉ cần ngày).
+ColumnType = Literal["code", "text", "int", "number", "datetime", "date", "bool", "choice"]
 
 
 @dataclass(frozen=True)
@@ -94,4 +95,20 @@ SALES = DatasetSchema(
     ),
 )
 
-SCHEMAS = {schema.name: schema for schema in (MEDICINES, SALES)}
+INVENTORY = DatasetSchema(
+    name="inventory",
+    file_stem="inventory",
+    key=("store_code", "medicine_code", "batch_code"),
+    columns=(
+        ColumnSpec("store_code", "code", True, "Mã cửa hàng", ("ma cua hang", "cua hang", "chi nhanh", "ma ch")),
+        ColumnSpec("medicine_code", "code", True, "Mã thuốc", ("ma thuoc", "ma san pham")),
+        ColumnSpec("batch_code", "code", True, "Số lô", ("so lo", "lo", "ma lo")),
+        ColumnSpec("quantity", "number", True, "Số lượng tồn (đơn vị nhỏ nhất)", ("so luong", "sl", "sl ton", "ton", "so luong ton")),
+        ColumnSpec("expiry_date", "date", True, "Hạn dùng", ("han dung", "han su dung", "hsd", "ngay het han")),
+        ColumnSpec("purchase_price", "number", False, "Giá nhập một đơn vị", ("gia nhap", "gia von", "don gia nhap")),
+        ColumnSpec("received_date", "date", False, "Ngày nhập kho", ("ngay nhap", "ngay nhap kho")),
+        ColumnSpec("supplier", "text", False, "Nhà cung cấp", ("nha cung cap", "ncc")),
+    ),
+)
+
+SCHEMAS = {schema.name: schema for schema in (MEDICINES, SALES, INVENTORY)}

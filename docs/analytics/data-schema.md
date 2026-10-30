@@ -86,14 +86,25 @@ Tồn hiện tại theo lô. Khóa: (`store_code`, `medicine_code`, `batch_code`
 | received_date | | ngày | Ngày nhập |
 | supplier | | chữ | Nhà cung cấp |
 
+Tiêu đề tiếng Việt được nhận: Mã CH, Mã thuốc, Số lô, SL tồn, Hạn dùng (HSD), Giá nhập, Ngày nhập, Nhà cung cấp (NCC).
+Cột kiểu ngày bỏ phần giờ: hạn dùng tính theo ngày. Lô **đã hết hạn vẫn hợp lệ**: đó là thứ cần cảnh báo.
+
+Ngoài luật chung (missing_required, invalid_value, invalid_code):
+
 | Luật | Mức | Ý nghĩa |
 |---|---|---|
 | duplicate_row | error | Trùng (cửa hàng, thuốc, lô) |
 | negative_value | error | Số lượng hoặc giá nhập âm |
 | expiry_before_received | error | Hạn dùng trước ngày nhập |
+| future_date | error | Ngày nhập ở tương lai |
+| date_too_old | error | Hạn dùng trước năm 2000 |
 | unknown_medicine | error | Mã thuốc không có trong medicines |
-| zero_quantity | warning | Số lượng 0: bỏ qua dòng |
+| zero_quantity | warning | Số lượng 0: bỏ qua dòng (không tính là dòng lỗi) |
+| fractional_quantity | warning | Số lượng có phần lẻ |
 | expiry_too_far | warning | Hạn dùng quá 10 năm (gõ nhầm năm) |
+| invalid_batch | warning | Số lô có ký tự lạ hoặc dài quá 30 |
 | unknown_store | warning | Mã cửa hàng không có trong tệp bán hàng |
+
+Không có tệp tồn kho thì phần bán hàng vẫn chạy. Thứ tự xử lý: medicines → sales → inventory.
 
 Phiếu nhập (`purchases.xlsx`) để Phase 5 (gợi ý đặt hàng).

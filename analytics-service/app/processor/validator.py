@@ -22,6 +22,8 @@ CODE_PATTERN = re.compile(r"^[A-Z0-9][A-Z0-9._-]{1,19}$")
 # Số lô in trên vỏ hộp đa dạng hơn: cho phép thêm "/" và dài tới 30 ký tự.
 BATCH_PATTERN = re.compile(r"^[A-Z0-9][A-Z0-9./_-]{1,29}$")
 EARLIEST_SALE = pd.Timestamp("2000-01-01")
+# Hạn dùng thuốc hiếm khi quá 5 năm; quá 10 năm gần như chắc là gõ nhầm năm.
+MAX_SHELF_YEARS = 10
 
 
 @dataclass
@@ -41,6 +43,8 @@ class _Collector:
         self.schema = schema
         self.issues: list[DataIssue] = []
         self.rejected = pd.Series(False, index=self.data.index)
+        # Dòng bỏ qua dù không sai (ví dụ lô tồn 0): không tính là dòng bị loại vì lỗi.
+        self.dropped = pd.Series(False, index=self.data.index)
 
     def flag(self, mask: pd.Series, column: str | None, code: str, severity: Severity, message: str) -> None:
         mask = mask.fillna(False).astype(bool)
@@ -125,11 +129,62 @@ def _sales_rules(check: _Collector, catalog_codes: set[str] | None, now: pd.Time
         check.flag(unknown, "medicine_code", "unknown_medicine", "error", "Mã thuốc không có trong danh mục medicines")
 
 
+def _inventory_rules(
+    check: _Collector,
+    catalog_codes: set[str] | None,
+    sales_stores: set[str] | None,
+    now: pd.Timestamp,
+) -> None:
+    """Tồn theo lô (quyết định D7). Lô đã hết hạn vẫn hợp lệ: đó chính là thứ cần cảnh báo."""
+    data = check.data
+    check.flag(data["quantity"] < 0, "quantity", "negative_value", "error", "Số lượng tồn không được âm")
+    check.flag(data["purchase_price"] < 0, "purchase_price", "negative_value", "error", "Giá nhập không được âm")
+    zero = data["quantity"] == 0
+    check.flag(zero, "quantity", "zero_quantity", "warning", "Lô tồn 0: bỏ qua dòng này")
+    check.dropped |= zero.fillna(False).astype(bool)
+    check.flag(
+        (data["quantity"] > 0) & (data["quantity"] % 1 != 0),
+        "quantity",
+        "fractional_quantity",
+        "warning",
+        "Số lượng có phần lẻ: kiểm tra lại đơn vị tính",
+    )
+
+    check.flag(
+        data["expiry_date"] < data["received_date"],
+        "expiry_date",
+        "expiry_before_received",
+        "error",
+        "Hạn dùng trước ngày nhập kho",
+    )
+    check.flag(data["received_date"] > now, "received_date", "future_date", "error", "Ngày nhập ở tương lai")
+    check.flag(data["expiry_date"] < EARLIEST_SALE, "expiry_date", "date_too_old", "error", "Hạn dùng trước năm 2000")
+    check.flag(
+        data["expiry_date"] > now + pd.DateOffset(years=MAX_SHELF_YEARS),
+        "expiry_date",
+        "expiry_too_far",
+        "warning",
+        f"Hạn dùng xa hơn {MAX_SHELF_YEARS} năm: kiểm tra lại năm",
+    )
+
+    batch = data["batch_code"]
+    wrong_batch = batch.notna() & ~batch.astype(str).str.fullmatch(BATCH_PATTERN.pattern)
+    check.flag(wrong_batch, "batch_code", "invalid_batch", "warning", "Số lô có ký tự lạ hoặc quá dài")
+
+    if catalog_codes is not None:
+        unknown = data["medicine_code"].notna() & ~data["medicine_code"].isin(catalog_codes)
+        check.flag(unknown, "medicine_code", "unknown_medicine", "error", "Mã thuốc không có trong danh mục medicines")
+    if sales_stores:
+        stray = data["store_code"].notna() & ~data["store_code"].isin(sales_stores)
+        check.flag(stray, "store_code", "unknown_store", "warning", "Mã cửa hàng không có trong tệp bán hàng: gõ nhầm?")
+
+
 def validate_dataset(
     result: CleanResult,
     schema: DatasetSchema,
     *,
     catalog_codes: set[str] | None = None,
+    sales_stores: set[str] | None = None,
     now: pd.Timestamp,
 ) -> ValidationResult:
     check = _Collector(result, schema)
@@ -138,8 +193,10 @@ def validate_dataset(
         _medicine_rules(check)
     elif schema.name == "sales":
         _sales_rules(check, catalog_codes, now)
+    elif schema.name == "inventory":
+        _inventory_rules(check, catalog_codes, sales_stores, now)
 
-    valid = result.data[~check.rejected].reset_index(drop=True)
+    valid = result.data[~(check.rejected | check.dropped)].reset_index(drop=True)
     # Sắp lỗi theo dòng để báo cáo dễ đọc; lỗi mức tệp (row=None) lên đầu.
     issues = sorted(check.issues, key=lambda issue: (issue.row or 0, issue.column or ""))
     return ValidationResult(valid=valid, issues=issues, rejected_rows=int(check.rejected.sum()))

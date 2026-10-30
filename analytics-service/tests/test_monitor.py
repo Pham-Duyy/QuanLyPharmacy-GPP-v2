@@ -30,6 +30,7 @@ def sales_line(sale_id: str, quantity: int = 1) -> str:
         ("sales.xlsx", True),
         ("Sales.CSV", True),
         ("medicines.xlsx", True),
+        ("inventory.xlsx", True),
         ("~$sales.xlsx", False),  # tệp khóa của Excel khi đang mở
         ("8A3F2B10", False),  # tệp tạm Excel tạo lúc lưu
         (".sales.tmp.xlsx", False),

@@ -3,7 +3,7 @@
 Dịch vụ Python của **Pharmacy Intelligent Analytics**: theo dõi tệp dữ liệu, xử lý,
 tính chỉ số kinh doanh. Không gọi LLM. Kiến trúc: [docs/analytics/architecture.md](../docs/analytics/architecture.md).
 
-Hiện có: bước 1.1 (schema, dữ liệu mẫu), 1.2 (xử lý dữ liệu), 1.3 (KPI Engine), 1.4 (pipeline + SQLite), 1.5 (File Monitor), 1.6 (Analytics API), 1.7 (Bảng điều hành trên web).
+Hiện có: bước 1.1 (schema, dữ liệu mẫu), 1.2 (xử lý dữ liệu), 1.3 (KPI Engine), 1.4 (pipeline + SQLite), 1.5 (File Monitor), 1.6 (Analytics API), 1.7 (Bảng điều hành trên web); Phase 2: 2.1 (tệp tồn kho theo lô).
 
 ## Cài đặt (một lần)
 
@@ -34,7 +34,7 @@ Mỗi lần mở cửa sổ dòng lệnh mới, kích hoạt lại môi trườn
 ## Chạy thử
 
 ```bash
-python scripts/generate_sample_data.py        # sinh data/samples/medicines.xlsx và sales.xlsx
+python scripts/generate_sample_data.py        # sinh data/samples/medicines.xlsx, sales.xlsx, inventory.xlsx
 python main.py process                         # xử lý và in báo cáo lỗi dữ liệu
 python main.py process --issues-csv data/reports/issues.csv
 python main.py kpi                             # KPI hôm nay / tuần này / tháng này, toàn chuỗi
@@ -75,7 +75,7 @@ Trang `/docs` liệt kê mọi endpoint, bấm "Try it out" để gọi thử. V
 `http://127.0.0.1:8000/api/analytics/summary?store=CH03`,
 `http://127.0.0.1:8000/api/analytics/sales-trend?grain=week`.
 
-Dữ liệu mẫu cố ý có 12 dòng lỗi bán hàng và 2 dòng lỗi danh mục; báo cáo phải chỉ ra đủ.
+Dữ liệu mẫu cố ý có 12 dòng lỗi bán hàng, 2 dòng lỗi danh mục và 7 dòng lỗi tồn kho; báo cáo phải chỉ ra đủ.
 `python scripts/generate_sample_data.py --errors 0` để có dữ liệu sạch.
 
 ## Bảng điều hành trên web (bước 1.7)
@@ -94,6 +94,18 @@ npm run dev
 Đăng nhập, mở **Báo cáo → Bảng điều hành**. Mở `data/inbox/sales.xlsx` bằng Excel, thêm dòng, Lưu:
 trong vòng 60 giây số liệu trên trang tự đổi. `store_code` trong tệp phải trùng mã cửa hàng trong phần mềm
 thì người chỉ được xem một cửa hàng mới thấy số của cửa hàng đó.
+
+## Tồn kho theo lô (Phase 2, bước 2.1)
+
+Đặt thêm `inventory.xlsx` (hoặc `.csv`) vào `data/inbox`: mỗi dòng là một lô đang có trong kho
+(cửa hàng, mã thuốc, số lô, số lượng còn, hạn dùng; giá nhập, ngày nhập, nhà cung cấp không bắt buộc).
+Không có tệp này thì phần bán hàng vẫn chạy như cũ. Cột và luật kiểm tra:
+[docs/analytics/data-schema.md](../docs/analytics/data-schema.md#inventoryxlsx-phase-2-quyết-định-d7).
+
+Tồn kho mẫu tính từ tốc độ bán thật và cố ý có: lô đã hết hạn còn trong kho (CH01 Metronidazol,
+CH03 Loperamid), lô sắp hết hạn mà bán không kịp (CH02 Siro Prospan, CH03 Acetylcystein), thuốc sắp hết
+(CH02 Paracetamol, CH01 Amlodipin), hết hàng (CH03 Vitamin C), tồn quá nhiều (CH01 Omega-3) và máy xông
+TB010 chưa bán được cái nào. Các bước 2.3, 2.4 phải phát hiện ra đúng những chỗ này.
 
 ## Cấu trúc
 

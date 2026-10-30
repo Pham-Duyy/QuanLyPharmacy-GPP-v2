@@ -182,4 +182,8 @@ export const ISSUE_LABELS: Record<string, string> = {
   date_too_old: "Ngày quá cũ",
   invalid_batch: "Số lô không hợp lệ",
   unknown_medicine: "Thuốc không có trong danh mục",
+  zero_quantity: "Lô tồn 0 (bỏ qua)",
+  expiry_before_received: "Hạn dùng trước ngày nhập",
+  expiry_too_far: "Hạn dùng xa bất thường",
+  unknown_store: "Cửa hàng không có trong tệp bán",
 };

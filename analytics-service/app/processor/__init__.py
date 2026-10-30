@@ -2,7 +2,7 @@
 
 from .issues import DataIssue
 from .loader import LoadError
-from .schemas import MEDICINES, SALES, SCHEMAS
+from .schemas import INVENTORY, MEDICINES, SALES, SCHEMAS
 from .service import ProcessResult, process_file, process_folder
 
-__all__ = ["DataIssue", "LoadError", "MEDICINES", "SALES", "SCHEMAS", "ProcessResult", "process_file", "process_folder"]
+__all__ = ["DataIssue", "LoadError", "INVENTORY", "MEDICINES", "SALES", "SCHEMAS", "ProcessResult", "process_file", "process_folder"]

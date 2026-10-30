@@ -374,7 +374,11 @@ function BreakdownCard({
   );
 }
 
-const DATASET_LABELS: Record<string, string> = { sales: "Bán hàng", medicines: "Danh mục thuốc" };
+const DATASET_LABELS: Record<string, string> = {
+  sales: "Bán hàng",
+  medicines: "Danh mục thuốc",
+  inventory: "Tồn kho",
+};
 
 function DataQualityCard({ version }: { version: number }) {
   const query = useQuery({

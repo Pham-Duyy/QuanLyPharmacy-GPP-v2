@@ -14,7 +14,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from app.processor import MEDICINES, SALES, LoadError, process_file, process_folder
+from app.processor import INVENTORY, MEDICINES, SALES, LoadError, process_file, process_folder
 from app.processor.cleaner import INVALID, detect_number_style, parse_bool, parse_datetime, parse_number
 
 NOW = pd.Timestamp("2026-10-30 12:00")
@@ -254,6 +254,87 @@ def test_process_folder_checks_sales_against_catalog(tmp_path):
     assert issues_by_code(results["sales"]) == {"unknown_medicine": [3]}
 
 
+# --- Tồn kho theo lô (bước 2.1) ---------------------------------------------------------
+
+
+def lot(**overrides) -> dict:
+    """Một lô tồn hợp lệ; truyền tham số để làm sai từng cột."""
+    row = {
+        "store_code": "CH01",
+        "medicine_code": "GD001",
+        "batch_code": "PA2611",
+        "quantity": 100,
+        "expiry_date": datetime(2027, 6, 30),
+        "purchase_price": 800,
+        "received_date": datetime(2026, 9, 1),
+        "supplier": "Phano",
+    }
+    row.update(overrides)
+    return row
+
+
+def test_inventory_rules(tmp_path):
+    rows = [
+        lot(),  # dòng 2: hợp lệ
+        lot(batch_code="PA2510", expiry_date=datetime(2026, 10, 1)),  # 3: ĐÃ hết hạn nhưng vẫn hợp lệ
+        lot(),  # 4: trùng cửa hàng + thuốc + lô
+        lot(batch_code="L4", quantity=-5),  # 5: tồn âm
+        lot(batch_code="L5", quantity=0),  # 6: tồn 0 → cảnh báo, bỏ qua
+        lot(batch_code="L6", expiry_date=datetime(2026, 8, 1)),  # 7: hạn trước ngày nhập 01/09
+        lot(batch_code="L7", received_date=datetime(2026, 12, 1), expiry_date=datetime(2028, 1, 1)),  # 8: nhập ở tương lai
+        lot(batch_code="L8", expiry_date=datetime(2099, 1, 1)),  # 9: gõ nhầm năm → cảnh báo
+        lot(batch_code="L9", medicine_code="XX999"),  # 10: không có trong danh mục
+        lot(batch_code="L10", expiry_date=None),  # 11: thiếu hạn dùng
+        lot(batch_code="L11", purchase_price=None, received_date=None, supplier=None),  # 12: thiếu cột không bắt buộc: vẫn hợp lệ
+    ]
+    result = process_file(
+        write_xlsx(tmp_path / "inventory.xlsx", rows), INVENTORY, catalog_codes={"GD001", "KS001"}, now=NOW
+    )
+
+    assert issues_by_code(result) == {
+        "duplicate_row": [4],
+        "negative_value": [5],
+        "zero_quantity": [6],
+        "expiry_before_received": [7],
+        "future_date": [8],
+        "expiry_too_far": [9],
+        "unknown_medicine": [10],
+        "missing_required": [11],
+    }
+    assert result.rows_rejected == 6  # dòng 4, 5, 7, 8, 10, 11
+    assert list(result.data["batch_code"]) == ["PA2611", "PA2510", "L8", "L11"]  # tồn 0 bị bỏ, không tính là lỗi
+    assert result.rows_read == 11
+
+
+def test_inventory_dates_drop_time_and_accept_vietnamese_headers(tmp_path):
+    path = tmp_path / "inventory.csv"
+    path.write_text(
+        "Mã CH;Mã thuốc;Số lô;SL tồn;Hạn dùng;Giá nhập;Ngày nhập\n"
+        "ch01;gd001;pa2611;1.200;30/06/2027 14:30;800;01/09/2026\n",
+        encoding="utf-8-sig",
+    )
+    result = process_file(path, INVENTORY, now=NOW)
+
+    assert result.issues == []
+    row = result.data.iloc[0]
+    assert (row["store_code"], row["medicine_code"], row["batch_code"]) == ("CH01", "GD001", "PA2611")
+    assert row["quantity"] == 1_200
+    assert row["expiry_date"] == pd.Timestamp("2027-06-30")  # bỏ giờ: hạn dùng tính theo ngày
+
+
+def test_inventory_is_optional_and_checked_against_sales(tmp_path):
+    write_xlsx(tmp_path / "medicines.xlsx", MEDICINE_ROWS)
+    write_xlsx(tmp_path / "sales.xlsx", [sale()])
+    assert set(process_folder(tmp_path, now=NOW)) == {"medicines", "sales"}
+
+    write_xlsx(tmp_path / "inventory.xlsx", [lot(), lot(store_code="CH1", batch_code="X1")])
+    results = process_folder(tmp_path, now=NOW)
+
+    # CH1 không có trong tệp bán hàng (chỉ có CH01): nhiều khả năng gõ nhầm, nhưng vẫn giữ dòng.
+    assert issues_by_code(results["inventory"]) == {"unknown_store": [3]}
+    assert results["inventory"].rows_valid == 2
+
+
 # --- Dữ liệu mẫu ---------------------------------------------------------------------
 
 
@@ -266,15 +347,18 @@ def _generator():
 
 
 def test_sample_data_errors_are_all_caught(tmp_path):
-    """Dữ liệu mẫu chèn đúng 12 lỗi bán hàng + 2 lỗi danh mục: Processor phải bắt đủ."""
+    """Dữ liệu mẫu chèn đúng 12 lỗi bán hàng, 2 lỗi danh mục, 7 lỗi tồn kho: Processor phải bắt đủ."""
     generator = _generator()
     rng = random.Random(7)
     end = date(2026, 10, 30)
     medicines = generator.build_medicines(rng)
     sales = generator.build_sales(rng, 12, end, datetime(2026, 10, 30, 23, 59))
+    inventory = generator.build_inventory(random.Random(8), sales, end)
     sales, medicines = generator.inject_errors(sales, medicines, end)
+    inventory = generator.inject_inventory_errors(inventory)
     medicines.to_excel(tmp_path / "medicines.xlsx", index=False)
     sales.to_excel(tmp_path / "sales.xlsx", index=False)
+    inventory.to_excel(tmp_path / "inventory.xlsx", index=False)
 
     results = process_folder(tmp_path, now=pd.Timestamp("2026-10-31"))
 
@@ -291,3 +375,36 @@ def test_sample_data_errors_are_all_caught(tmp_path):
         "duplicate_row": 1,
     }
     assert results["sales"].rows_rejected == 10
+    assert results["inventory"].issue_summary() == {
+        "negative_value": 1,
+        "expiry_before_received": 1,
+        "unknown_medicine": 1,
+        "zero_quantity": 1,
+        "expiry_too_far": 1,
+        "unknown_store": 1,
+        "duplicate_row": 1,
+    }
+    assert results["inventory"].rows_rejected == 4
+
+
+def test_sample_inventory_tells_the_planned_stories():
+    """Các tình huống cố ý trong tồn kho mẫu: bước 2.3, 2.4 sẽ phải phát hiện ra chúng."""
+    generator = _generator()
+    rng = random.Random(7)
+    end = date(2026, 10, 30)
+    generator.build_medicines(rng)
+    sales = generator.build_sales(rng, 40, end, datetime(2026, 10, 30, 23, 59))
+    inventory = generator.build_inventory(random.Random(8), sales, end)
+    expiry, received = pd.to_datetime(inventory["expiry_date"]), pd.to_datetime(inventory["received_date"])
+    days_left = (expiry - pd.Timestamp(end)).dt.days
+
+    def lots(store: str, code: str) -> list[int]:
+        return sorted(days_left[(inventory["store_code"] == store) & (inventory["medicine_code"] == code)])
+
+    assert lots("CH01", "KS007") == [-5, 300]  # lô đã hết hạn còn trong kho
+    assert lots("CH02", "HH001") == [5, 400]  # lô nguy cấp
+    assert lots("CH03", "VT001") == []  # hết hàng
+    assert set(inventory.loc[inventory["medicine_code"] == "TB010", "store_code"]) == {"CH01", "CH02", "CH03"}
+    assert (expiry > received).all()
+    assert (received <= pd.Timestamp(end)).all()
+    assert not inventory.duplicated(["store_code", "medicine_code", "batch_code"]).any()

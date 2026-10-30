@@ -24,7 +24,7 @@ from app.analytics import kpi_summary, prepare_sales, sales_breakdown, sales_tre
 from app.analytics.breakdown import bucket_start
 from app.analytics.periods import Window, period_windows
 from app.config import SNAPSHOT_REFRESH_SECONDS, TIMEZONE, TREND_DAYS
-from app.processor import MEDICINES, SALES, LoadError, ProcessResult, process_folder
+from app.processor import INVENTORY, MEDICINES, SALES, LoadError, ProcessResult, process_folder
 from app.processor.service import find_file, now_local
 from app.store import AnalyticsStore, RunRecord
 
@@ -102,7 +102,7 @@ class Pipeline:
 
     def _fingerprints(self) -> dict[str, FileFingerprint]:
         found: dict[str, FileFingerprint] = {}
-        for schema in (MEDICINES, SALES):
+        for schema in (MEDICINES, SALES, INVENTORY):
             path = find_file(self.folder, schema)
             if path is None:
                 continue

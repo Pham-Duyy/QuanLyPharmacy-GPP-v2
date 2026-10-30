@@ -191,7 +191,7 @@ def clean_dataset(frame: pd.DataFrame, schema: DatasetSchema) -> CleanResult:
         if column.type in ("int", "number"):
             style = detect_number_style(values)
             parsed = values.map(lambda value, style=style: parse_number(value, style))
-        elif column.type == "datetime":
+        elif column.type in ("datetime", "date"):
             parsed = values.map(parse_datetime)
         elif column.type == "bool":
             parsed = values.map(parse_bool)
@@ -210,6 +210,8 @@ def clean_dataset(frame: pd.DataFrame, schema: DatasetSchema) -> CleanResult:
             cleaned[column.name] = pd.to_numeric(parsed, errors="coerce").astype("float64")
         elif column.type == "datetime":
             cleaned[column.name] = pd.to_datetime(parsed, errors="coerce")
+        elif column.type == "date":
+            cleaned[column.name] = pd.to_datetime(parsed, errors="coerce").dt.normalize()
         elif column.type == "bool":
             cleaned[column.name] = parsed.astype("boolean")
         else:

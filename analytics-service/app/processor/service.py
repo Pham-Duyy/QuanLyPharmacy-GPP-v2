@@ -19,7 +19,7 @@ from app.config import FUTURE_TOLERANCE_HOURS, TIMEZONE
 from .cleaner import clean_dataset
 from .issues import DataIssue
 from .loader import LoadError, load_dataset
-from .schemas import MEDICINES, SALES, DatasetSchema
+from .schemas import INVENTORY, MEDICINES, SALES, DatasetSchema
 from .validator import validate_dataset
 
 
@@ -57,6 +57,7 @@ def process_file(
     schema: DatasetSchema,
     *,
     catalog_codes: set[str] | None = None,
+    sales_stores: set[str] | None = None,
     now: pd.Timestamp | None = None,
 ) -> ProcessResult:
     """Xử lý một tệp. Thiếu cột bắt buộc hoặc tệp hỏng thì ném LoadError."""
@@ -64,7 +65,7 @@ def process_file(
     frame, file_issues = load_dataset(path, schema)
     cleaned = clean_dataset(frame, schema)
     limit = (now or now_local()) + timedelta(hours=FUTURE_TOLERANCE_HOURS)
-    validated = validate_dataset(cleaned, schema, catalog_codes=catalog_codes, now=limit)
+    validated = validate_dataset(cleaned, schema, catalog_codes=catalog_codes, sales_stores=sales_stores, now=limit)
     return ProcessResult(
         dataset=schema.name,
         file=Path(path).name,
@@ -87,9 +88,11 @@ def find_file(folder: Path, schema: DatasetSchema) -> Path | None:
 
 
 def process_folder(folder: Path, *, now: pd.Timestamp | None = None) -> dict[str, ProcessResult]:
-    """Xử lý cả bộ tệp theo đúng thứ tự phụ thuộc: danh mục thuốc trước, bán hàng sau.
+    """Xử lý cả bộ tệp theo đúng thứ tự phụ thuộc: danh mục thuốc → bán hàng → tồn kho.
 
-    Bán hàng cần danh mục để kiểm tra mã thuốc có tồn tại hay không.
+    Bán hàng cần danh mục để kiểm tra mã thuốc có tồn tại hay không; tồn kho cần
+    thêm danh sách cửa hàng trong tệp bán hàng để bắt mã cửa hàng gõ nhầm.
+    Tồn kho không bắt buộc: thiếu tệp thì phần bán hàng vẫn chạy.
     """
     results: dict[str, ProcessResult] = {}
     medicines_path = find_file(folder, MEDICINES)
@@ -102,4 +105,9 @@ def process_folder(folder: Path, *, now: pd.Timestamp | None = None) -> dict[str
     if sales_path is None:
         raise LoadError(f"Không thấy sales.xlsx hoặc sales.csv trong {folder}")
     results["sales"] = process_file(sales_path, SALES, catalog_codes=catalog, now=now)
+
+    inventory_path = find_file(folder, INVENTORY)
+    if inventory_path:
+        stores = set(results["sales"].data["store_code"].dropna())
+        results["inventory"] = process_file(inventory_path, INVENTORY, catalog_codes=catalog, sales_stores=stores, now=now)
     return results
