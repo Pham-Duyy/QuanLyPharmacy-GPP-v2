@@ -137,6 +137,61 @@ def command_kpi(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_products(args: argparse.Namespace) -> int:
+    """Phân tích sản phẩm (bước 2.2): xếp hạng theo kỳ và hàng bán chậm, không bán được."""
+    from app.analytics.products import RANKING_LABELS, product_analysis
+
+    try:
+        results = process_folder(args.folder)
+    except (LoadError, FileNotFoundError) as error:
+        print(f"Không xử lý được: {error}", file=sys.stderr)
+        return 1
+    medicines = results["medicines"].data if "medicines" in results else None
+    inventory = results["inventory"].data if "inventory" in results else None
+    sales = prepare_sales(results["sales"].data, medicines)
+    as_of = pd.Timestamp(args.as_of) if args.as_of else now_local()
+    store = args.store.upper() if args.store else None
+    analysis = product_analysis(sales, inventory, medicines, as_of, store, limit=args.top)
+    if args.json:
+        print(json.dumps(analysis, ensure_ascii=False, indent=2))
+        return 0
+
+    scope = f"cửa hàng {store}" if store else "toàn chuỗi"
+    period = analysis["periods"][args.period]
+    print(f"\nSản phẩm {scope}, {period['label'].lower()}, tính đến {as_of:%d/%m/%Y %H:%M}")
+    for key in ("revenue", "profit"):
+        print(f"\n--- {RANKING_LABELS[key]} ---")
+        for index, row in enumerate(period[key], start=1):
+            print(f"  {index:>2}. {row['medicine_name'] or row['medicine_code']:<34} {_money(row[key]):>16}  biên {_margin(row['margin_pct'])}")
+    print(f"\n--- {RANKING_LABELS['low_profit']} ---")
+    for index, row in enumerate(period["low_profit"], start=1):
+        print(f"  {index:>2}. {row['medicine_name'] or row['medicine_code']:<34} biên {_margin(row['margin_pct']):>6}  lợi nhuận {_money(row['profit'])}")
+    print(f"\n--- {RANKING_LABELS['declining']} (so với {period['previous_label'].lower()} cùng thời điểm) ---")
+    if not period["declining"]:
+        print("  Không có thuốc nào giảm")
+    for index, row in enumerate(period["declining"], start=1):
+        print(
+            f"  {index:>2}. {row['medicine_name'] or row['medicine_code']:<34} {_growth(row['growth_pct'])}"
+            f"  {_money(row['previous_revenue'])} → {_money(row['revenue'])}"
+        )
+
+    stock = analysis["stock"]
+    basis = "thuốc còn tồn" if stock["basis"] == "inventory" else "thuốc từng bán (chưa có tệp tồn kho)"
+    print(f"\n--- {RANKING_LABELS['slow']}, xét {basis} ---")
+    for index, row in enumerate(stock["slow"], start=1):
+        print(f"  {index:>2}. {row['medicine_name'] or row['medicine_code']:<34} {_money(row['revenue']):>14}  {_number(row['orders'])} đơn")
+    print(f"\n--- {RANKING_LABELS['not_sold']}: {stock['not_sold_total']} thuốc ---")
+    for index, row in enumerate(stock["not_sold"], start=1):
+        last = "chưa bán bao giờ" if row["last_sale"] is None else f"bán lần cuối {row['days_since_sale']} ngày trước"
+        held = "" if row["stock_quantity"] is None else f", còn {_number(row['stock_quantity'])} (vốn {_money(row['stock_value'])})"
+        print(f"  {index:>2}. {row['medicine_name'] or row['medicine_code']:<34} {last}{held}")
+    return 0
+
+
+def _margin(value: float | None) -> str:
+    return "—" if value is None else _number(value, 1) + "%"
+
+
 def command_run(args: argparse.Namespace) -> int:
     store = AnalyticsStore(args.db)
     pipeline = Pipeline(args.folder, store)
@@ -252,6 +307,14 @@ def main() -> int:
     kpi.add_argument("--store", help="Chỉ tính một cửa hàng, ví dụ CH01")
     kpi.add_argument("--json", action="store_true", help="In kết quả dạng JSON")
     kpi.set_defaults(handler=command_kpi)
+    products = commands.add_parser("products", help="Phân tích sản phẩm: bán chạy, lợi nhuận, giảm mạnh, bán chậm")
+    products.add_argument("folder", nargs="?", type=Path, default=SAMPLES_DIR, help="Thư mục chứa medicines/sales/inventory")
+    products.add_argument("--period", choices=["day", "week", "month"], default="month", help="Kỳ xếp hạng (mặc định tháng này)")
+    products.add_argument("--store", help="Chỉ một cửa hàng, ví dụ CH01")
+    products.add_argument("--as-of", help="Thời điểm tính (mặc định: bây giờ)")
+    products.add_argument("--top", type=int, default=10, help="Số dòng mỗi bảng (mặc định 10)")
+    products.add_argument("--json", action="store_true", help="In kết quả dạng JSON")
+    products.set_defaults(handler=command_products)
     run = commands.add_parser("run", help="Chạy pipeline và lưu snapshot vào SQLite")
     run.add_argument("folder", nargs="?", type=Path, default=SAMPLES_DIR, help="Thư mục chứa medicines/sales/inventory")
     run.add_argument("--db", type=Path, default=ANALYTICS_DB, help="Tệp SQLite (mặc định data/analytics.db)")

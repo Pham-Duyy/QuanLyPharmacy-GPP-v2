@@ -57,3 +57,26 @@ Tháng trước ngắn hơn (ví dụ 31/10 so với tháng 9 chỉ có 30 ngày
 Kiểm tra bằng Excel: mở `data/samples/sales.xlsx`, thêm cột `= quantity × selling_price`,
 tạo PivotTable lọc theo `sale_datetime` của kỳ cần xem; tổng phải bằng `python main.py kpi`
 (trừ các dòng lỗi mà Processor đã loại, xem `python main.py process`).
+
+## Phân tích sản phẩm (Phase 2, bước 2.2)
+
+Code: `analytics-service/app/analytics/products.py`. Lệnh xem: `python main.py products [--store CH01] [--period week]`.
+Gộp theo thuốc bằng đúng công thức ở trên (lợi nhuận, biên chỉ trên dòng có giá vốn).
+
+| Danh sách | Phạm vi thời gian | Cách xếp | Điều kiện |
+|---|---|---|---|
+| Doanh thu cao nhất | hôm nay / tuần / tháng | doanh thu giảm dần | |
+| Lợi nhuận cao nhất | như trên | lợi nhuận giảm dần | |
+| Biên lợi nhuận thấp nhất | như trên | biên tăng dần | ≥ 3 đơn trong kỳ, có giá vốn |
+| Giảm doanh thu mạnh nhất | như trên, so với kỳ trước **cùng độ dài** | tăng trưởng tăng dần | kỳ trước ≥ 5 đơn; kỳ này không bán = −100% |
+| Bán chậm | 30 ngày gần nhất | doanh thu tăng dần | còn tồn bán được và có bán |
+| Không bán được | 30 ngày gần nhất | chưa bán bao giờ trước, rồi lâu nhất | còn tồn bán được, 0 đơn trong 30 ngày |
+
+- "Bán chậm" xếp theo **tiền**, không theo số lượng: 20 viên và 2 máy đo huyết áp không so được với nhau.
+- Có `inventory.xlsx`: chỉ xét thuốc còn tồn bán được (lô còn hạn), vì đó là vốn đang đọng.
+  Chưa có: xét thuốc từng bán ở phạm vi đó (`basis = "sales_history"`), không có số tồn.
+- Giá trị tồn = Σ số lượng × giá nhập; lô thiếu giá nhập thì giá trị để trống, không đoán bằng 0.
+- Toàn chuỗi cộng mọi cửa hàng: một thuốc "chết" ở CH03 nhưng bán chạy ở CH01 không hiện ở toàn chuỗi
+  (xem theo từng cửa hàng để thấy).
+- Ngưỡng ở `app/config.py`: `SALES_LOOKBACK_DAYS`, `PRODUCT_TOP_N`, `DECLINE_MIN_ORDERS`, `LOW_MARGIN_MIN_ORDERS`.
+

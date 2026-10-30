@@ -55,3 +55,18 @@ MONITOR_POLL_SECONDS = 30.0
 # Tệp đang bị khóa (Excel đang ghi): thử lại sau ngần này giây, tối đa số lần.
 MONITOR_RETRY_SECONDS = 5.0
 MONITOR_MAX_RETRIES = 3
+
+# --- Phân tích sản phẩm, tồn kho (Phase 2, quyết định D9) ---------------------------
+
+# Tốc độ bán trung bình/ngày (ADS) và "bán chậm", "lâu không bán" đều nhìn 30 ngày gần nhất.
+SALES_LOOKBACK_DAYS = 30
+
+# Số dòng mỗi danh sách xếp hạng.
+PRODUCT_TOP_N = 10
+
+# "Giảm mạnh nhất" chỉ xét thuốc kỳ trước có từ ngần này đơn: tránh "giảm 100%"
+# vì kỳ trước bán đúng một hộp.
+DECLINE_MIN_ORDERS = 5
+
+# "Lợi nhuận thấp" xếp theo biên lợi nhuận; chỉ xét thuốc có từ ngần này đơn trong kỳ.
+LOW_MARGIN_MIN_ORDERS = 3
