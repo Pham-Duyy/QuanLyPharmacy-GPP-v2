@@ -74,3 +74,9 @@ LOW_MARGIN_MIN_ORDERS = 3
 # Trạng thái tồn kho (bước 2.3): đủ bán dưới ngần này ngày là "sắp hết", trên là "tồn cao".
 LOW_STOCK_DAYS = 7
 HIGH_STOCK_DAYS = 90
+
+# Hạn dùng 5 mức (bước 2.4; master prompt §14): số ngày còn lại tới hạn dùng.
+#   < 0 đã hết hạn | 0–7 nguy cấp | 8–30 cảnh báo | 31–90 theo dõi | > 90 bình thường
+EXPIRY_CRITICAL_DAYS = 7
+EXPIRY_WARNING_DAYS = 30
+EXPIRY_MONITOR_DAYS = 90

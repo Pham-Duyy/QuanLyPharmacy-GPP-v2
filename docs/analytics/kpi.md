@@ -107,3 +107,35 @@ Giá trị tồn    = Σ số lượng × giá nhập       (thiếu giá nhập
 - Dòng tồn kho bị Processor loại vì lỗi thì không được tính: một lô ghi số âm có thể làm thuốc hiện "hết hàng".
   Xem khung Chất lượng dữ liệu khi thấy kết quả lạ.
 
+## Hạn dùng và FEFO (Phase 2, bước 2.4)
+
+Code: `analytics-service/app/analytics/expiry.py`. Lệnh xem: `python main.py expiry [--store CH02]`.
+
+| Mức | Số ngày còn lại (hạn − hôm nay) |
+|---|---|
+| Đã hết hạn | < 0 |
+| Nguy cấp | 0–7 (hạn đúng hôm nay là 0: chưa hết hạn) |
+| Cảnh báo | 8–30 |
+| Theo dõi | 31–90 |
+| Bình thường | > 90 |
+
+**FEFO.** Mỗi thuốc ở mỗi cửa hàng: xếp lô còn hạn theo hạn gần trước (lô số 1 bán trước), giả định bán đúng
+thứ tự đó với tốc độ ADS 30 ngày:
+
+```
+đã_dùng = 0
+mỗi lô theo hạn tăng dần:
+    bán_được   = min(số lượng, max(0, ngày_còn_lại − đã_dùng) × ADS)
+    có_nguy_cơ = số lượng − bán_được        (× giá nhập = tiền có thể mất)
+    đã_dùng   += số lượng / ADS
+```
+
+Ví dụ ADS 10: lô A 50 hộp còn 7 ngày bán hết sau 5 ngày, an toàn; lô B 200 hộp còn 12 ngày chỉ còn 7 ngày bán,
+được 70, **130 hộp có nguy cơ**. Chỉ nhìn "lô B còn 12 ngày" thì không thấy.
+
+- Chỉ kết luận "có nguy cơ" cho lô còn ≤ 90 ngày; xa hơn thì đoán tốc độ bán không đáng tin.
+- Thận trọng: số ngày để bán = số ngày còn lại, không cộng phần còn lại của hôm nay.
+- Lô đã hết hạn không được bán, không chiếm thời gian bán của lô sau; tiền của nó tính riêng ở mức "Đã hết hạn".
+- Không ai mua (ADS = 0): cả lô còn ≤ 90 ngày là nguy cơ.
+- Số lượng nguy cơ làm tròn tới đơn vị; lô thiếu giá nhập thì tổng tiền để trống.
+

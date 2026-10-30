@@ -239,6 +239,58 @@ def command_inventory(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_expiry(args: argparse.Namespace) -> int:
+    """Hạn dùng 5 mức và FEFO (bước 2.4): lô hết hạn, sắp hết hạn, hàng có nguy cơ không kịp bán."""
+    from app.analytics.expiry import expiry_analysis
+
+    try:
+        results = process_folder(args.folder)
+    except (LoadError, FileNotFoundError) as error:
+        print(f"Không xử lý được: {error}", file=sys.stderr)
+        return 1
+    if "inventory" not in results:
+        print(f"Chưa có inventory.xlsx hoặc inventory.csv trong {args.folder}", file=sys.stderr)
+        return 1
+    medicines = results["medicines"].data if "medicines" in results else None
+    sales = prepare_sales(results["sales"].data, medicines)
+    as_of = pd.Timestamp(args.as_of) if args.as_of else now_local()
+    store = args.store.upper() if args.store else None
+    analysis = expiry_analysis(sales, results["inventory"].data, medicines, as_of, store)
+    if args.json:
+        print(json.dumps(analysis, ensure_ascii=False, indent=2))
+        return 0
+
+    scope = f"cửa hàng {store}" if store else "mọi cửa hàng"
+    print(f"\nHạn dùng {scope}, tính ngày {as_of:%d/%m/%Y}")
+    for level in analysis["levels"].values():
+        print(f"  {level['label']:<24} {level['lots']:>4} lô  {_money(level['value']):>18}")
+    risk = analysis["at_risk"]
+    print(f"\nCó nguy cơ hết hạn trước khi bán kịp (theo FEFO): {risk['lots']} lô, {_number(risk['quantity'])} đơn vị, {_money(risk['value'])}")
+    for lot in analysis["risk_lots"][: args.top]:
+        print(
+            f"  {lot['store_code']} {lot['medicine_name'] or lot['medicine_code']:<30} lô {lot['batch_code']:<14}"
+            f" còn {lot['days_left']:>2} ngày  tồn {_number(lot['quantity']):>6}  bán kịp {_number(lot['sellable_before_expiry']):>6}"
+            f"  → nguy cơ {_number(lot['at_risk_quantity'])} ({_money(lot['at_risk_value'])})"
+        )
+
+    expired = [lot for lot in analysis["lots"] if lot["level"] == "expired"]
+    print(f"\n--- Đã hết hạn, còn trong kho: {len(expired)} lô (tách khỏi quầy, làm thủ tục hủy hoặc trả nhà cung cấp) ---")
+    for lot in expired[: args.top]:
+        print(
+            f"  {lot['store_code']} {lot['medicine_name'] or lot['medicine_code']:<30} lô {lot['batch_code']:<14}"
+            f" hết hạn {-lot['days_left']} ngày  {_number(lot['quantity'])} đơn vị  {_money(lot['value'])}"
+        )
+    soon = [lot for lot in analysis["lots"] if lot["level"] in ("critical", "warning")]
+    print(f"\n--- Hết hạn trong 30 ngày: {len(soon)} lô (FEFO: lô số 1 phải bán trước) ---")
+    for lot in soon[: args.top]:
+        verdict = "nguy cơ" if (lot["at_risk_quantity"] or 0) > 0 else "bán kịp"
+        print(
+            f"  {lot['store_code']} {lot['medicine_name'] or lot['medicine_code']:<30} lô {lot['batch_code']:<14}"
+            f" còn {lot['days_left']:>2} ngày  FEFO #{lot['fefo_rank']}  tồn {_number(lot['quantity']):>6}  {verdict}"
+        )
+    return 0
+
+
 def command_run(args: argparse.Namespace) -> int:
     store = AnalyticsStore(args.db)
     pipeline = Pipeline(args.folder, store)
@@ -372,6 +424,13 @@ def main() -> int:
     inventory.add_argument("--top", type=int, default=15, help="Số dòng mỗi trạng thái (mặc định 15)")
     inventory.add_argument("--json", action="store_true", help="In kết quả dạng JSON")
     inventory.set_defaults(handler=command_inventory)
+    expiry = commands.add_parser("expiry", help="Hạn dùng 5 mức, FEFO, hàng có nguy cơ hết hạn")
+    expiry.add_argument("folder", nargs="?", type=Path, default=SAMPLES_DIR, help="Thư mục chứa medicines/sales/inventory")
+    expiry.add_argument("--store", help="Chỉ một cửa hàng, ví dụ CH02")
+    expiry.add_argument("--as-of", help="Thời điểm tính (mặc định: bây giờ)")
+    expiry.add_argument("--top", type=int, default=15, help="Số dòng mỗi danh sách (mặc định 15)")
+    expiry.add_argument("--json", action="store_true", help="In kết quả dạng JSON")
+    expiry.set_defaults(handler=command_expiry)
     run = commands.add_parser("run", help="Chạy pipeline và lưu snapshot vào SQLite")
     run.add_argument("folder", nargs="?", type=Path, default=SAMPLES_DIR, help="Thư mục chứa medicines/sales/inventory")
     run.add_argument("--db", type=Path, default=ANALYTICS_DB, help="Tệp SQLite (mặc định data/analytics.db)")
