@@ -1430,3 +1430,56 @@
   color: var(--c-ink-500);
   font-size: 12.5px;
 }
+
+/* Điện thoại: đặt cuối tệp để đè quy tắc gốc ở trên. */
+@media (max-width: 576px) {
+  /* Thẻ số liệu: lưới 2 cột gọn thay vì mỗi thẻ một hàng; thẻ lẻ cuối trải hết hàng. */
+  .stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+
+  .stat-card {
+    padding: 12px;
+  }
+
+  .stat-card:last-child:nth-child(odd) {
+    grid-column: span 2;
+  }
+
+  .stat-card-icon {
+    display: none;
+  }
+
+  .stat-card-value {
+    font-size: 17px;
+    white-space: nowrap;
+  }
+
+  .stat-card-label,
+  .stat-card-hint {
+    font-size: 11px;
+  }
+
+  /* Nút lọc dạng Segmented: cuộn ngang trong chỗ của nó, không đẩy trang tràn ngang. */
+  .ant-segmented {
+    max-width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .ant-segmented::-webkit-scrollbar {
+    display: none;
+  }
+
+  .ant-space:has(> .ant-space-item > .ant-segmented) {
+    display: flex;
+    max-width: 100%;
+  }
+
+  .ant-space-item:has(> .ant-segmented) {
+    min-width: 0;
+    max-width: 100%;
+  }
+}

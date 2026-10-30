@@ -130,6 +130,7 @@ function CategoriesTab() {
         loading={categories.isFetching}
         dataSource={categories.data?.items ?? []}
         pagination={false}
+        scroll={{ x: 560 }}
         locale={{
           emptyText: (
             <Empty
@@ -316,6 +317,7 @@ function IngredientsTab() {
         loading={ingredients.isFetching}
         dataSource={ingredients.data?.items ?? []}
         pagination={false}
+        scroll={{ x: 560 }}
         locale={{
           emptyText: (
             <Empty

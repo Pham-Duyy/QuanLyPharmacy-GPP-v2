@@ -4728,3 +4728,12 @@
   max-width: 260px;
   white-space: normal;
 }
+
+/* Các lưới thẻ số riêng của từng trang: 2 cột gọn trên điện thoại như thẻ số chung. */
+@media (max-width: 576px) {
+  .count-stats,
+  .staff-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+}
