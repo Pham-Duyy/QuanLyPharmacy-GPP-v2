@@ -189,3 +189,66 @@ def test_api_is_read_only(client):
         for method in getattr(route, "methods", set())
     }
     assert methods <= {"GET", "HEAD"}
+
+
+# --- Phase 2: sản phẩm, tồn kho, hạn dùng, cảnh báo (bước 2.5) --------------------------
+
+INVENTORY = [
+    # Paracetamol CH01: 30 ngày bán 15 viên (HD1 10 + HD3 5) → ADS 0,5; tồn 3 viên đủ 6 ngày: sắp hết; còn 5 ngày hạn → bán kịp.
+    {"store_code": "CH01", "medicine_code": "GD001", "batch_code": "PA1", "quantity": 3, "expiry_date": datetime(2026, 11, 3), "purchase_price": 800},
+    {"store_code": "CH01", "medicine_code": "GD001", "batch_code": "PA0", "quantity": 10, "expiry_date": datetime(2026, 10, 1), "purchase_price": 800},
+    # Amoxicillin CH02: có tồn nhưng 30 ngày chỉ bán 2 viên → còn 20 ngày, nguy cơ.
+    {"store_code": "CH02", "medicine_code": "KS001", "batch_code": "AM1", "quantity": 100, "expiry_date": datetime(2026, 11, 18), "purchase_price": 3_500},
+]
+
+
+@pytest.fixture
+def stocked(workspace):
+    folder, store = workspace
+    pd.DataFrame(INVENTORY).to_excel(folder / "inventory.xlsx", index=False)
+    Pipeline(folder, store).run(as_of=AS_OF)
+    return TestClient(create_app(store))
+
+
+def test_alerts_and_overview(stocked):
+    alerts = stocked.get("/api/analytics/alerts").json()["alerts"]
+    codes = [alert["code"] for alert in alerts]
+    assert codes[0] == "expired_in_stock"  # nặng nhất trước
+    assert {"expiry_risk", "expiring_soon", "data_errors"} <= set(codes)
+    assert [alert["code"] for alert in stocked.get("/api/analytics/alerts", params={"store": "ch02"}).json()["alerts"]] == [
+        "expiry_risk",
+        "expiring_soon",
+    ]
+
+    overview = stocked.get("/api/analytics/summary").json()["overview"]
+    assert overview["inventory_available"] is True
+    assert (overview["expired_lots"], overview["expiring_30d_lots"]) == (1, 2)
+    assert overview["alerts"]["critical"] == 1
+
+
+def test_inventory_and_expiry_filters(stocked):
+    inventory = stocked.get("/api/analytics/inventory", params={"store": "CH02"}).json()
+    assert inventory["available"] is True
+    assert [(item["medicine_code"], item["status"]) for item in inventory["items"]] == [("KS001", "high")]
+    low = stocked.get("/api/analytics/inventory", params={"status": "low"}).json()["items"]
+    assert [(item["store_code"], item["medicine_code"], item["days_of_cover"]) for item in low] == [("CH01", "GD001", 6.0)]
+    assert stocked.get("/api/analytics/inventory", params={"status": "nhieu"}).status_code == 422
+
+    expiry = stocked.get("/api/analytics/expiry", params={"level": "expired"}).json()
+    assert [lot["batch_code"] for lot in expiry["lots"]] == ["PA0"]
+    assert [lot["batch_code"] for lot in expiry["risk_lots"]] == ["AM1"]
+    assert expiry["risk_lots"][0]["at_risk_quantity"] == 99  # 20 ngày × 2/30 viên/ngày ≈ 1 viên bán kịp
+
+
+def test_products_endpoint(stocked):
+    body = stocked.get("/api/analytics/products", params={"period": "week"}).json()
+    assert [row["medicine_code"] for row in body["revenue"]] == ["GD001", "KS001"]
+    assert body["stock"]["basis"] == "inventory"
+    assert stocked.get("/api/analytics/products", params={"store": "CH99"}).status_code == 404
+
+
+def test_without_inventory_file_sections_say_unavailable(client):
+    assert client.get("/api/analytics/inventory").json()["available"] is False
+    assert client.get("/api/analytics/expiry").json()["available"] is False
+    assert client.get("/api/analytics/summary").json()["overview"]["inventory_available"] is False
+    assert client.get("/api/analytics/products").json()["stock"]["basis"] == "sales_history"

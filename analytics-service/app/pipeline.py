@@ -20,7 +20,16 @@ from typing import Literal
 
 import pandas as pd
 
-from app.analytics import kpi_summary, prepare_sales, sales_breakdown, sales_trend
+from app.analytics import (
+    expiry_analysis,
+    inventory_analysis,
+    kpi_summary,
+    prepare_sales,
+    product_analysis,
+    sales_breakdown,
+    sales_trend,
+)
+from app.analytics.alerts import build_alerts
 from app.analytics.breakdown import bucket_start
 from app.analytics.periods import Window, period_windows
 from app.config import SNAPSHOT_REFRESH_SECONDS, TIMEZONE, TREND_DAYS
@@ -29,6 +38,9 @@ from app.processor.service import find_file, now_local
 from app.store import AnalyticsStore, RunRecord
 
 Trigger = Literal["manual", "monitor", "refresh"]
+
+# Các khối mà phiên bản hiện tại luôn ghi vào snapshot.
+SNAPSHOT_KEYS = {"kpi", "trend", "breakdown_month", "products", "inventory", "expiry", "alerts"}
 Status = Literal["processed", "refreshed", "unchanged", "failed"]
 
 
@@ -96,7 +108,10 @@ class Pipeline:
             return
         self._known = {name: FileFingerprint(**data) for name, data in snapshot["source"].items()}
         self._known_hash = self._combined_hash(self._known)
-        self._snapshot_at = pd.Timestamp(snapshot["as_of"])
+        # Snapshot của phiên bản cũ (thiếu khối mới, ví dụ "alerts" từ bước 2.5): để trống thời điểm
+        # thì lần chạy đầu tính lại ngay, không đợi hết SNAPSHOT_REFRESH_SECONDS.
+        if SNAPSHOT_KEYS <= snapshot.keys():
+            self._snapshot_at = pd.Timestamp(snapshot["as_of"])
 
     # --- Phát hiện thay đổi -----------------------------------------------------------
 
@@ -234,25 +249,45 @@ def build_snapshot(
     def scoped(store: str | None) -> pd.DataFrame:
         return sales if store is None else sales[sales["store_code"] == store]
 
+    kpi = {"ALL": kpi_summary(sales, as_of), **{store: kpi_summary(sales, as_of, store) for store in stores}}
+    data_quality = {
+        name: {
+            "file": result.file,
+            "rows_read": result.rows_read,
+            "rows_valid": result.rows_valid,
+            "rows_rejected": result.rows_rejected,
+            "errors": result.error_count,
+            "warnings": result.warning_count,
+            "by_code": result.issue_summary(),
+        }
+        for name, result in results.items()
+    }
+
+    # Phase 2: sản phẩm, tồn kho, hạn dùng, cảnh báo. Tồn kho không bắt buộc (quyết định D7).
+    medicines = results["medicines"].data if "medicines" in results else None
+    inventory = results["inventory"].data if "inventory" in results else None
+    stock_as_of = None
+    if "inventory" in fingerprints:
+        saved = pd.Timestamp(fingerprints["inventory"].mtime, unit="s", tz="UTC").tz_convert(TIMEZONE).tz_localize(None)
+        stock_as_of = saved.floor("s")
+    scopes: list[str | None] = [None, *stores]
+    products, stock, expiry, alerts = {}, {}, {}, {}
+    for store in scopes:
+        key = store or "ALL"
+        products[key] = product_analysis(sales, inventory, medicines, as_of, store)
+        stock[key] = inventory_analysis(sales, inventory, medicines, as_of, store, stock_as_of=stock_as_of)
+        expiry[key] = expiry_analysis(sales, inventory, medicines, as_of, store)
+        # Lỗi dữ liệu tính trên cả tệp nên chỉ cảnh báo ở toàn chuỗi.
+        alerts[key] = build_alerts(kpi[key], stock[key], expiry[key], data_quality if store is None else None)
+
     return {
         "generated_at": _now_text(),
         "as_of": as_of.isoformat(),
         "source": {name: fingerprint.to_dict() for name, fingerprint in fingerprints.items()},
-        "data_quality": {
-            name: {
-                "file": result.file,
-                "rows_read": result.rows_read,
-                "rows_valid": result.rows_valid,
-                "rows_rejected": result.rows_rejected,
-                "errors": result.error_count,
-                "warnings": result.warning_count,
-                "by_code": result.issue_summary(),
-            }
-            for name, result in results.items()
-        },
+        "data_quality": data_quality,
         "stores": stores,
         # "ALL" là toàn chuỗi; còn lại theo mã cửa hàng.
-        "kpi": {"ALL": kpi_summary(sales, as_of), **{store: kpi_summary(sales, as_of, store) for store in stores}},
+        "kpi": kpi,
         "trend": {
             "daily": {"ALL": sales_trend(sales, trend_window, "day"), **{s: sales_trend(scoped(s), trend_window, "day") for s in stores}},
             "monthly": {"ALL": sales_trend(sales, twelve_months, "month")},
@@ -264,6 +299,11 @@ def build_snapshot(
             "payment_method": sales_breakdown(sales, month, "payment_method"),
             "top_medicines": sales_breakdown(sales, month, "medicine_code", limit=20),
         },
+        "stock_as_of": None if stock_as_of is None else stock_as_of.isoformat(),
+        "products": products,
+        "inventory": stock,
+        "expiry": expiry,
+        "alerts": alerts,
     }
 
 

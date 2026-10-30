@@ -80,3 +80,8 @@ HIGH_STOCK_DAYS = 90
 EXPIRY_CRITICAL_DAYS = 7
 EXPIRY_WARNING_DAYS = 30
 EXPIRY_MONITOR_DAYS = 90
+
+# Cảnh báo (bước 2.5): doanh thu hôm nay giảm từ ngần này % so với hôm qua cùng giờ.
+REVENUE_DROP_PCT = 20.0
+# ...và hôm qua cùng giờ có từ ngần này đơn: sáng sớm vài đơn thì % dao động mạnh, không cảnh báo.
+REVENUE_DROP_MIN_ORDERS = 10

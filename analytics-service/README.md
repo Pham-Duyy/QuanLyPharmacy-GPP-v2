@@ -3,7 +3,7 @@
 Dịch vụ Python của **Pharmacy Intelligent Analytics**: theo dõi tệp dữ liệu, xử lý,
 tính chỉ số kinh doanh. Không gọi LLM. Kiến trúc: [docs/analytics/architecture.md](../docs/analytics/architecture.md).
 
-Hiện có: bước 1.1 (schema, dữ liệu mẫu), 1.2 (xử lý dữ liệu), 1.3 (KPI Engine), 1.4 (pipeline + SQLite), 1.5 (File Monitor), 1.6 (Analytics API), 1.7 (Bảng điều hành trên web); Phase 2: 2.1 (tệp tồn kho theo lô), 2.2 (phân tích sản phẩm), 2.3 (phân tích tồn kho), 2.4 (hạn dùng, FEFO).
+Hiện có: bước 1.1 (schema, dữ liệu mẫu), 1.2 (xử lý dữ liệu), 1.3 (KPI Engine), 1.4 (pipeline + SQLite), 1.5 (File Monitor), 1.6 (Analytics API), 1.7 (Bảng điều hành trên web); Phase 2: 2.1 (tệp tồn kho theo lô), 2.2 (phân tích sản phẩm), 2.3 (phân tích tồn kho), 2.4 (hạn dùng, FEFO), 2.5 (cảnh báo, API tồn kho).
 
 ## Cài đặt (một lần)
 
@@ -78,7 +78,8 @@ python main.py serve --no-monitor              # chỉ API, đọc snapshot có 
 
 Trang `/docs` liệt kê mọi endpoint, bấm "Try it out" để gọi thử. Ví dụ:
 `http://127.0.0.1:8000/api/analytics/summary?store=CH03`,
-`http://127.0.0.1:8000/api/analytics/sales-trend?grain=week`.
+`http://127.0.0.1:8000/api/analytics/sales-trend?grain=week`,
+`http://127.0.0.1:8000/api/analytics/alerts`, `http://127.0.0.1:8000/api/analytics/expiry?store=CH02`.
 
 Dữ liệu mẫu cố ý có 12 dòng lỗi bán hàng, 2 dòng lỗi danh mục và 7 dòng lỗi tồn kho; báo cáo phải chỉ ra đủ.
 `python scripts/generate_sample_data.py --errors 0` để có dữ liệu sạch.
@@ -131,6 +132,7 @@ app/
     stock.py             tồn bán được: lô còn hạn
     inventory.py         trạng thái tồn kho (bước 2.3)
     expiry.py            hạn dùng 5 mức, FEFO (bước 2.4)
+    alerts.py            cảnh báo theo luật (bước 2.5)
   store/sqlite_store.py  Analytics Store: runs, snapshots, data_issues, kpi_daily
   pipeline.py            Processor → KPI → Store, phát hiện tệp thay đổi
   monitor/watcher.py     theo dõi thư mục: sự kiện + debounce + polling dự phòng
@@ -138,6 +140,6 @@ app/
   analytics/daily.py     gộp kpi_daily thành chuỗi ngày/tuần/tháng
   api/routes.py          Analytics API (FastAPI), chỉ đọc
 scripts/generate_sample_data.py, scripts/simulate_sales.py
-tests/test_processor.py, test_kpi.py, test_products.py, test_inventory.py, test_expiry.py, test_pipeline.py, test_monitor.py, test_api.py
+tests/test_processor.py, test_kpi.py, test_products.py, test_inventory.py, test_expiry.py, test_alerts.py, test_pipeline.py, test_monitor.py, test_api.py
 main.py                  lệnh chạy
 ```

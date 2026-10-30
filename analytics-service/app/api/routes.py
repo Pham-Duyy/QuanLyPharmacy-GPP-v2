@@ -24,6 +24,8 @@ from app.store import AnalyticsStore
 PeriodParam = Literal["day", "week", "month"]
 GrainParam = Literal["day", "week", "month"]
 BreakdownParam = Literal["category", "sale_type", "store", "payment_method", "top_medicines"]
+StockStatusParam = Literal["out_of_stock", "low", "dead", "high", "normal"]
+ExpiryLevelParam = Literal["expired", "critical", "warning", "monitor"]
 # Trên URL là ?store=CH01; trong Python đặt tên store_code để không trùng đối tượng Store.
 StoreParam = Annotated[str, Query(alias="store", description="Mã cửa hàng, hoặc ALL cho toàn chuỗi", max_length=20)]
 
@@ -62,6 +64,42 @@ def _store_kpi(snapshot: dict[str, Any], store: str) -> dict[str, Any]:
     return snapshot["kpi"][key]
 
 
+def _section(snapshot: dict[str, Any], name: str, store: str) -> Any:
+    """Khối Phase 2 của một phạm vi. Snapshot tạo trước bản 2.5 chưa có: chờ lần tính kế tiếp (≤ 5 phút)."""
+    _store_kpi(snapshot, store)  # kiểm tra mã cửa hàng
+    if name not in snapshot:
+        raise HTTPException(503, "Snapshot được tạo trước khi có phân tích tồn kho: chờ lần tính kế tiếp")
+    return snapshot[name][store.upper()]
+
+
+def _overview(snapshot: dict[str, Any], store: str) -> dict[str, Any] | None:
+    """Vài con số tồn kho, hạn dùng, cảnh báo cho thẻ KPI của Dashboard."""
+    if "inventory" not in snapshot:
+        return None
+    key = store.upper()
+    stock, expiry, alerts = snapshot["inventory"][key], snapshot["expiry"][key], snapshot["alerts"][key]
+    severities = {"critical": 0, "high": 0, "medium": 0, "low": 0}
+    for alert in alerts:
+        severities[alert["severity"]] += 1
+    overview: dict[str, Any] = {"stock_as_of": snapshot.get("stock_as_of"), "inventory_available": stock["available"], "alerts": severities}
+    if stock["available"]:
+        summary = stock["summary"]
+        overview.update(
+            total_stock_value=stock["total_stock_value"],
+            out_of_stock=summary["out_of_stock"]["count"],
+            low_stock=summary["low"]["count"],
+            dead_stock=summary["dead"]["count"],
+        )
+    if expiry.get("available") and expiry.get("levels"):
+        levels = expiry["levels"]
+        overview.update(
+            expired_lots=levels["expired"]["lots"],
+            expiring_30d_lots=levels["critical"]["lots"] + levels["warning"]["lots"],
+            at_risk_value=expiry["at_risk"]["value"],
+        )
+    return overview
+
+
 def _pick(values: dict[str, Any], fields: tuple[str, ...]) -> dict[str, Any]:
     return {field: values.get(field) for field in fields}
 
@@ -70,7 +108,7 @@ def create_app(store: AnalyticsStore, monitor=None, *, lifespan=None) -> FastAPI
     app = FastAPI(
         title="Pharmacy Intelligent Analytics API",
         description="Số liệu kinh doanh nhà thuốc đã tính sẵn. Chỉ đọc, không gọi LLM.",
-        version="1.6.0",
+        version="2.5.0",
         lifespan=lifespan,
     )
     reader = SnapshotReader(store)
@@ -122,6 +160,7 @@ def create_app(store: AnalyticsStore, monitor=None, *, lifespan=None) -> FastAPI
             "stores": snapshot["stores"],
             "periods": kpi["periods"],
             "data_quality": snapshot["data_quality"],
+            "overview": _overview(snapshot, store_code),
         }
 
     def _period_view(store_code: str, period: PeriodParam, fields: tuple[str, ...]) -> dict[str, Any]:
@@ -193,6 +232,39 @@ def create_app(store: AnalyticsStore, monitor=None, *, lifespan=None) -> FastAPI
             "total": len(latest["issues"]),
             "issues": latest["issues"][:limit],
         }
+
+    @app.get("/api/analytics/products", tags=["Sản phẩm"], summary="Xếp hạng sản phẩm, bán chậm, không bán được")
+    def products(period: PeriodParam = "month", store_code: StoreParam = "ALL") -> dict[str, Any]:
+        snapshot = reader.get()
+        data = _section(snapshot, "products", store_code)
+        return {**_meta(snapshot), "store": store_code.upper(), **data["periods"][period], "stock": data["stock"]}
+
+    @app.get("/api/analytics/inventory", tags=["Tồn kho"], summary="Tồn kho: hết hàng, sắp hết, tồn chết, tồn cao")
+    def inventory(
+        store_code: StoreParam = "ALL",
+        status: StockStatusParam | None = Query(None, description="Chỉ lấy một trạng thái"),
+    ) -> dict[str, Any]:
+        snapshot = reader.get()
+        data = _section(snapshot, "inventory", store_code)
+        if data["available"] and status:
+            data = {**data, "items": [item for item in data["items"] if item["status"] == status]}
+        return {**_meta(snapshot), **data}
+
+    @app.get("/api/analytics/expiry", tags=["Tồn kho"], summary="Hạn dùng 5 mức, FEFO, hàng có nguy cơ hết hạn")
+    def expiry(
+        store_code: StoreParam = "ALL",
+        level: ExpiryLevelParam | None = Query(None, description="Chỉ lấy lô ở một mức"),
+    ) -> dict[str, Any]:
+        snapshot = reader.get()
+        data = _section(snapshot, "expiry", store_code)
+        if data.get("lots") and level:
+            data = {**data, "lots": [lot for lot in data["lots"] if lot["level"] == level]}
+        return {**_meta(snapshot), **data}
+
+    @app.get("/api/analytics/alerts", tags=["Cảnh báo"], summary="Cảnh báo theo luật, nặng nhất trước")
+    def alerts(store_code: StoreParam = "ALL") -> dict[str, Any]:
+        snapshot = reader.get()
+        return {**_meta(snapshot), "store": store_code.upper(), "alerts": _section(snapshot, "alerts", store_code)}
 
     @app.get("/api/analytics/runs", tags=["Hệ thống"], summary="Nhật ký các lần chạy pipeline")
     def runs(limit: int = Query(20, ge=1, le=200)) -> dict[str, Any]:

@@ -179,6 +179,10 @@ Monitor ở luồng nền là nơi duy nhất ghi SQLite). Tài liệu tự sinh
 | `/sales-trend` | `grain` (day/week/month), `store`, `start`, `end` | chuỗi từ `kpi_daily`; kỳ đầu lùi về đầu tuần/tháng; kỳ đang dở có `partial: true` | get_sales_trend |
 | `/breakdown` | `by` (category, sale_type, store, payment_method, top_medicines) | cơ cấu tháng này | get_top_products |
 | `/data-quality` | `limit` | lỗi dữ liệu lần đọc tệp gần nhất | |
+| `/products` | `period`, `store` | top doanh thu/lợi nhuận, biên thấp, giảm mạnh; bán chậm, không bán được (2.2) | get_top_products, get_slow_products |
+| `/inventory` | `store`, `status` | tồn bán được, ADS, số ngày tồn, 5 trạng thái (2.3) | get_inventory, get_low_stock |
+| `/expiry` | `store`, `level` | lô theo 5 mức hạn, FEFO, hàng có nguy cơ (2.4) | get_expiring_products, get_expired_products |
+| `/alerts` | `store` | cảnh báo theo luật, nặng nhất trước (2.5) | |
 | `/runs` | `limit` | nhật ký pipeline | |
 
 Đo trên máy chủ thật, 50 lần mỗi endpoint, dữ liệu 32.000 dòng: trung vị 2–3 ms (snapshot), 10–11 ms
@@ -244,10 +248,15 @@ mỗi lô theo hạn tăng dần:
 Ví dụ: ADS 10 hộp/ngày; lô A 50 hộp còn 7 ngày → bán hết sau 5 ngày, an toàn; lô B 200 hộp còn 12 ngày → chỉ còn
 7 ngày để bán, được 70 hộp, **130 hộp có nguy cơ**.
 
-**Cảnh báo theo luật:** lô hết hạn còn trong kho (nguy cấp); lô nguy cấp/cảnh báo; hàng có nguy cơ không kịp bán;
+**Cảnh báo theo luật** (`app/analytics/alerts.py`, câu chữ là khuôn cố định, số lấy thẳng từ kết quả, không gọi LLM):
+lô hết hạn còn trong kho (nguy cấp); lô nguy cấp/cảnh báo; hàng có nguy cơ không kịp bán;
 hết hàng/sắp hết; doanh thu hôm nay giảm ≥ 20% so với hôm qua cùng giờ; tệp có dòng lỗi.
 
-Thiếu `inventory.xlsx` thì phần bán hàng vẫn chạy; các khối tồn kho báo "Chưa có tệp tồn kho".
+Thiếu `inventory.xlsx` thì phần bán hàng vẫn chạy; các khối tồn kho báo `available: false`.
+
+Snapshot (bước 2.5) có thêm `products`, `inventory`, `expiry`, `alerts` cho `ALL` và từng cửa hàng, cùng `stock_as_of`
+(giờ lưu tệp tồn kho); `/summary` có thêm `overview` cho thẻ KPI. Dữ liệu mẫu: snapshot khoảng 310 KB, một lần chạy
+khoảng 3 giây. Snapshot của phiên bản cũ (thiếu khối mới) được tính lại ngay khi khởi động.
 
 ## Lộ trình
 
@@ -264,7 +273,7 @@ Thiếu `inventory.xlsx` thì phần bán hàng vẫn chạy; các khối tồn 
 | 2.2 | Phân tích sản phẩm: top doanh thu/lợi nhuận, lợi nhuận thấp, giảm mạnh, bán chậm, lâu không bán ([kpi.md](kpi.md#phân-tích-sản-phẩm-phase-2-bước-22)) | Xong |
 | 2.3 | Phân tích tồn kho: ADS, số ngày tồn, giá trị tồn, 5 trạng thái ([kpi.md](kpi.md#phân-tích-tồn-kho-phase-2-bước-23)) | Xong |
 | 2.4 | Hạn dùng 5 mức + FEFO: số lượng và tiền có nguy cơ không kịp bán ([kpi.md](kpi.md#hạn-dùng-và-fefo-phase-2-bước-24)) | Xong |
-| 2.5 | Cảnh báo theo luật; snapshot; Analytics API `/products`, `/inventory`, `/expiry`, `/alerts` | |
+| 2.5 | Cảnh báo theo luật; snapshot; Analytics API `/products`, `/inventory`, `/expiry`, `/alerts` | Xong |
 | 2.6 | Gateway (quyền D8) + Bảng điều hành: thẻ KPI tồn kho, khối Cảnh báo, tab Tồn kho / Hạn dùng / Sản phẩm | |
 | 3 | Bất thường (luật → Z-score/IQR), dự báo (MA → Holt-Winters), backtest | |
 | 4 | AI Agent: tool calling, đối chiếu số, nhật ký, bộ câu hỏi đánh giá | |

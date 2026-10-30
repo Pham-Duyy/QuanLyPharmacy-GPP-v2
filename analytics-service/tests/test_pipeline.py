@@ -5,6 +5,7 @@ Mỗi test dùng thư mục tạm riêng và tệp SQLite riêng, thời điểm
 
 from __future__ import annotations
 
+import json
 import os
 from datetime import datetime
 
@@ -216,3 +217,18 @@ def test_inventory_file_is_optional_and_tracked(workspace, reads):
     changed = pipeline.run(as_of=AS_OF + pd.Timedelta(minutes=2))
     assert (changed.status, changed.snapshot_version, reads["count"]) == ("processed", 3, 3)
     assert store.latest_snapshot()["data_quality"]["inventory"]["by_code"] == {"negative_value": 1}
+
+
+def test_snapshot_from_older_version_is_recomputed_on_restart(workspace, reads):
+    """Snapshot ghi bởi phiên bản trước 2.5 (thiếu "alerts"): khởi động lại thì tính ngay, không đợi 5 phút."""
+    folder, store = workspace
+    Pipeline(folder, store).run(as_of=AS_OF)
+    with store._connect() as connection:
+        row = connection.execute("SELECT version, payload FROM snapshots ORDER BY version DESC LIMIT 1").fetchone()
+        old = json.loads(row["payload"])
+        del old["alerts"]
+        connection.execute("UPDATE snapshots SET payload = ? WHERE version = ?", (json.dumps(old), row["version"]))
+
+    result = Pipeline(folder, store).run(as_of=AS_OF + pd.Timedelta(minutes=1))
+    assert result.status == "processed"
+    assert "alerts" in store.latest_snapshot()
