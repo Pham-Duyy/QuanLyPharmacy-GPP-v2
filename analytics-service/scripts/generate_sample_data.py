@@ -114,6 +114,7 @@ PAYMENTS = (["cash", "transfer", "card", "debt"], [55, 35, 8, 2])
 
 
 def build_medicines(rng: random.Random) -> pd.DataFrame:
+    """Danh mục thuốc; min_stock/max_stock tạm tính ở đây, set_stock_limits đặt lại theo tốc độ bán."""
     rows = []
     for code, name, category, unit, cost, _margin, popularity, (low, high), rx in MEDICINES:
         min_stock = max(int(popularity * (low + high) / 2 * 1.5), 5)
@@ -270,6 +271,21 @@ def build_inventory(rng: random.Random, sales: pd.DataFrame, end: date) -> pd.Da
     return pd.DataFrame(rows)
 
 
+def set_stock_limits(medicines: pd.DataFrame, sales: pd.DataFrame, end: date) -> pd.DataFrame:
+    """Tồn tối thiểu ≈ 10 ngày bán, tối đa ≈ 120 ngày bán, theo tốc độ bán trung bình một cửa hàng.
+
+    Nhà thuốc thật đặt hai mức này theo kinh nghiệm bán; đặt theo tốc độ bán
+    thật thì phân tích tồn kho (bước 2.3) mới ra kết quả hợp lý.
+    """
+    recent = sales[pd.to_datetime(sales["sale_datetime"]) >= pd.Timestamp(end - timedelta(days=29))]
+    per_store_daily = recent.groupby("medicine_code")["quantity"].sum() / 30 / len(STORES)
+    medicines = medicines.copy()
+    daily = medicines["medicine_code"].map(per_store_daily).fillna(0)
+    medicines["min_stock"] = (daily * 10).round().clip(lower=1).astype(int)
+    medicines["max_stock"] = (daily * 120).round().clip(lower=5).astype(int)
+    return medicines
+
+
 def inject_inventory_errors(inventory: pd.DataFrame) -> pd.DataFrame:
     """Mỗi luật kiểm tra tồn kho một dòng lỗi cố ý."""
     inventory = inventory.astype(object).copy()
@@ -332,6 +348,7 @@ def main() -> None:
     # Tồn kho tính từ sales SẠCH, trước khi chèn lỗi; dùng nguồn ngẫu nhiên riêng
     # để thêm tồn kho không làm đổi dữ liệu bán hàng của cùng một seed.
     inventory = build_inventory(random.Random(args.seed + 1), sales, args.end_date)
+    medicines = set_stock_limits(medicines, sales, args.end_date)
     if args.errors:
         sales, medicines = inject_errors(sales, medicines, args.end_date)
         inventory = inject_inventory_errors(inventory)

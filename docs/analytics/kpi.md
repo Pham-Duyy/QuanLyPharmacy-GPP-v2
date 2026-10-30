@@ -80,3 +80,30 @@ Gộp theo thuốc bằng đúng công thức ở trên (lợi nhuận, biên ch
   (xem theo từng cửa hàng để thấy).
 - Ngưỡng ở `app/config.py`: `SALES_LOOKBACK_DAYS`, `PRODUCT_TOP_N`, `DECLINE_MIN_ORDERS`, `LOW_MARGIN_MIN_ORDERS`.
 
+## Phân tích tồn kho (Phase 2, bước 2.3)
+
+Code: `analytics-service/app/analytics/inventory.py`. Lệnh xem: `python main.py inventory [--store CH01] [--status low]`.
+
+```
+Tồn hiện tại   = Σ số lượng các lô CÒN HẠN (lô hết hạn không bán được, bước 2.4 xử lý riêng)
+ADS            = số lượng bán 30 ngày gần nhất / 30
+Số ngày tồn    = Tồn hiện tại / ADS          (ADS = 0: không tính)
+Giá trị tồn    = Σ số lượng × giá nhập       (thiếu giá nhập: để trống, không đoán)
+```
+
+| Trạng thái | Điều kiện (xét theo thứ tự) |
+|---|---|
+| Hết hàng | tồn = 0 nhưng 30 ngày qua có bán |
+| Tồn chết | còn tồn, 30 ngày không bán |
+| Sắp hết | tồn < `min_stock` hoặc số ngày tồn < 7 |
+| Tồn cao | tồn > `max_stock` hoặc số ngày tồn > 90 |
+| Bình thường | còn lại |
+
+- "Sắp hết" xét trước "tồn cao": dưới mức tối thiểu thì phải nhập dù đang bán chậm.
+- `min_stock > max_stock` (danh mục gõ nhầm, Processor cảnh báo `min_above_max`): bỏ cả hai mức, chỉ xét số ngày tồn.
+- Trạng thái luôn tính **theo cửa hàng**. Toàn chuỗi là danh sách mọi cửa hàng, không cộng tồn các nơi:
+  CH01 còn 300 hộp không cứu được CH02 đang hết.
+- Tồn lấy từ tệp tại lúc lưu (quyết định D7); hàng bán sau lúc đó chưa được trừ.
+- Dòng tồn kho bị Processor loại vì lỗi thì không được tính: một lô ghi số âm có thể làm thuốc hiện "hết hàng".
+  Xem khung Chất lượng dữ liệu khi thấy kết quả lạ.
+

@@ -31,7 +31,7 @@ import pandas as pd
 
 from app.analytics import kpi_summary, prepare_sales, sales_breakdown
 from app.analytics.periods import Window
-from app.config import ANALYTICS_DB, INBOX_DIR, MONITOR_DEBOUNCE_SECONDS, MONITOR_POLL_SECONDS, SAMPLES_DIR
+from app.config import ANALYTICS_DB, INBOX_DIR, MONITOR_DEBOUNCE_SECONDS, MONITOR_POLL_SECONDS, SAMPLES_DIR, TIMEZONE
 from app.logging_setup import setup_logging
 from app.monitor import Monitor
 from app.pipeline import Pipeline
@@ -192,6 +192,53 @@ def _margin(value: float | None) -> str:
     return "—" if value is None else _number(value, 1) + "%"
 
 
+def command_inventory(args: argparse.Namespace) -> int:
+    """Tình trạng tồn kho (bước 2.3): hết hàng, sắp hết, tồn chết, tồn cao."""
+    from app.analytics.inventory import STATUS_LABELS, inventory_analysis
+    from app.processor import INVENTORY
+    from app.processor.service import find_file
+
+    try:
+        results = process_folder(args.folder)
+    except (LoadError, FileNotFoundError) as error:
+        print(f"Không xử lý được: {error}", file=sys.stderr)
+        return 1
+    if "inventory" not in results:
+        print(f"Chưa có inventory.xlsx hoặc inventory.csv trong {args.folder}", file=sys.stderr)
+        return 1
+    medicines = results["medicines"].data if "medicines" in results else None
+    sales = prepare_sales(results["sales"].data, medicines)
+    as_of = pd.Timestamp(args.as_of) if args.as_of else now_local()
+    saved = pd.Timestamp(find_file(args.folder, INVENTORY).stat().st_mtime, unit="s", tz="UTC").tz_convert(TIMEZONE).tz_localize(None)
+    store = args.store.upper() if args.store else None
+    analysis = inventory_analysis(sales, results["inventory"].data, medicines, as_of, store, stock_as_of=saved)
+    if args.json:
+        print(json.dumps(analysis, ensure_ascii=False, indent=2))
+        return 0
+
+    scope = f"cửa hàng {store}" if store else "mọi cửa hàng"
+    print(f"\nTồn kho {scope}: số tồn theo tệp lưu lúc {saved:%H:%M %d/%m/%Y}, tốc độ bán 30 ngày đến {as_of:%d/%m/%Y %H:%M}")
+    print(f"Tổng giá trị tồn bán được: {_money(analysis['total_stock_value'])}")
+    for status, part in analysis["summary"].items():
+        print(f"  {part['label']:<12} {part['count']:>4} mặt hàng   {_money(part['stock_value']):>18}")
+    wanted = [args.status] if args.status else ["out_of_stock", "low", "dead", "high"]
+    for status in wanted:
+        items = [item for item in analysis["items"] if item["status"] == status]
+        print(f"\n--- {STATUS_LABELS[status]}: {len(items)} ---")
+        for item in items[: args.top]:
+            cover = "—" if item["days_of_cover"] is None else f"{_number(item['days_of_cover'], 1)} ngày"
+            last = "" if status != "dead" else (
+                "  chưa bán bao giờ" if item["last_sale"] is None else f"  bán lần cuối {item['days_since_sale']} ngày trước"
+            )
+            print(
+                f"  {item['store_code']} {item['medicine_name'] or item['medicine_code']:<34}"
+                f" tồn {_number(item['stock_quantity']):>7}  bán {_number(item['ads'], 1):>6}/ngày  đủ {cover:>10}{last}"
+            )
+        if len(items) > args.top:
+            print(f"  … và {len(items) - args.top} mặt hàng khác")
+    return 0
+
+
 def command_run(args: argparse.Namespace) -> int:
     store = AnalyticsStore(args.db)
     pipeline = Pipeline(args.folder, store)
@@ -315,6 +362,16 @@ def main() -> int:
     products.add_argument("--top", type=int, default=10, help="Số dòng mỗi bảng (mặc định 10)")
     products.add_argument("--json", action="store_true", help="In kết quả dạng JSON")
     products.set_defaults(handler=command_products)
+    inventory = commands.add_parser("inventory", help="Tồn kho: hết hàng, sắp hết, tồn chết, tồn cao")
+    inventory.add_argument("folder", nargs="?", type=Path, default=SAMPLES_DIR, help="Thư mục chứa medicines/sales/inventory")
+    inventory.add_argument("--store", help="Chỉ một cửa hàng, ví dụ CH01")
+    inventory.add_argument(
+        "--status", choices=["out_of_stock", "low", "dead", "high", "normal"], help="Chỉ in một trạng thái"
+    )
+    inventory.add_argument("--as-of", help="Thời điểm tính (mặc định: bây giờ)")
+    inventory.add_argument("--top", type=int, default=15, help="Số dòng mỗi trạng thái (mặc định 15)")
+    inventory.add_argument("--json", action="store_true", help="In kết quả dạng JSON")
+    inventory.set_defaults(handler=command_inventory)
     run = commands.add_parser("run", help="Chạy pipeline và lưu snapshot vào SQLite")
     run.add_argument("folder", nargs="?", type=Path, default=SAMPLES_DIR, help="Thư mục chứa medicines/sales/inventory")
     run.add_argument("--db", type=Path, default=ANALYTICS_DB, help="Tệp SQLite (mặc định data/analytics.db)")

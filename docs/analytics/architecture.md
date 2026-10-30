@@ -262,7 +262,7 @@ Thiếu `inventory.xlsx` thì phần bán hàng vẫn chạy; các khối tồn 
 | 1.7 | Node Gateway `/api/v1/bi` (đăng nhập, quyền theo cửa hàng) + trang "Bảng điều hành" tự cập nhật | Xong |
 | 2.1 | Schema `inventory.xlsx`, luật kiểm tra, dữ liệu mẫu khớp sales | Xong |
 | 2.2 | Phân tích sản phẩm: top doanh thu/lợi nhuận, lợi nhuận thấp, giảm mạnh, bán chậm, lâu không bán ([kpi.md](kpi.md#phân-tích-sản-phẩm-phase-2-bước-22)) | Xong |
-| 2.3 | Phân tích tồn kho: ADS, số ngày tồn, giá trị tồn, 5 trạng thái | |
+| 2.3 | Phân tích tồn kho: ADS, số ngày tồn, giá trị tồn, 5 trạng thái ([kpi.md](kpi.md#phân-tích-tồn-kho-phase-2-bước-23)) | Xong |
 | 2.4 | Hạn dùng 5 mức + FEFO: số lượng và tiền có nguy cơ không kịp bán | |
 | 2.5 | Cảnh báo theo luật; snapshot; Analytics API `/products`, `/inventory`, `/expiry`, `/alerts` | |
 | 2.6 | Gateway (quyền D8) + Bảng điều hành: thẻ KPI tồn kho, khối Cảnh báo, tab Tồn kho / Hạn dùng / Sản phẩm | |

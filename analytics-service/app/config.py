@@ -70,3 +70,7 @@ DECLINE_MIN_ORDERS = 5
 
 # "Lợi nhuận thấp" xếp theo biên lợi nhuận; chỉ xét thuốc có từ ngần này đơn trong kỳ.
 LOW_MARGIN_MIN_ORDERS = 3
+
+# Trạng thái tồn kho (bước 2.3): đủ bán dưới ngần này ngày là "sắp hết", trên là "tồn cao".
+LOW_STOCK_DAYS = 7
+HIGH_STOCK_DAYS = 90
