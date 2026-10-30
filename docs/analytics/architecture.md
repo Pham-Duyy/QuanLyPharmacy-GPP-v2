@@ -333,6 +333,30 @@ Chi phí ước tính khoảng 1.000–2.000 đ/câu (Opus 5.5: $4 / $20 mỗi t
 - get_customer_debt, get_supplier_data trả `available: false` kèm lời dặn không ước đoán.
 - Test: `server/src/modules/bi/agent/tools.test.ts` (14 test, analytics-service giả, không gọi Claude, không tốn tiền).
 
+### Vòng lặp Agent (bước 4.2, đã làm)
+
+`server/src/modules/bi/agent/agent.ts`, hàm `askAgent({ access, question, history })`:
+
+- Mỗi vòng gửi Claude (`client.beta.messages.create`): `claude-opus-5-5` (biến `ANALYTICS_AI_MODEL`), effort `medium`,
+  `max_tokens` 16.000, `fallbacks: "default"` (mô hình chính từ chối thì API tự chạy lại trên mô hình dự phòng, giống
+  `analytics/llm.ts`). Không ép `tool_choice` (Opus 5.5 trả 400), không tắt thinking (Opus 5.5 không cho tắt).
+- Claude gọi tool thì server chạy song song bằng `runTool` (quyền của người hỏi), gửi lại một tin nhắn chứa mọi
+  `tool_result`; tool lỗi gửi kèm `is_error`. Dừng khi Claude trả lời xong.
+- Giới hạn: 6 vòng (vòng áp chót nhắc "trả lời ngay"; vòng cuối không chạy tool), 20 lần gọi tool, 60 giây cho cả câu
+  hỏi (hủy yêu cầu đang chờ), câu hỏi tối đa 1.000 ký tự.
+- Kết quả luôn có `status`: `answered`, `round_limit`, `timeout`, `refused`, `truncated`, `unavailable` (Claude API
+  lỗi); chưa đặt `ANTHROPIC_API_KEY` thì 503 `AI_DISABLED`. Kèm danh sách tool đã gọi, token, chi phí ước tính, mô hình
+  đã trả lời: đủ cho nhật ký bước 4.4.
+- Lịch sử chỉ thêm: câu hỏi sau gửi lại nguyên lịch sử cũ rồi thêm vào cuối. Lượt bị từ chối hay bị cắt không được lưu.
+  System prompt và tool giống hệt cho mọi người, mọi ngày; thời điểm hỏi, cửa hàng được xem, phạm vi mặc định nằm
+  trong khối `<boi_canh>` của tin nhắn người dùng.
+- Prompt caching: một điểm cache cuối system (tool + system, khoảng 10.400 ký tự, dùng chung cho mọi người) và điểm
+  cache tự động ở khối cuối (vòng sau đọc lại lịch sử đã gửi). Giá: vào $4, ra $20, ghi cache $5, đọc cache $0,20
+  mỗi triệu token. Câu hỏi 2 vòng ước khoảng $0,03–0,05 (800–1.300 đ); số thật tính từ `usage` mỗi lần gọi.
+- Test: `agent.test.ts` (12 test, Claude giả theo kịch bản, tool chạy thật tới analytics-service giả): luồng gọi tool,
+  tham số gửi Claude, tiền tố cache không đổi giữa người dùng và ngày, lịch sử chỉ thêm, quyền, giới hạn vòng, giới hạn
+  tool, hết giờ, từ chối, bị cắt, API lỗi, thiếu khóa. Chưa gọi Claude thật (bước 4.6, cần API key, hỏi trước).
+
 ## Lộ trình
 
 | Phase | Nội dung | Trạng thái |
@@ -357,7 +381,7 @@ Chi phí ước tính khoảng 1.000–2.000 đ/câu (Opus 5.5: $4 / $20 mỗi t
 | 3.5 | Holt-Winters, chọn mô hình, khoảng tin cậy, ngày dự kiến hết hàng, `forecast_cache` ([kpi.md](kpi.md#holt-winters-khoảng-tin-cậy-ngày-hết-hàng-phase-3-bước-35)) | Xong |
 | 3.6 | Snapshot, API `/anomalies`, `/forecast`, Gateway, Bảng điều hành | Xong |
 | 4.1 | Lớp tool: định nghĩa (schema chặt), gọi qua Gateway, lọc quyền, cắt gọn kết quả | Xong |
-| 4.2 | Vòng lặp Agent, system prompt, prompt caching, giới hạn (6 vòng, 60 giây), tính chi phí; test bằng Claude giả | |
+| 4.2 | Vòng lặp Agent, system prompt, prompt caching, giới hạn (6 vòng, 60 giây), tính chi phí; test bằng Claude giả || Xong |
 | 4.3 | Đối chiếu số, sửa 1 lần, chặn; trả lời "không đủ dữ liệu" | |
 | 4.4 | Nhật ký `ai_agent_logs`, giới hạn tần suất (30 câu/giờ), lưu hội thoại chỉ-thêm | |
 | 4.5 | Giao diện hỏi đáp trên Bảng điều hành: câu gợi ý, tool đã gọi, nguồn số, kết quả đối chiếu | |
