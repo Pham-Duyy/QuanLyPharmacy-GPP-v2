@@ -28,6 +28,11 @@ DATA → MONITORING → PROCESSING → ANALYTICS → STORAGE → DASHBOARD → A
 | D15 | Model `claude-opus-5-5`, effort `medium`; đổi qua `ANALYTICS_AI_MODEL` không cần sửa code | Giữ cấu hình hiện có; chi phí đo thật và ghi nhật ký từng câu |
 | D16 | Đối chiếu số: mọi con số trong câu trả lời phải có trong kết quả tool; sai thì cho sửa 1 lần, vẫn sai thì **chặn** và hiện bảng số liệu gốc | Master prompt §23: không bịa số; kiểm tra tất định, không nhờ LLM tự kiểm |
 | D17 | Vòng lặp tool use **tự viết** (không dùng Tool Runner beta) | Không phụ thuộc beta; ghi log, đếm token từng vòng; dễ giải thích |
+| D18 | Gợi ý đặt hàng theo dự báo nằm trong **analytics-service**, hiện trên Bảng điều hành; **giữ nguyên** trang "Đề xuất đặt hàng" (§10.5, có tạo phiếu nhập nháp). Khi bật nguồn PostgreSQL, trang cũ thêm cột "Theo dự báo" | Dùng lại dự báo, FEFO, sai số đã có; không phá luồng đặt hàng đang chạy |
+| D19 | Thêm 3 cột **tùy chọn** vào medicines: `pack_size`, `lead_time_days`, `supplier`; trống thì quy cách 1, chờ 2 ngày, cần đủ hàng 7 ngày | Tệp cũ vẫn hợp lệ; nhà thuốc điền dần |
+| D20 | Mức phục vụ theo ma trận **ABC–XYZ** (AX 98%, B 95%, CZ 90%), sửa trong `config.py`; hàng nhóm C đặt tối đa 30 ngày bán | Tồn an toàn tập trung vào hàng quan trọng, ổn định; tránh tồn đọng, hết hạn |
+| D21 | ML: `scikit-learn` (mô hình tăng cường gradient dùng chung mọi thuốc) chỉ là **bên thách đấu**, dùng cho thuốc nào đo lại thấy sai số thấp hơn Holt-Winters rõ rệt | Không ép dùng ML; dữ liệu mẫu 90 ngày nên báo đúng kết quả đo |
+| D22 | Nguồn PostgreSQL: view chỉ đọc schema `analytics_src` + tài khoản CSDL chỉ đọc, thư viện `psycopg`; ~30 giây kiểm một mốc thay đổi nhẹ; chọn nguồn bằng `ANALYTICS_SOURCE=files\|postgres` | Không cần xuất tệp; có phiếu nhập (nhà cung cấp, giá, thời gian chờ thật); hết lệch mã cửa hàng; chế độ tệp vẫn giữ |
 | D10 | Bất thường: luật R1–R3 + Z-score bền vững (trung vị/MAD) điều chỉnh theo thứ, ngưỡng 3,5; không Isolation Forest, không scikit-learn | Master prompt §16: không dùng ML khi luật và thống kê đã đủ; trung vị/MAD không bị một ngày bất thường kéo lệch |
 | D11 | Holt-Winters tự viết bằng numpy, có test với chuỗi biết trước đáp án | Dễ giải thích khi bảo vệ; không thêm statsmodels + scipy |
 | D12 | Dự báo chỉ trên ngày đã trọn; tầm 7 và 30 ngày; chọn mô hình bằng backtest 4 tuần, WAPE; phải thắng mô hình ngây thơ | Hôm nay chưa xong sẽ kéo dự báo xuống; WAPE không chia cho 0 |
@@ -442,6 +447,22 @@ Nguyên tắc: ít chữ, mỗi khối một khung cùng kiểu, giải thích c
 - Test: `eval.test.ts` (7 test, Claude giả): cách nhận số và tên, chấm từng loại kiểm, bộ câu hỏi hợp lệ, chạy cả vòng
   (câu số, phân quyền, từ chối, hỏi tiếp), bắt số sai mục, dừng theo ngân sách.
 
+## Phase 5: đặt hàng, ABC, PostgreSQL, ML (thiết kế đã chốt)
+
+Mọi số do analytics-service tính, 0 LLM. AI Agent chỉ thêm tool đọc kết quả.
+
+```
+cần có         = dự báo nhu cầu (thời gian chờ + số ngày cần đủ) + tồn an toàn
+tồn an toàn    = z(mức phục vụ theo ô ABC–XYZ) × sai số dự báo đã đo × √(thời gian chờ + số ngày cần đủ)
+tồn dùng được  = tồn bán được − phần lô sẽ hết hạn trước khi bán kịp (FEFO)
+số đặt         = max(0, cần có − tồn dùng được), làm tròn lên theo pack_size
+```
+
+- ABC theo đóng góp doanh thu 90 ngày (A ≈ 80%, B ≈ 15%, C ≈ 5%); XYZ theo độ biến động nhu cầu tuần.
+- Mỗi dòng gợi ý: số đặt, lý do, tiền dự kiến (giá vốn), ngày dự kiến hết hàng nếu không đặt, ô ABC–XYZ.
+- Chuyển hàng trước khi mua: cửa hàng khác tồn cao cùng mặt hàng thì gợi ý chuyển phần vượt mức cần của chính nó.
+- ML chỉ thay Holt-Winters cho thuốc nào backtest tốt hơn rõ rệt; báo cáo ghi đúng kết quả đo.
+
 ## Lộ trình
 
 | Phase | Nội dung | Trạng thái |
@@ -471,6 +492,11 @@ Nguyên tắc: ít chữ, mỗi khối một khung cùng kiểu, giải thích c
 | 4.4 | Nhật ký `ai_agent_logs`, giới hạn tần suất (30 câu/giờ), lưu hội thoại chỉ-thêm | Xong |
 | 4.5 | Giao diện hỏi đáp trên Bảng điều hành: câu gợi ý, tool đã gọi, nguồn số, kết quả đối chiếu || Xong |
 | 4.6 | Bộ ~30 câu hỏi đánh giá; chạy thật cần API key, tốn tiền: báo chi phí và hỏi trước | Đã chuẩn bị, chờ API key để chạy |
-| 5 | Gợi ý đặt hàng, ABC, ML nâng cao, nguồn PostgreSQL | |
+| 5.1 | Phân loại ABC–XYZ (doanh thu 90 ngày, biến động nhu cầu tuần), ma trận 9 ô | |
+| 5.2 | Gợi ý đặt hàng theo dự báo: tồn an toàn theo ABC–XYZ, trừ lô sắp hết hạn (FEFO), làm tròn quy cách; cột tùy chọn D19 | |
+| 5.3 | Gợi ý chuyển hàng giữa cửa hàng trước khi mua | |
+| 5.4 | API, Gateway, tab "Đặt hàng" và "ABC" trên Bảng điều hành, 2 tool AI Agent, xuất Excel | |
+| 5.5 | Nguồn PostgreSQL: view chỉ đọc `analytics_src`, tài khoản chỉ đọc, phát hiện thay đổi; cột "Theo dự báo" ở trang Đề xuất đặt hàng | |
+| 5.6 | ML bên thách đấu (scikit-learn, đặc trưng thứ, độ trễ, lễ Tết), chỉ dùng khi backtest tốt hơn | |
 
 Schema dữ liệu và luật kiểm tra: [data-schema.md](data-schema.md). Công thức KPI: [kpi.md](kpi.md).
