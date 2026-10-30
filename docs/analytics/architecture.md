@@ -474,6 +474,24 @@ số đặt         = max(0, cần có − tồn dùng được), làm tròn lê
   dòng gợi ý; bảng chuyến chuyển hàng; nút Excel) và tab **ABC** (thanh A/B/C, ma trận 9 ô bấm để lọc, bảng thuốc).
 - AI Agent thêm 2 tool (18 tool): `get_reorder_suggestions`, `get_abc_analysis`; bộ đánh giá thêm 2 câu (35 câu).
 
+### Nguồn PostgreSQL (bước 5.5, đã làm)
+
+- Migration `20261031150000_analytics_source_views`: schema `analytics_src`, 4 view cùng cột với tệp:
+  `medicines` (đơn vị nhỏ nhất; quy cách, nhà cung cấp theo phiếu nhập đã kiểm gần nhất), `sales` (hóa đơn hoàn tất,
+  trừ phần khách trả; giá = thành tiền dòng / số lượng, đã gồm giảm giá cả hóa đơn và tiền đổi điểm được phân bổ;
+  giá vốn bình quân các lô đã xuất; giờ Việt Nam), `inventory` (lô đang bán được, còn hàng), `change_marker` (mốc thay
+  đổi từng bộ dữ liệu). Không có cột khách hàng, người bán.
+- `server/prisma/sql/analytics-reader.sql`: tài khoản `analytics_reader` chỉ đọc 4 view, phiên mặc định read-only.
+- analytics-service: `app/sources.py` (`FolderSource`, `PostgresSource`), `process_frames` dùng lại đúng bước làm sạch,
+  kiểm tra; chọn nguồn bằng `ANALYTICS_SOURCE` / `--source`, `ANALYTICS_PG_DSN` / `--dsn` (không in mật khẩu).
+- Trang Đề xuất đặt hàng: cột "Theo dự báo" khi analytics-service đọc thẳng CSDL này; dòng chỉ dự báo thấy thiếu vẫn hiện.
+- Test: view (server, 3: bỏ hóa đơn hủy, trừ hàng trả, giá sau giảm, giá vốn, lô biệt trữ, mốc thay đổi), nguồn dữ liệu
+  (Python, 6: 3 chạy với PostgreSQL thật khi có `ANALYTICS_TEST_PG_DSN`), ghép dự báo (server, 1).
+- Đo: CSDL demo của máy dev có 12.360 hóa đơn nhưng **không có dòng thuốc**, nên view `sales` rỗng và pipeline báo lỗi rõ
+  "chưa có dòng bán hàng". Đo trên một bản sao có thêm 8.241 dòng thuốc sinh tự động (không commit): đọc qua tài khoản
+  chỉ đọc 1,7 giây, 0 dòng lỗi; lần kiểm tra không đổi 0,1 giây; tài khoản chỉ đọc bị từ chối khi đọc `customers`,
+  khi tạo bảng.
+
 ## Lộ trình
 
 | Phase | Nội dung | Trạng thái |
@@ -507,7 +525,7 @@ số đặt         = max(0, cần có − tồn dùng được), làm tròn lê
 | 5.2 | Gợi ý đặt hàng theo dự báo: tồn an toàn theo ABC–XYZ, trừ lô sắp hết hạn (FEFO), làm tròn quy cách; cột tùy chọn D19 ([kpi.md](kpi.md#gợi-ý-đặt-hàng-theo-dự-báo-phase-5-bước-52)) | Xong |
 | 5.3 | Gợi ý chuyển hàng giữa cửa hàng trước khi mua ([kpi.md](kpi.md#chuyển-hàng-giữa-cửa-hàng-trước-khi-mua-phase-5-bước-53)) | Xong |
 | 5.4 | API, Gateway, tab "Đặt hàng" và "ABC" trên Bảng điều hành, 2 tool AI Agent, xuất Excel | Xong |
-| 5.5 | Nguồn PostgreSQL: view chỉ đọc `analytics_src`, tài khoản chỉ đọc, phát hiện thay đổi; cột "Theo dự báo" ở trang Đề xuất đặt hàng | |
+| 5.5 | Nguồn PostgreSQL: view chỉ đọc `analytics_src`, tài khoản chỉ đọc, phát hiện thay đổi; cột "Theo dự báo" ở trang Đề xuất đặt hàng || Xong |
 | 5.6 | ML bên thách đấu (scikit-learn, đặc trưng thứ, độ trễ, lễ Tết), chỉ dùng khi backtest tốt hơn | |
 
 Schema dữ liệu và luật kiểm tra: [data-schema.md](data-schema.md). Công thức KPI: [kpi.md](kpi.md).

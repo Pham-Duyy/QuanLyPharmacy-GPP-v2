@@ -5,6 +5,7 @@ import { parseOrThrow } from "../../lib/validate.js";
 import { authenticate } from "../../middlewares/authenticate.js";
 import { requirePermission } from "../../middlewares/require-permission.js";
 import { requireStore, storeContext } from "../../middlewares/store-context.js";
+import { forecastByCode } from "./purchase-suggestions.forecast.js";
 import * as service from "./purchase-suggestions.service.js";
 
 export const purchaseSuggestionsRouter = Router();
@@ -31,9 +32,28 @@ purchaseSuggestionsRouter.get(
   requirePermission("stock.read"),
   async (req, res) => {
     const query = parseOrThrow(querySchema, req.query);
-    const items = await service.buildSuggestions(req.auth!.storeId!, query);
+    // Cột "Theo dự báo" (Phase 5, quyết định D18): có thì thêm, analytics-service tắt thì thôi.
+    const forecast = await forecastByCode(req.auth!.storeId!);
+    const all = await service.buildSuggestions(req.auth!.storeId!, {
+      ...query,
+      onlyNeeded: query.onlyNeeded && !forecast,
+    });
+    const merged = all.map((item) => ({
+      ...item,
+      forecast: forecast?.items.get(item.code) ?? null,
+    }));
+    // "Chỉ dòng cần đặt": cần theo cách tính này HOẶC theo dự báo, để không giấu dòng dự báo thấy thiếu.
+    const items = query.onlyNeeded
+      ? merged.filter(
+          (item) =>
+            item.suggestedOrderQuantity > 0 ||
+            (item.forecast !== null &&
+              item.forecast.orderQuantity + item.forecast.transferQuantity > 0),
+        )
+      : merged;
     sendData(res, {
       items,
+      forecast: forecast ? { asOf: forecast.asOf, coverDays: forecast.coverDays } : null,
       summary: service.summarize(items),
       settings: {
         windowDays: query.windowDays,

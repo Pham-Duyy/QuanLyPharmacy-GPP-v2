@@ -862,6 +862,8 @@ Cách tính cho từng mặt hàng đang kinh doanh:
 - `lastSupplier`, `lastUnitCost` lấy từ phiếu nhập **đã kiểm nhập** gần nhất của chính mặt hàng đó.
 - `reason`: `OUT_OF_STOCK` hết hàng · `BELOW_MIN` dưới tồn tối thiểu · `RUNNING_OUT` hết trước khi hàng kịp về · `REFILL` cần bổ sung cho kỳ tới · `OK` đang đủ hàng.
 
+Khi analytics-service đọc thẳng CSDL này (`ANALYTICS_SOURCE=postgres`, Phase 5 bước 5.5), mỗi dòng có thêm `forecast` (`orderQuantity`, `transferQuantity`, `reason`, `cell` ABC–XYZ, `daysUntilStockout`) và phản hồi có `forecast: { asOf, coverDays }`; `onlyNeeded` giữ cả dòng chỉ dự báo thấy thiếu. analytics-service tắt hoặc đọc từ tệp thì `forecast` là `null`, trang chạy như cũ.
+
 Giao diện cho sửa số lượng trước khi đặt, xuất đơn đặt hàng ra Excel (`purchase-order`, xếp theo nhà cung cấp) và đổ các dòng đã chọn vào phiếu nhập nháp. Số lô và hạn dùng để trống vì lúc gọi hàng chưa biết — người kiểm nhập điền khi hàng về.
 
 ### 10.6 Hàng cận hạn và kế hoạch xử lý

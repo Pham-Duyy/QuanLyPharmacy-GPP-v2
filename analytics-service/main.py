@@ -32,7 +32,16 @@ import pandas as pd
 
 from app.analytics import kpi_summary, prepare_sales, sales_breakdown
 from app.analytics.periods import Window
-from app.config import ANALYTICS_DB, INBOX_DIR, MONITOR_DEBOUNCE_SECONDS, MONITOR_POLL_SECONDS, SAMPLES_DIR, TIMEZONE
+from app.config import (
+    ANALYTICS_DB,
+    ANALYTICS_PG_DSN,
+    ANALYTICS_SOURCE,
+    INBOX_DIR,
+    MONITOR_DEBOUNCE_SECONDS,
+    MONITOR_POLL_SECONDS,
+    SAMPLES_DIR,
+    TIMEZONE,
+)
 from app.logging_setup import setup_logging
 from app.monitor import Monitor
 from app.pipeline import Pipeline
@@ -525,9 +534,26 @@ def command_forecast(args: argparse.Namespace) -> int:
     return 0
 
 
+def _source(args: argparse.Namespace):
+    """Nguồn dữ liệu theo --source/--dsn, mặc định theo ANALYTICS_SOURCE/ANALYTICS_PG_DSN (bước 5.5)."""
+    from app.sources import make_source
+
+    return make_source(args.source, args.folder, args.dsn)
+
+
+def _add_source_options(command: argparse.ArgumentParser) -> None:
+    command.add_argument(
+        "--source",
+        choices=["files", "postgres"],
+        default=ANALYTICS_SOURCE,
+        help="files: thư mục tệp; postgres: CSDL phần mềm (mặc định theo ANALYTICS_SOURCE)",
+    )
+    command.add_argument("--dsn", default=ANALYTICS_PG_DSN, help="Chuỗi kết nối PostgreSQL chỉ đọc (mặc định ANALYTICS_PG_DSN)")
+
+
 def command_run(args: argparse.Namespace) -> int:
     store = AnalyticsStore(args.db)
-    pipeline = Pipeline(args.folder, store)
+    pipeline = Pipeline(args.folder, store, source=_source(args))
     as_of = pd.Timestamp(args.as_of) if args.as_of else None
     result = pipeline.run(trigger="manual", as_of=as_of, force=args.force)
     labels = {"processed": "ĐÃ XỬ LÝ", "refreshed": "TÍNH LẠI", "unchanged": "BỎ QUA", "failed": "THẤT BẠI"}
@@ -570,7 +596,7 @@ def command_watch(args: argparse.Namespace) -> int:
     store = AnalyticsStore(args.db)
     monitor = Monitor(
         args.folder,
-        Pipeline(args.folder, store),
+        Pipeline(args.folder, store, source=_source(args)),
         debounce_seconds=args.debounce,
         poll_seconds=args.poll,
         use_events=not args.polling_only,
@@ -603,7 +629,9 @@ def command_serve(args: argparse.Namespace) -> int:
     store = AnalyticsStore(args.db)
     monitor = None
     if not args.no_monitor:
-        monitor = Monitor(args.folder, Pipeline(args.folder, store), poll_seconds=args.poll, logger=log)
+        source = _source(args)
+        log.info("Nguồn dữ liệu: %s", source.describe())
+        monitor = Monitor(args.folder, Pipeline(args.folder, store, source=source), poll_seconds=args.poll, logger=log)
     stop = threading.Event()
 
     @asynccontextmanager
@@ -698,6 +726,7 @@ def main() -> int:
     run.add_argument("--db", type=Path, default=ANALYTICS_DB, help="Tệp SQLite (mặc định data/analytics.db)")
     run.add_argument("--as-of", help="Thời điểm tính (mặc định: bây giờ)")
     run.add_argument("--force", action="store_true", help="Đọc lại tệp dù không đổi")
+    _add_source_options(run)
     run.set_defaults(handler=command_run)
     status = commands.add_parser("status", help="Xem các lần chạy gần nhất")
     status.add_argument("--db", type=Path, default=ANALYTICS_DB, help="Tệp SQLite")
@@ -709,6 +738,7 @@ def main() -> int:
     watch.add_argument("--debounce", type=float, default=MONITOR_DEBOUNCE_SECONDS, help="Giây chờ yên lặng sau sự kiện")
     watch.add_argument("--poll", type=float, default=MONITOR_POLL_SECONDS, help="Giây giữa hai lần polling dự phòng")
     watch.add_argument("--polling-only", action="store_true", help="Không dùng sự kiện, chỉ polling (ổ mạng)")
+    _add_source_options(watch)
     watch.set_defaults(handler=command_watch)
     serve = commands.add_parser("serve", help="Chạy Analytics API (và Monitor) cho Dashboard")
     serve.add_argument("folder", nargs="?", type=Path, default=INBOX_DIR, help="Thư mục Monitor theo dõi")
@@ -718,6 +748,7 @@ def main() -> int:
     serve.add_argument("--port", type=int, default=8000, help="Cổng (mặc định 8000)")
     serve.add_argument("--poll", type=float, default=MONITOR_POLL_SECONDS, help="Giây giữa hai lần polling")
     serve.add_argument("--no-monitor", action="store_true", help="Chỉ chạy API, không theo dõi tệp")
+    _add_source_options(serve)
     serve.set_defaults(handler=command_serve)
     args = parser.parse_args()
     return args.handler(args)

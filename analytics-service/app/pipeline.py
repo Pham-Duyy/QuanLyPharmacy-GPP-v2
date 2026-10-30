@@ -38,8 +38,10 @@ from app.analytics.stock import sellable_stock
 from app.analytics.breakdown import bucket_start
 from app.analytics.periods import Window, period_windows
 from app.config import ANOMALY_ALERT_DAYS, SNAPSHOT_REFRESH_SECONDS, TIMEZONE, TREND_DAYS
-from app.processor import INVENTORY, MEDICINES, SALES, LoadError, ProcessResult, process_folder
-from app.processor.service import find_file, now_local
+from app.processor import LoadError, ProcessResult
+from app.processor.service import now_local
+from app.pipeline_types import FileFingerprint, sha256_of  # noqa: F401 - giữ đường import cũ
+from app.sources import DataSource, FolderSource
 from app.store import AnalyticsStore, RunRecord
 
 Trigger = Literal["manual", "monitor", "refresh"]
@@ -50,28 +52,6 @@ SNAPSHOT_KEYS = {
     "classification", "reorder",
 }
 Status = Literal["processed", "refreshed", "unchanged", "failed"]
-
-
-@dataclass(frozen=True)
-class FileFingerprint:
-    """Dấu nhận biết một tệp. So size + mtime trước (gần như miễn phí);
-    chỉ khi khác mới tính sha256 (đọc cả tệp) để chắc nội dung thật sự đổi."""
-
-    name: str
-    size: int
-    mtime: float
-    sha256: str
-
-    def to_dict(self) -> dict:
-        return {"name": self.name, "size": self.size, "mtime": self.mtime, "sha256": self.sha256}
-
-
-def sha256_of(path: Path) -> str:
-    digest = hashlib.sha256()
-    with open(path, "rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
 
 
 @dataclass
@@ -94,8 +74,17 @@ class _Cache:
 
 
 class Pipeline:
-    def __init__(self, folder: Path, store: AnalyticsStore, *, refresh_seconds: int = SNAPSHOT_REFRESH_SECONDS):
+    def __init__(
+        self,
+        folder: Path,
+        store: AnalyticsStore,
+        *,
+        refresh_seconds: int = SNAPSHOT_REFRESH_SECONDS,
+        source: DataSource | None = None,
+    ):
         self.folder = Path(folder)
+        # Bước 5.5: mặc định đọc thư mục tệp; truyền PostgresSource để đọc thẳng CSDL phần mềm.
+        self.source = source or FolderSource(self.folder)
         self.store = store
         self.refresh_seconds = refresh_seconds
         self._cache: _Cache | None = None
@@ -154,18 +143,7 @@ class Pipeline:
     # --- Phát hiện thay đổi -----------------------------------------------------------
 
     def _fingerprints(self) -> dict[str, FileFingerprint]:
-        found: dict[str, FileFingerprint] = {}
-        for schema in (MEDICINES, SALES, INVENTORY):
-            path = find_file(self.folder, schema)
-            if path is None:
-                continue
-            stat = path.stat()
-            previous = self._known.get(schema.name)
-            if previous and previous.name == path.name and previous.size == stat.st_size and previous.mtime == stat.st_mtime:
-                found[schema.name] = previous  # size + mtime y nguyên: không cần đọc tệp để tính hash
-            else:
-                found[schema.name] = FileFingerprint(path.name, stat.st_size, stat.st_mtime, sha256_of(path))
-        return found
+        return self.source.fingerprints(self._known)
 
     @staticmethod
     def _combined_hash(fingerprints: dict[str, FileFingerprint]) -> str:
@@ -181,12 +159,13 @@ class Pipeline:
 
         source_hash: str | None = None
         try:
-            fingerprints = self._fingerprints()
-            if "sales" not in fingerprints:
-                missing = f"Không thấy sales.xlsx hoặc sales.csv trong {self.folder}"
-                if trigger == "refresh" and self._failed_key == missing:
-                    return PipelineResult("unchanged", "Vẫn chưa có tệp sales", duration_ms=_elapsed(started))
-                raise LoadError(missing)
+            try:
+                fingerprints = self._fingerprints()
+            except LoadError as error:
+                # Thiếu tệp sales, CSDL chưa kết nối được: lỗi y như lần trước thì không ghi lại mỗi 30 giây.
+                if trigger == "refresh" and self._failed_key == str(error):
+                    return PipelineResult("unchanged", "Nguồn dữ liệu vẫn lỗi như lần trước", duration_ms=_elapsed(started))
+                raise
             source_hash = self._combined_hash(fingerprints)
             if trigger == "refresh" and self._failed_key == source_hash:
                 return PipelineResult("unchanged", "Tệp vẫn lỗi như lần trước: chờ tệp được sửa", duration_ms=_elapsed(started))
@@ -195,12 +174,12 @@ class Pipeline:
             if same_source and not force and self._snapshot_at is not None:
                 age = (moment - self._snapshot_at).total_seconds()
                 if 0 <= age < self.refresh_seconds:
-                    return PipelineResult("unchanged", "Tệp không đổi, snapshot còn mới: bỏ qua", duration_ms=_elapsed(started))
+                    return PipelineResult("unchanged", "Dữ liệu nguồn không đổi, snapshot còn mới: bỏ qua", duration_ms=_elapsed(started))
 
             # Dữ liệu sạch trong bộ nhớ chỉ dùng lại được khi đúng bộ tệp này.
             reprocessed = force or self._cache is None or self._cache.source_hash != source_hash
             if reprocessed:
-                results = process_folder(self.folder, now=moment)
+                results = self.source.load(moment)
                 medicines = results["medicines"].data if "medicines" in results else None
                 sales = prepare_sales(results["sales"].data, medicines)
                 self._cache = _Cache(source_hash, results, sales)
@@ -260,7 +239,7 @@ class Pipeline:
         self._known, self._known_hash = fingerprints, cache.source_hash
         self._failed_key = None
         status: Status = "processed" if reprocessed else "refreshed"
-        message = "Đã đọc lại tệp và tính KPI" if reprocessed else "Tệp không đổi: tính lại KPI theo giờ hiện tại"
+        message = "Đã đọc lại dữ liệu nguồn và tính KPI" if reprocessed else "Dữ liệu nguồn không đổi: tính lại KPI theo giờ hiện tại"
         return PipelineResult(status, message, run_id, version, _elapsed(started), results)
 
 

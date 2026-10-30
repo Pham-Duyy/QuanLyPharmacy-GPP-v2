@@ -17,3 +17,7 @@ uvicorn>=0.29
 # Kiểm thử (httpx2: TestClient của FastAPI/Starlette cần)
 pytest>=8.0
 httpx2>=2.0
+
+# Bước 5.5: đọc thẳng dữ liệu phần mềm từ PostgreSQL (ANALYTICS_SOURCE=postgres).
+# Gói binary kèm sẵn libpq, không cần cài PostgreSQL client trên Windows.
+psycopg[binary]>=3.1

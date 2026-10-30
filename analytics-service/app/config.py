@@ -6,6 +6,7 @@ một chỗ là cả hệ thống đổi theo.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -204,3 +205,11 @@ SAFETY_MAX_SHARE = 1.0
 
 # Một lần chuyển phải bù được ít nhất ngần này phần của lượng đang thiếu, không thì không đáng một chuyến.
 TRANSFER_MIN_SHARE = 0.2
+
+# --- Nguồn dữ liệu (Phase 5, bước 5.5; quyết định D22) ----------------------------------
+
+# files: thư mục tệp (data/inbox). postgres: đọc thẳng CSDL phần mềm qua view analytics_src.
+ANALYTICS_SOURCE = os.environ.get("ANALYTICS_SOURCE", "files")
+# Chuỗi kết nối tài khoản CHỈ ĐỌC analytics_reader (server/prisma/sql/analytics-reader.sql),
+# ví dụ postgresql://analytics_reader:mat-khau@localhost:5432/pharmacy_gpp
+ANALYTICS_PG_DSN = os.environ.get("ANALYTICS_PG_DSN")

@@ -123,6 +123,33 @@ CH03 Loperamid), lô sắp hết hạn mà bán không kịp (CH02 Siro Prospan,
 (CH02 Paracetamol, CH01 Amlodipin), hết hàng (CH03 Vitamin C), tồn quá nhiều (CH01 Omega-3) và máy xông
 TB010 chưa bán được cái nào. Các bước 2.3, 2.4 phải phát hiện ra đúng những chỗ này.
 
+## Đọc thẳng CSDL của phần mềm (Phase 5, bước 5.5)
+
+Thay vì đặt tệp Excel vào `data/inbox`, analytics-service đọc thẳng PostgreSQL của phần mềm qua 4 view chỉ đọc
+`analytics_src.{medicines, sales, inventory, change_marker}` (migration `20261031150000_analytics_source_views`).
+Mã cửa hàng, mã thuốc trùng phần mềm; trang "Đề xuất đặt hàng" có thêm cột "Theo dự báo".
+
+1. Áp migration (trong thư mục `server`): `npm run db:migrate`.
+2. Tạo tài khoản chỉ đọc (một lần, đổi mật khẩu):
+
+   ```
+   psql "postgresql://gpp:...@localhost:5432/pharmacy_gpp" -v reader_password="'mat-khau-manh'" -f prisma/sql/analytics-reader.sql
+   ```
+
+   Tài khoản `analytics_reader` chỉ đọc được 4 view (không thấy bảng khách hàng, đơn thuốc, người dùng) và không ghi được gì.
+3. Chạy analytics-service với nguồn PostgreSQL (PowerShell):
+
+   ```
+   $env:ANALYTICS_SOURCE = "postgres"
+   $env:ANALYTICS_PG_DSN = "postgresql://analytics_reader:mat-khau-manh@localhost:5432/pharmacy_gpp"
+   .venv\Scripts\python main.py serve
+   ```
+
+   Hoặc một lần: `python main.py run --source postgres --dsn "postgresql://..."`.
+
+Cứ ~30 giây Monitor hỏi `change_marker` (vài phép đếm, rất nhẹ); chỉ khi có hóa đơn, phiếu trả, thay đổi lô, danh mục
+mới đọc lại. CSDL tạm không kết nối được: ghi lần chạy lỗi, giữ snapshot tốt gần nhất. Bỏ hai biến trên là quay về đọc tệp.
+
 ## Cấu trúc
 
 ```

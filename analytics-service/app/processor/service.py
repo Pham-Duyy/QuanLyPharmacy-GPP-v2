@@ -63,12 +63,25 @@ def process_file(
     """Xử lý một tệp. Thiếu cột bắt buộc hoặc tệp hỏng thì ném LoadError."""
     started = time.perf_counter()
     frame, file_issues = load_dataset(path, schema)
+    return _process(frame, file_issues, schema, Path(path).name, started, catalog_codes, sales_stores, now)
+
+
+def _process(
+    frame: pd.DataFrame,
+    file_issues: list[DataIssue],
+    schema: DatasetSchema,
+    name: str,
+    started: float,
+    catalog_codes: set[str] | None,
+    sales_stores: set[str] | None,
+    now: pd.Timestamp | None,
+) -> ProcessResult:
     cleaned = clean_dataset(frame, schema)
     limit = (now or now_local()) + timedelta(hours=FUTURE_TOLERANCE_HOURS)
     validated = validate_dataset(cleaned, schema, catalog_codes=catalog_codes, sales_stores=sales_stores, now=limit)
     return ProcessResult(
         dataset=schema.name,
-        file=Path(path).name,
+        file=name,
         rows_read=len(frame),
         rows_valid=len(validated.valid),
         rows_rejected=validated.rejected_rows,
@@ -110,4 +123,32 @@ def process_folder(folder: Path, *, now: pd.Timestamp | None = None) -> dict[str
     if inventory_path:
         stores = set(results["sales"].data["store_code"].dropna())
         results["inventory"] = process_file(inventory_path, INVENTORY, catalog_codes=catalog, sales_stores=stores, now=now)
+    return results
+
+
+def process_frames(frames: dict[str, pd.DataFrame], *, source: str, now: pd.Timestamp | None = None) -> dict[str, ProcessResult]:
+    """Như process_folder nhưng dữ liệu đã đọc sẵn thành bảng (nguồn PostgreSQL, bước 5.5).
+
+    `frames`: {"medicines", "sales", "inventory"} → bảng có tên cột chuẩn. Làm sạch, kiểm tra
+    y như tệp, nên báo cáo chất lượng dữ liệu và mọi phân tích phía sau không đổi.
+    `source`: tên hiện ở báo cáo, ví dụ "analytics_src" → "analytics_src.sales".
+    """
+    from .loader import frame_to_dataset
+
+    def run(schema: DatasetSchema, **kwargs) -> ProcessResult:
+        started = time.perf_counter()
+        frame = frame_to_dataset(frames[schema.name], schema)
+        return _process(frame, [], schema, f"{source}.{schema.name}", started, kwargs.get("catalog_codes"), kwargs.get("sales_stores"), now)
+
+    if "sales" not in frames:
+        raise LoadError(f"Nguồn {source} không có dữ liệu bán hàng")
+    results: dict[str, ProcessResult] = {}
+    catalog: set[str] | None = None
+    if "medicines" in frames:
+        results["medicines"] = run(MEDICINES)
+        catalog = set(results["medicines"].data["medicine_code"])
+    results["sales"] = run(SALES, catalog_codes=catalog)
+    if "inventory" in frames:
+        stores = set(results["sales"].data["store_code"].dropna())
+        results["inventory"] = run(INVENTORY, catalog_codes=catalog, sales_stores=stores)
     return results

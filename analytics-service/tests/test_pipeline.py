@@ -13,6 +13,7 @@ import pandas as pd
 import pytest
 
 import app.pipeline as pipeline_module
+import app.sources as sources_module
 import app.store.sqlite_store as store_module
 from app.analytics import kpi_summary, prepare_sales
 from app.pipeline import Pipeline
@@ -62,13 +63,14 @@ def workspace(tmp_path):
 def reads(monkeypatch):
     """Đếm số lần pipeline thật sự đọc tệp."""
     counter = {"count": 0}
-    original = pipeline_module.process_folder
+    original = sources_module.process_folder
 
     def counting(*args, **kwargs):
         counter["count"] += 1
         return original(*args, **kwargs)
 
-    monkeypatch.setattr(pipeline_module, "process_folder", counting)
+    # Từ bước 5.5 việc đọc tệp nằm ở nguồn dữ liệu (app.sources.FolderSource).
+    monkeypatch.setattr(sources_module, "process_folder", counting)
     return counter
 
 

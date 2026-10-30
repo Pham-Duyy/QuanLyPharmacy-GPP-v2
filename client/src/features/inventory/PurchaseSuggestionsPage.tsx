@@ -25,6 +25,7 @@ import { useNavigate } from "react-router";
 import { getErrorMessage, http } from "../../api/http.js";
 import { formatVnd, type Envelope } from "../../api/types.js";
 import { formatNumber } from "../../ui/format.js";
+import { InfoTip } from "../../ui/InfoTip.js";
 import { PageHeader } from "../../ui/PageHeader.js";
 import { useAuth } from "../auth/auth-context.js";
 import { ExcelExportButton } from "../excel/ExcelButtons.js";
@@ -53,10 +54,21 @@ type Suggestion = {
   lastUnitCost: number | null;
   lastReceivedAt: string | null;
   estimatedCost: number | null;
+  /** Gợi ý theo dự báo của analytics-service (Phase 5, D18); null khi không có. */
+  forecast: ForecastLine | null;
+};
+
+type ForecastLine = {
+  orderQuantity: number;
+  transferQuantity: number;
+  reason: string;
+  cell: string;
+  daysUntilStockout: number | null;
 };
 
 type SuggestionResponse = {
   items: Suggestion[];
+  forecast: { asOf: string; coverDays: number | null } | null;
   summary: {
     total: number;
     outOfStock: number;
@@ -223,6 +235,43 @@ export function PurchaseSuggestionsPage() {
         </div>
       ),
     },
+    // Cột chỉ có khi analytics-service đọc thẳng CSDL phần mềm (ANALYTICS_SOURCE=postgres).
+    ...(data.data?.forecast
+      ? [
+          {
+            title: (
+              <span>
+                Theo dự báo
+                <InfoTip>
+                  Từ Bảng điều hành: nhu cầu dự báo cho thời gian chờ hàng +{" "}
+                  {data.data.forecast.coverDays ?? 7} ngày, tồn an toàn theo nhóm ABC–XYZ, trừ lô
+                  sắp hết hạn; chuyển từ cửa hàng đang thừa trước. Tính theo đơn vị nhỏ nhất.
+                </InfoTip>
+              </span>
+            ),
+            key: "forecast",
+            width: 150,
+            render: (_: unknown, row: Suggestion) =>
+              row.forecast ? (
+                <div className="cell-main">
+                  <span className="cell-title">
+                    {row.forecast.orderQuantity
+                      ? `Mua ${formatNumber(row.forecast.orderQuantity)} ${row.baseUnitName}`
+                      : "Không cần mua"}
+                  </span>
+                  {row.forecast.transferQuantity ? (
+                    <span className="cell-sub">
+                      Chuyển {formatNumber(row.forecast.transferQuantity)} từ cửa hàng khác
+                    </span>
+                  ) : null}
+                  <span className="cell-sub">Nhóm {row.forecast.cell}</span>
+                </div>
+              ) : (
+                <span className="cell-sub">Đủ hàng</span>
+              ),
+          },
+        ]
+      : []),
     {
       title: "Nhà cung cấp gần nhất",
       dataIndex: "lastSupplier",

@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { startAnalyticsStub, type AnalyticsStub } from "../../test/analytics-stub-server.js";
 import { prisma } from "../../db/prisma.js";
 import {
   api,
@@ -97,7 +98,16 @@ beforeEach(async () => {
   ).id;
 });
 
+// analytics-service giả: test không phụ thuộc dịch vụ thật đang chạy trên máy (bước 5.5).
+let analytics: AnalyticsStub;
+beforeAll(async () => {
+  analytics = await startAnalyticsStub({ reorder: { available: false, items: [] } });
+  process.env["ANALYTICS_SERVICE_URL"] = analytics.baseUrl;
+});
+
 afterAll(async () => {
+  delete process.env["ANALYTICS_SERVICE_URL"];
+  await analytics.close();
   await prisma.$disconnect();
 });
 
@@ -280,5 +290,58 @@ describe("Đề xuất đặt hàng", () => {
       suggestedBaseQuantity: 100,
     });
     await api().get("/api/v1/purchase-suggestions").expect(401);
+  });
+
+  it("cột Theo dự báo: ghép gợi ý của analytics-service khi nó đọc thẳng CSDL này", async () => {
+    await makeProduct("TH0001", "Paracetamol 500mg", 50);
+    const plan = (dataSource: string) => ({
+      as_of: "2026-10-31T09:00:00",
+      available: true,
+      data_source: dataSource,
+      cover_days: 7,
+      items: [
+        {
+          medicine_code: "TH0001",
+          order_quantity: 300,
+          transfer_quantity: 120,
+          reason: "out_of_stock",
+          cell: "AX",
+          days_until_stockout: 0,
+        },
+      ],
+    });
+
+    analytics.respond("reorder", 200, plan("postgres"));
+    const data = await suggest("?onlyNeeded=false");
+    expect(analytics.requests.at(-1)).toBe("/api/analytics/reorder?store=NT01");
+    expect(data.forecast).toEqual({ asOf: "2026-10-31T09:00:00", coverDays: 7 });
+    expect(find(data, "TH0001")!["forecast"]).toEqual({
+      orderQuantity: 300,
+      transferQuantity: 120,
+      reason: "out_of_stock",
+      cell: "AX",
+      daysUntilStockout: 0,
+    });
+
+    // Mặc định chỉ hiện dòng cần đặt: dòng cách tính cũ thấy đủ nhưng dự báo thấy thiếu vẫn phải hiện.
+    await makeProduct("TH0002", "Vitamin C 500mg");
+    analytics.respond("reorder", 200, {
+      ...plan("postgres"),
+      items: [{ ...plan("postgres").items[0]!, medicine_code: "TH0002" }],
+    });
+    const needed = await suggest();
+    expect(find(needed, "TH0002")).toMatchObject({
+      suggestedOrderQuantity: 0,
+      forecast: { orderQuantity: 300 },
+    });
+
+    // Đọc từ tệp Excel: mã có thể khác nghĩa, không ghép.
+    analytics.respond("reorder", 200, plan("files"));
+    expect((await suggest("?onlyNeeded=false")).forecast).toBeNull();
+    // analytics-service lỗi hay tắt: trang vẫn chạy như cũ.
+    analytics.respond("reorder", 503, { detail: "Chưa có dữ liệu" });
+    const fallback = await suggest("?onlyNeeded=false");
+    expect(fallback.forecast).toBeNull();
+    expect(find(fallback, "TH0001")!["forecast"]).toBeNull();
   });
 });

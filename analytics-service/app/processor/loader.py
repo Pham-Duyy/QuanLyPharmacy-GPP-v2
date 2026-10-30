@@ -97,6 +97,25 @@ def load_dataset(path: Path, schema: DatasetSchema) -> tuple[pd.DataFrame, list[
     return frame[~empty].reset_index(drop=True), issues
 
 
+def frame_to_dataset(frame: pd.DataFrame, schema: DatasetSchema) -> pd.DataFrame:
+    """Bảng đọc từ nguồn khác tệp (PostgreSQL, bước 5.5) đã có tên cột chuẩn: đưa về đúng dạng
+    load_dataset trả ra (đủ cột theo schema, cột _row), để làm sạch và kiểm tra như tệp.
+
+    Số dạng Decimal của PostgreSQL đổi sang float; dòng đánh số từ 1 (dòng thứ mấy trong view).
+    """
+    from decimal import Decimal
+
+    frame = frame.copy()
+    for column in schema.columns:
+        if column.name not in frame.columns:
+            frame[column.name] = None
+        elif frame[column.name].map(lambda value: isinstance(value, Decimal)).any():
+            frame[column.name] = frame[column.name].map(lambda value: float(value) if isinstance(value, Decimal) else value)
+    frame = frame[[column.name for column in schema.columns]]
+    frame.insert(0, ROW_COLUMN, range(1, len(frame) + 1))
+    return frame.reset_index(drop=True)
+
+
 def is_blank(series: pd.Series) -> pd.Series:
     """Ô trống: không có giá trị hoặc chỉ có khoảng trắng."""
     return series.isna() | series.astype(str).str.strip().eq("")

@@ -283,6 +283,7 @@ def test_classification_and_reorder_endpoints(stocked):
     # CH01 Paracetamol còn 6 ngày bán (sắp hết), CH02 không có Paracetamol để chuyển: phải mua.
     plan = stocked.get("/api/analytics/reorder", params={"store": "ch01"}).json()
     assert plan["available"] is True and plan["store"] == "CH01"
+    assert plan["data_source"] == "files"
     row = next(item for item in plan["items"] if item["medicine_code"] == "GD001")
     assert row["action"] == "order" and row["order_quantity"] > 0
     assert stocked.get("/api/analytics/reorder", params={"action": "transfer"}).json()["items"] == []

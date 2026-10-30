@@ -318,16 +318,19 @@ def create_app(store: AnalyticsStore, monitor=None, *, lifespan=None) -> FastAPI
             raise HTTPException(503, "Snapshot chưa có gợi ý đặt hàng: chờ lần tính kế tiếp")
         key = store_code.upper()
         plans = snapshot["reorder"]
+        # Nguồn PostgreSQL (bước 5.5): mã cửa hàng, mã thuốc trùng phần mềm, trang Đề xuất đặt hàng ghép được.
+        sales_name = str(snapshot.get("source", {}).get("sales", {}).get("name", ""))
+        data_source = "files" if sales_name.lower().endswith((".xlsx", ".csv")) else "postgres"
         # Cửa hàng không có dòng nào trong tệp tồn: không có gì để gợi ý (không phải lỗi).
         data = plans.get(key) or {**plans["ALL"], "store": key, "lines": 0, "items": [], "transfers": []}
         if not data.get("available"):
-            return {**_meta(snapshot), "store": key, "available": False, "items": [], "transfers": []}
+            return {**_meta(snapshot), "store": key, "data_source": data_source, "available": False, "items": [], "transfers": []}
         items = data["items"]
         if action == "order":
             items = [item for item in items if item["order_quantity"] > 0]
         elif action == "transfer":
             items = [item for item in items if item["transfer_quantity"] > 0]
-        return {**_meta(snapshot), **data, "items": items}
+        return {**_meta(snapshot), **data, "data_source": data_source, "items": items}
 
     @app.get("/api/analytics/runs", tags=["Hệ thống"], summary="Nhật ký các lần chạy pipeline")
     def runs(limit: int = Query(20, ge=1, le=200)) -> dict[str, Any]:
