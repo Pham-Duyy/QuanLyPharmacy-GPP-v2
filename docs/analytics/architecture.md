@@ -156,6 +156,31 @@ Excel lưu tệp bằng cách ghi tệp tạm rồi đổi tên, nên một lầ
 3/3 lần lưu được xử lý đúng một lần mỗi lần, độ trễ 4,3–4,7 giây
 (2 giây debounce + 0,5 giây kiểm tra ổn định + khoảng 1,9 giây xử lý).
 
+## Analytics API (bước 1.6)
+
+Code: `analytics-service/app/api/routes.py`. Lệnh: `python main.py serve` (API + Monitor trong một tiến trình;
+Monitor ở luồng nền là nơi duy nhất ghi SQLite). Tài liệu tự sinh: `http://127.0.0.1:8000/docs`.
+
+- **Chỉ đọc**: chỉ có GET (có test kiểm tra). Không gọi LLM. Mỗi endpoint về sau là một tool của AI Agent.
+- Chỉ nghe ở `127.0.0.1`; Node Gateway (bước 1.7) đứng trước để kiểm tra đăng nhập, phân quyền.
+- Mọi phản hồi có `version` và `as_of`. Snapshot đã giải mã được giữ trong bộ nhớ, chỉ đọc lại khi version tăng.
+- Lỗi: chưa có snapshot 503; mã cửa hàng không có 404; tham số sai 422.
+
+| Endpoint (GET, tiền tố `/api/analytics`) | Tham số | Trả về | Tool Agent |
+|---|---|---|---|
+| `/version` | | version, as_of (để polling) | |
+| `/health` | | trạng thái, snapshot (tuổi), lần chạy cuối, thống kê Monitor | |
+| `/summary` | `store` (ALL, CH01…) | KPI hôm nay/tuần/tháng, kỳ so sánh, tăng trưởng, chất lượng dữ liệu | get_business_summary |
+| `/revenue` | `period` (day/week/month), `store` | doanh thu, số đơn, số lượng, giá trị đơn | get_revenue |
+| `/profit` | `period`, `store` | giá vốn, lợi nhuận, biên, độ phủ giá vốn | get_profit |
+| `/sales-trend` | `grain` (day/week/month), `store`, `start`, `end` | chuỗi từ `kpi_daily`; kỳ đầu lùi về đầu tuần/tháng; kỳ đang dở có `partial: true` | get_sales_trend |
+| `/breakdown` | `by` (category, sale_type, store, payment_method, top_medicines) | cơ cấu tháng này | get_top_products |
+| `/data-quality` | `limit` | lỗi dữ liệu lần đọc tệp gần nhất | |
+| `/runs` | `limit` | nhật ký pipeline | |
+
+Đo trên máy chủ thật, 50 lần mỗi endpoint, dữ liệu 32.000 dòng: trung vị 2–3 ms (snapshot), 10–11 ms
+(`sales-trend`); p95 dưới 13 ms.
+
 ## Lộ trình
 
 | Phase | Nội dung | Trạng thái |
@@ -165,7 +190,7 @@ Excel lưu tệp bằng cách ghi tệp tạm rồi đổi tên, nên một lầ
 | 1.3 | KPI Engine: doanh thu, giá vốn, lợi nhuận, biên, số đơn, tăng trưởng ([kpi.md](kpi.md)) | Xong |
 | 1.4 | Analytics Store (SQLite) + pipeline: phát hiện thay đổi bằng size/mtime rồi SHA-256, snapshot có version | Xong |
 | 1.5 | Monitor: watchdog + debounce + kiểm tra ổn định, polling dự phòng, thử lại | Xong |
-| 1.6 | FastAPI: `/summary`, `/revenue`, `/sales-trend`, `/health` | |
+| 1.6 | Analytics API (FastAPI) chỉ đọc, chạy chung tiến trình với Monitor: `python main.py serve` | Xong |
 | 1.7 | Node Gateway + trang "Bảng điều hành" tự cập nhật | |
 | 2 | Tồn kho, hạn dùng (5 mức), FEFO, top sản phẩm, cảnh báo | |
 | 3 | Bất thường (luật → Z-score/IQR), dự báo (MA → Holt-Winters), backtest | |

@@ -6,6 +6,7 @@ Lệnh hiện có:
 - run:     chạy pipeline Processor → KPI → lưu snapshot vào SQLite (bước 1.4)
 - status:  xem các lần chạy gần nhất và snapshot hiện tại (bước 1.4)
 - watch:   tự theo dõi thư mục, tệp được lưu thì tự chạy pipeline (bước 1.5)
+- serve:   chạy Analytics API + Monitor trong cùng một tiến trình (bước 1.6)
 Các bước sau sẽ thêm `serve` (API + theo dõi tệp).
 
 Chạy:  python main.py process                  (mặc định: data/samples)
@@ -14,6 +15,7 @@ Chạy:  python main.py process                  (mặc định: data/samples)
        python main.py run             (chạy lại ngay: thêm --force)
        python main.py status
        python main.py watch           (theo dõi data/inbox; Ctrl+C để dừng)
+       python main.py serve           (API ở http://127.0.0.1:8000/docs + Monitor)
 """
 
 from __future__ import annotations
@@ -21,6 +23,8 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import threading
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 import pandas as pd
@@ -201,6 +205,39 @@ def command_watch(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_serve(args: argparse.Namespace) -> int:
+    import uvicorn
+
+    from app.api import create_app
+
+    log = setup_logging("monitor")
+    args.folder.mkdir(parents=True, exist_ok=True)
+    store = AnalyticsStore(args.db)
+    monitor = None
+    if not args.no_monitor:
+        monitor = Monitor(args.folder, Pipeline(args.folder, store), poll_seconds=args.poll, logger=log)
+    stop = threading.Event()
+
+    @asynccontextmanager
+    async def lifespan(_app):
+        # Monitor chạy ở luồng nền, là nơi DUY NHẤT ghi SQLite; API chỉ đọc.
+        thread = None
+        if monitor is not None:
+            thread = threading.Thread(target=monitor.run_forever, args=(stop,), name="monitor", daemon=True)
+            thread.start()
+        yield
+        stop.set()
+        if thread is not None:
+            thread.join(timeout=10)
+
+    app = create_app(store, monitor, lifespan=lifespan)
+    log.info("API: http://%s:%s/docs (Ctrl+C để dừng)", args.host, args.port)
+    if monitor is None:
+        log.info("Không chạy Monitor: API chỉ đọc snapshot có sẵn trong %s", args.db)
+    uvicorn.run(app, host=args.host, port=args.port, log_level="warning")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Pharmacy Intelligent Analytics: analytics-service")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -232,6 +269,15 @@ def main() -> int:
     watch.add_argument("--poll", type=float, default=MONITOR_POLL_SECONDS, help="Giây giữa hai lần polling dự phòng")
     watch.add_argument("--polling-only", action="store_true", help="Không dùng sự kiện, chỉ polling (ổ mạng)")
     watch.set_defaults(handler=command_watch)
+    serve = commands.add_parser("serve", help="Chạy Analytics API (và Monitor) cho Dashboard")
+    serve.add_argument("folder", nargs="?", type=Path, default=INBOX_DIR, help="Thư mục Monitor theo dõi")
+    serve.add_argument("--db", type=Path, default=ANALYTICS_DB, help="Tệp SQLite")
+    # Mặc định chỉ nghe trên chính máy này: Node Gateway đứng trước để kiểm tra đăng nhập.
+    serve.add_argument("--host", default="127.0.0.1", help="Địa chỉ nghe (mặc định chỉ máy này)")
+    serve.add_argument("--port", type=int, default=8000, help="Cổng (mặc định 8000)")
+    serve.add_argument("--poll", type=float, default=MONITOR_POLL_SECONDS, help="Giây giữa hai lần polling")
+    serve.add_argument("--no-monitor", action="store_true", help="Chỉ chạy API, không theo dõi tệp")
+    serve.set_defaults(handler=command_serve)
     args = parser.parse_args()
     return args.handler(args)
 

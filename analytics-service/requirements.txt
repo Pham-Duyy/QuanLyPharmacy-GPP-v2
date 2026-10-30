@@ -10,5 +10,10 @@ tzdata>=2024.1
 # Bước 1.5: nhận sự kiện tệp thay đổi từ hệ điều hành
 watchdog>=4.0
 
-# Kiểm thử
+# Bước 1.6: Analytics API
+fastapi>=0.110
+uvicorn>=0.29
+
+# Kiểm thử (httpx2: TestClient của FastAPI/Starlette cần)
 pytest>=8.0
+httpx2>=2.0
