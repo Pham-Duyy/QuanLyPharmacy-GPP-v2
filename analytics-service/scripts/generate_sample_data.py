@@ -7,6 +7,12 @@ Dữ liệu giả lập 3 cửa hàng, 60 mặt hàng, 90 ngày bán, có sẵn 
 - Nhóm Hô hấp – ho cảm tăng mạnh trong 30 ngày cuối (mùa cảm cúm).
 - Cuối tuần đông khách hơn ngày thường.
 
+Bất thường cố ý cho Phase 3 (xem EVENTS), tính lùi từ ngày cuối:
+- CH01 mất điện 10 ngày trước: doanh thu ngày đó chỉ còn khoảng 40%.
+- CH02 khẩu trang TB001 bán gấp khoảng 5 lần trong 3 ngày (6, 5, 4 ngày trước).
+- CH02 ngừng bán Amoxicillin KS001 trong 7 ngày cuối (hết hàng, chưa nhập).
+Mùa cúm tăng dần là XU HƯỚNG, không phải bất thường từng ngày.
+
 Tồn kho theo lô (inventory.xlsx, Phase 2) tính từ tốc độ bán thật của từng
 thuốc ở từng cửa hàng, kèm các tình huống cố ý (xem STORY_LOTS):
 lô đã hết hạn còn trong kho, lô sắp hết hạn mà bán không kịp, thuốc sắp hết,
@@ -108,6 +114,11 @@ STORES = [
     ("CH02", "Thủ Đức", 55, 0.25, 0.00),
     ("CH03", "Bình Thạnh", 60, 0.00, 0.35),
 ]
+# Bất thường cố ý (Phase 3). Khóa "ngày trước ngày cuối" (0 = ngày cuối).
+OUTAGE = {"store": "CH01", "days_before_end": 10, "factor": 0.4}
+SPIKE = {"store": "CH02", "medicine": "TB001", "days_before_end": (4, 5, 6), "weight": 5.0}
+STOP = {"store": "CH02", "medicine": "KS001", "last_days": 7}
+
 WEEKDAY_FACTOR = [0.95, 0.95, 1.0, 1.0, 1.05, 1.15, 1.2]  # thứ Hai .. Chủ nhật
 LINES_PER_ORDER = ([1, 2, 3, 4], [45, 30, 17, 8])
 PAYMENTS = (["cash", "transfer", "card", "debt"], [55, 35, 8, 2])
@@ -138,6 +149,15 @@ def _price(value: float) -> int:
     return int(round(value / 100) * 100) or 100
 
 
+def _event_weight(store: str, code: str, before_end: int) -> float:
+    """Hệ số chọn thuốc của các bất thường cố ý (SPIKE, STOP)."""
+    if store == SPIKE["store"] and code == SPIKE["medicine"] and before_end in SPIKE["days_before_end"]:
+        return SPIKE["weight"]
+    if store == STOP["store"] and code == STOP["medicine"] and before_end < STOP["last_days"]:
+        return 0.0
+    return 1.0
+
+
 def build_sales(rng: random.Random, days: int, end: date, now: datetime) -> pd.DataFrame:
     """Không sinh giờ bán sau thời điểm `now`: ngày cuối là hôm nay thì chỉ tới giờ hiện tại."""
     start = end - timedelta(days=days - 1)
@@ -151,12 +171,18 @@ def build_sales(rng: random.Random, days: int, end: date, now: datetime) -> pd.D
             factor = WEEKDAY_FACTOR[day.weekday()] * (1 + growth * progress)
             if recent_drop and offset >= days - 21:
                 factor *= 1 - recent_drop
+            before_end = (end - day).days
+            if store_code == OUTAGE["store"] and before_end == OUTAGE["days_before_end"]:
+                factor *= OUTAGE["factor"]
             orders = max(int(rng.gauss(base_orders * factor, base_orders * 0.08)), 0)
             # Mùa cảm cúm: nhóm hô hấp được chọn nhiều hơn trong 30 ngày cuối.
             flu = offset >= days - 30
             day_weights = [
                 weight * (1.6 if flu and item[2] == "Hô hấp, ho cảm" else 1.0)
                 for weight, item in zip(weights, MEDICINES)
+            ]
+            day_weights = [
+                weight * _event_weight(store_code, item[0], before_end) for weight, item in zip(day_weights, MEDICINES)
             ]
             for _ in range(orders):
                 order_seq += 1

@@ -24,6 +24,10 @@ DATA → MONITORING → PROCESSING → ANALYTICS → STORAGE → DASHBOARD → A
 | D6 | Đọc `.xlsx` bằng **calamine**, dự phòng openpyxl | Đo trên 32.000 dòng: calamine 0,6 giây, openpyxl 4 giây; kết quả giống hệt |
 | D7 | Tồn kho lấy từ **tệp tồn hiện tại theo lô** (`inventory.xlsx`), không tự tính nhập − bán; "tồn tính đến" = giờ lưu tệp | Đơn giản, dễ kiểm; tự tính chỉ cần thiếu một chứng từ là sai dây chuyền. Phiếu nhập để Phase 5 |
 | D8 | Tồn kho, hạn dùng (có giá nhập) cần quyền **`report.inventory`**; xếp hạng sản phẩm cần `report.sales` | Giá nhập và tồn là thông tin nhạy cảm với nhân viên bán hàng |
+| D10 | Bất thường: luật R1–R3 + Z-score bền vững (trung vị/MAD) điều chỉnh theo thứ, ngưỡng 3,5; không Isolation Forest, không scikit-learn | Master prompt §16: không dùng ML khi luật và thống kê đã đủ; trung vị/MAD không bị một ngày bất thường kéo lệch |
+| D11 | Holt-Winters tự viết bằng numpy, có test với chuỗi biết trước đáp án | Dễ giải thích khi bảo vệ; không thêm statsmodels + scipy |
+| D12 | Dự báo chỉ trên ngày đã trọn; tầm 7 và 30 ngày; chọn mô hình bằng backtest 4 tuần, WAPE; phải thắng mô hình ngây thơ | Hôm nay chưa xong sẽ kéo dự báo xuống; WAPE không chia cho 0 |
+| D13 | Ngưỡng: R1 doanh thu giảm > 30%, R2 lượng bán thuốc giảm > 50% (§16), R3 tồn tăng > 3 lần lượng bán 30 ngày, \|z\| > 3,5 | Trong `config.py` |
 | D9 | Ngưỡng mặc định trong `config.py`: ADS tính trên 30 ngày; sắp hết khi số ngày tồn < 7 hoặc dưới `min_stock`; tồn cao khi > 90 ngày hoặc trên `max_stock`; tồn chết khi còn tồn mà 30 ngày không bán; hạn dùng 5 mức 0/7/30/90 ngày | Theo master prompt §13, §14; sửa một chỗ là đổi toàn hệ thống |
 
 ## Thành phần
@@ -267,6 +271,20 @@ Snapshot (bước 2.5) có thêm `products`, `inventory`, `expiry`, `alerts` cho
 (giờ lưu tệp tồn kho); `/summary` có thêm `overview` cho thẻ KPI. Dữ liệu mẫu: snapshot khoảng 310 KB, một lần chạy
 khoảng 3 giây. Snapshot của phiên bản cũ (thiếu khối mới) được tính lại ngay khi khởi động.
 
+## Phase 3: chuỗi theo ngày (bước 3.1)
+
+Code: `analytics-service/app/analytics/series.py`.
+
+- Chỉ ngày **đã trọn** (đến hết hôm qua); "hôm nay đến giờ này" có hàm riêng `intraday_revenue` để so cùng giờ.
+- Ngày không bán = 0, nhưng chuỗi bắt đầu từ ngày bán **đầu tiên** của cửa hàng / thuốc: trước khi mở cửa hàng
+  hay trước khi có thuốc không phải "bán được 0" (ô để trống).
+- Cần ít nhất 28 ngày đã trọn; thiếu thì trả câu "Chưa đủ dữ liệu…", không đoán.
+- `same_weekday_history`: so thứ Hai với các thứ Hai trước (chủ nhật đông hơn thứ Hai khoảng 25%).
+
+Bất thường cài trong dữ liệu mẫu để kiểm chứng: CH01 mất điện 10 ngày trước (doanh thu khoảng 40%); CH02 khẩu trang
+TB001 gấp khoảng 5 lần trong 3 ngày; CH02 ngừng bán Amoxicillin KS001 7 ngày cuối. Mùa cúm tăng dần là xu hướng,
+không được báo là bất thường từng ngày.
+
 ## Lộ trình
 
 | Phase | Nội dung | Trạng thái |
@@ -284,7 +302,12 @@ khoảng 3 giây. Snapshot của phiên bản cũ (thiếu khối mới) đượ
 | 2.4 | Hạn dùng 5 mức + FEFO: số lượng và tiền có nguy cơ không kịp bán ([kpi.md](kpi.md#hạn-dùng-và-fefo-phase-2-bước-24)) | Xong |
 | 2.5 | Cảnh báo theo luật; snapshot; Analytics API `/products`, `/inventory`, `/expiry`, `/alerts` | Xong |
 | 2.6 | Gateway (quyền D8) + Bảng điều hành: thẻ KPI tồn kho, khối Cảnh báo, tab Tồn kho / Hạn dùng / Sản phẩm | Xong |
-| 3 | Bất thường (luật → Z-score/IQR), dự báo (MA → Holt-Winters), backtest | |
+| 3.1 | Chuỗi theo ngày (cửa hàng, thuốc), kiểm tra đủ dữ liệu; bất thường cài trong dữ liệu mẫu | Xong |
+| 3.2 | Bất thường Level 1: luật R1, R2, R3 (+ bảng `stock_history`) | |
+| 3.3 | Bất thường Level 2: Z-score bền vững theo thứ; gộp bằng chứng; đưa vào Cảnh báo | |
+| 3.4 | Dự báo L1 (trung bình theo thứ) + backtest + WAPE + mô hình ngây thơ | |
+| 3.5 | Holt-Winters, chọn mô hình, khoảng tin cậy, ngày dự kiến hết hàng, `forecast_cache` | |
+| 3.6 | Snapshot, API `/anomalies`, `/forecast`, Gateway, Bảng điều hành | |
 | 4 | AI Agent: tool calling, đối chiếu số, nhật ký, bộ câu hỏi đánh giá | |
 | 5 | Gợi ý đặt hàng, ABC, ML nâng cao, nguồn PostgreSQL | |
 

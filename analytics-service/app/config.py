@@ -85,3 +85,10 @@ EXPIRY_MONITOR_DAYS = 90
 REVENUE_DROP_PCT = 20.0
 # ...và hôm qua cùng giờ có từ ngần này đơn: sáng sớm vài đơn thì % dao động mạnh, không cảnh báo.
 REVENUE_DROP_MIN_ORDERS = 10
+
+# --- Bất thường, dự báo (Phase 3; quyết định D10–D13) -------------------------------
+
+# Cần ít nhất ngần này ngày đã trọn (4 tuần: mỗi thứ trong tuần có 4 lần) mới phát hiện bất thường, dự báo.
+MIN_HISTORY_DAYS = 28
+# Chuỗi theo ngày dài nhất dùng cho bất thường, dự báo (đủ 8 tuần mẫu + 14 ngày xét + dư).
+SERIES_MAX_DAYS = 120
