@@ -164,7 +164,7 @@ function vietnamTime(now: Date): string {
   return `${part["hour"]}:${part["minute"]}, ${part["weekday"]} ${part["day"]}/${part["month"]}/${part["year"]}`;
 }
 
-function scopeText(access: BiAccess): string {
+function scopeText(access: BiAccess, scope?: string): string {
   const codes = access.stores.map((store) => store.code).join(", ") || "không có";
   const sales = access.allStores
     ? `toàn chuỗi (ALL) và mọi cửa hàng: ${codes}`
@@ -174,15 +174,21 @@ function scopeText(access: BiAccess): string {
     : access.inventoryStores.length > 0
       ? `chỉ ${access.inventoryStores.join(", ")}`
       : "không được xem";
-  const fallback = access.allStores ? "ALL" : (access.stores[0]?.code ?? "không có");
+  const fallback = scope ?? (access.allStores ? "ALL" : (access.stores[0]?.code ?? "không có"));
   return `Được xem doanh số: ${sales}\nĐược xem tồn kho, hạn dùng: ${inventory}\nPhạm vi mặc định: ${fallback}`;
 }
 
 /** Tin nhắn người dùng: bối cảnh thay đổi theo người và thời điểm nằm ở đây, không ở system. */
-export function userTurn(access: BiAccess, question: string, now: Date): BetaMessageParam {
+/** `scope`: cửa hàng đang chọn trên Bảng điều hành (đã kiểm quyền), làm phạm vi mặc định. */
+export function userTurn(
+  access: BiAccess,
+  question: string,
+  now: Date,
+  scope?: string,
+): BetaMessageParam {
   return {
     role: "user",
-    content: `<boi_canh>\nThời điểm hỏi: ${vietnamTime(now)} (giờ Việt Nam)\n${scopeText(access)}\n</boi_canh>\n\n${question}`,
+    content: `<boi_canh>\nThời điểm hỏi: ${vietnamTime(now)} (giờ Việt Nam)\n${scopeText(access, scope)}\n</boi_canh>\n\n${question}`,
   };
 }
 
@@ -218,6 +224,8 @@ export async function askAgent(options: {
   client?: AgentClient | null;
   /** Mặc định AGENT_LIMITS.timeoutMs; test đặt ngắn hơn. */
   timeoutMs?: number;
+  /** Phạm vi đang xem trên Bảng điều hành, đã qua resolveStore. */
+  scope?: string;
 }): Promise<AgentResult> {
   const question = options.question.trim();
   if (!question) throw new AppError(422, "VALIDATION_ERROR", "Câu hỏi trống");
@@ -238,7 +246,7 @@ export async function askAgent(options: {
   const deadline = started + timeoutMs;
   const messages: BetaMessageParam[] = [
     ...(options.history ?? []),
-    userTurn(options.access, question, options.now ?? new Date()),
+    userTurn(options.access, question, options.now ?? new Date(), options.scope),
   ];
   const toolCalls: AgentToolCall[] = [];
   const usage: AgentUsage = {

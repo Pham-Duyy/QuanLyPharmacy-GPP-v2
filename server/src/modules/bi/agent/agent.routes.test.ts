@@ -186,6 +186,18 @@ describe("POST /api/v1/bi/ask", () => {
     expect(await prisma.aiAgentLog.count()).toBe(2);
   });
 
+  it("cửa hàng đang xem làm phạm vi mặc định, kiểm theo quyền", async () => {
+    const calls = fakeClaude([reply("ok")]);
+    expect((await ask(adminToken, { question: "Doanh thu?", store: "nt02" })).status).toBe(200);
+    expect(calls[0]!.messages[0]!.content).toContain("Phạm vi mặc định: NT02");
+
+    await useTestRole(fixture.pharmacistId, "auditor", fixture.storeId);
+    const viewer = (await login("duocsi")).token;
+    expect((await ask(viewer, { question: "x", store: "NT02" })).status).toBe(403);
+    expect((await ask(viewer, { question: "x", store: "ALL" })).status).toBe(403);
+    expect((await ask(viewer, { question: "x", store: "NT01" })).status).toBe(200);
+  });
+
   it("giới hạn 30 câu mỗi giờ, đếm cả câu lỗi", async () => {
     const calls = fakeClaude([reply("ok")]);
     await prisma.aiAgentLog.createMany({

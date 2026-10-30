@@ -2,7 +2,7 @@ import type { BetaMessageParam } from "@anthropic-ai/sdk/resources/beta/messages
 import { prisma } from "../../../db/prisma.js";
 import { AppError } from "../../../lib/app-error.js";
 import type { AuthContext } from "../../auth/auth.context.js";
-import { biAccess } from "../bi.service.js";
+import { biAccess, resolveStore } from "../bi.service.js";
 import {
   AGENT_LIMITS,
   BLOCKED_ANSWER,
@@ -130,7 +130,7 @@ function logData(input: LogInput) {
 
 export async function askQuestion(
   auth: AuthContext,
-  body: { question: string; conversationId?: string | undefined },
+  body: { question: string; conversationId?: string | undefined; store?: string | undefined },
 ) {
   const now = new Date();
   if (!claudeClient()) {
@@ -157,6 +157,7 @@ export async function askQuestion(
     // Dọn hội thoại hết hạn (nhật ký giữ lại, conversation_id thành null).
     await prisma.aiAgentConversation.deleteMany({ where: { expiresAt: { lt: now } } });
     const access = await biAccess(auth);
+    const scope = body.store ? resolveStore(access, body.store) : undefined;
     let result: AgentResult;
     try {
       result = await askAgent({
@@ -164,6 +165,7 @@ export async function askQuestion(
         question: body.question,
         history: (existing?.messages ?? []) as unknown as BetaMessageParam[],
         now,
+        ...(scope ? { scope } : {}),
       });
     } catch (error) {
       if (error instanceof AppError && error.status < 500) throw error;

@@ -7,7 +7,11 @@ import {
   matchesText,
   money,
   trendChart,
+  suggestedQuestions,
+  toolCallLabel,
   trendWithForecast,
+  usdText,
+  verificationText,
   type AnomalyEvent,
   type RevenueForecast,
   type Trend,
@@ -128,5 +132,63 @@ describe("bảng điều hành", () => {
     ).toBeUndefined();
     expect(errorText(0.091)).toBe("±9%");
     expect(errorText(null)).toBe("chưa đo được");
+  });
+});
+
+describe("trợ lý AI", () => {
+  it("nguồn số đọc được: tên tool và tham số tiếng Việt", () => {
+    expect(toolCallLabel({ name: "get_revenue", input: { store: "ALL", period: "day" } })).toBe(
+      "Doanh thu · toàn chuỗi · hôm nay",
+    );
+    expect(
+      toolCallLabel({
+        name: "get_top_products",
+        input: { store: "ch03", period: "month", rank: "declining" },
+      }),
+    ).toBe("Xếp hạng sản phẩm · CH03 · tháng này · giảm mạnh");
+    expect(toolCallLabel({ name: "get_anomalies", input: { store: "ALL", days: 14 } })).toBe(
+      "Bất thường · toàn chuỗi · 14 ngày",
+    );
+    expect(toolCallLabel({ name: "tool_moi", input: {} })).toBe("tool_moi");
+  });
+
+  it("kết quả đối chiếu số", () => {
+    const verification = { checked: 4, unverified: [], retried: false };
+    expect(verificationText({ status: "answered", verification })).toEqual({
+      tone: "success",
+      text: "Đã đối chiếu 4 số, ngày, giờ với số liệu hệ thống",
+    });
+    expect(
+      verificationText({ status: "answered", verification: { ...verification, retried: true } })
+        .tone,
+    ).toBe("warning");
+    expect(
+      verificationText({
+        status: "blocked",
+        verification: { checked: 2, unverified: ["25 triệu", "12%"], retried: true },
+      }),
+    ).toEqual({
+      tone: "error",
+      text: "Đã chặn: 2 số không có trong số liệu hệ thống (25 triệu; 12%)",
+    });
+    expect(
+      verificationText({ status: "answered", verification: { ...verification, checked: 0 } }).text,
+    ).toBe("Câu trả lời không có con số");
+    expect(verificationText({ status: "timeout", verification: null }).tone).toBe("default");
+  });
+
+  it("câu gợi ý theo phạm vi và quyền tồn kho", () => {
+    expect(suggestedQuestions("ALL", false)).toHaveLength(4);
+    expect(suggestedQuestions("ALL", false)[0]).toContain("toàn chuỗi");
+    const store = suggestedQuestions("CH02", true);
+    expect(store).toHaveLength(6);
+    expect(store[1]).toContain("CH02");
+    expect(store.some((text) => text.includes("hết hạn"))).toBe(true);
+  });
+
+  it("chi phí ước tính", () => {
+    expect(usdText(0.0342)).toBe("$0,034");
+    expect(usdText(0.0052)).toBe("$0,0052");
+    expect(usdText(null)).toBe("không rõ");
   });
 });

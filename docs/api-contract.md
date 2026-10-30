@@ -1469,7 +1469,7 @@ Hỏi đáp tiếng Việt trên số liệu analytics-service. Claude chỉ g�
 | Method | Endpoint | Mô tả | Quyền |
 |---|---|---|---|
 | GET | `/bi/ask/status` | `enabled` (có `ANTHROPIC_API_KEY`), `limits`: `questionsPerHour` 30, `remainingThisHour`, `conversationTurns` 10, `questionChars` 1.000, `timeoutSeconds` 60 | `report.sales` hoặc `report.chain` |
-| POST | `/bi/ask` | JSON: `question` (1–1.000 ký tự), `conversationId` (UUID, tùy chọn: hỏi tiếp hội thoại cũ) | `report.sales` hoặc `report.chain` |
+| POST | `/bi/ask` | JSON: `question` (1–1.000 ký tự), `conversationId` (UUID, tùy chọn: hỏi tiếp hội thoại cũ), `store` (tùy chọn: cửa hàng đang chọn trên Bảng điều hành, làm phạm vi mặc định khi câu hỏi không nêu; không được xem thì 403) | `report.sales` hoặc `report.chain` |
 
 - Phản hồi: `conversationId`, `status` (`answered`, `blocked`, `round_limit`, `timeout`, `refused`, `truncated`, `unavailable`), `answer` (chỉ khi `answered`), `notice` (câu cố định cho các trạng thái còn lại; `blocked`: "Không đủ dữ liệu đã kiểm chứng để trả lời câu này…"), `verification` (`checked`, `unverified`, `retried`), `toolCalls` (`name`, `input`, `ok`, `durationMs`, `error`), `rounds`, `model`, `durationMs`, `usage` (token), `costUsd` (ước tính), `conversation` (`turns`, `maxTurns`, `expiresAt`), `remainingThisHour`, `logId`.
 - Lỗi: `503 AI_DISABLED` (chưa cấu hình khóa), `429 RATE_LIMITED` (quá 30 câu trong 1 giờ, kể cả câu lỗi; thông báo kèm giờ hỏi lại được), `409 AGENT_BUSY` (câu trước của chính người đó chưa xong), `404` (hội thoại không có hoặc của người khác), `409 CONVERSATION_EXPIRED` (quá 24 giờ), `409 CONVERSATION_FULL` (đủ 10 câu).

@@ -388,7 +388,24 @@ Chi phí ước tính khoảng 1.000–2.000 đ/câu (Opus 5.5: $4 / $20 mỗi t
   chưa hết hạn, chưa đủ 10 câu (409).
 - Lưu hội thoại bằng điều kiện `turns` chưa đổi (hai yêu cầu cùng lúc thì một bên 409). Lỗi ngoài dự kiến vẫn ghi
   nhật ký `status = error` rồi trả 500. Hội thoại hết hạn bị xóa khi có câu hỏi mới; nhật ký giữ lại.
-- Test: `agent.routes.test.ts` (7 test, CSDL thật, Claude giả).
+- Test: `agent.routes.test.ts` (8 test, CSDL thật, Claude giả).
+
+### Giao diện hỏi đáp (bước 4.5, đã làm)
+
+Tab "Hỏi trợ lý AI" trên Bảng điều hành (`client/src/features/bi/AgentPanel.tsx`):
+
+- Chưa đặt `ANTHROPIC_API_KEY`: hiện "Trợ lý AI chưa bật", các tab khác dùng bình thường.
+- Câu gợi ý theo phạm vi đang chọn (thêm câu tồn kho, hạn dùng khi có quyền `report.inventory`); bấm là gửi.
+- `POST /bi/ask` gửi kèm `store` đang chọn: câu hỏi không nêu cửa hàng dùng phạm vi này (server kiểm quyền, 403 nếu
+  không được xem).
+- Mỗi câu trả lời hiện: nhãn đối chiếu số (xanh: đã đối chiếu N số; cam: phải sửa một lần; đỏ: đã chặn kèm các số
+  không có nguồn), thời gian, số vòng, chi phí ước tính, và "Nguồn số" liệt kê từng lần tra (ví dụ "Doanh thu · toàn
+  chuỗi · hôm nay"), lần tra lỗi ghi rõ lý do. Trạng thái khác `answered` hiện câu cố định của server.
+- Đếm câu trong hội thoại (n/10), số câu còn hỏi được trong giờ; nút "Hội thoại mới". Hội thoại hết hạn hay đủ 10 câu
+  thì tự bắt đầu hội thoại mới ở câu sau. Enter gửi, Shift+Enter xuống dòng; tối đa 1.000 ký tự.
+- Đã chạy thử trên trình duyệt (máy tính và điện thoại 390px) với máy chủ thật, dữ liệu thật, Claude giả: tool chạy
+  thật, câu trả lời qua đối chiếu 9 số, ngày, giờ.
+- Test: 4 test hàm hiển thị trong `bi-api.test.ts` (nhãn nguồn số, nhãn đối chiếu, câu gợi ý, chi phí).
 
 ## Lộ trình
 
@@ -417,7 +434,7 @@ Chi phí ước tính khoảng 1.000–2.000 đ/câu (Opus 5.5: $4 / $20 mỗi t
 | 4.2 | Vòng lặp Agent, system prompt, prompt caching, giới hạn (6 vòng, 60 giây), tính chi phí; test bằng Claude giả | Xong |
 | 4.3 | Đối chiếu số, sửa 1 lần, chặn; trả lời "không đủ dữ liệu" | Xong |
 | 4.4 | Nhật ký `ai_agent_logs`, giới hạn tần suất (30 câu/giờ), lưu hội thoại chỉ-thêm | Xong |
-| 4.5 | Giao diện hỏi đáp trên Bảng điều hành: câu gợi ý, tool đã gọi, nguồn số, kết quả đối chiếu | |
+| 4.5 | Giao diện hỏi đáp trên Bảng điều hành: câu gợi ý, tool đã gọi, nguồn số, kết quả đối chiếu || Xong |
 | 4.6 | Bộ ~30 câu hỏi đánh giá; chạy thật cần API key, tốn tiền: báo chi phí và hỏi trước | |
 | 5 | Gợi ý đặt hàng, ABC, ML nâng cao, nguồn PostgreSQL | |
 

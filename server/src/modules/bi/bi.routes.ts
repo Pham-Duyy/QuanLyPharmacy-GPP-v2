@@ -165,6 +165,8 @@ biRouter.get("/bi/forecast", async (req, res) => {
 const askBody = z.object({
   question: z.string().trim().min(1, "Câu hỏi trống").max(1_000, "Câu hỏi tối đa 1.000 ký tự"),
   conversationId: z.uuid("Mã hội thoại không hợp lệ").optional(),
+  /** Cửa hàng đang chọn trên Bảng điều hành: phạm vi mặc định khi câu hỏi không nêu. */
+  store: storeField,
 });
 
 biRouter.get("/bi/ask/status", async (req, res) => {

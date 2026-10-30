@@ -29,6 +29,7 @@ import { formatNumber } from "../../ui/format.js";
 import { PageHeader } from "../../ui/PageHeader.js";
 import { StatCard, StatGrid, Trend } from "../../ui/StatCard.js";
 import { LineChart, RankBars } from "../analytics/AnalysisCharts.js";
+import { AgentPanel } from "./AgentPanel.js";
 import {
   AlertsPanel,
   AnomaliesTab,
@@ -395,6 +396,11 @@ export function ExecutiveDashboardPage() {
                     },
                   ]
                 : []),
+              {
+                key: "agent",
+                label: "Hỏi trợ lý AI",
+                children: <AgentPanel store={store} inventoryAllowed={inventoryAllowed} />,
+              },
             ]}
           />
         </>

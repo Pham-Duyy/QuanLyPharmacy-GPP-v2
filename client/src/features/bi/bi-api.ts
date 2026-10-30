@@ -303,6 +303,48 @@ export type Health = {
   monitor: { events: number; runs: number; last_latency_ms: number | null } | null;
 };
 
+// --- AI Agent (Phase 4, bước 4.5) ------------------------------------------------------------
+
+export type AgentStatus =
+  "answered" | "blocked" | "round_limit" | "timeout" | "refused" | "truncated" | "unavailable";
+
+export type AgentToolCall = {
+  name: string;
+  input: Record<string, unknown>;
+  ok: boolean;
+  durationMs: number;
+  error?: string;
+};
+
+export type AgentVerification = { checked: number; unverified: string[]; retried: boolean };
+
+export type AgentReply = {
+  logId: string;
+  conversationId: string;
+  status: AgentStatus;
+  answer: string | null;
+  notice: string | null;
+  verification: AgentVerification | null;
+  toolCalls: AgentToolCall[];
+  rounds: number;
+  model: string;
+  durationMs: number;
+  costUsd: number | null;
+  conversation: { turns: number; maxTurns: number; expiresAt: string };
+  remainingThisHour: number;
+};
+
+export type AgentAvailability = {
+  enabled: boolean;
+  limits: {
+    questionsPerHour: number;
+    remainingThisHour: number;
+    conversationTurns: number;
+    questionChars: number;
+    timeoutSeconds: number;
+  };
+};
+
 async function get<T>(path: string, params?: Record<string, string | number | undefined>) {
   return (await http.get<Envelope<T>>(`/bi/${path}`, { params })).data.data;
 }
@@ -326,6 +368,9 @@ export const biApi = {
       store,
       target: "revenue",
     }),
+  agentStatus: () => get<AgentAvailability>("ask/status"),
+  ask: async (body: { question: string; conversationId?: string; store: string }) =>
+    (await http.post<Envelope<AgentReply>>("/bi/ask", body)).data.data,
   demandForecast: (store: string) =>
     get<{ data_through: string; demand: DemandRow[]; stockout: Stockout[] }>("forecast", {
       store,
@@ -500,3 +545,97 @@ export const ISSUE_LABELS: Record<string, string> = {
   expiry_too_far: "Hạn dùng xa bất thường",
   unknown_store: "Cửa hàng không có trong tệp bán",
 };
+
+const TOOL_LABELS: Record<string, string> = {
+  get_business_summary: "Tổng quan kinh doanh",
+  get_revenue: "Doanh thu",
+  get_profit: "Lợi nhuận",
+  get_sales_trend: "Xu hướng bán hàng",
+  get_breakdown: "Cơ cấu",
+  get_top_products: "Xếp hạng sản phẩm",
+  get_slow_products: "Sản phẩm bán chậm",
+  get_inventory: "Tồn kho",
+  get_low_stock: "Sắp hết hàng",
+  get_expiring_products: "Sắp hết hạn",
+  get_expired_products: "Đã hết hạn",
+  get_anomalies: "Bất thường",
+  get_forecast: "Dự báo",
+  get_data_quality: "Chất lượng dữ liệu",
+  get_customer_debt: "Công nợ khách hàng",
+  get_supplier_data: "Nhà cung cấp",
+};
+
+const PARAM_LABELS: Record<string, Record<string, string>> = {
+  period: { day: "hôm nay", week: "tuần này", month: "tháng này" },
+  grain: { day: "theo ngày", week: "theo tuần", month: "theo tháng" },
+  target: { revenue: "doanh thu", demand: "nhu cầu từng thuốc" },
+  rank: {
+    revenue: "doanh thu cao",
+    profit: "lợi nhuận cao",
+    low_profit: "lợi nhuận thấp",
+    declining: "giảm mạnh",
+  },
+  kind: { slow: "bán chậm", not_sold: "không bán được" },
+  scope: { at_risk: "có nguy cơ", next_30_days: "30 ngày tới", next_90_days: "90 ngày tới" },
+  by: {
+    category: "nhóm thuốc",
+    store: "cửa hàng",
+    sale_type: "loại bán",
+    payment_method: "thanh toán",
+  },
+};
+
+/** "Doanh thu · ALL · hôm nay": nguồn số Agent đã tra, đọc được cho người dùng. */
+export function toolCallLabel(call: Pick<AgentToolCall, "name" | "input">): string {
+  const parts = [TOOL_LABELS[call.name] ?? call.name];
+  for (const [key, value] of Object.entries(call.input ?? {})) {
+    if (key === "store")
+      parts.push(
+        String(value).toUpperCase() === "ALL" ? "toàn chuỗi" : String(value).toUpperCase(),
+      );
+    else if (key === "days") parts.push(`${String(value)} ngày`);
+    else if (key === "status") parts.push(value === "all" ? "mọi trạng thái" : String(value));
+    else parts.push(PARAM_LABELS[key]?.[String(value)] ?? String(value));
+  }
+  return parts.join(" · ");
+}
+
+/** Kết quả đối chiếu số, hiện dưới câu trả lời. */
+export function verificationText(reply: Pick<AgentReply, "status" | "verification">): {
+  tone: "success" | "warning" | "error" | "default";
+  text: string;
+} {
+  const verification = reply.verification;
+  if (reply.status === "blocked" && verification) {
+    return {
+      tone: "error",
+      text: `Đã chặn: ${verification.unverified.length} số không có trong số liệu hệ thống (${verification.unverified.join("; ")})`,
+    };
+  }
+  if (!verification) return { tone: "default", text: "Không có câu trả lời để đối chiếu" };
+  if (verification.checked === 0) return { tone: "default", text: "Câu trả lời không có con số" };
+  const base = `Đã đối chiếu ${verification.checked} số, ngày, giờ với số liệu hệ thống`;
+  return verification.retried
+    ? { tone: "warning", text: `${base} (trợ lý đã phải sửa một lần)` }
+    : { tone: "success", text: base };
+}
+
+/** Câu hỏi gợi ý theo phạm vi đang xem và quyền tồn kho. */
+export function suggestedQuestions(storeLabel: string, inventoryAllowed: boolean): string[] {
+  const where = storeLabel === "ALL" ? "toàn chuỗi" : storeLabel;
+  return [
+    `Doanh thu hôm nay của ${where} so với cùng kỳ thế nào?`,
+    `5 thuốc bán chạy nhất tháng này của ${where}?`,
+    "14 ngày qua có gì bất thường không, nguyên nhân có thể là gì?",
+    `Dự báo doanh thu 7 ngày tới của ${where}?`,
+    ...(inventoryAllowed
+      ? ["Thuốc nào sắp hết hàng, cần nhập trước?", "Lô nào sắp hết hạn có nguy cơ không bán kịp?"]
+      : []),
+  ];
+}
+
+/** "$0,034": chi phí ước tính một câu hỏi. */
+export function usdText(value: number | null | undefined): string {
+  if (value === null || value === undefined) return "không rõ";
+  return `$${value.toFixed(value < 0.01 ? 4 : 3).replace(".", ",")}`;
+}
