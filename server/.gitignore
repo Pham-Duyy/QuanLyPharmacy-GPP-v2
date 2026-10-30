@@ -3,3 +3,6 @@ node_modules
 .env
 
 /src/generated/prisma
+
+# Báo cáo đánh giá AI Agent (npm run eval:agent)
+/eval-results

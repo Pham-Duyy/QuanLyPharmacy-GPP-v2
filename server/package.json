@@ -21,7 +21,8 @@
     "format:check": "prettier --check \"src/**/*.ts\" \"prisma/**/*.ts\"",
     "db:demo": "tsx prisma/demo-seed.ts",
     "db:catalog": "tsx prisma/seed-catalog-extra.ts",
-    "check:migrations": "tsx src/scripts/check-migrations.ts"
+    "check:migrations": "tsx src/scripts/check-migrations.ts",
+    "eval:agent": "tsx src/scripts/agent-eval.ts"
   },
   "type": "module",
   "dependencies": {

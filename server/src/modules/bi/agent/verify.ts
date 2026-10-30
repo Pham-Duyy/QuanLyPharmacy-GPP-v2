@@ -239,3 +239,15 @@ export function correctionTurn(unverified: string[]): BetaMessageParam {
     ],
   };
 }
+
+/** Các cụm số trong câu trả lời (đã tách ngày, giờ) kèm mọi cách đọc: bộ đánh giá (bước 4.6) dùng. */
+export function answerNumbers(
+  answer: string,
+): Array<{ text: string; percent: boolean; readings: Array<{ value: number; half: number }> }> {
+  const none: KnownFacts = { numbers: [], dates: new Set(), times: new Set() };
+  return numberTokens(checkDatesAndTimes(answer, none).rest).map((token) => ({
+    text: token.text,
+    percent: token.percent,
+    readings: token.variants,
+  }));
+}
