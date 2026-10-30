@@ -6,6 +6,8 @@ import {
   errorText,
   matchesText,
   money,
+  orderText,
+  transferText,
   trendChart,
   suggestedQuestions,
   toolCallLabel,
@@ -190,5 +192,27 @@ describe("trợ lý AI", () => {
     expect(usdText(0.0342)).toBe("$0,034");
     expect(usdText(0.0052)).toBe("$0,0052");
     expect(usdText(null)).toBe("không rõ");
+  });
+});
+
+describe("đặt hàng", () => {
+  it("số lượng mua kèm số đơn vị đặt khi có quy cách", () => {
+    expect(orderText({ order_quantity: 1000, order_packs: 10, pack_size: 100, unit: "Viên" })).toBe(
+      "1.000 Viên (10 × 100)",
+    );
+    expect(orderText({ order_quantity: 68, order_packs: 68, pack_size: 1, unit: "Ống" })).toBe(
+      "68 Ống",
+    );
+  });
+
+  it("nguồn chuyển hàng", () => {
+    expect(
+      transferText({
+        transfers: [
+          { from_store: "CH02", quantity: 1361 },
+          { from_store: "Cửa hàng khác", quantity: 30 },
+        ],
+      }),
+    ).toBe("CH02 · 1.361, Cửa hàng khác · 30");
   });
 });

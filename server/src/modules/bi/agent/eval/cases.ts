@@ -3,7 +3,7 @@ import { runTool } from "../tools.js";
 import type { Expected, GradeSpec } from "./grade.js";
 
 /**
- * Bộ câu hỏi đánh giá AI Agent (Phase 4, bước 4.6): 33 câu, 10 nhóm.
+ * Bộ câu hỏi đánh giá AI Agent (Phase 4, bước 4.6): 35 câu, 11 nhóm (thêm đặt hàng, ABC ở bước 5.4).
  *
  * Đáp án không viết cứng: mỗi câu tự lấy số đúng từ analytics-service lúc chạy (qua
  * đúng tool Agent dùng, với quyền toàn chuỗi), nên bộ câu hỏi dùng được khi dữ liệu
@@ -427,6 +427,34 @@ export const EVAL_CASES: EvalCase[] = [
         "stockout_within_30_days",
       )[0];
       return first ? { names: [str(first, "medicine_name")] } : {};
+    },
+  },
+
+  // --- Đặt hàng, ABC (Phase 5) -------------------------------------------------------------
+  {
+    id: "reorder-what-to-buy",
+    category: "Đặt hàng, ABC",
+    question: "Tuần này chuỗi cần đặt mua những gì, tổng tiền bao nhiêu?",
+    spec: { tools: ["get_reorder_suggestions"] },
+    truth: async (tool) => {
+      const data = await tool("get_reorder_suggestions", { store: "ALL", action: "order" });
+      const first = list(data, "items")[0];
+      return {
+        values: [{ label: "tổng tiền mua", value: num(data, "order_value") }],
+        names: first ? [str(first, "medicine_name")] : [],
+      };
+    },
+  },
+  {
+    id: "abc-group-a",
+    category: "Đặt hàng, ABC",
+    question: "Nhóm A gồm bao nhiêu thuốc, chiếm bao nhiêu phần trăm doanh thu?",
+    spec: { tools: ["get_abc_analysis"] },
+    truth: async (tool) => {
+      const data = await tool("get_abc_analysis", { store: "ALL", group: "A" });
+      return {
+        values: [{ label: "tỷ trọng nhóm A", value: num(data, "summary", "A", "share_pct") }],
+      };
     },
   },
 

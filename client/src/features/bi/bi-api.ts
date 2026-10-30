@@ -303,6 +303,118 @@ export type Health = {
   monitor: { events: number; runs: number; last_latency_ms: number | null } | null;
 };
 
+// --- Đặt hàng, ABC–XYZ (Phase 5, bước 5.4) ----------------------------------------------------
+
+export type AbcGroup = "A" | "B" | "C";
+export type XyzGroup = "X" | "Y" | "Z";
+
+export type ClassItem = {
+  medicine_code: string;
+  medicine_name: string | null;
+  category: string | null;
+  revenue: number;
+  share_pct: number;
+  cumulative_pct: number;
+  abc: AbcGroup;
+  xyz: XyzGroup | null;
+  cell: string;
+  cv: number | null;
+  weekly_mean: number | null;
+  service_level: number;
+  sold: boolean;
+};
+
+export type Classification = {
+  as_of: string;
+  store: string;
+  window: { start: string; end: string };
+  total_revenue: number;
+  summary: Record<AbcGroup, { label: string; count: number; revenue: number; share_pct: number }>;
+  matrix: Record<string, { count: number; revenue: number; service_level: number }>;
+  unclassified_xyz: number;
+  items: ClassItem[];
+};
+
+export type ReorderReason = "out_of_stock" | "stockout_before_arrival" | "below_min" | "reorder";
+
+export type ReorderItem = {
+  store_code: string;
+  medicine_code: string;
+  medicine_name: string | null;
+  unit: string | null;
+  cell: string;
+  reason: ReorderReason;
+  stock_quantity: number;
+  usable_quantity: number;
+  expiring_quantity: number;
+  target_quantity: number;
+  safety_stock: number;
+  lead_time_days: number;
+  pack_size: number;
+  transfers: Array<{ from_store: string; quantity: number }>;
+  transfer_quantity: number;
+  order_quantity: number;
+  order_packs: number;
+  order_value: number | null;
+  unit_cost: number | null;
+  supplier: string | null;
+  days_until_stockout: number | null;
+  action: "order" | "transfer" | "transfer_and_order";
+};
+
+export type Transfer = {
+  from_store: string;
+  to_store: string;
+  medicine_code: string;
+  medicine_name: string | null;
+  unit: string | null;
+  quantity: number;
+  value: number | null;
+};
+
+export type ReorderPlan = {
+  as_of: string;
+  store: string;
+  available: boolean;
+  cover_days?: number;
+  lines?: number;
+  order_lines?: number;
+  order_value?: number;
+  transfer_lines?: number;
+  transfer_value?: number;
+  by_supplier?: Array<{ supplier: string; lines: number; order_value: number }>;
+  items: ReorderItem[];
+  transfers: Transfer[];
+};
+
+export const REASON_LABELS: Record<ReorderReason, string> = {
+  out_of_stock: "Hết hàng",
+  stockout_before_arrival: "Hết trước khi hàng về",
+  below_min: "Dưới tối thiểu",
+  reorder: "Bổ sung",
+};
+
+export const XYZ_LABELS: Record<XyzGroup, string> = {
+  X: "Ổn định",
+  Y: "Dao động",
+  Z: "Thất thường",
+};
+
+/** "1.000 Viên (10 × 100)": số lượng đặt kèm số đơn vị đặt khi quy cách > 1. */
+export function orderText(
+  item: Pick<ReorderItem, "order_quantity" | "order_packs" | "pack_size" | "unit">,
+): string {
+  const base = `${item.order_quantity.toLocaleString("vi-VN")}${item.unit ? ` ${item.unit}` : ""}`;
+  return item.pack_size > 1 ? `${base} (${item.order_packs} × ${item.pack_size})` : base;
+}
+
+/** "CH02 · 250, cửa hàng khác · 30": nguồn chuyển hàng cho một dòng. */
+export function transferText(item: Pick<ReorderItem, "transfers">): string {
+  return item.transfers
+    .map((move) => `${move.from_store} · ${move.quantity.toLocaleString("vi-VN")}`)
+    .join(", ");
+}
+
 // --- AI Agent (Phase 4, bước 4.5) ------------------------------------------------------------
 
 export type AgentStatus =
@@ -368,6 +480,8 @@ export const biApi = {
       store,
       target: "revenue",
     }),
+  classification: (store: string) => get<Classification>("classification", { store }),
+  reorder: (store: string) => get<ReorderPlan>("reorder", { store }),
   agentStatus: () => get<AgentAvailability>("ask/status"),
   ask: async (body: { question: string; conversationId?: string; store: string }) =>
     (await http.post<Envelope<AgentReply>>("/bi/ask", body)).data.data,
@@ -544,6 +658,8 @@ export const ISSUE_LABELS: Record<string, string> = {
   expiry_before_received: "Hạn dùng trước ngày nhập",
   expiry_too_far: "Hạn dùng xa bất thường",
   unknown_store: "Cửa hàng không có trong tệp bán",
+  invalid_pack_size: "Quy cách sai (dùng 1)",
+  lead_time_out_of_range: "Thời gian chờ sai (dùng 2 ngày)",
 };
 
 const TOOL_LABELS: Record<string, string> = {

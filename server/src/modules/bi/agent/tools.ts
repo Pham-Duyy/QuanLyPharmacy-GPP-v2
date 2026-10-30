@@ -4,12 +4,14 @@ import { AppError } from "../../../lib/app-error.js";
 import {
   getAnomalies,
   getBreakdown,
+  getClassification,
   getDataQuality,
   getExpiry,
   getForecast,
   getInventory,
   getPeriodView,
   getProducts,
+  getReorder,
   getSalesTrend,
   getSummary,
   type BiAccess,
@@ -443,6 +445,99 @@ export const AGENT_TOOLS: AgentTool[] = [
     },
   },
   {
+    name: "get_reorder_suggestions",
+    description:
+      "Gợi ý đặt hàng theo dự báo (Phase 5): mỗi thuốc ở mỗi cửa hàng cần thêm bao nhiêu để đủ bán thời gian chờ hàng + 7 ngày, đã cộng tồn an toàn theo nhóm ABC–XYZ và trừ lô sắp hết hạn; chuyển từ cửa hàng đang thừa trước, phần còn thiếu mới mua. Kèm lý do, nhà cung cấp, tiền mua theo giá nhập, các chuyến chuyển hàng. action: all = mọi dòng, order = chỉ dòng phải mua, transfer = chỉ dòng có chuyển. Cần quyền xem tồn kho.",
+    input: z.object({
+      store: storeParam,
+      action: z.enum(["all", "order", "transfer"]).describe("Lọc dòng"),
+    }),
+    run: async (access, input: { store: string; action: "all" | "order" | "transfer" }) => {
+      const data = await getReorder(access, {
+        store: input.store,
+        ...(input.action === "all" ? {} : { action: input.action }),
+      });
+      if (data["available"] === false) return unavailable("gợi ý đặt hàng (chưa có tệp inventory)");
+      return {
+        ...pick(data, [
+          "as_of",
+          "store",
+          "cover_days",
+          "lines",
+          "order_lines",
+          "order_value",
+          "transfer_lines",
+          "transfer_value",
+          "by_supplier",
+        ]),
+        items: top(
+          data.items,
+          [
+            "store_code",
+            "medicine_code",
+            "medicine_name",
+            "unit",
+            "cell",
+            "reason",
+            "usable_quantity",
+            "target_quantity",
+            "transfer_quantity",
+            "order_quantity",
+            "order_value",
+            "supplier",
+            "days_until_stockout",
+          ],
+          15,
+        ),
+        transfers: top(
+          data.transfers,
+          ["from_store", "to_store", "medicine_name", "quantity", "unit", "value"],
+          15,
+        ),
+      };
+    },
+  },
+  {
+    name: "get_abc_analysis",
+    description:
+      "Phân loại ABC–XYZ 90 ngày: A = nhóm thuốc làm ra ~80% doanh thu, B ~15%, C ~5%; X = nhu cầu tuần ổn định (CV ≤ 0,5), Y = dao động, Z = thất thường. Trả tóm tắt từng nhóm, ma trận 9 ô (số thuốc, mức phục vụ dùng cho tồn an toàn) và danh sách thuốc (lọc theo nhóm nếu cần).",
+    input: z.object({
+      store: storeParam,
+      group: z.enum(["all", "A", "B", "C"]).describe("Nhóm ABC cần liệt kê thuốc"),
+    }),
+    run: async (access, input: { store: string; group: "all" | "A" | "B" | "C" }) => {
+      const data = await getClassification(access, {
+        store: input.store,
+        ...(input.group === "all" ? {} : { abc: input.group }),
+      });
+      return {
+        ...pick(data, [
+          "as_of",
+          "store",
+          "window",
+          "total_revenue",
+          "summary",
+          "matrix",
+          "unclassified_xyz",
+        ]),
+        items: top(
+          data["items"],
+          [
+            "medicine_code",
+            "medicine_name",
+            "revenue",
+            "share_pct",
+            "cumulative_pct",
+            "cell",
+            "cv",
+            "service_level",
+          ],
+          15,
+        ),
+      };
+    },
+  },
+  {
     name: "get_customer_debt",
     description: "Công nợ khách hàng. Hệ thống phân tích hiện CHƯA có nguồn dữ liệu này.",
     input: z.object({}),
@@ -451,7 +546,7 @@ export const AGENT_TOOLS: AgentTool[] = [
   {
     name: "get_supplier_data",
     description:
-      "Nhà cung cấp, công nợ nhà cung cấp, phiếu nhập. Hệ thống phân tích hiện CHƯA có nguồn dữ liệu này.",
+      "Công nợ nhà cung cấp, lịch sử phiếu nhập. Hệ thống phân tích hiện CHƯA có nguồn dữ liệu này (nhà cung cấp thường đặt của từng thuốc: dùng get_reorder_suggestions).",
     input: z.object({}),
     run: async () => unavailable("nhà cung cấp và phiếu nhập"),
   },

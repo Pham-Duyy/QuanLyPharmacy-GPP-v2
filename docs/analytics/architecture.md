@@ -463,6 +463,17 @@ số đặt         = max(0, cần có − tồn dùng được), làm tròn lê
 - Chuyển hàng trước khi mua: cửa hàng khác tồn cao cùng mặt hàng thì gợi ý chuyển phần vượt mức cần của chính nó.
 - ML chỉ thay Holt-Winters cho thuốc nào backtest tốt hơn rõ rệt; báo cáo ghi đúng kết quả đo.
 
+### Hiển thị (bước 5.4, đã làm)
+
+- Analytics API: `GET /api/analytics/classification?store&abc&xyz`, `GET /api/analytics/reorder?store&action`.
+- Gateway (`bi.service.ts`): `classification` chỉ cần quyền báo cáo (doanh thu, nhu cầu); `reorder` cần `report.inventory`
+  ở phạm vi xem. Người chỉ xem tồn kho một số cửa hàng: mã cửa hàng khác trong chuyến chuyển hàng thay bằng "Cửa hàng
+  khác" (biết là chuyển được, không lộ nơi nào thừa bao nhiêu). `reorder/export`: Excel hai sheet (Mua theo nhà cung
+  cấp; Chuyển hàng).
+- Bảng điều hành: tab **Đặt hàng** (tóm tắt tiền mua, tiền chuyển, 3 nhà cung cấp lớn; lọc Tất cả / Mua / Chuyển; bảng
+  dòng gợi ý; bảng chuyến chuyển hàng; nút Excel) và tab **ABC** (thanh A/B/C, ma trận 9 ô bấm để lọc, bảng thuốc).
+- AI Agent thêm 2 tool (18 tool): `get_reorder_suggestions`, `get_abc_analysis`; bộ đánh giá thêm 2 câu (35 câu).
+
 ## Lộ trình
 
 | Phase | Nội dung | Trạng thái |
@@ -495,7 +506,7 @@ số đặt         = max(0, cần có − tồn dùng được), làm tròn lê
 | 5.1 | Phân loại ABC–XYZ (doanh thu 90 ngày, biến động nhu cầu tuần), ma trận 9 ô ([kpi.md](kpi.md#phân-loại-abcxyz-phase-5-bước-51)) | Xong |
 | 5.2 | Gợi ý đặt hàng theo dự báo: tồn an toàn theo ABC–XYZ, trừ lô sắp hết hạn (FEFO), làm tròn quy cách; cột tùy chọn D19 ([kpi.md](kpi.md#gợi-ý-đặt-hàng-theo-dự-báo-phase-5-bước-52)) | Xong |
 | 5.3 | Gợi ý chuyển hàng giữa cửa hàng trước khi mua ([kpi.md](kpi.md#chuyển-hàng-giữa-cửa-hàng-trước-khi-mua-phase-5-bước-53)) | Xong |
-| 5.4 | API, Gateway, tab "Đặt hàng" và "ABC" trên Bảng điều hành, 2 tool AI Agent, xuất Excel | |
+| 5.4 | API, Gateway, tab "Đặt hàng" và "ABC" trên Bảng điều hành, 2 tool AI Agent, xuất Excel | Xong |
 | 5.5 | Nguồn PostgreSQL: view chỉ đọc `analytics_src`, tài khoản chỉ đọc, phát hiện thay đổi; cột "Theo dự báo" ở trang Đề xuất đặt hàng | |
 | 5.6 | ML bên thách đấu (scikit-learn, đặc trưng thứ, độ trễ, lễ Tết), chỉ dùng khi backtest tốt hơn | |
 

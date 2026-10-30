@@ -92,7 +92,7 @@ function fileNameFrom(header: unknown, fallback: string): string {
 }
 
 /** Tải tệp từ API về máy; lỗi được ném lại với thông điệp đã đọc. */
-async function downloadFile(
+export async function downloadFile(
   path: string,
   params: Record<string, string | undefined> = {},
   fallbackName = "du-lieu.xlsx",

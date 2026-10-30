@@ -62,8 +62,8 @@ describe("chấm điểm", () => {
     ]);
   });
 
-  it("bộ câu hỏi: 33 câu, mã không trùng, câu hỏi tiếp trỏ đúng câu gốc", () => {
-    expect(EVAL_CASES).toHaveLength(33);
+  it("bộ câu hỏi: 35 câu, mã không trùng, câu hỏi tiếp trỏ đúng câu gốc", () => {
+    expect(EVAL_CASES).toHaveLength(35);
     const ids = EVAL_CASES.map((item) => item.id);
     expect(new Set(ids).size).toBe(ids.length);
     for (const item of EVAL_CASES.filter((entry) => entry.followUp)) {
@@ -72,7 +72,7 @@ describe("chấm điểm", () => {
   });
 
   it("ước tính chi phí", () => {
-    const estimate = estimateCost(33);
+    const estimate = estimateCost(35);
     expect(estimate.totalUsd).toBeGreaterThan(1);
     expect(estimate.totalUsd).toBeLessThan(3);
     expect(estimate.worstUsd).toBeGreaterThan(estimate.totalUsd);

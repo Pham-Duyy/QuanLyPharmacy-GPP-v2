@@ -11,14 +11,17 @@ import {
   getAlerts,
   getAnomalies,
   getBreakdown,
+  getClassification,
   getDataQuality,
   getExpiry,
   getForecast,
   getInventory,
   getPeriodView,
   getProducts,
+  getReorder,
   getSalesTrend,
   getSummary,
+  reorderWorkbook,
 } from "./bi.service.js";
 
 export { biAccess, type BiAccess } from "./bi.service.js";
@@ -78,6 +81,16 @@ const anomaliesQuery = z.object({
 const forecastQuery = z.object({
   store: storeField,
   target: z.enum(["revenue", "demand"]).default("revenue"),
+});
+
+const classificationQuery = z.object({
+  store: storeField,
+  abc: z.enum(["A", "B", "C"]).optional(),
+  xyz: z.enum(["X", "Y", "Z"]).optional(),
+});
+const reorderQuery = z.object({
+  store: storeField,
+  action: z.enum(["order", "transfer"]).optional(),
 });
 
 biRouter.get("/bi/access", async (req, res) => {
@@ -158,6 +171,32 @@ biRouter.get("/bi/anomalies", async (req, res) => {
 biRouter.get("/bi/forecast", async (req, res) => {
   const query = parseOrThrow(forecastQuery, req.query);
   sendData(res, await getForecast(await biAccess(req.auth!), query));
+});
+
+// --- Phase 5: ABC–XYZ, gợi ý đặt hàng ------------------------------------------------------
+
+biRouter.get("/bi/classification", async (req, res) => {
+  const query = parseOrThrow(classificationQuery, req.query);
+  sendData(res, await getClassification(await biAccess(req.auth!), query));
+});
+
+biRouter.get("/bi/reorder", async (req, res) => {
+  const query = parseOrThrow(reorderQuery, req.query);
+  sendData(res, await getReorder(await biAccess(req.auth!), query));
+});
+
+biRouter.get("/bi/reorder/export", async (req, res) => {
+  const query = parseOrThrow(reorderQuery, req.query);
+  const plan = await getReorder(await biAccess(req.auth!), query);
+  const fileName = `goi-y-dat-hang-${String(plan["store"] ?? "ALL")}-${String(plan["as_of"] ?? "").slice(0, 10)}.xlsx`;
+  res
+    .set(
+      "Content-Disposition",
+      `attachment; filename="${fileName}"; filename*=UTF-8''${encodeURIComponent(fileName)}`,
+    )
+    .set("Cache-Control", "no-store")
+    .type("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    .send(await reorderWorkbook(plan));
 });
 
 // --- AI Agent (Phase 4, bước 4.4) -----------------------------------------------------------

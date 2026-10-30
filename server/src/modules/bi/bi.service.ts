@@ -1,6 +1,7 @@
 import { prisma } from "../../db/prisma.js";
 import { AppError } from "../../lib/app-error.js";
 import type { AuthContext } from "../auth/auth.context.js";
+import { buildWorkbook } from "../excel/workbook.js";
 import { fetchAnalytics } from "./bi.client.js";
 
 /**
@@ -213,4 +214,106 @@ export async function getForecast(
   // Nhu cầu dự báo tính từ bán hàng: report.sales là đủ. Ngày hết hàng dựa trên tồn kho: cần report.inventory.
   if (!canSeeInventory(access, store) && body.stockout) body.stockout = [];
   return body;
+}
+
+// --- Phase 5: ABC–XYZ, gợi ý đặt hàng, chuyển hàng ------------------------------------------
+
+/** Phân loại ABC–XYZ: doanh thu và nhu cầu bán, không có số tồn: report.sales là đủ. */
+export async function getClassification(
+  access: BiAccess,
+  query: { store?: string; abc?: "A" | "B" | "C"; xyz?: "X" | "Y" | "Z" },
+) {
+  return fetchAnalytics<Json>("classification", {
+    ...query,
+    store: resolveStore(access, query.store),
+  });
+}
+
+type Move = Json & { from_store: string; to_store: string };
+type ReorderItem = Json & { transfers?: Array<{ from_store: string }> };
+export type ReorderPlan = Json & {
+  available: boolean;
+  items: ReorderItem[];
+  transfers?: Move[];
+};
+
+/** Mã thay cho cửa hàng mà người xem không được xem tồn kho. */
+export const HIDDEN_STORE = "Cửa hàng khác";
+
+/**
+ * Gợi ý đặt hàng: có số tồn, giá nhập nên cần report.inventory ở phạm vi xem (D8).
+ * Chuyến chuyển hàng nhắc tới cửa hàng mà người xem không được xem tồn kho thì
+ * thay mã cửa hàng đó bằng "Cửa hàng khác": vẫn biết là chuyển được, không lộ
+ * cửa hàng nào đang thừa bao nhiêu.
+ */
+export async function getReorder(
+  access: BiAccess,
+  query: { store?: string; action?: "order" | "transfer" },
+) {
+  const store = resolveStore(access, query.store);
+  requireInventory(access, store);
+  const plan = await fetchAnalytics<ReorderPlan>("reorder", { ...query, store });
+  if (access.inventoryAll) return plan;
+  const visible = (code: string) => access.inventoryStores.includes(code);
+  const mask = (code: string) => (visible(code) ? code : HIDDEN_STORE);
+  for (const item of plan.items) {
+    for (const move of item.transfers ?? []) move.from_store = mask(move.from_store);
+  }
+  for (const move of plan.transfers ?? []) {
+    move.from_store = mask(move.from_store);
+    move.to_store = mask(move.to_store);
+  }
+  return plan;
+}
+
+const REASON_TEXT: Record<string, string> = {
+  out_of_stock: "Hết hàng",
+  stockout_before_arrival: "Hết trước khi hàng về",
+  below_min: "Dưới tồn tối thiểu",
+  reorder: "Bổ sung cho kỳ tới",
+};
+
+/** Excel gợi ý đặt hàng: sheet "Mua" (xếp theo nhà cung cấp) và sheet "Chuyển hàng". */
+export async function reorderWorkbook(plan: ReorderPlan): Promise<Buffer> {
+  const buying = plan.items
+    .filter((item) => Number(item["order_quantity"]) > 0)
+    .sort((a, b) => String(a["supplier"] ?? "~").localeCompare(String(b["supplier"] ?? "~"), "vi"));
+  return buildWorkbook([
+    {
+      name: "Mua",
+      columns: [
+        { key: "supplier", header: "Nhà cung cấp", width: 24 },
+        { key: "store_code", header: "Cửa hàng", width: 10 },
+        { key: "medicine_code", header: "Mã thuốc", width: 12 },
+        { key: "medicine_name", header: "Tên thuốc", width: 32 },
+        { key: "order_quantity", header: "Số lượng", kind: "int" },
+        { key: "unit", header: "Đơn vị", width: 10 },
+        { key: "order_packs", header: "Số đơn vị đặt", kind: "int" },
+        { key: "pack_size", header: "Quy cách", kind: "int" },
+        { key: "unit_cost", header: "Giá nhập", kind: "money" },
+        { key: "order_value", header: "Thành tiền", kind: "money" },
+        { key: "reason", header: "Lý do", width: 22 },
+        { key: "days_until_stockout", header: "Hết sau (ngày)", kind: "int" },
+        { key: "cell", header: "Nhóm ABC–XYZ", width: 12 },
+      ],
+      rows: buying.map((item) => ({
+        ...item,
+        supplier: item["supplier"] ?? "Chưa rõ",
+        reason: REASON_TEXT[String(item["reason"])] ?? item["reason"],
+      })),
+    },
+    {
+      name: "Chuyển hàng",
+      columns: [
+        { key: "from_store", header: "Từ cửa hàng", width: 14 },
+        { key: "to_store", header: "Đến cửa hàng", width: 14 },
+        { key: "medicine_code", header: "Mã thuốc", width: 12 },
+        { key: "medicine_name", header: "Tên thuốc", width: 32 },
+        { key: "quantity", header: "Số lượng", kind: "int" },
+        { key: "unit", header: "Đơn vị", width: 10 },
+        { key: "value", header: "Giá trị (giá nhập)", kind: "money" },
+      ],
+      rows: plan.transfers ?? [],
+    },
+  ]);
 }

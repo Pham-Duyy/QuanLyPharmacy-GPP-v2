@@ -270,3 +270,25 @@ def test_anomalies_and_forecast_endpoints(stocked):
     demand = stocked.get("/api/analytics/forecast", params={"target": "demand", "store": "CH02"}).json()
     assert all(row["store_code"] == "CH02" for row in demand["demand"] + demand["stockout"])
     assert stocked.get("/api/analytics/forecast", params={"target": "weather"}).status_code == 422
+
+
+def test_classification_and_reorder_endpoints(stocked):
+    abc = stocked.get("/api/analytics/classification").json()
+    assert {"summary", "matrix", "items", "window", "version"} <= set(abc)
+    assert {item["medicine_code"] for item in abc["items"]} == {"GD001", "KS001"}
+    only_a = stocked.get("/api/analytics/classification", params={"abc": "A"}).json()["items"]
+    assert only_a and all(item["abc"] == "A" for item in only_a)
+    assert stocked.get("/api/analytics/classification", params={"abc": "D"}).status_code == 422
+
+    # CH01 Paracetamol còn 6 ngày bán (sắp hết), CH02 không có Paracetamol để chuyển: phải mua.
+    plan = stocked.get("/api/analytics/reorder", params={"store": "ch01"}).json()
+    assert plan["available"] is True and plan["store"] == "CH01"
+    row = next(item for item in plan["items"] if item["medicine_code"] == "GD001")
+    assert row["action"] == "order" and row["order_quantity"] > 0
+    assert stocked.get("/api/analytics/reorder", params={"action": "transfer"}).json()["items"] == []
+    assert stocked.get("/api/analytics/reorder", params={"store": "CH99"}).status_code == 404
+    assert stocked.get("/api/analytics/reorder", params={"action": "steal"}).status_code == 422
+
+
+def test_reorder_without_inventory_file(client):
+    assert client.get("/api/analytics/reorder").json()["available"] is False

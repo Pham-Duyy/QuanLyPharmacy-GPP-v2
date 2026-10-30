@@ -294,6 +294,41 @@ def create_app(store: AnalyticsStore, monitor=None, *, lifespan=None) -> FastAPI
         stockout = block["stockout"] if key == "ALL" else [row for row in block["stockout"] if row["store_code"] == key]
         return {**meta, "demand": rows, "stockout": stockout}
 
+    @app.get("/api/analytics/classification", tags=["Đặt hàng, ABC"], summary="Phân loại ABC–XYZ: đóng góp doanh thu, độ ổn định nhu cầu")
+    def classification(
+        store_code: StoreParam = "ALL",
+        abc: Literal["A", "B", "C"] | None = Query(None, description="Chỉ một nhóm ABC"),
+        xyz: Literal["X", "Y", "Z"] | None = Query(None, description="Chỉ một nhóm XYZ"),
+    ) -> dict[str, Any]:
+        snapshot = reader.get()
+        if "classification" not in snapshot:
+            raise HTTPException(503, "Snapshot chưa có phân loại ABC–XYZ: chờ lần tính kế tiếp")
+        data = _section(snapshot, "classification", store_code)
+        items = [item for item in data["items"] if (abc is None or item["abc"] == abc) and (xyz is None or item["xyz"] == xyz)]
+        return {**_meta(snapshot), **data, "items": items}
+
+    @app.get("/api/analytics/reorder", tags=["Đặt hàng, ABC"], summary="Gợi ý đặt hàng theo dự báo và chuyển hàng giữa cửa hàng")
+    def reorder(
+        store_code: StoreParam = "ALL",
+        action: Literal["order", "transfer"] | None = Query(None, description="Chỉ dòng phải mua (order) hoặc có chuyển (transfer)"),
+    ) -> dict[str, Any]:
+        snapshot = reader.get()
+        _store_kpi(snapshot, store_code)
+        if "reorder" not in snapshot:
+            raise HTTPException(503, "Snapshot chưa có gợi ý đặt hàng: chờ lần tính kế tiếp")
+        key = store_code.upper()
+        plans = snapshot["reorder"]
+        # Cửa hàng không có dòng nào trong tệp tồn: không có gì để gợi ý (không phải lỗi).
+        data = plans.get(key) or {**plans["ALL"], "store": key, "lines": 0, "items": [], "transfers": []}
+        if not data.get("available"):
+            return {**_meta(snapshot), "store": key, "available": False, "items": [], "transfers": []}
+        items = data["items"]
+        if action == "order":
+            items = [item for item in items if item["order_quantity"] > 0]
+        elif action == "transfer":
+            items = [item for item in items if item["transfer_quantity"] > 0]
+        return {**_meta(snapshot), **data, "items": items}
+
     @app.get("/api/analytics/runs", tags=["Hệ thống"], summary="Nhật ký các lần chạy pipeline")
     def runs(limit: int = Query(20, ge=1, le=200)) -> dict[str, Any]:
         return {"runs": store.recent_runs(limit)}

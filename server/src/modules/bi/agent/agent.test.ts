@@ -156,7 +156,7 @@ describe("vòng lặp tool use", () => {
       cache_control: { type: "ephemeral" },
       system: [{ type: "text", text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
     });
-    expect(params.tools).toHaveLength(16);
+    expect(params.tools).toHaveLength(18);
     expect(params).not.toHaveProperty("tool_choice");
     expect(params).not.toHaveProperty("thinking");
   });

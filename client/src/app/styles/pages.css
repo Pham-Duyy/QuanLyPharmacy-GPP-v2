@@ -4690,6 +4690,176 @@
   }
 }
 
+/* Đặt hàng, ABC–XYZ (Bảng điều hành, bước 5.4) */
+.bi-plan-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.bi-plan-summary > div {
+  display: grid;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: var(--r-lg, 12px);
+  background: var(--c-surface-2);
+  font-size: 12px;
+}
+
+.bi-plan-summary strong {
+  color: var(--c-ink-900);
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+}
+
+.bi-matrix {
+  display: grid;
+  grid-template-columns: 28px repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  align-items: stretch;
+}
+
+.bi-matrix-head {
+  display: grid;
+  place-items: center;
+  color: var(--c-ink-500);
+  font-weight: 600;
+  font-size: 13px;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.bi-matrix-head small {
+  font-weight: 400;
+  font-size: 11px;
+  color: var(--c-ink-400);
+}
+
+.bi-matrix-cell {
+  display: grid;
+  place-items: center;
+  min-height: 52px;
+  padding: 6px;
+  border: 1px solid var(--c-border);
+  border-radius: 10px;
+  background: var(--c-surface);
+  font: inherit;
+  cursor: pointer;
+}
+
+.bi-matrix-cell strong {
+  font-size: 18px;
+  color: var(--c-ink-900);
+}
+
+.bi-matrix-cell small {
+  font-size: 11px;
+  color: var(--c-ink-400);
+}
+
+.bi-matrix-cell.tone-A {
+  background: #eff6ff;
+}
+
+.bi-matrix-cell.tone-B {
+  background: #ecfeff;
+}
+
+.bi-matrix-cell:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.bi-matrix-cell.is-selected {
+  border-color: var(--c-primary);
+  box-shadow: 0 0 0 2px var(--c-primary-100);
+}
+
+/* Hỏi trợ lý AI (Bảng điều hành, bước 4.5) */
+.bi-agent-intro {
+  margin: 0 0 12px;
+  color: var(--c-ink-400);
+  font-size: 12px;
+}
+
+.bi-agent-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.bi-agent-suggestions .ant-btn {
+  height: auto;
+  white-space: normal;
+  text-align: left;
+}
+
+.bi-agent-turns {
+  display: grid;
+  gap: 16px;
+  max-height: 60vh;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.bi-agent-turn {
+  display: grid;
+  gap: 8px;
+}
+
+.bi-agent-question {
+  justify-self: end;
+  max-width: 80%;
+  padding: 8px 12px;
+  border-radius: var(--r-lg, 12px);
+  background: var(--c-primary-50);
+  color: var(--c-ink-900);
+  white-space: pre-wrap;
+}
+
+.bi-agent-reply {
+  display: grid;
+  gap: 6px;
+  max-width: 92%;
+}
+
+.bi-agent-answer {
+  padding: 10px 12px;
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-lg, 12px);
+  background: var(--c-surface-2);
+  color: var(--c-ink-900);
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.bi-agent-meta {
+  font-size: 12px;
+}
+
+.bi-agent-sources {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-left: 0;
+  list-style: none;
+}
+
+.bi-agent-input {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  margin-top: 14px;
+}
+
+@media (max-width: 576px) {
+  .bi-agent-question,
+  .bi-agent-reply {
+    max-width: 100%;
+  }
+}
+
 /* Biểu đồ: chấm ngày bất thường, ghi chú trong tooltip (Bảng điều hành, bước 3.6) */
 .analysis-marker {
   fill: #e5484d;

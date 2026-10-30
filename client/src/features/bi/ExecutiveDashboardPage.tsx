@@ -17,6 +17,7 @@ import { PageHeader } from "../../ui/PageHeader.js";
 import { StatCard, StatGrid, Trend } from "../../ui/StatCard.js";
 import { LineChart, RankBars } from "../analytics/AnalysisCharts.js";
 import { AgentPanel } from "./AgentPanel.js";
+import { AbcTab, ReorderTab } from "./PlanningTabs.js";
 import {
   AlertsPanel,
   AnomaliesTab,
@@ -392,8 +393,18 @@ export function ExecutiveDashboardPage() {
                       label: "Hạn dùng",
                       children: <ExpiryTab store={store} version={v} />,
                     },
+                    {
+                      key: "reorder",
+                      label: "Đặt hàng",
+                      children: <ReorderTab store={store} version={v} />,
+                    },
                   ]
                 : []),
+              {
+                key: "abc",
+                label: "ABC",
+                children: <AbcTab store={store} version={v} />,
+              },
               {
                 key: "agent",
                 label: (

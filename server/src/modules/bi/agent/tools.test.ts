@@ -240,6 +240,8 @@ describe("định nghĩa tool gửi Claude", () => {
       "get_anomalies",
       "get_forecast",
       "get_data_quality",
+      "get_reorder_suggestions",
+      "get_abc_analysis",
       "get_customer_debt",
       "get_supplier_data",
     ]);
@@ -429,6 +431,67 @@ describe("chạy tool", () => {
     for (const [name, input] of Object.entries(samples)) {
       expect((await runTool(CHAIN, name, input)).ok, name).toBe(true);
     }
-    expect(AGENT_TOOLS).toHaveLength(16);
+    expect(AGENT_TOOLS).toHaveLength(18);
+  });
+
+  it("gợi ý đặt hàng, ABC–XYZ: lọc đúng, cắt gọn, che cửa hàng không được xem", async () => {
+    stub.respond("reorder", 200, {
+      as_of: "x",
+      store: "NT01",
+      available: true,
+      lines: 1,
+      order_lines: 1,
+      order_value: 5,
+      transfer_lines: 1,
+      transfer_value: 3,
+      by_supplier: [],
+      items: [
+        {
+          store_code: "NT01",
+          medicine_code: "A",
+          reason: "out_of_stock",
+          order_quantity: 5,
+          transfers: [{ from_store: "NT02", quantity: 1 }],
+        },
+      ],
+      transfers: [
+        { from_store: "NT02", to_store: "NT01", medicine_name: "A", quantity: 1, value: 3 },
+      ],
+    });
+    stub.respond("classification", 200, {
+      as_of: "x",
+      store: "ALL",
+      summary: {},
+      matrix: {},
+      items: [],
+      window: {},
+    });
+
+    const all = await runTool(CHAIN, "get_reorder_suggestions", { store: "NT01", action: "all" });
+    expect(stub.requests.at(-1)).toBe("/api/analytics/reorder?store=NT01");
+    expect(all.content["items"]).toEqual([
+      { store_code: "NT01", medicine_code: "A", reason: "out_of_stock", order_quantity: 5 },
+    ]);
+    await runTool(CHAIN, "get_reorder_suggestions", { store: "ALL", action: "transfer" });
+    expect(stub.requests.at(-1)).toBe("/api/analytics/reorder?store=ALL&action=transfer");
+
+    const viewer = { ...NT01_SALES_ONLY, inventoryStores: ["NT01"] };
+    const masked = await runTool(viewer, "get_reorder_suggestions", {
+      store: "NT01",
+      action: "all",
+    });
+    expect((masked.content["transfers"] as Array<Record<string, unknown>>)[0]).toMatchObject({
+      from_store: "Cửa hàng khác",
+      to_store: "NT01",
+    });
+    expect(
+      (await runTool(NT01_SALES_ONLY, "get_reorder_suggestions", { store: "NT01", action: "all" }))
+        .ok,
+    ).toBe(false);
+
+    expect(
+      (await runTool(NT01_SALES_ONLY, "get_abc_analysis", { store: "NT01", group: "A" })).ok,
+    ).toBe(true);
+    expect(stub.requests.at(-1)).toBe("/api/analytics/classification?store=NT01&abc=A");
   });
 });

@@ -263,3 +263,108 @@ describe("cổng Bảng điều hành /api/v1/bi", () => {
     expect(stub.requests.at(-1)).toBe("/api/analytics/forecast?store=NT01&target=demand");
   });
 });
+
+describe("ABC–XYZ, gợi ý đặt hàng (Phase 5)", () => {
+  const plan = () => ({
+    version: 7,
+    as_of: "2026-10-30T22:00:00",
+    store: "NT01",
+    available: true,
+    lines: 1,
+    order_lines: 1,
+    order_value: 1_200_000,
+    transfer_lines: 1,
+    transfer_value: 300_000,
+    items: [
+      {
+        store_code: "NT01",
+        medicine_code: "GD001",
+        medicine_name: "Paracetamol 500mg",
+        unit: "Viên",
+        reason: "out_of_stock",
+        order_quantity: 1_000,
+        order_packs: 10,
+        pack_size: 100,
+        unit_cost: 1_200,
+        order_value: 1_200_000,
+        supplier: "DKSH",
+        cell: "AX",
+        days_until_stockout: 0,
+        transfers: [{ from_store: "NT02", quantity: 250 }],
+        transfer_quantity: 250,
+      },
+    ],
+    transfers: [
+      {
+        from_store: "NT02",
+        to_store: "NT01",
+        medicine_code: "GD001",
+        medicine_name: "Paracetamol 500mg",
+        unit: "Viên",
+        quantity: 250,
+        value: 300_000,
+      },
+    ],
+  });
+
+  beforeEach(() => {
+    stub.respond("classification", 200, {
+      version: 7,
+      store: "ALL",
+      summary: {},
+      matrix: {},
+      items: [],
+    });
+    stub.respond("reorder", 200, plan());
+  });
+
+  it("người xem toàn chuỗi: chuyển tiếp đủ tham số, thấy đủ mã cửa hàng", async () => {
+    expect((await get("classification?abc=A&xyz=Z", adminToken)).status).toBe(200);
+    expect(stub.requests.at(-1)).toBe("/api/analytics/classification?abc=A&xyz=Z&store=ALL");
+    const body = (await get("reorder?store=nt01&action=order", adminToken)).body.data;
+    expect(stub.requests.at(-1)).toBe("/api/analytics/reorder?store=NT01&action=order");
+    expect(body.transfers[0].from_store).toBe("NT02");
+    expect((await get("classification?abc=D", adminToken)).status).toBe(422);
+  });
+
+  it("chỉ xem NT01: không thấy cửa hàng nào đang thừa hàng; thiếu report.inventory thì không xem được gợi ý", async () => {
+    const token = await storeViewerToken();
+    const body = (await get("reorder", token)).body.data;
+    expect(stub.requests.at(-1)).toBe("/api/analytics/reorder?store=NT01");
+    expect(body.items[0].transfers).toEqual([{ from_store: "Cửa hàng khác", quantity: 250 }]);
+    expect(body.transfers[0]).toMatchObject({ from_store: "Cửa hàng khác", to_store: "NT01" });
+    expect((await get("reorder?store=ALL", token)).status).toBe(403);
+
+    await useTestRole(fixture.pharmacistId, "auditor", fixture.storeId, ["report.inventory"]);
+    const limited = (await login("duocsi")).token;
+    expect((await get("reorder", limited)).status).toBe(403);
+    // ABC–XYZ chỉ có doanh thu, nhu cầu: report.sales là đủ.
+    expect((await get("classification", limited)).status).toBe(200);
+  });
+
+  it("xuất Excel: sheet Mua theo nhà cung cấp và sheet Chuyển hàng", async () => {
+    const response = await api()
+      .get("/api/v1/bi/reorder/export?store=NT01")
+      .set(authHeaders(adminToken))
+      .buffer(true)
+      .parse((res, done) => {
+        const chunks: Buffer[] = [];
+        res.on("data", (chunk: Buffer) => chunks.push(chunk));
+        res.on("end", () => done(null, Buffer.concat(chunks)));
+      });
+    expect(response.status).toBe(200);
+    expect(response.headers["content-type"]).toContain("spreadsheetml");
+    expect(response.headers["content-disposition"]).toContain(
+      "goi-y-dat-hang-NT01-2026-10-30.xlsx",
+    );
+    const ExcelJS = (await import("exceljs")).default;
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(response.body as never);
+    expect(workbook.worksheets.map((sheet) => sheet.name)).toEqual(["Mua", "Chuyển hàng"]);
+    const buy = workbook.getWorksheet("Mua")!;
+    expect(buy.getRow(2).getCell(1).value).toBe("DKSH");
+    expect(buy.getRow(2).getCell(5).value).toBe(1_000);
+    expect(buy.getRow(2).getCell(11).value).toBe("Hết hàng");
+    expect(workbook.getWorksheet("Chuyển hàng")!.getRow(2).getCell(5).value).toBe(250);
+  });
+});
