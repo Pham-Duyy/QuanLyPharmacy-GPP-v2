@@ -2,6 +2,7 @@ import {
   BulbOutlined,
   CloudUploadOutlined,
   DownloadOutlined,
+  EyeOutlined,
   FallOutlined,
   FileExcelOutlined,
   FundOutlined,
@@ -31,7 +32,7 @@ import {
   Typography,
   Upload,
 } from "antd";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getErrorMessage } from "../../api/http.js";
 import { PageHeader } from "../../ui/PageHeader.js";
 import { StatCard, StatGrid, Trend } from "../../ui/StatCard.js";
@@ -49,6 +50,15 @@ import {
   type ChartSpec,
   type GroupStat,
 } from "./analytics-api.js";
+import {
+  canWatchFiles,
+  ensureReadPermission,
+  fileSignature,
+  pickWatchedFile,
+  recallWatchedFile,
+  rememberWatchedFile,
+  type WatchedFileHandle,
+} from "./file-watch.js";
 
 type Source = "chain" | "file";
 
@@ -109,7 +119,16 @@ type View = {
   response: AnalysisResponse;
   narrativeAt: string;
   inputs: { source: Source; window: ChainWindow; file: File | null; sheet: string | null };
+  /** Lần gần nhất tệp đang theo dõi được lưu lại và số dòng số liệu tăng/giảm. */
+  fileChange: { at: string; rowDelta: number } | null;
 };
+
+const WATCH_OPTIONS = [
+  { value: 10_000, label: "10 giây" },
+  { value: 30_000, label: "30 giây" },
+  { value: 60_000, label: "1 phút" },
+  { value: 300_000, label: "5 phút" },
+];
 
 const timeText = (iso: string) =>
   new Date(iso).toLocaleTimeString("vi-VN", {
@@ -134,12 +153,36 @@ export function AnalyticsPage() {
   const [view, setView] = useState<View | null>(null);
   const [autoRefresh, setAutoRefresh] = useState(false);
   const response = view?.response ?? null;
+  // Theo dõi trực tiếp tệp trên máy (Chrome, Edge).
+  const [handle, setHandle] = useState<WatchedFileHandle | null>(null);
+  const [savedHandle, setSavedHandle] = useState<WatchedFileHandle | null>(null);
+  const [watching, setWatching] = useState(false);
+  const [watchMs, setWatchMs] = useState(30_000);
+  const [checkedAt, setCheckedAt] = useState<string | null>(null);
+  const signature = useRef<string | null>(null);
+
+  useEffect(() => {
+    void recallWatchedFile().then(setSavedHandle);
+  }, []);
 
   const analyze = useMutation({
-    mutationFn: async (input: { plan?: AnalysisPlan; refresh: boolean }) => {
+    mutationFn: async (input: {
+      plan?: AnalysisPlan;
+      refresh: boolean;
+      /** Bản mới của tệp đang theo dõi, vừa đọc lại từ máy. */
+      file?: File;
+      narrate?: boolean;
+    }) => {
       if (source === "file") {
-        if (!file) throw new Error("Chọn tệp Excel hoặc CSV trước khi phân tích");
-        return analyzeFile({ file, question, sheet, plan: input.plan, narrate: !input.refresh });
+        const target = input.file ?? file;
+        if (!target) throw new Error("Chọn tệp Excel hoặc CSV trước khi phân tích");
+        return analyzeFile({
+          file: target,
+          question,
+          sheet,
+          plan: input.plan,
+          narrate: input.narrate ?? !input.refresh,
+        });
       }
       return analyzeChain({
         question,
@@ -149,6 +192,7 @@ export function AnalyticsPage() {
       });
     },
     onSuccess: (data, input) => {
+      const narrated = input.narrate ?? !input.refresh;
       setView((previous) => {
         if (!input.refresh || !previous)
           return {
@@ -156,25 +200,83 @@ export function AnalyticsPage() {
             narrativeAt: data.generatedAt,
             // Máy chủ tự chọn sheet khi chưa chỉ định: ghi lại sheet đã đọc.
             inputs: { source, window: chainWindow, file, sheet: data.source.sheet },
+            fileChange: null,
           };
-        // Tự làm mới không gọi AI: giữ nhận xét AI đã viết, chỉ cập nhật số liệu.
-        if (previous.response.narrativeSource === "ai")
+        const fileChange = input.file
+          ? {
+              at: data.generatedAt,
+              rowDelta: data.summary.rowCount - previous.response.summary.rowCount,
+            }
+          : previous.fileChange;
+        // Làm mới không gọi AI: giữ nhận xét AI đã viết, chỉ cập nhật số liệu.
+        if (!narrated && previous.response.narrativeSource === "ai")
           return {
             ...previous,
+            fileChange,
             response: { ...data, narrative: previous.response.narrative, narrativeSource: "ai" },
           };
-        return { ...previous, response: data, narrativeAt: data.generatedAt };
+        return { ...previous, fileChange, response: data, narrativeAt: data.generatedAt };
       });
     },
     onError: (error, input) => {
       if (input.refresh) setAutoRefresh(false);
+      if (input.file) setWatching(false);
       void message.error(getErrorMessage(error, "Không phân tích được"));
     },
   });
 
-  const run = () => {
+  const run = async () => {
     setAutoRefresh(false);
+    if (source === "file" && handle) {
+      // Tệp đang liên kết: luôn đọc bản mới nhất trên máy trước khi phân tích.
+      try {
+        const fresh = await handle.getFile();
+        signature.current = fileSignature(fresh);
+        setFile(fresh);
+        analyze.mutate({ refresh: false, file: fresh });
+      } catch {
+        void message.error(
+          `Không đọc được tệp ${handle.name}: tệp đã bị xóa, đổi tên hoặc mất quyền`,
+        );
+      }
+      return;
+    }
     analyze.mutate({ refresh: false });
+  };
+
+  const linkHandle = async (next: WatchedFileHandle) => {
+    const fresh = await next.getFile();
+    signature.current = fileSignature(fresh);
+    setHandle(next);
+    setFile(fresh);
+    setSheet(null);
+    setWatching(false);
+    setSavedHandle(null);
+    void rememberWatchedFile(next);
+  };
+
+  const pickFileToWatch = async () => {
+    try {
+      const picked = await pickWatchedFile();
+      if (picked) await linkHandle(picked);
+    } catch (error) {
+      void message.error(getErrorMessage(error, "Không mở được tệp"));
+    }
+  };
+
+  const resumeSavedFile = async () => {
+    if (!savedHandle) return;
+    try {
+      if (!(await ensureReadPermission(savedHandle))) {
+        void message.warning("Chưa được cấp quyền đọc tệp");
+        return;
+      }
+      await linkHandle(savedHandle);
+    } catch {
+      setSavedHandle(null);
+      void rememberWatchedFile(null);
+      void message.error(`Không mở lại được ${savedHandle.name}: tệp đã bị xóa hoặc đổi chỗ`);
+    }
   };
 
   // Tự làm mới chạy lại đúng kế hoạch cũ trên dữ liệu mới: không lập kế hoạch, không gọi AI.
@@ -188,6 +290,34 @@ export function AnalyticsPage() {
     }, refreshMs);
     return () => clearInterval(timer);
   }, [autoRefresh, source, plan, refreshMs, mutate, isPending]);
+
+  // Theo dõi tệp: đọc lại theo nhịp, chỉ phân tích lại khi tệp thật sự được lưu lại.
+  // Tệp đổi thì số liệu mới nên viết lại nhận xét (nếu bật AI); kế hoạch giữ nguyên.
+  useEffect(() => {
+    if (!watching || !handle || !plan || source !== "file") return;
+    let cancelled = false;
+    const timer = setInterval(async () => {
+      try {
+        const fresh = await handle.getFile();
+        if (cancelled) return;
+        setCheckedAt(new Date().toISOString());
+        const next = fileSignature(fresh);
+        if (next === signature.current || isPending) return;
+        signature.current = next;
+        mutate({ plan, refresh: true, file: fresh, narrate: true });
+      } catch {
+        if (cancelled) return;
+        setWatching(false);
+        void message.error(
+          `Không đọc được ${handle.name}: tệp đã bị xóa, đổi tên hoặc mất quyền. Đã dừng theo dõi.`,
+        );
+      }
+    }, watchMs);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [watching, handle, plan, source, watchMs, mutate, isPending, message]);
 
   const changeSource = (next: Source) => {
     setSource(next);
@@ -251,11 +381,16 @@ export function AnalyticsPage() {
                 accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 maxCount={1}
                 beforeUpload={(picked) => {
+                  // Tệp kéo thả là bản chụp một lần, không theo dõi được.
+                  setHandle(null);
+                  setWatching(false);
                   setFile(picked);
                   setSheet(null);
                   return false;
                 }}
                 onRemove={() => {
+                  setHandle(null);
+                  setWatching(false);
                   setFile(null);
                   setSheet(null);
                 }}
@@ -272,6 +407,40 @@ export function AnalyticsPage() {
                   và công thức, nhận bảng ngang theo tháng (T1, T2… hoặc 01/2025).
                 </p>
               </Upload.Dragger>
+              {canWatchFiles ? (
+                <Space wrap className="analysis-watch-pick">
+                  <Button icon={<EyeOutlined />} onClick={() => void pickFileToWatch()}>
+                    {handle ? "Đổi tệp theo dõi" : "Chọn tệp để theo dõi trực tiếp"}
+                  </Button>
+                  {handle ? (
+                    <Tag color="green" icon={<EyeOutlined />}>
+                      Đã liên kết: {handle.name}
+                    </Tag>
+                  ) : (
+                    <Typography.Text type="secondary">
+                      Liên kết tệp trên máy: khi bạn lưu tệp trong Excel, trang tự cập nhật.
+                    </Typography.Text>
+                  )}
+                </Space>
+              ) : (
+                <Typography.Text type="secondary" className="analysis-watch-pick">
+                  Muốn theo dõi trực tiếp tệp Excel trên máy, mở trang này bằng Chrome hoặc Edge
+                  trên máy tính.
+                </Typography.Text>
+              )}
+              {savedHandle && !handle ? (
+                <Alert
+                  className="analysis-watch-pick"
+                  type="info"
+                  showIcon
+                  title={`Lần trước bạn theo dõi tệp ${savedHandle.name}`}
+                  action={
+                    <Button size="small" type="primary" onClick={() => void resumeSavedFile()}>
+                      Tiếp tục theo dõi
+                    </Button>
+                  }
+                />
+              ) : null}
               <Space wrap size={[16, 0]}>
                 <Button
                   type="link"
@@ -318,7 +487,7 @@ export function AnalyticsPage() {
             onPressEnter={(event) => {
               if (!event.shiftKey) {
                 event.preventDefault();
-                run();
+                void run();
               }
             }}
           />
@@ -340,7 +509,7 @@ export function AnalyticsPage() {
               icon={<BulbOutlined />}
               loading={analyze.isPending && !autoRefresh}
               disabled={source === "file" && !file}
-              onClick={run}
+              onClick={() => void run()}
             >
               Phân tích
             </Button>
@@ -356,12 +525,35 @@ export function AnalyticsPage() {
                 </Typography.Text>
               </Space>
             ) : null}
+            {source === "file" && handle && response ? (
+              <Space wrap>
+                <Switch checked={watching} onChange={setWatching} disabled={stale} />
+                <Typography.Text>Theo dõi tệp, kiểm tra mỗi</Typography.Text>
+                <Select
+                  size="small"
+                  value={watchMs}
+                  onChange={setWatchMs}
+                  options={WATCH_OPTIONS}
+                  style={{ width: 96 }}
+                />
+                {watching && checkedAt ? (
+                  <Typography.Text type="secondary">
+                    · Kiểm tra lần cuối {timeText(checkedAt)}
+                  </Typography.Text>
+                ) : null}
+              </Space>
+            ) : null}
           </Space>
         </Space>
       </Card>
 
       {response ? (
-        <AnalysisResult response={response} narrativeAt={view!.narrativeAt} stale={stale} />
+        <AnalysisResult
+          response={response}
+          narrativeAt={view!.narrativeAt}
+          stale={stale}
+          fileChange={source === "file" ? view!.fileChange : null}
+        />
       ) : (
         <Card>
           <Empty
@@ -378,10 +570,12 @@ function AnalysisResult({
   response,
   narrativeAt,
   stale,
+  fileChange,
 }: {
   response: AnalysisResponse;
   narrativeAt: string | null;
   stale: boolean;
+  fileChange: View["fileChange"];
 }) {
   const { plan, result, narrative, valueFormat } = response;
   const overall = result.overall;
@@ -397,6 +591,21 @@ function AnalysisResult({
     <>
       {stale ? (
         <Alert type="info" showIcon title="Nguồn dữ liệu đã đổi. Bấm Phân tích để chạy lại." />
+      ) : null}
+
+      {fileChange ? (
+        <Alert
+          type="success"
+          showIcon
+          icon={<EyeOutlined />}
+          title={`Tệp vừa được lưu lại, đã cập nhật lúc ${timeText(fileChange.at)}${
+            fileChange.rowDelta > 0
+              ? `: thêm ${fileChange.rowDelta.toLocaleString("vi-VN")} dòng số liệu`
+              : fileChange.rowDelta < 0
+                ? `: bớt ${Math.abs(fileChange.rowDelta).toLocaleString("vi-VN")} dòng số liệu`
+                : ": số dòng không đổi, đã tính lại theo số liệu mới"
+          }`}
+        />
       ) : null}
 
       {response.source.kind === "xlsx" ? (
