@@ -115,7 +115,7 @@ A --> D : câu trả lời + nguồn số liệu
 |---|---|---|
 | 1.1 | Schema chuẩn, dữ liệu mẫu (3 cửa hàng, 60 mặt hàng, 90 ngày) | Xong |
 | 1.2 | Processor: đọc, làm sạch, kiểm tra, báo cáo lỗi dữ liệu | Xong |
-| 1.3 | KPI Engine | |
+| 1.3 | KPI Engine: doanh thu, giá vốn, lợi nhuận, biên, số đơn, tăng trưởng ([kpi.md](kpi.md)) | Xong |
 | 1.4 | Analytics Store (SQLite) + pipeline | |
 | 1.5 | Monitor: watchdog + debounce + hash, polling dự phòng | |
 | 1.6 | FastAPI: `/summary`, `/revenue`, `/sales-trend`, `/health` | |
@@ -125,4 +125,4 @@ A --> D : câu trả lời + nguồn số liệu
 | 4 | AI Agent: tool calling, đối chiếu số, nhật ký, bộ câu hỏi đánh giá | |
 | 5 | Gợi ý đặt hàng, ABC, ML nâng cao, nguồn PostgreSQL | |
 
-Schema dữ liệu và luật kiểm tra: [data-schema.md](data-schema.md).
+Schema dữ liệu và luật kiểm tra: [data-schema.md](data-schema.md). Công thức KPI: [kpi.md](kpi.md).

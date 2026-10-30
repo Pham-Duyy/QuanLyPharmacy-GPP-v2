@@ -3,7 +3,7 @@
 Dịch vụ Python của **Pharmacy Intelligent Analytics**: theo dõi tệp dữ liệu, xử lý,
 tính chỉ số kinh doanh. Không gọi LLM. Kiến trúc: [docs/analytics/architecture.md](../docs/analytics/architecture.md).
 
-Hiện có: bước 1.1 (schema, dữ liệu mẫu) và 1.2 (xử lý dữ liệu).
+Hiện có: bước 1.1 (schema, dữ liệu mẫu), 1.2 (xử lý dữ liệu), 1.3 (KPI Engine).
 
 ## Cài đặt (một lần)
 
@@ -37,6 +37,9 @@ Mỗi lần mở cửa sổ dòng lệnh mới, kích hoạt lại môi trườn
 python scripts/generate_sample_data.py        # sinh data/samples/medicines.xlsx và sales.xlsx
 python main.py process                         # xử lý và in báo cáo lỗi dữ liệu
 python main.py process --issues-csv data/reports/issues.csv
+python main.py kpi                             # KPI hôm nay / tuần này / tháng này, toàn chuỗi
+python main.py kpi --store CH03 --as-of "2026-10-29 21:00"
+python main.py kpi --json                      # kết quả dạng JSON (bước 1.4 sẽ lưu vào Store)
 python -m pytest -q                            # chạy test
 ```
 
@@ -54,7 +57,11 @@ app/
     cleaner.py           đổi giá trị thô về đúng kiểu (số, ngày, mã…)
     validator.py         luật nghiệp vụ, đánh dấu dòng lỗi
     service.py           nối các bước: process_file, process_folder
+  analytics/
+    periods.py           kỳ báo cáo: hôm nay, tuần này, tháng này và kỳ so sánh
+    kpi.py               công thức KPI, tăng trưởng (docs/analytics/kpi.md)
+    breakdown.py         chuỗi theo ngày/tuần/tháng, cơ cấu theo nhóm thuốc, cửa hàng…
 scripts/generate_sample_data.py
-tests/test_processor.py
+tests/test_processor.py, tests/test_kpi.py
 main.py                  lệnh chạy
 ```

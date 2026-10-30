@@ -1,22 +1,29 @@
 """Điểm chạy của analytics-service.
 
-Bước 1.2 mới có lệnh `process`: xử lý một thư mục dữ liệu và in báo cáo chất
-lượng dữ liệu. Các bước sau sẽ thêm `serve` (API + theo dõi tệp).
+Lệnh hiện có:
+- process: xử lý một thư mục dữ liệu, in báo cáo chất lượng dữ liệu (bước 1.2)
+- kpi:     tính chỉ số kinh doanh hôm nay / tuần này / tháng này (bước 1.3)
+Các bước sau sẽ thêm `serve` (API + theo dõi tệp).
 
 Chạy:  python main.py process                  (mặc định: data/samples)
        python main.py process data/inbox --issues-csv data/reports/issues.csv
+       python main.py kpi --as-of "2026-10-30 18:00" --store CH01
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
 import pandas as pd
 
+from app.analytics import kpi_summary, prepare_sales, sales_breakdown
+from app.analytics.periods import Window
 from app.config import SAMPLES_DIR
 from app.processor import LoadError, ProcessResult, process_folder
+from app.processor.service import now_local
 
 # Windows PowerShell mặc định không in được tiếng Việt có dấu nếu không đổi bảng mã.
 if hasattr(sys.stdout, "reconfigure"):
@@ -58,6 +65,64 @@ def command_process(args: argparse.Namespace) -> int:
     return 0
 
 
+def _money(value: float | None) -> str:
+    return "—" if value is None else f"{value:,.0f} đ".replace(",", ".")
+
+
+def _number(value: float, digits: int = 0) -> str:
+    """Kiểu Việt Nam: 4.844 và 20,7."""
+    return f"{value:,.{digits}f}".replace(",", "_").replace(".", ",").replace("_", ".")
+
+
+def _growth(value: float | None) -> str:
+    return "  —   " if value is None else f"{value:+.1f}%".replace(".", ",")
+
+
+def command_kpi(args: argparse.Namespace) -> int:
+    try:
+        results = process_folder(args.folder)
+    except (LoadError, FileNotFoundError) as error:
+        print(f"Không xử lý được: {error}", file=sys.stderr)
+        return 1
+    medicines = results["medicines"].data if "medicines" in results else None
+    sales = prepare_sales(results["sales"].data, medicines)
+    as_of = pd.Timestamp(args.as_of) if args.as_of else now_local()
+    summary = kpi_summary(sales, as_of, args.store)
+    if args.json:
+        print(json.dumps(summary, ensure_ascii=False, indent=2))
+        return 0
+
+    scope = f"cửa hàng {args.store}" if args.store else "toàn chuỗi"
+    print(f"\nKPI {scope}, tính đến {as_of:%d/%m/%Y %H:%M} (bỏ {results['sales'].rows_rejected} dòng lỗi)")
+    for period in summary["periods"].values():
+        current, previous, growth = period["current"], period["previous_same_span"], period["growth"]
+        print(f"\n--- {period['label']} (so với {period['previous_label'].lower()} cùng thời điểm) ---")
+        print(f"  Doanh thu     {_money(current['revenue']):>20}   {_growth(growth['revenue'])}   (kỳ trước {_money(previous['revenue'])})")
+        print(f"  Giá vốn       {_money(current['cogs']):>20}")
+        print(f"  Lợi nhuận     {_money(current['profit']):>20}   {_growth(growth['profit'])}")
+        margin = current["margin_pct"]
+        print(f"  Biên lợi nhuận{'—' if margin is None else _number(margin, 1) + '%':>20}")
+        print(f"  Số đơn        {_number(current['orders']):>20}   {_growth(growth['orders'])}")
+        print(f"  Số lượng bán  {_number(current['units']):>20}   {_growth(growth['units'])}")
+        print(f"  Giá trị/đơn   {_money(current['avg_order_value']):>20}   {_growth(growth['avg_order_value'])}")
+        if current["cost_coverage_pct"] is not None and current["cost_coverage_pct"] < 100:
+            print(f"  (Chỉ {current['cost_coverage_pct']}% doanh thu có giá vốn: lợi nhuận tính trên phần đó)")
+
+    month = Window(pd.Timestamp(summary["periods"]["month"]["current_window"]["start"]), as_of)
+    scoped = sales if not args.store else sales[sales["store_code"] == args.store]
+    print("\n--- Tháng này theo nhóm thuốc ---")
+    for row in sales_breakdown(scoped, month, "category"):
+        print(
+            f"  {row['label']:<22} {_money(row['revenue']):>18}  {_number(row['share_pct'], 1):>5}%"
+            f"  biên {'—' if row['margin_pct'] is None else _number(row['margin_pct'], 1) + '%'}"
+        )
+    if not args.store:
+        print("\n--- Tháng này theo cửa hàng ---")
+        for row in sales_breakdown(scoped, month, "store_code"):
+            print(f"  {row['label']:<22} {_money(row['revenue']):>18}  {_number(row['share_pct'], 1):>5}%")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Pharmacy Intelligent Analytics: analytics-service")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -66,6 +131,12 @@ def main() -> int:
     process.add_argument("--max-issues", type=int, default=20, help="Số vấn đề in ra màn hình")
     process.add_argument("--issues-csv", type=Path, help="Ghi toàn bộ vấn đề ra tệp CSV")
     process.set_defaults(handler=command_process)
+    kpi = commands.add_parser("kpi", help="Tính KPI hôm nay / tuần này / tháng này")
+    kpi.add_argument("folder", nargs="?", type=Path, default=SAMPLES_DIR, help="Thư mục chứa medicines/sales")
+    kpi.add_argument("--as-of", help='Thời điểm tính, ví dụ "2026-10-30 18:00" (mặc định: bây giờ)')
+    kpi.add_argument("--store", help="Chỉ tính một cửa hàng, ví dụ CH01")
+    kpi.add_argument("--json", action="store_true", help="In kết quả dạng JSON")
+    kpi.set_defaults(handler=command_kpi)
     args = parser.parse_args()
     return args.handler(args)
 
