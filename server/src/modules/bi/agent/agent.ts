@@ -12,6 +12,7 @@ import { env } from "../../../config/env.js";
 import { AppError } from "../../../lib/app-error.js";
 import type { BiAccess } from "../bi.service.js";
 import { runTool, toolDefinitions } from "./tools.js";
+import { collectFacts, correctionTurn, verifyAnswer, type Verification } from "./verify.js";
 
 /**
  * Vòng lặp AI Agent (Phase 4, bước 4.2; quyết định D15, D17).
@@ -61,10 +62,23 @@ Quy tắc bắt buộc:
 Cách viết:
 - Câu đầu trả lời thẳng câu hỏi. Sau đó 2–5 gạch đầu dòng bằng chứng, rồi tối đa 3 gợi ý việc nên làm (nếu phù hợp), trình bày là gợi ý cần kiểm chứng.
 - Số tiền viết kiểu Việt Nam: 1.250.000 đ, hoặc gọn theo triệu, tỷ với tối đa 1 chữ số thập phân (22,9 triệu đ). Phần trăm viết như trong tool, dấu phẩy thập phân (12,5%).
-- Không dùng bảng, không dùng emoji.`;
+- Không dùng bảng, không dùng emoji.
+
+Hệ thống tự đối chiếu mọi con số, ngày, giờ trong câu trả lời với kết quả tool trước khi hiện cho người dùng. Câu trả lời có số không có nguồn sẽ bị trả lại để sửa, sửa vẫn sai thì bị chặn.`;
+
+/** Hiện cho người dùng thay câu trả lời bị chặn (D16). */
+export const BLOCKED_ANSWER =
+  "Không đủ dữ liệu đã kiểm chứng để trả lời câu này. Hãy hỏi cụ thể hơn (cửa hàng, kỳ, chỉ số) hoặc xem trực tiếp trên Bảng điều hành.";
 
 export type AgentStatus =
-  "answered" | "round_limit" | "timeout" | "refused" | "truncated" | "unavailable";
+  | "answered"
+  /** Có số không kiểm chứng được, kể cả sau một lần yêu cầu sửa (D16): không hiện câu trả lời. */
+  | "blocked"
+  | "round_limit"
+  | "timeout"
+  | "refused"
+  | "truncated"
+  | "unavailable";
 
 export type AgentToolCall = {
   round: number;
@@ -86,8 +100,13 @@ export type AgentResult = {
   status: AgentStatus;
   /** Câu trả lời cuối của Claude; null khi không có (hết giờ, bị từ chối, lỗi API). */
   answer: string | null;
-  /** Lịch sử đầy đủ để lưu và gửi lại ở câu hỏi sau (chỉ thêm). */
+  /**
+   * Lịch sử đầy đủ để lưu và gửi lại ở câu hỏi sau (chỉ thêm). Câu trả lời bị chặn
+   * thì trả lại đúng lịch sử cũ: số chưa kiểm chứng không được nằm lại trong hội thoại.
+   */
   messages: BetaMessageParam[];
+  /** Kết quả đối chiếu số của câu trả lời cuối; null khi không có câu trả lời để kiểm. */
+  verification: (Verification & { retried: boolean }) | null;
   /** Nội dung lượt Claude cuối cùng, nguyên khối: dùng để đối chiếu và sửa lại (bước 4.3). */
   finalContent: BetaContentBlock[];
   toolCalls: AgentToolCall[];
@@ -119,11 +138,24 @@ export function claudeClient(): AgentClient | null {
   return { create: (params, options) => client.beta.messages.create(params, options) };
 }
 
-const dateTime = new Intl.DateTimeFormat("vi-VN", {
+const dateParts = new Intl.DateTimeFormat("vi-VN", {
   timeZone: "Asia/Ho_Chi_Minh",
-  dateStyle: "full",
-  timeStyle: "short",
+  weekday: "long",
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
 });
+
+/** "14:05, Thứ Sáu 30/10/2026": dạng ngày mà bước đối chiếu số đọc được. */
+function vietnamTime(now: Date): string {
+  const part = Object.fromEntries(
+    dateParts.formatToParts(now).map((item) => [item.type, item.value]),
+  ) as Record<string, string>;
+  return `${part["hour"]}:${part["minute"]}, ${part["weekday"]} ${part["day"]}/${part["month"]}/${part["year"]}`;
+}
 
 function scopeText(access: BiAccess): string {
   const codes = access.stores.map((store) => store.code).join(", ") || "không có";
@@ -143,7 +175,7 @@ function scopeText(access: BiAccess): string {
 export function userTurn(access: BiAccess, question: string, now: Date): BetaMessageParam {
   return {
     role: "user",
-    content: `<boi_canh>\nThời điểm hỏi: ${dateTime.format(now)} (giờ Việt Nam)\n${scopeText(access)}\n</boi_canh>\n\n${question}`,
+    content: `<boi_canh>\nThời điểm hỏi: ${vietnamTime(now)} (giờ Việt Nam)\n${scopeText(access)}\n</boi_canh>\n\n${question}`,
   };
 }
 
@@ -212,11 +244,13 @@ export async function askAgent(options: {
   let model = env.ANALYTICS_AI_MODEL;
   let rounds = 0;
   let finalContent: BetaContentBlock[] = [];
+  let verification: AgentResult["verification"] = null;
 
   const finish = (status: AgentStatus, error?: string): AgentResult => ({
     status,
     answer: status === "answered" ? textOf(finalContent) || null : null,
-    messages,
+    messages: status === "blocked" ? (options.history ?? []) : messages,
+    verification,
     finalContent,
     toolCalls,
     rounds,
@@ -289,7 +323,17 @@ export async function askAgent(options: {
     const uses = response.content.filter(
       (block): block is BetaToolUseBlock => block.type === "tool_use",
     );
-    if (response.stop_reason !== "tool_use" || uses.length === 0) return finish("answered");
+    if (response.stop_reason !== "tool_use" || uses.length === 0) {
+      // Đối chiếu số (D16): sai thì yêu cầu sửa một lần, vẫn sai thì chặn.
+      const retried: boolean = verification !== null;
+      verification = { ...verifyAnswer(textOf(finalContent), collectFacts(messages)), retried };
+      if (verification.unverified.length === 0) return finish("answered");
+      if (retried || rounds >= AGENT_LIMITS.rounds) {
+        return finish("blocked", `Số không kiểm chứng được: ${verification.unverified.join("; ")}`);
+      }
+      messages.push(correctionTurn(verification.unverified));
+      continue;
+    }
 
     const lastRound = rounds >= AGENT_LIMITS.rounds - 1;
     // Tính trước số tool còn được chạy: các tool trong một lượt chạy song song.

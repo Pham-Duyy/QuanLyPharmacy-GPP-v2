@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import type {
   BetaContentBlock,
   BetaMessage,
+  BetaMessageParam,
   MessageCreateParamsNonStreaming,
 } from "@anthropic-ai/sdk/resources/beta/messages/messages";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -328,5 +329,101 @@ describe("giới hạn", () => {
     const usage = { inputTokens: 1e6, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 };
     expect(costUsd("claude-opus-5-5", usage)).toBe(4);
     expect(costUsd("mo-hinh-khac", usage)).toBeNull();
+  });
+});
+
+describe("đối chiếu số (D16)", () => {
+  const revenueCall = () => callTools(toolUse("get_revenue", { store: "ALL", period: "day" }));
+
+  it("số khớp: trả lời ngay, ghi kết quả đối chiếu", async () => {
+    const fake = fakeClaude([
+      revenueCall(),
+      reply("Hôm nay 22,9 triệu đ, 31 đơn (số liệu lúc 14:00)."),
+    ]);
+    const result = await askAgent({
+      access: CHAIN,
+      question: "Doanh thu?",
+      now: NOW,
+      client: fake.client,
+    });
+    expect(result).toMatchObject({
+      status: "answered",
+      verification: { checked: 3, unverified: [], retried: false },
+    });
+    expect(fake.calls).toHaveLength(2);
+  });
+
+  it("số sai: yêu cầu sửa một lần, sửa đúng thì trả lời", async () => {
+    const fake = fakeClaude([
+      revenueCall(),
+      reply("Hôm nay 25 triệu đ, tăng 12%."),
+      reply("Hôm nay 22,9 triệu đ."),
+    ]);
+    const result = await askAgent({
+      access: CHAIN,
+      question: "Doanh thu?",
+      now: NOW,
+      client: fake.client,
+    });
+    expect(result).toMatchObject({
+      status: "answered",
+      answer: "Hôm nay 22,9 triệu đ.",
+      verification: { unverified: [], retried: true },
+    });
+    const correction = fake.calls[2]!.messages.at(-1)!;
+    expect(correction.role).toBe("user");
+    expect(JSON.stringify(correction.content)).toContain("25 triệu; 12%");
+    // Lịch sử giữ cả câu sai và lời nhắc (chỉ thêm), câu trả lời đúng ở cuối.
+    expect(result.messages.map((message) => message.role)).toEqual([
+      "user",
+      "assistant",
+      "user",
+      "assistant",
+      "user",
+      "assistant",
+    ]);
+  });
+
+  it("vẫn sai sau khi sửa: chặn, không trả câu trả lời, không lưu lượt này", async () => {
+    const history: BetaMessageParam[] = [
+      { role: "user", content: "Câu trước" },
+      { role: "assistant", content: [text("Trả lời trước")] as never },
+    ];
+    const fake = fakeClaude([
+      revenueCall(),
+      reply("Hôm nay 25 triệu đ."),
+      reply("Khoảng 25 triệu đ."),
+    ]);
+    const result = await askAgent({
+      access: CHAIN,
+      question: "Doanh thu?",
+      history,
+      now: NOW,
+      client: fake.client,
+    });
+    expect(result).toMatchObject({
+      status: "blocked",
+      answer: null,
+      verification: { unverified: ["25 triệu"], retried: true },
+      error: "Số không kiểm chứng được: 25 triệu",
+    });
+    expect(result.messages).toEqual(history);
+    expect(fake.calls).toHaveLength(3);
+  });
+
+  it("trả lời có số mà không gọi tool nào: phải sửa", async () => {
+    const fake = fakeClaude([
+      reply("Doanh thu hôm nay khoảng 30 triệu đ."),
+      revenueCall(),
+      reply("Hôm nay 22,9 triệu đ."),
+    ]);
+    const result = await askAgent({
+      access: CHAIN,
+      question: "Doanh thu?",
+      now: NOW,
+      client: fake.client,
+    });
+    expect(result).toMatchObject({ status: "answered", answer: "Hôm nay 22,9 triệu đ." });
+    expect(result.toolCalls).toHaveLength(1);
   });
 });

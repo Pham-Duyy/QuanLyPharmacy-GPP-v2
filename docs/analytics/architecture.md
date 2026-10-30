@@ -357,6 +357,25 @@ Chi phí ước tính khoảng 1.000–2.000 đ/câu (Opus 5.5: $4 / $20 mỗi t
   tham số gửi Claude, tiền tố cache không đổi giữa người dùng và ngày, lịch sử chỉ thêm, quyền, giới hạn vòng, giới hạn
   tool, hết giờ, từ chối, bị cắt, API lỗi, thiếu khóa. Chưa gọi Claude thật (bước 4.6, cần API key, hỏi trước).
 
+### Đối chiếu số (bước 4.3, đã làm)
+
+`server/src/modules/bi/agent/verify.ts`, tất định, không gọi LLM:
+
+- Nguồn hợp lệ: mọi số, ngày, giờ trong kết quả tool không lỗi của cả hội thoại (kể cả trong chuỗi như tên thuốc,
+  câu mô tả bất thường), câu hỏi và thời điểm hỏi, các kỳ cố định 7, 14, 28, 30, 60, 90 ngày. Lời nhắc sửa của server và
+  kết quả tool báo lỗi không phải nguồn.
+- Đọc số kiểu Việt Nam và kiểu Anh (1.250.000 / 1,250,000 / 22,9), đơn vị nghìn, triệu, tỷ, phần trăm (tỷ lệ 0,091
+  khớp 9,1%), bỏ dấu (giảm 79% khớp -79,4). Cho phép làm tròn đúng theo số chữ số đã viết: "22,9 triệu" khớp 22.874.000
+  vì lệch dưới 0,05 triệu; "22,88 triệu" thì không.
+- Ngày dd/mm/yyyy, dd/mm, yyyy-mm-dd, "tháng 10/2026", "năm 2026" và giờ hh:mm phải có trong dữ liệu.
+- Bỏ qua: chữ số dính chữ (CH03, Omega-3, 500mg), số thứ tự đầu dòng, số nguyên 0–10 không kèm đơn vị (đếm mục).
+- Trong vòng lặp: câu trả lời có số không khớp thì server gửi một tin nhắn liệt kê các số đó và yêu cầu viết lại (được gọi
+  thêm tool). Vẫn sai thì trạng thái `blocked`: không trả câu trả lời của Claude (giao diện hiện câu cố định `BLOCKED_ANSWER`: "Không đủ dữ liệu đã kiểm chứng để trả lời câu này…"), lượt hỏi này không được lưu vào hội thoại. Kết quả
+  có `verification: { checked, unverified, retried }` để ghi nhật ký và hiện trên giao diện (bước 4.4, 4.5).
+- Giới hạn đã biết: số khớp với BẤT KỲ số nào trong kết quả tool là đạt, nên một số đúng giá trị nhưng gán nhầm mục
+  (doanh thu cửa hàng A nói thành của B) không bị bắt. Bộ câu hỏi đánh giá ở bước 4.6 đo lỗi loại này.
+- Test: `verify.test.ts` (19 test) và 4 test trong `agent.test.ts` (đúng ngay, sửa một lần, chặn, trả lời không gọi tool).
+
 ## Lộ trình
 
 | Phase | Nội dung | Trạng thái |
@@ -381,8 +400,8 @@ Chi phí ước tính khoảng 1.000–2.000 đ/câu (Opus 5.5: $4 / $20 mỗi t
 | 3.5 | Holt-Winters, chọn mô hình, khoảng tin cậy, ngày dự kiến hết hàng, `forecast_cache` ([kpi.md](kpi.md#holt-winters-khoảng-tin-cậy-ngày-hết-hàng-phase-3-bước-35)) | Xong |
 | 3.6 | Snapshot, API `/anomalies`, `/forecast`, Gateway, Bảng điều hành | Xong |
 | 4.1 | Lớp tool: định nghĩa (schema chặt), gọi qua Gateway, lọc quyền, cắt gọn kết quả | Xong |
-| 4.2 | Vòng lặp Agent, system prompt, prompt caching, giới hạn (6 vòng, 60 giây), tính chi phí; test bằng Claude giả || Xong |
-| 4.3 | Đối chiếu số, sửa 1 lần, chặn; trả lời "không đủ dữ liệu" | |
+| 4.2 | Vòng lặp Agent, system prompt, prompt caching, giới hạn (6 vòng, 60 giây), tính chi phí; test bằng Claude giả | Xong |
+| 4.3 | Đối chiếu số, sửa 1 lần, chặn; trả lời "không đủ dữ liệu" | Xong |
 | 4.4 | Nhật ký `ai_agent_logs`, giới hạn tần suất (30 câu/giờ), lưu hội thoại chỉ-thêm | |
 | 4.5 | Giao diện hỏi đáp trên Bảng điều hành: câu gợi ý, tool đã gọi, nguồn số, kết quả đối chiếu | |
 | 4.6 | Bộ ~30 câu hỏi đánh giá; chạy thật cần API key, tốn tiền: báo chi phí và hỏi trước | |
