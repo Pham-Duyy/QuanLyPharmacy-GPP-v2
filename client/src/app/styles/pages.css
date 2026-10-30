@@ -4291,3 +4291,8 @@
   line-height: 1.5;
   padding-block: 2px;
 }
+
+.analysis-notes {
+  margin: 0;
+  padding-left: 18px;
+}

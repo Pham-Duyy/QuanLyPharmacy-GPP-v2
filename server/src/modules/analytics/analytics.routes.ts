@@ -14,6 +14,7 @@ import {
   type ChainWindow,
 } from "./analytics.service.js";
 import { aiEnabled, aiModel } from "./llm.js";
+import { looksLikeXlsx, readWorkbook } from "./excel.js";
 import { MAX_CSV_BYTES, parseCsv } from "./parse.js";
 import { analysisPlanSchema } from "./planner.js";
 
@@ -37,8 +38,10 @@ const upload = multer({
 
 const questionSchema = z.string().trim().max(500, "Câu hỏi tối đa 500 ký tự").default("");
 
-const csvBodySchema = z.object({
+const fileBodySchema = z.object({
   question: questionSchema,
+  /** Tên sheet Excel; bỏ trống thì lấy sheet đầu tiên có bảng số liệu. */
+  sheet: z.string().trim().max(100).optional(),
   /** Multipart chỉ chở chuỗi: kế hoạch gửi kèm dạng JSON. */
   plan: z
     .string()
@@ -82,13 +85,32 @@ analyticsRouter.get("/analytics/config", (_req, res) => {
   });
 });
 
-/** POST /api/v1/analytics/csv: tải một tệp CSV kèm câu hỏi. */
-analyticsRouter.post("/analytics/csv", upload.single("file"), async (req, res) => {
-  if (!req.file) throw AppError.validation("Chưa chọn tệp CSV");
-  const body = parseOrThrow(csvBodySchema, req.body);
-  const dataset = parseCsv(decodeCsv(req.file.buffer), req.file.originalname);
-  sendData(res, await analyzeDataset(dataset, body));
-});
+/**
+ * POST /api/v1/analytics/file: tải một tệp Excel (.xlsx) hoặc CSV kèm câu hỏi.
+ * `/analytics/csv` là tên cũ, giữ lại cho tương thích.
+ */
+analyticsRouter.post(
+  ["/analytics/file", "/analytics/csv"],
+  upload.single("file"),
+  async (req, res) => {
+    if (!req.file) throw AppError.validation("Chưa chọn tệp Excel hoặc CSV");
+    const body = parseOrThrow(fileBodySchema, req.body);
+    const { buffer, originalname } = req.file;
+    if (looksLikeXlsx(buffer, originalname)) {
+      const { dataset, source } = await readWorkbook(buffer, originalname, body.sheet);
+      sendData(res, await analyzeDataset(dataset, { ...body, source }));
+      return;
+    }
+    const dataset = parseCsv(decodeCsv(buffer), originalname);
+    sendData(
+      res,
+      await analyzeDataset(dataset, {
+        ...body,
+        source: { kind: "csv", sheets: [], sheet: null, notes: [] },
+      }),
+    );
+  },
+);
 
 /** POST /api/v1/analytics/chain: phân tích hóa đơn của các cửa hàng được xem. */
 analyticsRouter.post("/analytics/chain", async (req, res) => {
@@ -101,6 +123,7 @@ analyticsRouter.post("/analytics/chain", async (req, res) => {
       plan: body.plan,
       narrate: body.narrate,
       now: vnWallClock(),
+      source: { kind: "chain", sheets: [], sheet: null, notes: [] },
     }),
   );
 });

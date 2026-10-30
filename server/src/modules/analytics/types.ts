@@ -157,8 +157,17 @@ export type Narrative = {
   recommendations: string[];
 };
 
+/** Nguồn dữ liệu đã đọc: tệp nào, sheet nào, đã tự xử lý gì. */
+export type AnalysisSource = {
+  kind: "csv" | "xlsx" | "chain";
+  sheets: Array<{ name: string; rows: number }>;
+  sheet: string | null;
+  notes: string[];
+};
+
 export type AnalysisResponse = {
   question: string;
+  source: AnalysisSource;
   summary: DataSummary;
   plan: AnalysisPlan;
   planSource: "ai" | "rules" | "provided";

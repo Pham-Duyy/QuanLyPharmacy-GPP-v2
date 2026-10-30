@@ -1,3 +1,4 @@
+import ExcelJS from "exceljs";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { prisma } from "../../db/prisma.js";
 import {
@@ -8,6 +9,7 @@ import {
   truncateAll,
   type Fixture,
 } from "../../test/helpers.js";
+import { readWorkbook } from "./excel.js";
 import { executePlan } from "./execute.js";
 import { buildCharts, buildFacts } from "./insights.js";
 import { unverifiedPercents } from "./llm.js";
@@ -79,6 +81,70 @@ describe("đọc dữ liệu", () => {
       ["ten", "categorical"],
     ]);
     expect(summary.columns[1]!.temporalPrecision).toBe("month");
+  });
+});
+
+/**
+ * Báo cáo Excel kiểu tự lập: tiêu đề gộp ô, dòng đơn vị tính, bảng ngang theo
+ * tháng, dòng "Tổng cộng" bằng công thức; thêm một sheet chi tiết và một sheet ẩn.
+ */
+async function reportWorkbook(): Promise<Buffer> {
+  const workbook = new ExcelJS.Workbook();
+  const summary = workbook.addWorksheet("Doanh thu 2025");
+  summary.mergeCells("A1:F1");
+  summary.getCell("A1").value = "BÁO CÁO DOANH THU NĂM 2025";
+  summary.getCell("A2").value = "Đơn vị tính: đồng";
+  summary.addRow([]);
+  summary.addRow(["Chi nhánh", "T1", "T2", "T3", "T4", "T5"]);
+  summary.addRow(["A", 100, 110, 120, 130, 140]);
+  summary.addRow(["B", 200, 180, 160, 140, { formula: "60*2", result: 120 }]);
+  summary.addRow(["Tổng cộng", 300, 290, 280, 270, 260]);
+
+  const detail = workbook.addWorksheet("Chi tiết");
+  detail.addRow(["Ngày", "Nhóm hàng", "Thành tiền"]);
+  detail.addRow([new Date(Date.UTC(2025, 0, 6)), "Vitamin", 50]);
+  detail.addRow([
+    new Date(Date.UTC(2025, 0, 7)),
+    { richText: [{ text: "Kháng " }, { text: "sinh" }] },
+    70,
+  ]);
+
+  const hidden = workbook.addWorksheet("Nội bộ");
+  hidden.state = "hidden";
+  hidden.addRow(["x", "y"]);
+  return Buffer.from(await workbook.xlsx.writeBuffer());
+}
+
+describe("đọc Excel", () => {
+  it("bỏ tiêu đề báo cáo và dòng tổng, đổi bảng ngang theo tháng thành bảng dọc", async () => {
+    const { dataset, source } = await readWorkbook(await reportWorkbook(), "bao_cao.xlsx");
+    expect(source.sheet).toBe("Doanh thu 2025");
+    expect(source.sheets.map((sheet) => sheet.name)).toEqual(["Doanh thu 2025", "Chi tiết"]);
+    expect(source.notes).toHaveLength(3);
+    expect(dataset.columns).toEqual(["Chi nhánh", "thoi_gian", "doanh_thu"]);
+    expect(dataset.rows).toHaveLength(10);
+    expect(dataset.rows.at(-1)).toEqual(["B", "2025-05", 120]);
+
+    const typed = profileDataset(dataset);
+    const { plan } = validatePlan(planWithRules(toSummary(typed), QUESTION), typed);
+    const { result } = executePlan(plan, typed);
+    expect(result.overall.total).toBe(1400);
+    expect(result.groups.find((group) => group.group === "B")!.changePercent).toBe(-40);
+  });
+
+  it("đọc sheet được chọn: ngày, chữ định dạng, công thức", async () => {
+    const { dataset } = await readWorkbook(await reportWorkbook(), "bao_cao.xlsx", "Chi tiết");
+    expect(dataset.columns).toEqual(["Ngày", "Nhóm hàng", "Thành tiền"]);
+    expect(dataset.rows).toEqual([
+      ["2025-01-06", "Vitamin", 50],
+      ["2025-01-07", "Kháng sinh", 70],
+    ]);
+  });
+
+  it("từ chối sheet ẩn, sheet không có và tệp không phải .xlsx", async () => {
+    const buffer = await reportWorkbook();
+    await expect(readWorkbook(buffer, "x.xlsx", "Nội bộ")).rejects.toThrow("Không có sheet");
+    await expect(readWorkbook(Buffer.from("abc"), "x.xls")).rejects.toThrow(".xlsx");
   });
 });
 
@@ -332,6 +398,27 @@ describe("API trợ lý phân tích", () => {
     expect(data.plan.groupBy.column).toBe("cua_hang");
     expect(data.result.overall.total).toBe(1_000_000);
     expect(data.result.groups).toHaveLength(2);
+  });
+
+  it("phân tích thẳng tệp Excel, chọn được sheet", async () => {
+    const buffer = await reportWorkbook();
+    const first = await api()
+      .post("/api/v1/analytics/file")
+      .set(authHeaders(adminToken))
+      .field("question", QUESTION)
+      .attach("file", buffer, "bao_cao.xlsx");
+    expect(first.status).toBe(200);
+    expect(first.body.data.source.kind).toBe("xlsx");
+    expect(first.body.data.source.sheet).toBe("Doanh thu 2025");
+    expect(first.body.data.narrative.headline).toContain('"B"');
+
+    const detail = await api()
+      .post("/api/v1/analytics/file")
+      .set(authHeaders(adminToken))
+      .field("sheet", "Chi tiết")
+      .attach("file", buffer, "bao_cao.xlsx");
+    expect(detail.status).toBe(200);
+    expect(detail.body.data.result.overall.total).toBe(120);
   });
 
   it("báo cấu hình AI cho giao diện", async () => {

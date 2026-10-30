@@ -72,8 +72,16 @@ export type GroupStat = {
   lowPeriod: string | null;
 };
 
+export type AnalysisSource = {
+  kind: "csv" | "xlsx" | "chain";
+  sheets: Array<{ name: string; rows: number }>;
+  sheet: string | null;
+  notes: string[];
+};
+
 export type AnalysisResponse = {
   question: string;
+  source: AnalysisSource;
   summary: { name: string; rowCount: number; columns: ColumnSummary[] };
   plan: AnalysisPlan;
   planSource: "ai" | "rules" | "provided";
@@ -114,18 +122,21 @@ export async function fetchAnalyticsConfig(): Promise<AnalyticsConfig> {
   return response.data.data;
 }
 
-export async function analyzeCsv(input: {
+/** Tệp Excel (.xlsx) hoặc CSV; `sheet` bỏ trống thì máy chủ lấy sheet đầu tiên có bảng. */
+export async function analyzeFile(input: {
   file: File;
   question: string;
+  sheet?: string | null;
   plan?: AnalysisPlan;
   narrate?: boolean;
 }): Promise<AnalysisResponse> {
   const form = new FormData();
   form.append("file", input.file);
   form.append("question", input.question);
+  if (input.sheet) form.append("sheet", input.sheet);
   if (input.plan) form.append("plan", JSON.stringify(input.plan));
   form.append("narrate", String(input.narrate ?? true));
-  const response = await http.post<Envelope<AnalysisResponse>>("/analytics/csv", form);
+  const response = await http.post<Envelope<AnalysisResponse>>("/analytics/file", form);
   return response.data.data;
 }
 

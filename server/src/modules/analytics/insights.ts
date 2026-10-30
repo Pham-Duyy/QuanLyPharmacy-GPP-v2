@@ -147,7 +147,7 @@ export function buildFacts(
   // Tổng gồm cả kỳ đang diễn ra, nên khoảng ghi theo mọi kỳ trên biểu đồ.
   const span =
     grain && result.periods.length > 0
-      ? ` từ ${period(result.periods[0]!)} đến ${period(result.periods.at(-1)!)}`
+      ? ` (${period(result.periods[0]!)} – ${period(result.periods.at(-1)!)})`
       : "";
   if (plan.measure.aggregate === "sum" || plan.measure.aggregate === "count")
     facts.push({
@@ -157,16 +157,19 @@ export function buildFacts(
     });
 
   if (grain && overall.changePercent !== null && overall.first !== null && overall.last !== null) {
-    const direction = overall.changePercent >= 0 ? "tăng" : "giảm";
     const amount = `${Math.abs(overall.changePercent).toLocaleString("vi-VN", { maximumFractionDigits: 1 })}%`;
+    const direction =
+      overall.changePercent === 0
+        ? "không đổi"
+        : `${overall.changePercent > 0 ? "tăng" : "giảm"} ${amount}`;
     const trend =
       overall.trendPercent !== null
-        ? ` Đường xu hướng cả kỳ ${overall.trendPercent >= 0 ? "đi lên" : "đi xuống"} (${formatPercent(overall.trendPercent)}).`
+        ? ` Đường xu hướng cả kỳ ${overall.trendPercent === 0 ? "đi ngang" : overall.trendPercent > 0 ? "đi lên" : "đi xuống"} (${formatPercent(overall.trendPercent)}).`
         : "";
     facts.push({
       kind: "change",
       tone: toneOf(overall.changePercent),
-      text: `${measure} ${period(overall.lastPeriod!)} ${direction} ${amount} so với ${period(overall.firstPeriod!)} (${value(overall.first)} → ${value(overall.last)}).${trend}`,
+      text: `${measure} ${period(overall.lastPeriod!)} ${direction} so với ${period(overall.firstPeriod!)} (${value(overall.first)} → ${value(overall.last)}).${trend}`,
     });
   }
 

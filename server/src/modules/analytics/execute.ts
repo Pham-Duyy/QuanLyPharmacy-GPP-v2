@@ -327,6 +327,8 @@ export function executePlan(
   // Kỳ thời gian.
   const periods: Date[] = [];
   let grain: Grain | null = effectivePlan.time?.grain ?? null;
+  let dataFirst: Date | null = null;
+  let dataLast: Date | null = null;
   if (timeColumn && grain && rows.length > 0) {
     const stamps = rows.map((row) => timeColumn.times![row]!.at.getTime());
     let firstStamp = new Date(Math.min(...stamps));
@@ -364,6 +366,8 @@ export function executePlan(
 
     const windowStart = periods[0]!.getTime();
     rows = rows.filter((row) => timeColumn.times![row]!.at.getTime() >= windowStart);
+    dataFirst = new Date(Math.min(...rows.map((row) => timeColumn.times![row]!.at.getTime())));
+    dataLast = lastStamp;
   }
 
   const keys = grain ? periods.map((start) => periodKey(start, grain)) : [];
@@ -421,18 +425,41 @@ export function executePlan(
     kept.push([OTHER_GROUP, otherTotal]);
   }
 
-  // Kỳ cuối đang diễn ra thì không đưa vào so sánh đầu – cuối.
-  let comparable = keys.length;
-  if (options.now && grain && periods.length >= 3) {
-    const current = bucketStart(options.now, grain).getTime();
-    if (periods.at(-1)!.getTime() === current) {
-      comparable -= 1;
-      warnings.push(
-        `${labels.at(-1)} chưa hết ${GRAIN_LABELS[grain]}: vẫn vẽ trên biểu đồ nhưng không tính vào mức tăng/giảm`,
+  // Kỳ đầu, kỳ cuối thiếu ngày (tháng đang diễn ra, tệp bắt đầu giữa tuần…)
+  // vẫn vẽ trên biểu đồ nhưng không đưa vào so sánh đầu – cuối.
+  let from = 0;
+  let to = keys.length;
+  const partial: string[] = [];
+  if (grain && periods.length >= 3) {
+    const precision = timeColumn!.summary.temporalPrecision ?? "day";
+    const finer = GRAINS.indexOf(precision) < GRAINS.indexOf(grain);
+    const lastStart = periods.at(-1)!;
+    const lastUnit = bucketStart(new Date(nextBucket(lastStart, grain).getTime() - 1), precision);
+    const current =
+      options.now && bucketStart(options.now, grain).getTime() === lastStart.getTime();
+    if (current || (finer && dataLast && dataLast < lastUnit)) {
+      to -= 1;
+      partial.push(
+        current
+          ? `${labels.at(-1)} chưa hết ${GRAIN_LABELS[grain]}: vẫn vẽ trên biểu đồ nhưng không tính vào mức tăng/giảm`
+          : `Kỳ cuối (${labels.at(-1)}) chỉ có dữ liệu một phần: vẫn vẽ nhưng không tính vào mức tăng/giảm`,
       );
     }
+    const lastPeriods = effectivePlan.time?.lastPeriods;
+    const trimmedByWindow = lastPeriods !== null && lastPeriods !== undefined;
+    if (!trimmedByWindow && finer && dataFirst && bucketStart(dataFirst, precision) > periods[0]!) {
+      from = 1;
+      partial.push(
+        `Kỳ đầu (${labels[0]}) chỉ có dữ liệu một phần: vẫn vẽ nhưng không tính vào mức tăng/giảm`,
+      );
+    }
+    // Bỏ kỳ thiếu mà còn dưới hai kỳ để so thì so cả, chấp nhận lệch.
+    if (to - from < 2) {
+      from = 0;
+      to = keys.length;
+    } else warnings.push(...partial);
   }
-  const statKeys = keys.slice(0, comparable);
+  const statKeys = keys.slice(from, to);
 
   const overallSeries = overallCells.map((cell) => valueOf(cell, aggregate));
   const grandTotal = valueOf(overallTotal, aggregate) ?? 0;
@@ -442,7 +469,7 @@ export function executePlan(
   }));
 
   const groups: GroupStat[] = kept.map(([group, total], index) => {
-    const values = groupSeries[index]!.values.slice(0, comparable);
+    const values = groupSeries[index]!.values.slice(from, to);
     const stats = seriesStats(values, statKeys);
     const value = valueOf(total, aggregate) ?? 0;
     return {
@@ -459,10 +486,8 @@ export function executePlan(
     };
   });
 
-  const overallStats = seriesStats(overallSeries.slice(0, comparable), statKeys);
-  const present = overallSeries
-    .slice(0, comparable)
-    .filter((value): value is number => value !== null);
+  const overallStats = seriesStats(overallSeries.slice(from, to), statKeys);
+  const present = overallSeries.slice(from, to).filter((value): value is number => value !== null);
   const average =
     present.length > 0 ? round(present.reduce((a, b) => a + b, 0) / present.length) : null;
   const anomalies: OverallStat["anomalies"] = [];
@@ -471,7 +496,7 @@ export function executePlan(
       present.reduce((sum, value) => sum + (value - average) ** 2, 0) / present.length,
     );
     if (std > 0)
-      overallSeries.slice(0, comparable).forEach((value, index) => {
+      overallSeries.slice(from, to).forEach((value, index) => {
         if (value === null) return;
         const z = (value - average) / std;
         if (Math.abs(z) >= 2)

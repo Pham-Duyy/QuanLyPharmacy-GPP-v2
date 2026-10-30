@@ -1422,7 +1422,7 @@ Bảng `ai_logs` và quyền `ai.use` gỡ ở migration `20261011150000_remove_
 
 ### 20.1. Trợ lý phân tích dữ liệu kinh doanh
 
-Người dùng hỏi bằng tiếng Việt (ví dụ "Phân tích xu hướng doanh thu 12 tháng gần nhất và cho biết chi nhánh nào giảm mạnh nhất"), hệ thống trả về biểu đồ theo thời gian, so sánh giữa các nhóm, mức tăng/giảm và nhận xét. Kiến trúc theo LIDA (Dibia, ACL 2023, [aclanthology.org/2023.acl-demo.11](https://aclanthology.org/2023.acl-demo.11.pdf)):
+Dữ liệu là bán hàng của chuỗi, hoặc **tệp Excel (.xlsx) hay CSV** người dùng tải lên. Người dùng hỏi bằng tiếng Việt (ví dụ "Phân tích xu hướng doanh thu 12 tháng gần nhất và cho biết chi nhánh nào giảm mạnh nhất"), hệ thống trả về biểu đồ theo thời gian, so sánh giữa các nhóm, mức tăng/giảm và nhận xét. Kiến trúc theo LIDA (Dibia, ACL 2023, [aclanthology.org/2023.acl-demo.11](https://aclanthology.org/2023.acl-demo.11.pdf)):
 
 | Bước | Làm gì | AI? |
 |---|---|---|
@@ -1444,13 +1444,15 @@ Quy tắc:
 | Method | Endpoint | Mô tả | Quyền |
 |---|---|---|---|
 | GET | `/analytics/config` | `aiEnabled`, `model`, các khoảng dữ liệu chuỗi (`day`, `hour`, `minute`) | `report.sales` hoặc `report.chain` |
-| POST | `/analytics/csv` | Multipart: `file` (CSV, tối đa 5 MB, 100.000 dòng), `question`, `plan` (JSON, tùy chọn), `narrate` (`true`/`false`) | `report.sales` hoặc `report.chain` |
+| POST | `/analytics/file` | Multipart: `file` (.xlsx hoặc CSV, tối đa 5 MB, 100.000 dòng), `question`, `sheet` (tên sheet Excel, tùy chọn), `plan` (JSON, tùy chọn), `narrate` (`true`/`false`). `/analytics/csv` là tên cũ, cùng xử lý | `report.sales` hoặc `report.chain` |
 | POST | `/analytics/chain` | JSON: `question`, `window` (`day` = 13 tháng theo ngày, `hour` = 7 ngày theo giờ, `minute` = 3 giờ theo phút), `plan`, `narrate` | `report.sales` hoặc `report.chain` |
 
 - Endpoint không đọc `X-Store-Id`. Nguồn chuỗi gộp hóa đơn `COMPLETED` (theo `sold_at`, giờ Việt Nam) của mọi cửa hàng đang hoạt động mà người dùng có `report.sales` hoặc `report.chain` tại đó; vai trò toàn chuỗi thấy mọi cửa hàng.
 - Gửi kèm `plan` thì bỏ qua bước lập kế hoạch (`planSource = "provided"`); giao diện dùng cách này để **tự cập nhật** biểu đồ (mỗi 15 giây với khoảng theo phút, 1 phút theo giờ, 5 phút theo ngày) mà không gọi AI. `narrate = false` thì không gọi AI viết nhận xét.
+- Excel: đọc sheet đang hiện (bỏ sheet ẩn); không chỉ định `sheet` thì lấy sheet đầu tiên có bảng. Tự tìm dòng tên cột trong 20 dòng đầu (bỏ tên báo cáo, đơn vị tính, ô tiêu đề gộp ngang), bỏ dòng "Tổng/Tổng cộng/Total" để không cộng trùng, ô gộp lấy giá trị ô chính, công thức lấy kết quả đã lưu, lỗi `#N/A` là ô trống, ô ngày đọc theo giờ ghi trong tệp. Bảng ngang có từ 3 cột kỳ trở lên (`T1/2025`, `01/2025`, `2025-01`, ô ngày; hoặc `T1`…`T12` khi tên báo cáo/sheet có năm) đổi thành bảng dọc `thoi_gian` + `doanh_thu` (hoặc `so_luong`, `gia_tri`). Tệp `.xls` cũ: 422. Những gì đã tự xử lý trả về ở `source.notes`.
+- Kỳ đầu, kỳ cuối chỉ có một phần dữ liệu (tệp bắt đầu giữa tuần, dừng giữa tháng) cũng không tính vào mức tăng/giảm.
 - CSV: nhận dấu phân cách `,` `;` hoặc tab, BOM của Excel, bảng mã UTF-8 hoặc Windows-1258; số kiểu `1.234.567,5` hoặc `1,234,567.5`; thời gian kiểu `2025-03-01`, `2025-03-01 08:30`, `01/03/2025`, `03/2025`, `Tháng 3/2025`, `Q1/2025`. Tệp rỗng hoặc chỉ có tiêu đề: 422.
-- Phản hồi: `summary`, `plan`, `planSource` (`ai`/`rules`/`provided`), `columnLabels`, `valueFormat`, `result` (kỳ, chuỗi tổng, chuỗi từng nhóm, thống kê tổng và từng nhóm), `charts`, `facts`, `narrative` (`headline`, `findings`, `recommendations`), `narrativeSource` (`ai`/`rules`), `warnings`.
+- Phản hồi: `source` (`kind` = `csv`/`xlsx`/`chain`, `sheets`, `sheet`, `notes`), `summary`, `plan`, `planSource` (`ai`/`rules`/`provided`), `columnLabels`, `valueFormat`, `result` (kỳ, chuỗi tổng, chuỗi từng nhóm, thống kê tổng và từng nhóm), `charts`, `facts`, `narrative` (`headline`, `findings`, `recommendations`), `narrativeSource` (`ai`/`rules`), `warnings`.
 
 ---
 

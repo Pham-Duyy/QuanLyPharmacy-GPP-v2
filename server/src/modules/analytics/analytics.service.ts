@@ -13,7 +13,13 @@ import {
 } from "./llm.js";
 import { humanizeColumn, planWithRules, validatePlan, valueFormatFor } from "./planner.js";
 import { profileDataset, toSummary } from "./summarize.js";
-import type { AnalysisPlan, AnalysisResponse, Dataset, Narrative } from "./types.js";
+import type {
+  AnalysisPlan,
+  AnalysisResponse,
+  AnalysisSource,
+  Dataset,
+  Narrative,
+} from "./types.js";
 
 export type AnalyzeOptions = {
   question: string;
@@ -23,6 +29,7 @@ export type AnalyzeOptions = {
   narrate: boolean;
   /** Giờ tường hiện tại, để không so sánh kỳ chưa kết thúc. */
   now?: Date;
+  source: AnalysisSource;
 };
 
 function describeError(error: unknown): string {
@@ -100,6 +107,7 @@ export async function analyzeDataset(
 
   return {
     question,
+    source: options.source,
     summary,
     plan,
     planSource,

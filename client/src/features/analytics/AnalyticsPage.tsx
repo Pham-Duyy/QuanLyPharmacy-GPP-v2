@@ -3,6 +3,7 @@ import {
   CloudUploadOutlined,
   DownloadOutlined,
   FallOutlined,
+  FileExcelOutlined,
   FundOutlined,
   RiseOutlined,
   RobotOutlined,
@@ -22,6 +23,7 @@ import {
   Input,
   Row,
   Segmented,
+  Select,
   Space,
   Switch,
   Table,
@@ -36,7 +38,7 @@ import { StatCard, StatGrid, Trend } from "../../ui/StatCard.js";
 import { ChangeBars, LineChart, RankBars } from "./AnalysisCharts.js";
 import {
   analyzeChain,
-  analyzeCsv,
+  analyzeFile,
   fetchAnalyticsConfig,
   formatCompact,
   formatFull,
@@ -48,7 +50,7 @@ import {
   type GroupStat,
 } from "./analytics-api.js";
 
-type Source = "chain" | "csv";
+type Source = "chain" | "file";
 
 const WINDOW_OPTIONS: Array<{ value: ChainWindow; label: string; refreshMs: number }> = [
   { value: "day", label: "13 tháng (theo ngày)", refreshMs: 5 * 60_000 },
@@ -63,8 +65,9 @@ const SAMPLE_QUESTIONS: Record<Source, string[]> = {
     "Số hóa đơn theo giờ của từng cửa hàng trong 7 ngày qua.",
     "Doanh thu theo phút trong 3 giờ gần nhất.",
   ],
-  csv: [
+  file: [
     "Phân tích xu hướng doanh thu 12 tháng gần nhất và cho biết chi nhánh nào giảm mạnh nhất.",
+    "Thành tiền theo tuần của từng nhóm hàng.",
     "So sánh tổng doanh thu giữa các chi nhánh.",
     "Doanh thu theo quý của từng chi nhánh.",
   ],
@@ -105,7 +108,7 @@ const KIND_LABEL: Record<string, string> = {
 type View = {
   response: AnalysisResponse;
   narrativeAt: string;
-  inputs: { source: Source; window: ChainWindow; file: File | null };
+  inputs: { source: Source; window: ChainWindow; file: File | null; sheet: string | null };
 };
 
 const timeText = (iso: string) =>
@@ -118,7 +121,7 @@ const timeText = (iso: string) =>
 /**
  * Trợ lý phân tích (contract §20): người dùng hỏi bằng lời, hệ thống trả về
  * biểu đồ, so sánh nhóm, mức tăng/giảm và nhận xét. Dữ liệu là bán hàng của
- * các cửa hàng được xem, hoặc một tệp CSV bất kỳ.
+ * các cửa hàng được xem, hoặc một tệp Excel/CSV bất kỳ.
  */
 export function AnalyticsPage() {
   const { message } = App.useApp();
@@ -126,6 +129,7 @@ export function AnalyticsPage() {
   const [source, setSource] = useState<Source>("chain");
   const [chainWindow, setChainWindow] = useState<ChainWindow>("day");
   const [file, setFile] = useState<File | null>(null);
+  const [sheet, setSheet] = useState<string | null>(null);
   const [question, setQuestion] = useState(SAMPLE_QUESTIONS.chain[0]!);
   const [view, setView] = useState<View | null>(null);
   const [autoRefresh, setAutoRefresh] = useState(false);
@@ -133,9 +137,9 @@ export function AnalyticsPage() {
 
   const analyze = useMutation({
     mutationFn: async (input: { plan?: AnalysisPlan; refresh: boolean }) => {
-      if (source === "csv") {
-        if (!file) throw new Error("Chọn tệp CSV trước khi phân tích");
-        return analyzeCsv({ file, question, plan: input.plan, narrate: !input.refresh });
+      if (source === "file") {
+        if (!file) throw new Error("Chọn tệp Excel hoặc CSV trước khi phân tích");
+        return analyzeFile({ file, question, sheet, plan: input.plan, narrate: !input.refresh });
       }
       return analyzeChain({
         question,
@@ -150,7 +154,8 @@ export function AnalyticsPage() {
           return {
             response: data,
             narrativeAt: data.generatedAt,
-            inputs: { source, window: chainWindow, file },
+            // Máy chủ tự chọn sheet khi chưa chỉ định: ghi lại sheet đã đọc.
+            inputs: { source, window: chainWindow, file, sheet: data.source.sheet },
           };
         // Tự làm mới không gọi AI: giữ nhận xét AI đã viết, chỉ cập nhật số liệu.
         if (previous.response.narrativeSource === "ai")
@@ -194,7 +199,9 @@ export function AnalyticsPage() {
     view !== null &&
     (view.inputs.source !== source ||
       (source === "chain" && view.inputs.window !== chainWindow) ||
-      (source === "csv" && view.inputs.file !== file));
+      (source === "file" &&
+        (view.inputs.file !== file || (sheet !== null && view.inputs.sheet !== sheet))));
+  const sheets = view && view.inputs.file === file ? view.response.source.sheets : [];
 
   return (
     <div className="analysis-page">
@@ -222,7 +229,7 @@ export function AnalyticsPage() {
             onChange={changeSource}
             options={[
               { value: "chain", label: "Bán hàng của chuỗi", icon: <ShopOutlined /> },
-              { value: "csv", label: "Tệp CSV", icon: <CloudUploadOutlined /> },
+              { value: "file", label: "Tệp Excel / CSV", icon: <FileExcelOutlined /> },
             ]}
           />
 
@@ -241,33 +248,64 @@ export function AnalyticsPage() {
           ) : (
             <div>
               <Upload.Dragger
-                accept=".csv,text/csv"
+                accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 maxCount={1}
                 beforeUpload={(picked) => {
                   setFile(picked);
+                  setSheet(null);
                   return false;
                 }}
-                onRemove={() => setFile(null)}
-                fileList={file ? [{ uid: "csv", name: file.name, status: "done" }] : []}
+                onRemove={() => {
+                  setFile(null);
+                  setSheet(null);
+                }}
+                fileList={file ? [{ uid: "file", name: file.name, status: "done" }] : []}
               >
                 <p className="ant-upload-drag-icon">
                   <CloudUploadOutlined />
                 </p>
-                <p className="ant-upload-text">Kéo thả hoặc bấm để chọn tệp CSV (tối đa 5 MB)</p>
+                <p className="ant-upload-text">
+                  Kéo thả hoặc bấm để chọn tệp Excel (.xlsx) hoặc CSV, tối đa 5 MB
+                </p>
                 <p className="ant-upload-hint">
-                  Dòng đầu là tên cột. Nhận dấu phẩy, chấm phẩy; số kiểu 1.234.567; ngày kiểu
-                  2025-03-01, 01/03/2025, 03/2025.
+                  Dùng thẳng báo cáo Excel đang có: tự bỏ dòng tiêu đề và dòng Tổng cộng, đọc ô gộp
+                  và công thức, nhận bảng ngang theo tháng (T1, T2… hoặc 01/2025).
                 </p>
               </Upload.Dragger>
-              <Button
-                type="link"
-                icon={<DownloadOutlined />}
-                href="/samples/doanh_thu_mau.csv"
-                download
-                style={{ paddingLeft: 0 }}
-              >
-                Tải tệp mẫu doanh_thu_mau.csv
-              </Button>
+              <Space wrap size={[16, 0]}>
+                <Button
+                  type="link"
+                  icon={<DownloadOutlined />}
+                  href="/samples/bao_cao_doanh_thu_mau.xlsx"
+                  download
+                  style={{ paddingLeft: 0 }}
+                >
+                  Tệp Excel mẫu
+                </Button>
+                <Button
+                  type="link"
+                  icon={<DownloadOutlined />}
+                  href="/samples/doanh_thu_mau.csv"
+                  download
+                  style={{ paddingLeft: 0 }}
+                >
+                  Tệp CSV mẫu
+                </Button>
+              </Space>
+              {sheets.length > 1 ? (
+                <Space wrap>
+                  <Typography.Text type="secondary">Sheet:</Typography.Text>
+                  <Select
+                    style={{ minWidth: 220 }}
+                    value={sheet ?? view?.inputs.sheet ?? undefined}
+                    onChange={(value: string) => setSheet(value)}
+                    options={sheets.map((item) => ({
+                      value: item.name,
+                      label: `${item.name} (${item.rows.toLocaleString("vi-VN")} dòng)`,
+                    }))}
+                  />
+                </Space>
+              ) : null}
             </div>
           )}
 
@@ -301,7 +339,7 @@ export function AnalyticsPage() {
               type="primary"
               icon={<BulbOutlined />}
               loading={analyze.isPending && !autoRefresh}
-              disabled={source === "csv" && !file}
+              disabled={source === "file" && !file}
               onClick={run}
             >
               Phân tích
@@ -359,6 +397,24 @@ function AnalysisResult({
     <>
       {stale ? (
         <Alert type="info" showIcon title="Nguồn dữ liệu đã đổi. Bấm Phân tích để chạy lại." />
+      ) : null}
+
+      {response.source.kind === "xlsx" ? (
+        <Alert
+          type="info"
+          showIcon
+          icon={<FileExcelOutlined />}
+          title={`Đã đọc sheet "${response.source.sheet}" · ${response.summary.rowCount.toLocaleString("vi-VN")} dòng số liệu`}
+          description={
+            response.source.notes.length > 0 ? (
+              <ul className="analysis-notes">
+                {response.source.notes.map((note) => (
+                  <li key={note}>{note}</li>
+                ))}
+              </ul>
+            ) : undefined
+          }
+        />
       ) : null}
 
       <Card
