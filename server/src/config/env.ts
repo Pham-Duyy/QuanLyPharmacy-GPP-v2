@@ -40,6 +40,11 @@ const envSchema = z.object({
    * vẫn chạy bằng luật, không gửi dữ liệu nào ra ngoài.
    */
   ANTHROPIC_API_KEY: z.string().min(1).optional(),
+  /**
+   * Địa chỉ analytics-service (Python, `python main.py serve`) mà cổng
+   * `/api/v1/bi/*` chuyển tiếp tới. Bỏ trống thì dùng máy này, cổng 8000.
+   */
+  ANALYTICS_SERVICE_URL: z.string().url().optional(),
   ANALYTICS_AI_MODEL: z.string().min(1).default("claude-opus-5-5"),
 });
 

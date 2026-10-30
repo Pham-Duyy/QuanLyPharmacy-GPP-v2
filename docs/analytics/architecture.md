@@ -181,6 +181,31 @@ Monitor ở luồng nền là nơi duy nhất ghi SQLite). Tài liệu tự sinh
 Đo trên máy chủ thật, 50 lần mỗi endpoint, dữ liệu 32.000 dòng: trung vị 2–3 ms (snapshot), 10–11 ms
 (`sales-trend`); p95 dưới 13 ms.
 
+## Node Gateway và Bảng điều hành (bước 1.7)
+
+Code: `server/src/modules/bi/` (cổng), `client/src/features/bi/` (trang `/bang-dieu-hanh`, nhóm Báo cáo).
+
+```
+Trình duyệt ──JWT──▶ Node /api/v1/bi/* ──(đã kiểm quyền)──▶ analytics-service 127.0.0.1:8000
+```
+
+- Cần quyền `report.sales` hoặc `report.chain`. **Quy ước:** `store_code` trong tệp trùng mã cửa hàng của phần mềm.
+- Có quyền báo cáo ở **mọi** cửa hàng: xem toàn chuỗi (`ALL`), cơ cấu, lỗi dữ liệu.
+  Chỉ ở một số cửa hàng: mặc định cửa hàng đầu tiên; hỏi `ALL` hoặc cửa hàng khác bị 403;
+  `/summary` bị lọc danh sách cửa hàng và bỏ `data_quality` (thống kê đó tính trên cả tệp);
+  `/breakdown`, `/data-quality` bị 403.
+- Chỉ chuyển tiếp endpoint và tham số trong danh sách cho phép (zod). Thông báo 404 gốc liệt kê mọi
+  cửa hàng nên được thay bằng câu chung. `/health` bỏ đường dẫn thư mục trên máy chủ.
+- Dịch vụ chưa chạy: 502 `ANALYTICS_UNAVAILABLE` kèm cách bật; chưa có số liệu: 503 `ANALYTICS_NO_DATA`.
+- Địa chỉ dịch vụ: biến `ANALYTICS_SERVICE_URL` (mặc định `http://127.0.0.1:8000`), timeout 5 giây.
+
+Tự cập nhật: trang hỏi `/bi/version` mỗi 30 giây. Version nằm trong khóa truy vấn của mọi khối số liệu
+nên version tăng thì các khối tự tải lại, không tải lại trang. Độ trễ tối đa ≈ 30 giây (polling)
++ 2 giây (debounce) + ~2 giây (xử lý) < 60 giây.
+
+Đo thật (Playwright, 32.000 dòng): thêm 5 hóa đơn vào `sales.csv` → thẻ doanh thu tự đổi sau 26,5 giây,
+tăng đúng bằng tổng 5 hóa đơn. **Đạt tiêu chí MVP.**
+
 ## Lộ trình
 
 | Phase | Nội dung | Trạng thái |
@@ -191,7 +216,7 @@ Monitor ở luồng nền là nơi duy nhất ghi SQLite). Tài liệu tự sinh
 | 1.4 | Analytics Store (SQLite) + pipeline: phát hiện thay đổi bằng size/mtime rồi SHA-256, snapshot có version | Xong |
 | 1.5 | Monitor: watchdog + debounce + kiểm tra ổn định, polling dự phòng, thử lại | Xong |
 | 1.6 | Analytics API (FastAPI) chỉ đọc, chạy chung tiến trình với Monitor: `python main.py serve` | Xong |
-| 1.7 | Node Gateway + trang "Bảng điều hành" tự cập nhật | |
+| 1.7 | Node Gateway `/api/v1/bi` (đăng nhập, quyền theo cửa hàng) + trang "Bảng điều hành" tự cập nhật | Xong |
 | 2 | Tồn kho, hạn dùng (5 mức), FEFO, top sản phẩm, cảnh báo | |
 | 3 | Bất thường (luật → Z-score/IQR), dự báo (MA → Holt-Winters), backtest | |
 | 4 | AI Agent: tool calling, đối chiếu số, nhật ký, bộ câu hỏi đánh giá | |

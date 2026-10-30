@@ -4300,3 +4300,38 @@
 .analysis-watch-pick {
   margin-top: 12px;
 }
+
+/* Bảng điều hành (features/bi) */
+.bi-freshness {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+  color: var(--ant-color-text-secondary, #5b6472);
+}
+
+.bi-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.bi-quality {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+@media (max-width: 992px) {
+  .bi-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Năm thẻ KPI nằm cùng một hàng khi đủ rộng để số tiền không xuống dòng. */
+@media (min-width: 1600px) {
+  .bi-kpis .stat-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}

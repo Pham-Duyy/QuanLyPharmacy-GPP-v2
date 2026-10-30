@@ -1424,6 +1424,8 @@ Bảng `ai_logs` và quyền `ai.use` gỡ ở migration `20261011150000_remove_
 
 Hướng phát triển chính của phần phân tích từ 30/10/2026: dịch vụ Python riêng `analytics-service/` theo dõi tệp dữ liệu, xử lý và tính chỉ số **không gọi LLM**; AI Agent chỉ là lớp hỏi đáp phía trên, đọc số liệu qua tool định nghĩa sẵn. Kiến trúc, quyết định và lộ trình: [docs/analytics/architecture.md](analytics/architecture.md); schema tệp và luật kiểm tra: [docs/analytics/data-schema.md](analytics/data-schema.md). Trợ lý ở §20.1 giữ lại làm tính năng "hỏi nhanh trên một tệp bất kỳ".
 
+Cổng `GET /api/v1/bi/{access, version, health, summary, revenue, profit, sales-trend, breakdown, data-quality}` (quyền `report.sales` hoặc `report.chain`) chuyển tiếp sang Analytics API sau khi áp quyền theo cửa hàng: chỉ người xem được mọi cửa hàng mới dùng `store=ALL`, `breakdown`, `data-quality`; còn lại 403. Lỗi riêng: `502 ANALYTICS_UNAVAILABLE` (dịch vụ chưa chạy), `503 ANALYTICS_NO_DATA` (chưa có snapshot). Chi tiết: [architecture.md](analytics/architecture.md#node-gateway-và-bảng-điều-hành-bước-17).
+
 ### 20.1. Trợ lý phân tích dữ liệu kinh doanh
 
 Dữ liệu là bán hàng của chuỗi, hoặc **tệp Excel (.xlsx) hay CSV** người dùng tải lên. Người dùng hỏi bằng tiếng Việt (ví dụ "Phân tích xu hướng doanh thu 12 tháng gần nhất và cho biết chi nhánh nào giảm mạnh nhất"), hệ thống trả về biểu đồ theo thời gian, so sánh giữa các nhóm, mức tăng/giảm và nhận xét. Kiến trúc theo LIDA (Dibia, ACL 2023, [aclanthology.org/2023.acl-demo.11](https://aclanthology.org/2023.acl-demo.11.pdf)):

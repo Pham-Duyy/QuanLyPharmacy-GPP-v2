@@ -87,6 +87,10 @@ const QualityReportsPage = page(
 const RecallsPage = page(() => import("../features/recalls/RecallsPage.js"), "RecallsPage");
 const ReportsPage = page(() => import("../features/reports/ReportsPage.js"), "ReportsPage");
 const AnalyticsPage = page(() => import("../features/analytics/AnalyticsPage.js"), "AnalyticsPage");
+const ExecutiveDashboardPage = page(
+  () => import("../features/bi/ExecutiveDashboardPage.js"),
+  "ExecutiveDashboardPage",
+);
 const MonthlySummaryPage = page(
   () => import("../features/reports/MonthlySummaryPage.js"),
   "MonthlySummaryPage",
@@ -102,6 +106,7 @@ export const PAGE_ELEMENTS: Record<PagePath, ReactNode> = {
   "/ban-hang": <SalePage />,
   "/khach-hang": <CustomersPage />,
   "/bao-cao": <ReportsPage />,
+  "/bang-dieu-hanh": <ExecutiveDashboardPage />,
   "/tro-ly-phan-tich": <AnalyticsPage />,
   "/tong-ket-thang": <MonthlySummaryPage />,
   "/hoa-don": <InvoicesPage />,

@@ -3,7 +3,7 @@
 Dịch vụ Python của **Pharmacy Intelligent Analytics**: theo dõi tệp dữ liệu, xử lý,
 tính chỉ số kinh doanh. Không gọi LLM. Kiến trúc: [docs/analytics/architecture.md](../docs/analytics/architecture.md).
 
-Hiện có: bước 1.1 (schema, dữ liệu mẫu), 1.2 (xử lý dữ liệu), 1.3 (KPI Engine), 1.4 (pipeline + SQLite), 1.5 (File Monitor), 1.6 (Analytics API).
+Hiện có: bước 1.1 (schema, dữ liệu mẫu), 1.2 (xử lý dữ liệu), 1.3 (KPI Engine), 1.4 (pipeline + SQLite), 1.5 (File Monitor), 1.6 (Analytics API), 1.7 (Bảng điều hành trên web).
 
 ## Cài đặt (một lần)
 
@@ -77,6 +77,23 @@ Trang `/docs` liệt kê mọi endpoint, bấm "Try it out" để gọi thử. V
 
 Dữ liệu mẫu cố ý có 12 dòng lỗi bán hàng và 2 dòng lỗi danh mục; báo cáo phải chỉ ra đủ.
 `python scripts/generate_sample_data.py --errors 0` để có dữ liệu sạch.
+
+## Bảng điều hành trên web (bước 1.7)
+
+Cần ba cửa sổ dòng lệnh (PostgreSQL đã chạy như khi dùng phần mềm):
+
+```bash
+# 1. analytics-service
+python main.py serve
+# 2. thư mục server
+npm run dev
+# 3. thư mục client
+npm run dev
+```
+
+Đăng nhập, mở **Báo cáo → Bảng điều hành**. Mở `data/inbox/sales.xlsx` bằng Excel, thêm dòng, Lưu:
+trong vòng 60 giây số liệu trên trang tự đổi. `store_code` trong tệp phải trùng mã cửa hàng trong phần mềm
+thì người chỉ được xem một cửa hàng mới thấy số của cửa hàng đó.
 
 ## Cấu trúc
 

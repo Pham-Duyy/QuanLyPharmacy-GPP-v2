@@ -51,6 +51,7 @@ import { loyaltyRouter } from "./modules/loyalty/loyalty.routes.js";
 import { einvoiceRouter } from "./modules/einvoice/einvoice.routes.js";
 import { nationalSyncRouter } from "./modules/national-sync/nds.routes.js";
 import { analyticsRouter } from "./modules/analytics/analytics.routes.js";
+import { biRouter } from "./modules/bi/bi.routes.js";
 
 /**
  * Lắp ráp ứng dụng Express. Thứ tự middleware quan trọng:
@@ -121,6 +122,7 @@ export function createApp() {
   app.use("/api/v1", nationalSyncRouter);
   app.use("/api/v1", einvoiceRouter);
   app.use("/api/v1", analyticsRouter);
+  app.use("/api/v1", biRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

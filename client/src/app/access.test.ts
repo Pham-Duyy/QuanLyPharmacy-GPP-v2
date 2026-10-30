@@ -184,6 +184,7 @@ describe("sidebar theo quyền", () => {
     );
     expect(reports?.kind === "group" ? reports.pages.map((page) => page.path) : []).toEqual([
       "/bao-cao",
+      "/bang-dieu-hanh",
       "/tro-ly-phan-tich",
       "/tong-ket-thang",
     ]);
