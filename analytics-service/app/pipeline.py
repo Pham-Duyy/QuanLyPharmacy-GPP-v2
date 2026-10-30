@@ -83,6 +83,9 @@ class Pipeline:
         self._known: dict[str, FileFingerprint] = {}
         self._known_hash: str | None = None
         self._snapshot_at: pd.Timestamp | None = None
+        # Lần chạy lỗi gần nhất (hash tệp, hoặc nội dung lỗi khi chưa tính được hash): polling
+        # gặp lại đúng tình trạng đó thì không đọc lại, tránh ghi "failed" mỗi 30 giây.
+        self._failed_key: str | None = None
         self._restore_from_store()
 
     def _restore_from_store(self) -> None:
@@ -123,11 +126,17 @@ class Pipeline:
         started_at = _now_text()
         moment = as_of or now_local()
 
+        source_hash: str | None = None
         try:
             fingerprints = self._fingerprints()
             if "sales" not in fingerprints:
-                raise LoadError(f"Không thấy sales.xlsx hoặc sales.csv trong {self.folder}")
+                missing = f"Không thấy sales.xlsx hoặc sales.csv trong {self.folder}"
+                if trigger == "refresh" and self._failed_key == missing:
+                    return PipelineResult("unchanged", "Vẫn chưa có tệp sales", duration_ms=_elapsed(started))
+                raise LoadError(missing)
             source_hash = self._combined_hash(fingerprints)
+            if trigger == "refresh" and self._failed_key == source_hash:
+                return PipelineResult("unchanged", "Tệp vẫn lỗi như lần trước: chờ tệp được sửa", duration_ms=_elapsed(started))
             same_source = self._known_hash == source_hash
 
             if same_source and not force and self._snapshot_at is not None:
@@ -147,6 +156,7 @@ class Pipeline:
             daily = daily_kpis(cache.sales)
         except (LoadError, FileNotFoundError, PermissionError) as error:
             # Tệp hỏng hoặc đang bị khóa: ghi nhận lỗi, GIỮ snapshot tốt gần nhất.
+            self._failed_key = source_hash or str(error)
             run_id, _ = self.store.save_run(
                 RunRecord(
                     started_at=started_at,
@@ -190,6 +200,7 @@ class Pipeline:
         )
         self._snapshot_at = moment
         self._known, self._known_hash = fingerprints, cache.source_hash
+        self._failed_key = None
         status: Status = "processed" if reprocessed else "refreshed"
         message = "Đã đọc lại tệp và tính KPI" if reprocessed else "Tệp không đổi: tính lại KPI theo giờ hiện tại"
         return PipelineResult(status, message, run_id, version, _elapsed(started), results)

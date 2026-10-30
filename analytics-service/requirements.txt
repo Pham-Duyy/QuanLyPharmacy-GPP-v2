@@ -7,5 +7,8 @@ python-calamine>=0.2
 # Windows không có sẵn dữ liệu múi giờ; zoneinfo cần gói này để hiểu "Asia/Ho_Chi_Minh"
 tzdata>=2024.1
 
+# Bước 1.5: nhận sự kiện tệp thay đổi từ hệ điều hành
+watchdog>=4.0
+
 # Kiểm thử
 pytest>=8.0

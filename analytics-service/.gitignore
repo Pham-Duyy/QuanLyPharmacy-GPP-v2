@@ -8,3 +8,4 @@ data/inbox/*
 data/samples/*.xlsx
 data/reports/
 data/analytics.db*
+data/logs/

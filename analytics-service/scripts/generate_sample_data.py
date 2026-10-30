@@ -12,6 +12,7 @@ Mặc định chèn thêm 12 dòng lỗi vào sales.xlsx và 2 dòng lỗi vào 
 
 Chạy:  python scripts/generate_sample_data.py
        python scripts/generate_sample_data.py --days 120 --end-date 2026-10-30 --errors 0
+       python scripts/generate_sample_data.py --out data/inbox --format csv   (thư mục Monitor theo dõi)
 """
 
 from __future__ import annotations
@@ -230,6 +231,7 @@ def main() -> None:
     parser.add_argument("--errors", type=int, choices=[0, 1], default=1, help="1: chèn dòng lỗi mẫu; 0: dữ liệu sạch")
     parser.add_argument("--seed", type=int, default=2026, help="Hạt giống ngẫu nhiên: cùng seed ra cùng dữ liệu")
     parser.add_argument("--out", type=Path, default=SAMPLES_DIR, help="Thư mục ghi tệp")
+    parser.add_argument("--format", choices=["xlsx", "csv"], default="xlsx", help="xlsx (mặc định) hoặc csv")
     args = parser.parse_args()
 
     rng = random.Random(args.seed)
@@ -240,10 +242,21 @@ def main() -> None:
         sales, medicines = inject_errors(sales, medicines, args.end_date)
 
     args.out.mkdir(parents=True, exist_ok=True)
-    medicines.to_excel(args.out / "medicines.xlsx", index=False, sheet_name="medicines")
-    sales.to_excel(args.out / "sales.xlsx", index=False, sheet_name="sales")
-    print(f"Đã ghi {len(medicines)} mặt hàng -> {args.out / 'medicines.xlsx'}")
-    print(f"Đã ghi {len(sales):,} dòng bán hàng ({args.days} ngày đến {args.end_date}) -> {args.out / 'sales.xlsx'}")
+    # Không để cùng lúc sales.xlsx và sales.csv: hệ thống ưu tiên .xlsx, dễ nhầm tệp đang dùng.
+    for name in ("medicines", "sales"):
+        other = args.out / f"{name}.{'csv' if args.format == 'xlsx' else 'xlsx'}"
+        if other.exists():
+            other.unlink()
+    paths = {name: args.out / f"{name}.{args.format}" for name in ("medicines", "sales")}
+    if args.format == "csv":
+        # Ngày giờ ghi kiểu dd/mm/yyyy HH:MM:SS như Excel Việt Nam xuất CSV.
+        medicines.to_csv(paths["medicines"], index=False, encoding="utf-8-sig")
+        sales.to_csv(paths["sales"], index=False, encoding="utf-8-sig", date_format="%d/%m/%Y %H:%M:%S")
+    else:
+        medicines.to_excel(paths["medicines"], index=False, sheet_name="medicines")
+        sales.to_excel(paths["sales"], index=False, sheet_name="sales")
+    print(f"Đã ghi {len(medicines)} mặt hàng -> {paths['medicines']}")
+    print(f"Đã ghi {len(sales):,} dòng bán hàng ({args.days} ngày đến {args.end_date}) -> {paths['sales']}")
 
 
 if __name__ == "__main__":

@@ -9,7 +9,10 @@ Nguồn sự thật trong code: `analytics-service/app/processor/schemas.py` (c�
   (`Mã thuốc`, `Số lượng`…), không phân biệt hoa thường, có dấu hay không.
 - Nhận `.xlsx` (sheet đầu tiên) và `.csv` (dấu phẩy hoặc chấm phẩy, UTF-8).
 - Số: `1200`, `1.234.567` (kiểu Việt Nam), `1,234,567.5`, `12,5`; bỏ qua chữ `đ`, `VNĐ`.
-  Dấu chấm theo sau đúng 3 chữ số được hiểu là phân cách nghìn: `1.500` là 1500.
+- Cách đọc dấu chấm được quyết định cho **cả cột**: cột có ô như `1289.31`, `1.5` (dấu chấm
+  không đứng trước đúng 3 chữ số) hoặc `1,234,567` thì dấu chấm là thập phân, nên `599.765` là
+  599,765. Cột chỉ có dạng `1.500`, `1.234.567`, `12,5` thì theo kiểu Việt Nam: `1.500` là 1500.
+  Ô số thật của Excel không bị ảnh hưởng.
 - Ngày: ô ngày của Excel, `dd/mm/yyyy`, `dd/mm/yyyy HH:MM`, `yyyy-mm-dd HH:MM`.
 - Mã (thuốc, cửa hàng, lô) được viết hoa và bỏ khoảng trắng thừa.
 

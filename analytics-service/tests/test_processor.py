@@ -15,7 +15,7 @@ import pandas as pd
 import pytest
 
 from app.processor import MEDICINES, SALES, LoadError, process_file, process_folder
-from app.processor.cleaner import INVALID, parse_bool, parse_datetime, parse_number
+from app.processor.cleaner import INVALID, detect_number_style, parse_bool, parse_datetime, parse_number
 
 NOW = pd.Timestamp("2026-10-30 12:00")
 
@@ -77,6 +77,35 @@ def issues_by_code(result) -> dict[str, list[int | None]]:
 )
 def test_parse_number(raw, expected):
     assert parse_number(raw) == expected
+
+
+@pytest.mark.parametrize(
+    ("values", "style"),
+    [
+        (["1.500", "2.250", "1.234.567"], "vn"),  # chỉ có dạng nghìn kiểu Việt Nam
+        (["12,5", "1.500"], "vn"),
+        (["1289.31", "599.765"], "intl"),  # có ô thập phân rõ ràng: cả cột là thập phân
+        (["1,234,567", "800"], "intl"),  # "1,234" một mình mơ hồ (người Việt đọc là 1,234)
+        ([1200, None, "800"], "vn"),  # ô số thật của Excel không quyết định gì
+    ],
+)
+def test_detect_number_style_per_column(values, style):
+    assert detect_number_style(pd.Series(values, dtype=object)) == style
+
+
+def test_three_decimal_cost_is_not_read_as_thousands(tmp_path):
+    """Lỗi thật gặp khi chạy thử: giá vốn '599.765' trong CSV bị đọc thành 599.765 đồng."""
+    path = tmp_path / "sales.csv"
+    path.write_text(
+        "sale_id,line_no,sale_datetime,sale_type,store_code,medicine_code,quantity,selling_price,purchase_price\n"
+        "HD1,1,29/10/2026 10:00,retail,CH01,GD001,2,800.0,599.765\n"
+        "HD2,1,29/10/2026 11:00,retail,CH01,GD001,1,1300.0,1289.31\n",
+        encoding="utf-8",
+    )
+    result = process_file(path, SALES, now=NOW)
+
+    assert list(result.data["purchase_price"]) == [599.765, 1289.31]
+    assert result.issues == []  # trước khi sửa: cảnh báo "bán dưới giá vốn" sai
 
 
 def test_parse_number_rejects_text():

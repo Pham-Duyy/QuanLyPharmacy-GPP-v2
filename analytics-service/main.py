@@ -5,6 +5,7 @@ Lệnh hiện có:
 - kpi:     tính chỉ số kinh doanh hôm nay / tuần này / tháng này (bước 1.3)
 - run:     chạy pipeline Processor → KPI → lưu snapshot vào SQLite (bước 1.4)
 - status:  xem các lần chạy gần nhất và snapshot hiện tại (bước 1.4)
+- watch:   tự theo dõi thư mục, tệp được lưu thì tự chạy pipeline (bước 1.5)
 Các bước sau sẽ thêm `serve` (API + theo dõi tệp).
 
 Chạy:  python main.py process                  (mặc định: data/samples)
@@ -12,6 +13,7 @@ Chạy:  python main.py process                  (mặc định: data/samples)
        python main.py kpi --as-of "2026-10-30 18:00" --store CH01
        python main.py run             (chạy lại ngay: thêm --force)
        python main.py status
+       python main.py watch           (theo dõi data/inbox; Ctrl+C để dừng)
 """
 
 from __future__ import annotations
@@ -25,7 +27,9 @@ import pandas as pd
 
 from app.analytics import kpi_summary, prepare_sales, sales_breakdown
 from app.analytics.periods import Window
-from app.config import ANALYTICS_DB, SAMPLES_DIR
+from app.config import ANALYTICS_DB, INBOX_DIR, MONITOR_DEBOUNCE_SECONDS, MONITOR_POLL_SECONDS, SAMPLES_DIR
+from app.logging_setup import setup_logging
+from app.monitor import Monitor
 from app.pipeline import Pipeline
 from app.store import AnalyticsStore
 from app.processor import LoadError, ProcessResult, process_folder
@@ -168,6 +172,35 @@ def command_status(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_watch(args: argparse.Namespace) -> int:
+    log = setup_logging("monitor")
+    args.folder.mkdir(parents=True, exist_ok=True)
+    store = AnalyticsStore(args.db)
+    monitor = Monitor(
+        args.folder,
+        Pipeline(args.folder, store),
+        debounce_seconds=args.debounce,
+        poll_seconds=args.poll,
+        use_events=not args.polling_only,
+        logger=log,
+    )
+    log.info("Bắt đầu theo dõi %s, ghi kết quả vào %s. Nhấn Ctrl+C để dừng.", args.folder.resolve(), args.db)
+    try:
+        monitor.run_forever()
+    except KeyboardInterrupt:
+        monitor.close()
+    stats = monitor.stats
+    log.info(
+        "Đã dừng. %s sự kiện; xử lý %s, tính lại %s, bỏ qua %s, lỗi %s.",
+        stats.events,
+        stats.runs["processed"],
+        stats.runs["refreshed"],
+        stats.runs["unchanged"],
+        stats.runs["failed"],
+    )
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Pharmacy Intelligent Analytics: analytics-service")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -192,6 +225,13 @@ def main() -> int:
     status.add_argument("--db", type=Path, default=ANALYTICS_DB, help="Tệp SQLite")
     status.add_argument("--limit", type=int, default=10, help="Số lần chạy hiển thị")
     status.set_defaults(handler=command_status)
+    watch = commands.add_parser("watch", help="Theo dõi thư mục, tự chạy pipeline khi tệp được lưu")
+    watch.add_argument("folder", nargs="?", type=Path, default=INBOX_DIR, help="Thư mục theo dõi (mặc định data/inbox)")
+    watch.add_argument("--db", type=Path, default=ANALYTICS_DB, help="Tệp SQLite")
+    watch.add_argument("--debounce", type=float, default=MONITOR_DEBOUNCE_SECONDS, help="Giây chờ yên lặng sau sự kiện")
+    watch.add_argument("--poll", type=float, default=MONITOR_POLL_SECONDS, help="Giây giữa hai lần polling dự phòng")
+    watch.add_argument("--polling-only", action="store_true", help="Không dùng sự kiện, chỉ polling (ổ mạng)")
+    watch.set_defaults(handler=command_watch)
     args = parser.parse_args()
     return args.handler(args)
 

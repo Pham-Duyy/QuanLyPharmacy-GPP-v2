@@ -10,6 +10,7 @@ import math
 import re
 from dataclasses import dataclass
 from datetime import date, datetime
+from typing import Literal
 
 import pandas as pd
 
@@ -22,6 +23,10 @@ _VN_THOUSANDS = re.compile(r"^-?\d{1,3}(\.\d{3})+(,\d+)?$")  # 1.234.567,5
 _INTL_THOUSANDS = re.compile(r"^-?\d{1,3}(,\d{3})+(\.\d+)?$")  # 1,234,567.5
 _COMMA_DECIMAL = re.compile(r"^-?\d+,\d+$")  # 12,5
 _PLAIN = re.compile(r"^-?\d+(\.\d+)?$")  # 1234.5
+# Dấu chấm KHÔNG đứng trước đúng 3 chữ số (1289.31, 1.5): chắc chắn là dấu thập phân.
+_DOT_DECIMAL = re.compile(r"^-?\d+\.(\d{1,2}|\d{4,})$")
+
+NumberStyle = Literal["vn", "intl"]
 
 _DATE_FORMATS = (
     "%d/%m/%Y %H:%M:%S",
@@ -42,11 +47,32 @@ _FALSE = {"n", "no", "khong", "false", "0"}
 INVALID = object()
 
 
-def parse_number(value: object) -> float | None | object:
+def _number_text(value: object) -> str:
+    return _CURRENCY.sub("", str(value)).replace(" ", "").replace("\u00a0", "")
+
+
+def detect_number_style(values: pd.Series) -> NumberStyle:
+    """Chọn cách đọc dấu chấm cho CẢ CỘT, vì một ô lẻ như '599.765' không tự nói được
+    nó là 599,765 hay năm trăm chín mươi chín nghìn.
+
+    - Có ô kiểu 1,234 (phẩy trước đúng 3 số) hoặc 1289.31, 1.5 (chấm thập phân rõ ràng):
+      kiểu quốc tế, dấu chấm là thập phân.
+    - Còn lại (1.500, 1.234.567, 12,5): kiểu Việt Nam, dấu chấm là phân cách nghìn.
+    """
+    for value in values:
+        if value is None or isinstance(value, (int, float)):
+            continue
+        text = _number_text(value)
+        if _DOT_DECIMAL.match(text) or (_INTL_THOUSANDS.match(text) and not _COMMA_DECIMAL.match(text)):
+            return "intl"
+    return "vn"
+
+
+def parse_number(value: object, style: NumberStyle = "vn") -> float | None | object:
     """'1.234.567 đ' -> 1234567.0; ô trống -> None; 'abc' -> INVALID.
 
-    Dấu chấm theo sau đúng 3 chữ số được hiểu là phân cách nghìn kiểu Việt Nam,
-    nên '1.500' là một nghìn năm trăm (giá thuốc không có lẻ phần nghìn đồng).
+    style="vn" (mặc định): '1.500' là một nghìn năm trăm.
+    style="intl": dấu chấm là thập phân, dấu phẩy phân cách nghìn ('1,234.5').
     """
     if value is None:
         return None
@@ -54,15 +80,23 @@ def parse_number(value: object) -> float | None | object:
         return INVALID
     if isinstance(value, (int, float)):
         return None if isinstance(value, float) and math.isnan(value) else float(value)
-    text = _CURRENCY.sub("", str(value)).replace(" ", "").replace(" ", "")
+    text = _number_text(value)
     if text == "":
         return None
+    if style == "intl":
+        if _INTL_THOUSANDS.match(text):
+            text = text.replace(",", "")
+        elif _COMMA_DECIMAL.match(text):
+            text = text.replace(",", ".")
+        elif not _PLAIN.match(text):
+            return INVALID
+        return float(text)
     if _VN_THOUSANDS.match(text):
         text = text.replace(".", "").replace(",", ".")
-    elif _INTL_THOUSANDS.match(text):
-        text = text.replace(",", "")
     elif _COMMA_DECIMAL.match(text):
         text = text.replace(",", ".")
+    elif _INTL_THOUSANDS.match(text):
+        text = text.replace(",", "")
     elif not _PLAIN.match(text):
         return INVALID
     return float(text)
@@ -155,7 +189,8 @@ def clean_dataset(frame: pd.DataFrame, schema: DatasetSchema) -> CleanResult:
         # Đưa NaN về None trước để các hàm parse chỉ phải xử lý một kiểu "trống".
         values = frame[column.name].astype(object).where(~is_blank(frame[column.name]), None)
         if column.type in ("int", "number"):
-            parsed = values.map(parse_number)
+            style = detect_number_style(values)
+            parsed = values.map(lambda value, style=style: parse_number(value, style))
         elif column.type == "datetime":
             parsed = values.map(parse_datetime)
         elif column.type == "bool":

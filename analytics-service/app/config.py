@@ -40,3 +40,18 @@ KEEP_ISSUE_RUNS = 20
 
 # Số ngày của chuỗi doanh thu theo ngày trong snapshot (biểu đồ đường).
 TREND_DAYS = 90
+
+# --- Monitor (bước 1.5) -------------------------------------------------------------
+
+LOG_DIR = BASE_DIR / "data" / "logs"
+
+# Gặp sự kiện tệp thay đổi thì chờ yên lặng ngần này giây mới xử lý: một lần
+# bấm Lưu trong Excel sinh ra nhiều sự kiện liên tiếp (tệp tạm, đổi tên, xóa).
+MONITOR_DEBOUNCE_SECONDS = 2.0
+
+# Polling dự phòng: bắt sự kiện bị lỡ (OneDrive, ổ mạng) và làm mới KPI theo giờ.
+MONITOR_POLL_SECONDS = 30.0
+
+# Tệp đang bị khóa (Excel đang ghi): thử lại sau ngần này giây, tối đa số lần.
+MONITOR_RETRY_SECONDS = 5.0
+MONITOR_MAX_RETRIES = 3

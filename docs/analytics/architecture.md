@@ -135,6 +135,27 @@ Code: `analytics-service/app/pipeline.py`, `app/store/sqlite_store.py`. Lệnh: 
 
 Dữ liệu mẫu (32.000 dòng): snapshot khoảng 60 KB, tệp SQLite khoảng 180 KB, một lần xử lý khoảng 1,9 giây.
 
+## File Monitor (bước 1.5)
+
+Code: `analytics-service/app/monitor/watcher.py`. Lệnh: `python main.py watch` (theo dõi `data/inbox`).
+
+Excel lưu tệp bằng cách ghi tệp tạm rồi đổi tên, nên một lần bấm Lưu sinh 3–6 sự kiện. Monitor:
+
+| Cơ chế | Chi tiết |
+|---|---|
+| Sự kiện (watchdog) | Chỉ nhận `created`, `modified`, `moved`, `deleted`, `closed`. Bỏ `opened`/`closed_no_write`: chính pipeline mở tệp để đọc cũng sinh các sự kiện này |
+| Lọc tệp | Chỉ `sales`, `medicines` (`.xlsx`, `.csv`); bỏ `~$…`, tệp bắt đầu bằng dấu chấm, tệp tạm không đuôi. Sự kiện `moved` xét cả tên đích |
+| Debounce | Yên lặng 2 giây mới xử lý: một đợt sự kiện thành một lần chạy |
+| Kiểm tra ổn định | Kích thước tệp đứng yên qua hai lần đo cách 0,5 giây |
+| Polling dự phòng | Mỗi 30 giây gọi pipeline: bắt sự kiện bị lỡ (OneDrive, ổ mạng), làm mới KPI theo giờ. Tệp lỗi y nguyên thì polling bỏ qua, không ghi "failed" lặp lại |
+| Thử lại | Lần chạy do sự kiện thất bại (tệp đang bị khóa): thử lại sau 5 giây, tối đa 3 lần |
+| Một luồng ghi | Luồng watchdog chỉ ghi mốc thời gian; pipeline luôn chạy ở vòng lặp chính, không bao giờ hai lần ghi SQLite cùng lúc |
+| Log | Màn hình + `data/logs/monitor.log` (xoay vòng 5 × 1 MB), giờ Việt Nam, có độ trễ "lưu tệp → snapshot" |
+
+Đo trên dữ liệu mẫu 32.000 dòng (CSV, `scripts/simulate_sales.py` thêm 20 hóa đơn mỗi 6 giây):
+3/3 lần lưu được xử lý đúng một lần mỗi lần, độ trễ 4,3–4,7 giây
+(2 giây debounce + 0,5 giây kiểm tra ổn định + khoảng 1,9 giây xử lý).
+
 ## Lộ trình
 
 | Phase | Nội dung | Trạng thái |
@@ -143,7 +164,7 @@ Dữ liệu mẫu (32.000 dòng): snapshot khoảng 60 KB, tệp SQLite khoảng
 | 1.2 | Processor: đọc, làm sạch, kiểm tra, báo cáo lỗi dữ liệu | Xong |
 | 1.3 | KPI Engine: doanh thu, giá vốn, lợi nhuận, biên, số đơn, tăng trưởng ([kpi.md](kpi.md)) | Xong |
 | 1.4 | Analytics Store (SQLite) + pipeline: phát hiện thay đổi bằng size/mtime rồi SHA-256, snapshot có version | Xong |
-| 1.5 | Monitor: watchdog + debounce + hash, polling dự phòng | |
+| 1.5 | Monitor: watchdog + debounce + kiểm tra ổn định, polling dự phòng, thử lại | Xong |
 | 1.6 | FastAPI: `/summary`, `/revenue`, `/sales-trend`, `/health` | |
 | 1.7 | Node Gateway + trang "Bảng điều hành" tự cập nhật | |
 | 2 | Tồn kho, hạn dùng (5 mức), FEFO, top sản phẩm, cảnh báo | |

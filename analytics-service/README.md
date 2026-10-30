@@ -3,7 +3,7 @@
 Dịch vụ Python của **Pharmacy Intelligent Analytics**: theo dõi tệp dữ liệu, xử lý,
 tính chỉ số kinh doanh. Không gọi LLM. Kiến trúc: [docs/analytics/architecture.md](../docs/analytics/architecture.md).
 
-Hiện có: bước 1.1 (schema, dữ liệu mẫu), 1.2 (xử lý dữ liệu), 1.3 (KPI Engine), 1.4 (pipeline + SQLite).
+Hiện có: bước 1.1 (schema, dữ liệu mẫu), 1.2 (xử lý dữ liệu), 1.3 (KPI Engine), 1.4 (pipeline + SQLite), 1.5 (File Monitor).
 
 ## Cài đặt (một lần)
 
@@ -46,6 +46,24 @@ python main.py status                          # nhật ký các lần chạy
 python -m pytest -q                            # chạy test
 ```
 
+## Theo dõi tệp tự động (bước 1.5)
+
+Cửa sổ 1, chuẩn bị dữ liệu trong thư mục được theo dõi rồi bật Monitor:
+
+```bash
+python scripts/generate_sample_data.py --out data/inbox --format csv
+python main.py watch                           # Ctrl+C để dừng
+```
+
+Cửa sổ 2, giả lập nhân viên thêm hóa đơn (hoặc tự mở tệp bằng Excel, sửa, Lưu):
+
+```bash
+python scripts/simulate_sales.py --every 10 --orders 5
+```
+
+Monitor tự phát hiện mỗi lần lưu, chờ 2 giây cho tệp ghi xong rồi xử lý; `python main.py status`
+cho thấy các lần chạy có nguồn `monitor`. Log ở `data/logs/monitor.log`.
+
 Dữ liệu mẫu cố ý có 12 dòng lỗi bán hàng và 2 dòng lỗi danh mục; báo cáo phải chỉ ra đủ.
 `python scripts/generate_sample_data.py --errors 0` để có dữ liệu sạch.
 
@@ -66,7 +84,9 @@ app/
     breakdown.py         chuỗi theo ngày/tuần/tháng, cơ cấu theo nhóm thuốc, cửa hàng…
   store/sqlite_store.py  Analytics Store: runs, snapshots, data_issues, kpi_daily
   pipeline.py            Processor → KPI → Store, phát hiện tệp thay đổi
-scripts/generate_sample_data.py
-tests/test_processor.py, tests/test_kpi.py, tests/test_pipeline.py
+  monitor/watcher.py     theo dõi thư mục: sự kiện + debounce + polling dự phòng
+  logging_setup.py       log ra màn hình và data/logs/
+scripts/generate_sample_data.py, scripts/simulate_sales.py
+tests/test_processor.py, test_kpi.py, test_pipeline.py, test_monitor.py
 main.py                  lệnh chạy
 ```
