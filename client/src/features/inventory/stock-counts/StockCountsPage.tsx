@@ -5,6 +5,7 @@ import {
   App,
   Button,
   Card,
+  Empty,
   Form,
   Input,
   Modal,
@@ -208,8 +209,9 @@ export function StockCountsPage() {
               (list.data?.items.length ?? 0) > 20 ? { pageSize: 20, size: "small" } : false
             }
             locale={{
-              emptyText:
-                "Chưa có đợt kiểm kê nào. Nhà thuốc nên kiểm kê định kỳ hằng tháng hoặc hằng quý.",
+              emptyText: (
+                <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có đợt kiểm kê" />
+              ),
             }}
           />
         )}

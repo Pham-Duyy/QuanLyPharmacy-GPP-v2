@@ -244,7 +244,7 @@ function ConnectionTab({
           <Form.Item
             name="environment"
             label="Môi trường"
-            extra="Chạy thử ở sandbox cho tới khi dữ liệu đúng, rồi mới chuyển sang hệ thống thật."
+            tooltip="Chạy thử ở sandbox cho tới khi dữ liệu đúng, rồi mới chuyển sang hệ thống thật."
           >
             <Segmented
               options={[
@@ -257,22 +257,14 @@ function ConnectionTab({
           <Form.Item
             name="username"
             label="Tên đăng nhập"
-            extra="Mã số thuế + mã địa điểm kinh doanh, do cổng cấp."
+            tooltip="Mã số thuế + mã địa điểm kinh doanh, do cổng cấp."
           >
             <Input placeholder="Ví dụ: 0101234567-001" maxLength={200} />
           </Form.Item>
 
-          <Form.Item
-            name="password"
-            label="Mật khẩu"
-            extra={
-              config.hasPassword
-                ? "Đã lưu một mật khẩu. Để trống nếu không muốn đổi."
-                : "Chưa có mật khẩu nào được lưu."
-            }
-          >
+          <Form.Item name="password" label="Mật khẩu">
             <Input.Password
-              placeholder={config.hasPassword ? "••••••••" : "Nhập mật khẩu"}
+              placeholder={config.hasPassword ? "Đã lưu · để trống nếu không đổi" : "Nhập mật khẩu"}
               maxLength={200}
             />
           </Form.Item>
@@ -280,7 +272,7 @@ function ConnectionTab({
           <Form.Item
             name="practiceLicenseCode"
             label="Mã giấy phép hành nghề"
-            extra="Chỉ cần khi tài khoản mẹ của chuỗi gửi thay cho cơ sở thành viên."
+            tooltip="Chỉ cần khi tài khoản mẹ của chuỗi gửi thay cho cơ sở thành viên."
           >
             <Input
               placeholder="Bỏ trống nếu nhà thuốc gửi bằng tài khoản của chính mình"

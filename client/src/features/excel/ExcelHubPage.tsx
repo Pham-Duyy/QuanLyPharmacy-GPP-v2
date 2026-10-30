@@ -18,72 +18,96 @@ import { Alert, App, Button, DatePicker, Empty, Skeleton, Tag, Tooltip } from "a
 import dayjs, { type Dayjs } from "dayjs";
 import { useState, type ReactNode } from "react";
 import { PageHeader } from "../../ui/PageHeader.js";
+import { InfoTip } from "../../ui/InfoTip.js";
 import { useAuth } from "../auth/auth-context.js";
 import { ExcelExportButton } from "./ExcelButtons.js";
 import { rangeParams } from "./excel-api.js";
 import { ExcelImportModal } from "./ExcelImportModal.js";
 import { downloadTemplate, fetchCatalog, type ExportType, type ImportType } from "./excel-api.js";
 
-const IMPORT_INFO: Record<string, { icon: ReactNode; step: number; text: string }> = {
-  products: {
-    icon: <MedicineBoxOutlined />,
-    step: 1,
-    text: "Thêm hoặc cập nhật hàng loạt thuốc, hoạt chất, đơn vị quy đổi, mã vạch và giá bán. Xuất danh mục ra, sửa trong Excel rồi nhập lại.",
-  },
-  suppliers: {
-    icon: <TruckOutlined />,
-    step: 2,
-    text: "Nhà cung cấp kèm mã số thuế, số giấy phép kinh doanh dược — cần cho phiếu nhập và hồ sơ GPP.",
-  },
-  customers: {
-    icon: <TeamOutlined />,
-    step: 3,
-    text: "Chuyển danh sách khách từ sổ tay hoặc phần mềm cũ. Trùng số điện thoại thì cập nhật, không tạo khách trùng.",
-  },
-  "opening-balance": {
-    icon: <DatabaseOutlined />,
-    step: 4,
-    text: "Tồn thực tế từng lô (số lô, hạn dùng, giá vốn) khi bắt đầu dùng phần mềm. Chỉ dùng được trước hóa đơn bán đầu tiên của cửa hàng.",
-  },
-};
+/** short: một dòng trên thẻ; text: giải thích đầy đủ trong biểu tượng "?". */
+const IMPORT_INFO: Record<string, { icon: ReactNode; step: number; short: string; text: string }> =
+  {
+    products: {
+      icon: <MedicineBoxOutlined />,
+      step: 1,
+      short: "Thuốc, đơn vị, mã vạch, giá bán",
+      text: "Thêm hoặc cập nhật hàng loạt thuốc, hoạt chất, đơn vị quy đổi, mã vạch và giá bán. Xuất danh mục ra, sửa trong Excel rồi nhập lại.",
+    },
+    suppliers: {
+      icon: <TruckOutlined />,
+      step: 2,
+      short: "Mã số thuế, giấy phép dược",
+      text: "Nhà cung cấp kèm mã số thuế, số giấy phép kinh doanh dược — cần cho phiếu nhập và hồ sơ GPP.",
+    },
+    customers: {
+      icon: <TeamOutlined />,
+      step: 3,
+      short: "Trùng số điện thoại thì cập nhật",
+      text: "Chuyển danh sách khách từ sổ tay hoặc phần mềm cũ. Trùng số điện thoại thì cập nhật, không tạo khách trùng.",
+    },
+    "opening-balance": {
+      icon: <DatabaseOutlined />,
+      step: 4,
+      short: "Tồn từng lô lúc bắt đầu dùng",
+      text: "Tồn thực tế từng lô (số lô, hạn dùng, giá vốn) khi bắt đầu dùng phần mềm. Chỉ dùng được trước hóa đơn bán đầu tiên của cửa hàng.",
+    },
+  };
 
-const EXPORT_INFO: Record<string, { icon: ReactNode; text: string }> = {
+const EXPORT_INFO: Record<string, { icon: ReactNode; short: string; text: string }> = {
   "revenue-book-s1a": {
     icon: <AccountBookOutlined />,
+    short: "Hộ doanh thu đến 500 triệu/năm",
     text: "Sổ kế toán bắt buộc từ 01/01/2026 (TT 152/2025) cho hộ có doanh thu đến 500 triệu/năm. Mỗi ngày một dòng, đã trừ hóa đơn hủy và tiền hoàn.",
   },
   "revenue-book-s2a": {
     icon: <AccountBookOutlined />,
+    short: "Hộ doanh thu từ 500 triệu/năm",
     text: "Cho hộ có doanh thu từ 500 triệu/năm, nộp thuế theo tỷ lệ. Hai dòng thuế để trống cho người khai thuế điền.",
   },
   "rx-sales": {
     icon: <SafetyCertificateOutlined />,
+    short: "Sổ bán thuốc kê đơn cho thanh tra GPP",
     text: "Sổ theo dõi bán thuốc kê đơn: người bệnh, mã đơn, người kê, cơ sở khám chữa bệnh, chẩn đoán, số lô, hạn dùng và người bán — phục vụ thanh tra GPP.",
   },
   invoices: {
     icon: <FileTextOutlined />,
+    short: "Hóa đơn và từng dòng kèm lô",
     text: "Hóa đơn trong kỳ và chi tiết từng dòng kèm lô xuất theo FEFO. Dùng đối soát doanh thu, gửi kế toán.",
   },
   "goods-receipts": {
     icon: <InboxOutlined />,
+    short: "Phiếu nhập kèm lô, hạn dùng",
     text: "Phiếu nhập và chi tiết lô, ngày sản xuất, hạn dùng, số hóa đơn nhà cung cấp — đối chiếu công nợ và hồ sơ kiểm nhập.",
   },
   inventory: {
     icon: <DatabaseOutlined />,
+    short: "Tồn từng lô theo hạn dùng",
     text: "Tồn từng lô xếp theo hạn dùng, số ngày còn lại, vị trí kệ, trạng thái biệt trữ; kèm giá vốn nếu bạn có quyền. Dùng khi kiểm kê.",
   },
   products: {
     icon: <MedicineBoxOutlined />,
+    short: "Danh mục đúng mẫu nhập",
     text: "Toàn bộ danh mục kèm giá hiện hành và tồn bán được. Đúng mẫu nhập: sửa hàng loạt xong nhập lại được.",
   },
-  suppliers: { icon: <TruckOutlined />, text: "Danh sách nhà cung cấp đúng mẫu nhập." },
+  suppliers: {
+    icon: <TruckOutlined />,
+    short: "Nhà cung cấp đúng mẫu nhập",
+    text: "Danh sách nhà cung cấp đúng mẫu nhập.",
+  },
   customers: {
     icon: <TeamOutlined />,
+    short: "Khách hàng kèm số điện thoại",
     text: "Khách hàng có số điện thoại đầy đủ để gọi chăm sóc. Dữ liệu cá nhân: mỗi lần xuất được ghi nhật ký.",
   },
 };
 
 type RangeValue = [Dayjs, Dayjs];
+
+/** Mẫu nhập chưa có mô tả ngắn: lấy câu đầu của hướng dẫn, phần còn lại trong "?". */
+function firstSentence(text: string): string {
+  return text.split(/(?<=\.)\s/)[0]!.replace(/\.$/, "");
+}
 
 export function ExcelHubPage() {
   const { storeId, me } = useAuth();
@@ -129,11 +153,14 @@ export function ExcelHubPage() {
           <section className="excel-section">
             <div className="excel-section-head">
               <div>
-                <h2>Nhập dữ liệu</h2>
-                <p>
-                  Mới bắt đầu dùng phần mềm: nhập theo đúng thứ tự đánh số. Mỗi tệp được kiểm tra
-                  toàn bộ trước khi ghi, có lỗi thì không ghi dòng nào.
-                </p>
+                <h2>
+                  Nhập dữ liệu
+                  <InfoTip>
+                    Mới bắt đầu dùng phần mềm: nhập theo đúng thứ tự đánh số. Mỗi tệp được kiểm tra
+                    toàn bộ trước khi ghi, có lỗi thì không ghi dòng nào.
+                  </InfoTip>
+                </h2>
+                <p>Nhập theo thứ tự 1 → 4</p>
               </div>
             </div>
             {catalog.data.imports.length === 0 ? (
@@ -161,7 +188,10 @@ export function ExcelHubPage() {
                           )}
                         </div>
                       </div>
-                      <p className="excel-card-text">{info?.text ?? item.guide[0]}</p>
+                      <p className="excel-card-text">
+                        {info?.short ?? firstSentence(item.guide[0] ?? "")}
+                        <InfoTip>{info?.text ?? item.guide.join(" ")}</InfoTip>
+                      </p>
                       <div className="excel-card-actions">
                         <Button
                           icon={<DownloadOutlined />}
@@ -191,11 +221,14 @@ export function ExcelHubPage() {
           <section className="excel-section">
             <div className="excel-section-head">
               <div>
-                <h2>Xuất dữ liệu & sổ sách</h2>
-                <p>
-                  Tệp .xlsx có định dạng sẵn: tiền, ngày kiểu Việt Nam, cố định tiêu đề, bật lọc.
-                  Mục theo kỳ dùng khoảng ngày bên phải (tối đa 366 ngày).
-                </p>
+                <h2>
+                  Xuất dữ liệu & sổ sách
+                  <InfoTip>
+                    Tệp .xlsx có định dạng sẵn: tiền, ngày kiểu Việt Nam, cố định tiêu đề, bật lọc.
+                    Mục theo kỳ dùng khoảng ngày bên phải (tối đa 366 ngày).
+                  </InfoTip>
+                </h2>
+                <p>Mục theo kỳ dùng khoảng ngày bên phải</p>
               </div>
               <DatePicker.RangePicker
                 value={range}
@@ -272,7 +305,10 @@ export function ExcelHubPage() {
                           </span>
                         </div>
                       </div>
-                      <p className="excel-card-text">{info?.text}</p>
+                      <p className="excel-card-text">
+                        {info?.short}
+                        {info ? <InfoTip>{info.text}</InfoTip> : null}
+                      </p>
                       <div className="excel-card-actions">
                         {disabled ? (
                           <Tooltip title="Chọn cửa hàng trước">

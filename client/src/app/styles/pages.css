@@ -4358,30 +4358,9 @@
   font-weight: 600;
 }
 
-.bi-info-icon {
+.bi-panel-title .info-tip-icon {
   align-self: center;
-  color: var(--c-ink-300);
-  font-size: 14px;
-  cursor: help;
-}
-
-.bi-info-icon:hover {
-  color: var(--c-primary);
-}
-
-.bi-info {
-  max-width: 320px;
-  color: var(--c-ink-700);
-  font-size: 13px;
-  line-height: 1.55;
-}
-
-.bi-info p {
-  margin: 0 0 6px;
-}
-
-.bi-info p:last-child {
-  margin-bottom: 0;
+  margin-inline-start: 0;
 }
 
 .bi-search.ant-input-search {

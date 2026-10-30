@@ -25,6 +25,7 @@ import {
 import { PageHeader } from "../../ui/PageHeader.js";
 import { useDebounced } from "../../ui/useDebounced.js";
 import { useAuth } from "../auth/auth-context.js";
+import { InfoTip } from "../../ui/InfoTip.js";
 
 type CategoryForm = { name: string };
 type IngredientForm = { name: string; atcCode?: string };
@@ -109,6 +110,9 @@ function CategoriesTab() {
             { value: "inactive", label: "Đã ngừng" },
           ]}
         />
+        <InfoTip>
+          “Ngừng sử dụng” chỉ ẩn nhóm khỏi việc chọn cho sản phẩm mới, không xóa lịch sử dữ liệu.
+        </InfoTip>
         <Input.Search
           allowClear
           className="toolbar-grow"
@@ -122,9 +126,6 @@ function CategoriesTab() {
           </Button>
         ) : null}
       </div>
-      <p className="section-note">
-        “Ngừng sử dụng” chỉ ẩn nhóm khỏi việc chọn cho sản phẩm mới, không xóa lịch sử dữ liệu.
-      </p>
       <Table
         rowKey="id"
         loading={categories.isFetching}

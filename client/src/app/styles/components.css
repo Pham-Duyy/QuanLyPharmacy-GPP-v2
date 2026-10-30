@@ -1431,6 +1431,50 @@
   font-size: 12.5px;
 }
 
+/* ---------- Biểu tượng "?" và trạng thái rỗng dùng chung ---------- */
+
+.info-tip-icon {
+  margin-inline-start: 6px;
+  color: var(--c-ink-300);
+  font-size: 14px;
+  cursor: help;
+}
+
+.info-tip-icon:hover {
+  color: var(--c-primary);
+}
+
+.info-tip {
+  max-width: 340px;
+  color: var(--c-ink-700);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.info-tip p {
+  margin: 0 0 6px;
+}
+
+.info-tip p:last-child {
+  margin-bottom: 0;
+}
+
+/* Mọi trạng thái rỗng cùng một cỡ: hình nhỏ, một câu ngắn màu nhạt. */
+.ant-empty .ant-empty-image {
+  height: 44px;
+  margin-bottom: 8px;
+}
+
+.ant-empty .ant-empty-image svg {
+  width: 64px;
+  height: 44px;
+}
+
+.ant-empty .ant-empty-description {
+  color: var(--c-ink-400);
+  font-size: 13px;
+}
+
 /* Điện thoại: đặt cuối tệp để đè quy tắc gốc ở trên. */
 @media (max-width: 576px) {
   /* Thẻ số liệu: lưới 2 cột gọn thay vì mỗi thẻ một hàng; thẻ lẻ cuối trải hết hàng. */

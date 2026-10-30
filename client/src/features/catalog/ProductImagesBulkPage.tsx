@@ -22,6 +22,7 @@ import { Link } from "react-router";
 import { getErrorMessage, http } from "../../api/http.js";
 import type { Envelope, Paged, ProductListItem } from "../../api/types.js";
 import { PageHeader } from "../../ui/PageHeader.js";
+import { InfoTip } from "../../ui/InfoTip.js";
 import { useAuth } from "../auth/auth-context.js";
 import { matchImageFiles, type FileMatch, type MatchTarget } from "./products/match-image-files.js";
 import {
@@ -178,6 +179,26 @@ export function ProductImagesBulkPage() {
       <PageHeader
         icon={<PictureOutlined />}
         title="Tải ảnh sản phẩm hàng loạt"
+        description={
+          <>
+            Tên tệp = mã hoặc tên sản phẩm
+            <InfoTip>
+              <p>
+                Một ảnh cho mỗi mặt hàng: đặt tên tệp bằng <b>mã sản phẩm</b> (
+                <code>TH0019.jpg</code>) hoặc <b>đúng tên sản phẩm</b> (
+                <code>Amlodipin 5mg.jpg</code>).
+              </p>
+              <p>
+                Nhiều ảnh cho một mặt hàng: thêm số ở cuối (<code>TH0019-2.jpg</code>). Ảnh đầu tiên
+                là ảnh chính.
+              </p>
+              <p>
+                JPG, PNG, WEBP tối đa 15 MB; phần mềm tự thu nhỏ và xóa thông tin vị trí trước khi
+                lưu.
+              </p>
+            </InfoTip>
+          </>
+        }
         extra={
           <Space wrap>
             <Button
@@ -200,23 +221,6 @@ export function ProductImagesBulkPage() {
         }
       />
 
-      <Alert
-        type="info"
-        showIcon
-        title="Cách đặt tên tệp"
-        description={
-          <>
-            Một ảnh cho mỗi mặt hàng: đặt tên tệp bằng <b>mã sản phẩm</b> — ví dụ{" "}
-            <code>TH0019.jpg</code> — hoặc bằng <b>đúng tên sản phẩm</b> —{" "}
-            <code>Amlodipin 5mg.jpg</code>. Muốn nhiều ảnh cho cùng một mặt hàng thì thêm số ở cuối:{" "}
-            <code>TH0019-2.jpg</code>, <code>TH0019-3.jpg</code>. Nhận JPG, PNG, WEBP tối đa 15 MB
-            mỗi ảnh; phần mềm tự thu nhỏ và xóa thông tin vị trí trong ảnh trước khi lưu. Ảnh đầu
-            tiên của mỗi mặt hàng trở thành ảnh chính.
-          </>
-        }
-        className="image-alert"
-      />
-
       {products.isLoading ? <Skeleton active /> : null}
       {products.isError ? (
         <Alert
@@ -229,8 +233,7 @@ export function ProductImagesBulkPage() {
 
       {products.data ? (
         <p className="image-rules">
-          Danh mục có {products.data.length} mặt hàng đang kinh doanh, trong đó{" "}
-          <b>{withoutImage}</b> mặt hàng chưa có ảnh nào.
+          <b>{withoutImage}</b>/{products.data.length} mặt hàng chưa có ảnh
         </p>
       ) : null}
 
@@ -240,7 +243,7 @@ export function ProductImagesBulkPage() {
         disabled={running}
         onChange={(event) => setDirectory(event.target.checked)}
       >
-        Chọn nguyên một thư mục ảnh (bỏ dấu nếu muốn chọn từng tệp)
+        Chọn cả thư mục
       </Checkbox>
 
       <Upload.Dragger

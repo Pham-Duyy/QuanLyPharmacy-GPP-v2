@@ -3,14 +3,14 @@ import {
   ClockCircleOutlined,
   DatabaseOutlined,
   ExclamationCircleOutlined,
-  QuestionCircleOutlined,
   RightOutlined,
   WarningOutlined,
 } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
-import { Alert, Button, Card, Empty, Input, Popover, Segmented, Skeleton, Table, Tag } from "antd";
+import { Alert, Button, Card, Empty, Input, Segmented, Skeleton, Table, Tag } from "antd";
 import { useState, type ReactNode } from "react";
 import { formatNumber } from "../../ui/format.js";
+import { InfoTip } from "../../ui/InfoTip.js";
 import { StatCard, StatGrid } from "../../ui/StatCard.js";
 import { RankBars } from "../analytics/AnalysisCharts.js";
 import {
@@ -85,15 +85,6 @@ const LEVEL_COLORS: Record<ExpiryLevel, string> = {
 };
 
 // --- Khung dùng chung -------------------------------------------------------------------------
-
-/** Biểu tượng "?" mở giải thích cách tính: giữ màn hình ít chữ. */
-export function InfoTip({ children }: { children: ReactNode }) {
-  return (
-    <Popover content={<div className="bi-info">{children}</div>} trigger={["hover", "click"]}>
-      <QuestionCircleOutlined className="bi-info-icon" aria-label="Cách đọc số liệu" />
-    </Popover>
-  );
-}
 
 /** Khung chung của mỗi khối: tiêu đề ngắn, "?" giải thích, thao tác bên phải. */
 export function Panel({

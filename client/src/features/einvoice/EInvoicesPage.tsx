@@ -180,7 +180,7 @@ function ConfigCard({ config, canManage }: { config: EInvoiceConfig; canManage: 
         <Form.Item
           name="environment"
           label="Môi trường"
-          extra="Chạy thử ở môi trường kiểm thử của MISA trước khi phát hành thật."
+          tooltip="Chạy thử ở môi trường kiểm thử của MISA trước khi phát hành thật."
         >
           <Segmented
             options={[
@@ -200,28 +200,20 @@ function ConfigCard({ config, canManage }: { config: EInvoiceConfig; canManage: 
           <Form.Item
             name="invSeries"
             label="Ký hiệu hóa đơn máy tính tiền"
-            extra="Đã đăng ký với cơ quan thuế, ký tự thứ 4 là M."
+            tooltip="Đã đăng ký với cơ quan thuế, ký tự thứ 4 là M."
             rules={[{ pattern: /^[1-9][CK]\d{2}M[A-Za-z]{2}$/, message: "Dạng 1C26MAB" }]}
           >
             <Input placeholder="1C26MAB" maxLength={7} style={{ textTransform: "uppercase" }} />
           </Form.Item>
-          <Form.Item name="appId" label="AppID" extra="Chuỗi MISA cấp cho phần mềm tích hợp.">
+          <Form.Item name="appId" label="AppID" tooltip="Chuỗi MISA cấp cho phần mềm tích hợp.">
             <Input maxLength={200} />
           </Form.Item>
           <Form.Item name="username" label="Tài khoản MISA meInvoice">
             <Input maxLength={200} autoComplete="off" />
           </Form.Item>
-          <Form.Item
-            name="password"
-            label="Mật khẩu"
-            extra={
-              config.hasPassword
-                ? "Đã lưu một mật khẩu. Để trống nếu không đổi."
-                : "Chưa có mật khẩu nào được lưu."
-            }
-          >
+          <Form.Item name="password" label="Mật khẩu">
             <Input.Password
-              placeholder={config.hasPassword ? "••••••••" : "Nhập mật khẩu"}
+              placeholder={config.hasPassword ? "Đã lưu · để trống nếu không đổi" : "Nhập mật khẩu"}
               maxLength={200}
               autoComplete="new-password"
             />

@@ -237,7 +237,10 @@ export function ControlledDrugsPage() {
       ) : null}
 
       {products.data && products.data.length === 0 ? (
-        <Empty description="Nhà thuốc chưa có thuốc nào thuộc nhóm kiểm soát đặc biệt. Đánh dấu ở danh mục Thuốc & sản phẩm nếu có kinh doanh nhóm này." />
+        <Empty
+          image={Empty.PRESENTED_IMAGE_SIMPLE}
+          description="Chưa có thuốc kiểm soát đặc biệt (đánh dấu ở Thuốc & sản phẩm)"
+        />
       ) : null}
 
       {products.data && products.data.length > 0 ? (
@@ -312,7 +315,14 @@ export function ControlledDrugsPage() {
                 columns={columns}
                 scroll={{ x: 1000 }}
                 pagination={product.entries.length > 25 ? { pageSize: 25, size: "small" } : false}
-                locale={{ emptyText: "Kỳ này không có phát sinh. Số dư mang sang giữ nguyên." }}
+                locale={{
+                  emptyText: (
+                    <Empty
+                      image={Empty.PRESENTED_IMAGE_SIMPLE}
+                      description="Kỳ này không phát sinh"
+                    />
+                  ),
+                }}
                 summary={() => (
                   <Table.Summary fixed>
                     <Table.Summary.Row>
