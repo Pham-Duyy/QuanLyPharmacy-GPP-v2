@@ -303,3 +303,19 @@ Tại sao chặn tồn an toàn ≤ nhu cầu P: thuốc vừa hết hàng có s
 
 Giới hạn: tệp tồn kho chỉ là ảnh chụp hiện tại nên chưa mô phỏng lại được "nếu đặt theo gợi ý thì có hết hàng không" trên quá khứ; nguồn PostgreSQL (bước 5.5) có lịch sử nhập để đo.
 
+## Chuyển hàng giữa cửa hàng trước khi mua (Phase 5, bước 5.3)
+
+Cùng mã `reorder.py`, cùng lệnh `python main.py reorder`. Mỗi dòng gợi ý có thêm `transfers`, `transfer_quantity`, `action` (`transfer` / `transfer_and_order` / `order`); mỗi phạm vi có `transfers` (chuyến hàng đi và đến cửa hàng đó), `order_lines`, `order_value` (chỉ phần phải mua), `transfer_value` (tiền hàng khỏi phải mua, theo giá nhập).
+
+| Quy tắc | Lý do |
+|---|---|
+| Phần chuyển được = tồn dùng được − mức cần có của **chính** cửa hàng gửi (cùng công thức bước 5.2) | Không lấy hàng của nơi này để rồi nơi đó lại phải đặt mua |
+| Nơi thiếu gấp nhất được chia trước (hết hàng → hết trước khi hàng về → dưới tối thiểu → bổ sung), lấy từ nơi thừa nhiều nhất | Hàng ít thì ưu tiên chỗ sắp mất khách |
+| Chuyển tròn lên phần thiếu nếu nơi gửi đủ | Không để lại 0,7 viên rồi đi mua 1 viên |
+| Mỗi chuyến phải bù ít nhất 20% lượng thiếu (`TRANSFER_MIN_SHARE`) | Ít quá không đáng một chuyến |
+| Chỉ chuyển giữa các cửa hàng có trong tệp bán | Mã chỉ có trong tệp tồn thường là gõ nhầm (cảnh báo `unknown_store`), không phải kho thật |
+
+Đo trên dữ liệu mẫu (30/10 22:00): trước bước 5.3 phải mua 10 dòng, 15,2 triệu đ; sau khi chuyển trước: 9 chuyến 10,7 triệu đ, chỉ còn mua 4 dòng 4,6 triệu đ (giảm 70% tiền mua mới). Ví dụ CH02 hết Amlodipin trong khi CH03 thừa: chuyển 2.542 viên thay vì mua.
+
+Chưa xét: chi phí, quãng đường của chuyến chuyển; lô cận hạn ở nơi bán chậm chuyển sang nơi bán nhanh (bước 2.4 mới chỉ khuyên làm tay).
+

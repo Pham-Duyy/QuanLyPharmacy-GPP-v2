@@ -11,6 +11,10 @@ Cho từng thuốc ở từng cửa hàng:
     tồn dùng được   = tồn bán được − phần các lô sẽ hết hạn trước khi bán kịp (FEFO theo dự báo)
     số đặt          = mức cần có − tồn dùng được, làm tròn lên theo quy cách (pack_size)
 
+Chuyển hàng trước khi mua (bước 5.3): cửa hàng nào có tồn dùng được vượt mức cần có của CHÍNH
+nó thì phần vượt chuyển được. Nơi thiếu gấp nhất được chia trước, từ nơi thừa nhiều nhất; phần
+còn thiếu mới đặt mua. Mỗi lần chuyển phải bù ít nhất TRANSFER_MIN_SHARE lượng thiếu.
+
 Thuốc chưa có dự báo (ít lịch sử) dùng tốc độ bán 30 ngày và sai số mặc định. Không tạo chứng
 từ nào: chỉ gợi ý để người đặt hàng xem, sửa. Mọi phép tính là tất định, không gọi LLM.
 """
@@ -31,6 +35,7 @@ from app.config import (
     REORDER_FALLBACK_ERROR,
     REORDER_MAX_DAYS,
     SAFETY_MAX_SHARE,
+    TRANSFER_MIN_SHARE,
 )
 
 from .classify import service_level
@@ -137,6 +142,8 @@ def reorder_plan(
     }
 
     items = []
+    # Phần tồn vượt mức cần có của chính cửa hàng: chuyển được cho cửa hàng khác (bước 5.3).
+    excess: dict[tuple[str, str], float] = {}
     for row in table.itertuples(index=False):
         key = (row.store_code, row.medicine_code)
         values = points.get(key)
@@ -172,8 +179,9 @@ def reorder_plan(
         usable = max(stock - expiring, 0.0)
         need = target - usable
         if need <= 0 or (demand <= 0 and minimum <= 0):
+            if usable - target >= 1:
+                excess[key] = usable - target
             continue
-        order = math.ceil(round(need, 6) / pack) * pack
 
         projected = stockouts.get(key)
         days_until = projected["days_until_stockout"] if projected else (0 if stock <= 0 else None)
@@ -212,10 +220,8 @@ def reorder_plan(
                 "safety_stock": round(safety, 1),
                 "target_quantity": round(target, 1),
                 "pack_size": pack,
-                "order_quantity": int(order),
-                "order_packs": int(order // pack),
+                "need_quantity": round(need, 2),
                 "unit_cost": None if unit_cost is None else round(unit_cost, 2),
-                "order_value": None if unit_cost is None else round(order * unit_cost),
                 "supplier": supplier,
                 "days_until_stockout": days_until,
                 "stockout_date": projected["stockout_date"] if projected else None,
@@ -229,17 +235,79 @@ def reorder_plan(
         key=lambda item: (
             urgency[item["reason"]],
             item["days_until_stockout"] if item["days_until_stockout"] is not None else 999,
-            -(item["order_value"] or 0),
+            -(item["need_quantity"] * (item["unit_cost"] or 0)),
         )
     )
+    # Chỉ chuyển giữa các cửa hàng có bán hàng: mã chỉ có trong tệp tồn thường là gõ nhầm (unknown_store).
+    selling = set(sales["store_code"].dropna())
+    transfers = _allocate(items, {key: value for key, value in excess.items() if key[0] in selling})
     stores = sorted({row.store_code for row in table.itertuples(index=False)})
-    return {scope: _scope(items if scope == "ALL" else [i for i in items if i["store_code"] == scope], scope) for scope in ["ALL", *stores]}
+    return {
+        scope: _scope(
+            items if scope == "ALL" else [item for item in items if item["store_code"] == scope],
+            transfers if scope == "ALL" else [move for move in transfers if scope in (move["from_store"], move["to_store"])],
+            scope,
+        )
+        for scope in ["ALL", *stores]
+    }
 
 
-def _scope(items: list[dict], scope: str) -> dict:
-    values = [item["order_value"] for item in items if item["order_value"] is not None]
-    by_supplier: dict[str, dict] = {}
+def _allocate(items: list[dict], excess: dict[tuple[str, str], float]) -> list[dict]:
+    """Chia phần tồn thừa cho nơi thiếu (đã xếp gấp trước), rồi tính số còn phải mua.
+
+    Ghi vào từng dòng: transfers, transfer_quantity, order_quantity, order_packs, order_value, action.
+    """
+    moves = []
     for item in items:
+        need = item["need_quantity"]
+        remaining = need
+        donors = sorted(
+            ((store, available) for (store, code), available in excess.items() if code == item["medicine_code"] and store != item["store_code"]),
+            key=lambda donor: (-donor[1], donor[0]),
+        )
+        incoming = []
+        for store, available in donors:
+            if remaining <= 0:
+                break
+            # Chuyển tròn lên phần thiếu nếu nơi gửi đủ: không để lại 0,7 viên rồi đi mua 1 viên.
+            quantity = min(math.ceil(round(remaining, 6)), math.floor(available))
+            if quantity < 1 or quantity < TRANSFER_MIN_SHARE * need:
+                continue
+            excess[(store, item["medicine_code"])] = available - quantity
+            remaining -= quantity
+            incoming.append({"from_store": store, "quantity": quantity})
+            moves.append(
+                {
+                    "from_store": store,
+                    "to_store": item["store_code"],
+                    "medicine_code": item["medicine_code"],
+                    "medicine_name": item["medicine_name"],
+                    "unit": item["unit"],
+                    "quantity": quantity,
+                    "value": None if item["unit_cost"] is None else round(quantity * item["unit_cost"]),
+                }
+            )
+        pack = item["pack_size"]
+        order = math.ceil(round(remaining, 6) / pack) * pack if remaining > 1e-6 else 0
+        transferred = sum(move["quantity"] for move in incoming)
+        item.update(
+            {
+                "transfers": incoming,
+                "transfer_quantity": transferred,
+                "order_quantity": int(order),
+                "order_packs": int(order // pack),
+                "order_value": None if item["unit_cost"] is None else round(order * item["unit_cost"]),
+                "action": "transfer" if order == 0 else ("transfer_and_order" if transferred else "order"),
+            }
+        )
+    return moves
+
+
+def _scope(items: list[dict], transfers: list[dict], scope: str) -> dict:
+    buying = [item for item in items if item["order_quantity"] > 0]
+    values = [item["order_value"] for item in buying if item["order_value"] is not None]
+    by_supplier: dict[str, dict] = {}
+    for item in buying:
         name = item["supplier"] or "Chưa rõ nhà cung cấp"
         entry = by_supplier.setdefault(name, {"supplier": name, "lines": 0, "order_value": 0})
         entry["lines"] += 1
@@ -249,8 +317,13 @@ def _scope(items: list[dict], scope: str) -> dict:
         "store": scope,
         "cover_days": REORDER_COVER_DAYS,
         "lines": len(items),
+        "order_lines": len(buying),
         "order_value": round(sum(values)),
-        "missing_cost": len(items) - len(values),
+        "missing_cost": len(buying) - len(values),
+        # Chuyển hàng: tiền hàng khỏi phải mua (theo giá nhập), cả chiều nhận và chiều gửi của cửa hàng này.
+        "transfer_lines": len(transfers),
+        "transfer_value": round(sum(move["value"] or 0 for move in transfers)),
+        "transfers": transfers,
         "by_reason": {
             reason: {"label": label, "lines": sum(1 for item in items if item["reason"] == reason)}
             for reason, label in REASON_LABELS.items()

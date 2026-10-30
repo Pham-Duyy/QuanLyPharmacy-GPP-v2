@@ -272,7 +272,10 @@ def command_reorder(args: argparse.Namespace) -> int:
 
     where = "toàn chuỗi" if scope == "ALL" else f"cửa hàng {scope}"
     print(f"\nGợi ý đặt hàng {where}: đủ bán {result['cover_days']} ngày sau khi hàng về, dữ liệu đến {as_of:%d/%m/%Y %H:%M}")
-    print(f"{result['lines']} dòng, tổng {_money(result['order_value'])} theo giá nhập gần nhất")
+    print(
+        f"{result['lines']} dòng: mua {result['order_lines']} dòng {_money(result['order_value'])}, "
+        f"chuyển {result['transfer_lines']} chuyến {_money(result['transfer_value'])} (theo giá nhập gần nhất)"
+    )
     for part in result["by_reason"].values():
         if part["lines"]:
             print(f"  {part['label']:<28} {part['lines']:>3}")
@@ -282,12 +285,20 @@ def command_reorder(args: argparse.Namespace) -> int:
         print(
             f"  {item['store_code']} {item['cell']:<3} {item['medicine_name'] or item['medicine_code']:<30}"
             f" tồn {_number(item['usable_quantity']):>6}  cần {_number(item['target_quantity']):>7}"
-            f"  đặt {_number(item['order_quantity']):>6} {item['unit'] or ''}  {_money(item['order_value']):>14}"
+            f"  chuyển {_number(item['transfer_quantity']):>6}  mua {_number(item['order_quantity']):>6} {item['unit'] or ''}"
+            f"  {_money(item['order_value']):>14}"
             f"  hết sau {days:>8}  {REASON_LABELS[item['reason']]}"
         )
     if result["lines"] > args.top:
         print(f"  … và {result['lines'] - args.top} dòng khác")
-    print("\nTheo nhà cung cấp:")
+    if result["transfers"]:
+        print("\nChuyển hàng giữa cửa hàng (trước khi mua):")
+        for move in result["transfers"]:
+            print(
+                f"  {move['from_store']} → {move['to_store']}  {move['medicine_name'] or move['medicine_code']:<30}"
+                f" {_number(move['quantity']):>6} {move['unit'] or ''}  {_money(move['value']):>14}"
+            )
+    print("\nMua theo nhà cung cấp:")
     for entry in result["by_supplier"]:
         print(f"  {entry['supplier']:<30} {entry['lines']:>3} dòng  {_money(entry['order_value']):>16}")
     return 0

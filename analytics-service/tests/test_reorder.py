@@ -215,3 +215,62 @@ def test_catalog_warnings_for_new_columns(tmp_path):
     assert result.rows_valid == 2  # chỉ cảnh báo, không loại dòng
     assert sorted(issue.code for issue in result.issues) == ["invalid_pack_size", "lead_time_out_of_range"]
     assert result.data.set_index("medicine_code").at["B1", "pack_size"] == 10
+
+
+# --- Chuyển hàng trước khi mua (bước 5.3) -----------------------------------------------------
+# Hai cửa hàng cùng bán A 10/ngày, sai số 10%, ô AX: mức cần có mỗi nơi ≈ 110,4.
+
+
+def two_stores(donor_stock: float, *, extra_rows=(), extra_lots=(), stores=("CH01", "CH02")):
+    rows = [row for store in stores for row in daily_sales("A", 10, store=store)] + list(extra_rows)
+    inventory = [lot("A", donor_stock, store="CH02", supplier="NCC Hai")] + list(extra_lots)
+    cells = classes({(store, "A"): "AX" for store in stores})
+    fc = forecast({(store, "A"): (10, 0.10) for store in stores})
+    return plan(rows, inventory, None, fc, cells)
+
+
+def test_transfer_covers_the_whole_need():
+    result = two_stores(300)  # CH02 thừa 300 − 110,4 = 189,6
+    row = item(result, "A")
+    assert row["need_quantity"] == pytest.approx(110.38, abs=0.01)
+    # Chuyển tròn lên 111 (nơi gửi đủ): không còn phải mua lẻ 0,4 viên.
+    assert row["transfers"] == [{"from_store": "CH02", "quantity": 111}]
+    assert (row["order_quantity"], row["order_value"], row["action"]) == (0, 0, "transfer")
+    assert result["ALL"]["transfers"][0] | {"value": None} == {
+        "from_store": "CH02", "to_store": "CH01", "medicine_code": "A", "medicine_name": "Thuốc A",
+        "unit": "Viên", "quantity": 111, "value": None,
+    }
+    assert (result["ALL"]["order_lines"], result["ALL"]["transfer_lines"]) == (0, 1)
+    # Cửa hàng gửi thấy chuyến hàng đi trong phạm vi của mình.
+    assert result["CH02"]["transfer_lines"] == 1 and result["CH02"]["items"] == []
+
+
+def test_partial_transfer_then_buy_the_rest():
+    row = item(two_stores(160), "A")  # CH02 thừa ≈ 49,6 → chuyển 49
+    assert row["transfers"] == [{"from_store": "CH02", "quantity": 49}]
+    assert (row["order_quantity"], row["action"]) == (62, "transfer_and_order")  # ⌈110,4 − 49⌉
+
+
+def test_small_excess_is_not_worth_a_trip():
+    row = item(two_stores(130), "A")  # thừa ≈ 19,6 < 20% × 110,4
+    assert row["transfers"] == [] and row["action"] == "order" and row["order_quantity"] == 111
+
+
+def test_most_urgent_store_is_served_first():
+    # CH01 hết hàng, CH03 còn 60 (cần thêm ≈ 50,4); CH02 chỉ thừa ≈ 120: đủ cho CH01, phần còn lại cho CH03.
+    result = two_stores(
+        230,
+        extra_lots=[lot("A", 60, store="CH03")],
+        stores=("CH01", "CH02", "CH03"),
+    )
+    first, second = item(result, "A", "CH01"), item(result, "A", "CH03")
+    assert first["transfers"] == [{"from_store": "CH02", "quantity": 111}]
+    assert second["transfers"] == []  # còn 8,6 < 20% của 50,4
+    assert second["order_quantity"] == 51
+
+
+def test_store_only_in_inventory_file_is_not_a_donor():
+    # CH09 chỉ có trong tệp tồn (mã gõ nhầm), không bán gì: không được dùng để chuyển.
+    result = two_stores(0, extra_lots=[lot("A", 500, store="CH09")])
+    assert item(result, "A")["transfers"] == []
+    assert item(result, "A")["order_quantity"] == 111

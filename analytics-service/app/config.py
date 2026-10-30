@@ -199,3 +199,8 @@ REORDER_MAX_DAYS = {"C": 30}
 # Tồn an toàn không vượt ngần này lần nhu cầu của kỳ: thuốc vừa hết hàng có số bán tụt về 0 (nhu cầu bị
 # "che"), backtest đo ra sai số rất cao và đẩy tồn an toàn lên quá mức.
 SAFETY_MAX_SHARE = 1.0
+
+# --- Chuyển hàng giữa cửa hàng trước khi mua (Phase 5, bước 5.3) ------------------------
+
+# Một lần chuyển phải bù được ít nhất ngần này phần của lượng đang thiếu, không thì không đáng một chuyến.
+TRANSFER_MIN_SHARE = 0.2
