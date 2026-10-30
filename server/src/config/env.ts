@@ -35,6 +35,12 @@ const envSchema = z.object({
    * công bố; đặt biến này để trỏ sang máy chủ giả khi chạy test.
    */
   EPRESCRIPTION_BASE_URL: z.string().url().optional(),
+  /**
+   * Khóa Claude API cho trợ lý phân tích (contract §20). Bỏ trống thì trợ lý
+   * vẫn chạy bằng luật, không gửi dữ liệu nào ra ngoài.
+   */
+  ANTHROPIC_API_KEY: z.string().min(1).optional(),
+  ANALYTICS_AI_MODEL: z.string().min(1).default("claude-opus-5-5"),
 });
 
 const parsed = envSchema.safeParse(process.env);

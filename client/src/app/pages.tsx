@@ -14,6 +14,7 @@ import {
   DashboardOutlined,
   DatabaseOutlined,
   ExperimentOutlined,
+  RobotOutlined,
   FieldTimeOutlined,
   FileDoneOutlined,
   FileExcelOutlined,
@@ -99,6 +100,13 @@ export const PAGES = [
     icon: <BarChartOutlined />,
     permission: "report.sales",
     keywords: "doanh thu loi nhuan lai gop",
+  },
+  {
+    path: "/tro-ly-phan-tich",
+    label: "Trợ lý phân tích",
+    icon: <RobotOutlined />,
+    permission: ["report.sales", "report.chain"],
+    keywords: "ai phan tich du lieu bieu do xu huong csv hoi dap chuoi cua hang chi nhanh",
   },
   {
     path: "/tong-ket-thang",

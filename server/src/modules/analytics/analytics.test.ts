@@ -1,0 +1,346 @@
+import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { prisma } from "../../db/prisma.js";
+import {
+  api,
+  authHeaders,
+  login,
+  seedFixture,
+  truncateAll,
+  type Fixture,
+} from "../../test/helpers.js";
+import { executePlan } from "./execute.js";
+import { buildCharts, buildFacts } from "./insights.js";
+import { unverifiedPercents } from "./llm.js";
+import { detectNumberStyle, parseCsv, parseNumber, parseTemporal } from "./parse.js";
+import { planWithRules, validatePlan } from "./planner.js";
+import { profileDataset, toSummary } from "./summarize.js";
+import type { AnalysisPlan } from "./types.js";
+
+const QUESTION =
+  "Phân tích xu hướng doanh thu 12 tháng gần nhất và cho biết chi nhánh nào giảm mạnh nhất.";
+
+/** 13 tháng, ba chi nhánh: A tăng đều, B giảm mạnh, C đi ngang. */
+function revenueCsv(): string {
+  const lines = ["thang;chi_nhanh;doanh_thu"];
+  for (let month = 0; month < 13; month += 1) {
+    const key = new Date(Date.UTC(2025, month, 1)).toISOString().slice(0, 7);
+    lines.push(`${key};Chi nhánh A;${(100 + month * 10).toLocaleString("vi-VN")}.000.000`);
+    lines.push(`${key};Chi nhánh B;${(200 - month * 8).toLocaleString("vi-VN")}.000.000`);
+    lines.push(`${key};Chi nhánh C;150.000.000`);
+  }
+  return lines.join("\r\n");
+}
+
+function analyse(csv: string, question: string) {
+  const typed = profileDataset(parseCsv(csv, "doanh_thu.csv"));
+  const checked = validatePlan(planWithRules(toSummary(typed), question), typed);
+  return { typed, ...executePlan(checked.plan, typed) };
+}
+
+describe("đọc dữ liệu", () => {
+  it("đọc CSV có BOM, dấu chấm phẩy, ô ngoặc kép và tiêu đề trùng", () => {
+    const dataset = parseCsv('﻿ten;ten;ghi_chu\r\n"Nguyễn ""A""";1;"có; dấu"\r\n\r\nB;2;', "x.csv");
+    expect(dataset.columns).toEqual(["ten", "ten_2", "ghi_chu"]);
+    expect(dataset.rows).toEqual([
+      ['Nguyễn "A"', "1", "có; dấu"],
+      ["B", "2", null],
+    ]);
+  });
+
+  it("nhận cách viết số kiểu Việt Nam và quốc tế", () => {
+    expect(detectNumberStyle(["1.234.567", "2.000"])).toBe("vn");
+    expect(parseNumber("1.234.567,5 đ", "vn")).toBe(1234567.5);
+    expect(detectNumberStyle(["1,234,567.5"])).toBe("intl");
+    expect(parseNumber("1,234,567.5", "intl")).toBe(1234567.5);
+    expect(detectNumberStyle(["1.500", "2.250"])).toBe("vn");
+    expect(parseNumber("12,5", "plain")).toBe(12.5);
+    expect(parseNumber("(300)", "plain")).toBe(-300);
+    expect(parseNumber("abc", "plain")).toBeNull();
+  });
+
+  it("nhận các cách ghi thời gian hay gặp", () => {
+    const iso = (raw: string) => parseTemporal(raw)?.at.toISOString().slice(0, 16);
+    expect(iso("2025-03-01")).toBe("2025-03-01T00:00");
+    expect(iso("01/03/2025 08:30")).toBe("2025-03-01T08:30");
+    expect(iso("03/2025")).toBe("2025-03-01T00:00");
+    expect(iso("Tháng 3/2025")).toBe("2025-03-01T00:00");
+    expect(iso("Q2/2025")).toBe("2025-04-01T00:00");
+    expect(parseTemporal("31/02/2025")).toBeNull();
+    expect(parseTemporal("12345")).toBeNull();
+  });
+
+  it("tóm tắt kiểu từng cột, cột mã số không bị coi là số đo", () => {
+    const csv = "ma_cn,thang,doanh_thu,ten\n1,2025-01,100,An\n2,2025-02,200,Bình\n";
+    const summary = toSummary(profileDataset(parseCsv(csv, "x.csv")));
+    expect(summary.columns.map((column) => [column.name, column.kind])).toEqual([
+      ["ma_cn", "categorical"],
+      ["thang", "temporal"],
+      ["doanh_thu", "numeric"],
+      ["ten", "categorical"],
+    ]);
+    expect(summary.columns[1]!.temporalPrecision).toBe("month");
+  });
+});
+
+describe("lập kế hoạch bằng luật", () => {
+  it("hiểu câu hỏi mẫu: 12 tháng theo tháng, nhóm theo chi nhánh", () => {
+    const { plan } = analyse(revenueCsv(), QUESTION);
+    expect(plan.measure).toMatchObject({
+      column: "doanh_thu",
+      aggregate: "sum",
+      label: "Doanh thu",
+    });
+    expect(plan.time).toEqual({ column: "thang", grain: "month", lastPeriods: 12 });
+    expect(plan.groupBy?.column).toBe("chi_nhanh");
+    expect(plan.focus).toBe("change");
+  });
+
+  it("lọc theo giá trị được nhắc tên trong câu hỏi", () => {
+    const { plan } = analyse(revenueCsv(), "Doanh thu theo quý của chi nhánh B");
+    expect(plan.filters).toEqual([
+      { column: "chi_nhanh", operator: "in", values: ["Chi nhánh B"] },
+    ]);
+    expect(plan.time?.grain).toBe("quarter");
+  });
+
+  it("sửa kế hoạch sai cột thay vì chạy mù", () => {
+    const typed = profileDataset(parseCsv(revenueCsv(), "x.csv"));
+    const bad: AnalysisPlan = {
+      intent: "x",
+      measure: { column: "chi_nhanh", aggregate: "sum", label: "" },
+      time: { column: "doanh_thu", grain: "minute", lastPeriods: 3 },
+      groupBy: { column: "thang", topN: 50 },
+      filters: [{ column: "khong_co", operator: "eq", values: ["1"] }],
+      focus: "trend",
+    };
+    const { plan, warnings } = validatePlan(bad, typed);
+    expect(plan.measure).toEqual({ column: null, aggregate: "count", label: "Số dòng" });
+    expect(plan.time).toBeNull();
+    expect(plan.groupBy).toBeNull();
+    expect(plan.filters).toEqual([]);
+    expect(warnings).toHaveLength(4);
+  });
+
+  it("không cho chia nhỏ hơn độ chi tiết của dữ liệu", () => {
+    const typed = profileDataset(parseCsv(revenueCsv(), "x.csv"));
+    const plan = planWithRules(toSummary(typed), "");
+    const { plan: checked } = validatePlan(
+      { ...plan, time: { column: "thang", grain: "day", lastPeriods: null } },
+      typed,
+    );
+    expect(checked.time?.grain).toBe("month");
+  });
+});
+
+describe("tính toán và nhận xét", () => {
+  it("lấy đúng 12 kỳ gần nhất và tìm ra chi nhánh giảm mạnh nhất", () => {
+    const { result, plan } = analyse(revenueCsv(), QUESTION);
+    expect(result.periods).toHaveLength(12);
+    expect(result.periods[0]).toBe("2025-02");
+    expect(result.periods.at(-1)).toBe("2026-01");
+
+    const byName = new Map(result.groups.map((group) => [group.group, group]));
+    // B: 192 triệu (tháng 2/2025) → 104 triệu (tháng 1/2026).
+    expect(byName.get("Chi nhánh B")).toMatchObject({
+      first: 192e6,
+      last: 104e6,
+      changePercent: -45.8,
+    });
+    expect(byName.get("Chi nhánh A")).toMatchObject({
+      first: 110e6,
+      last: 220e6,
+      changePercent: 100,
+    });
+    expect(byName.get("Chi nhánh C")!.changePercent).toBe(0);
+    expect(result.overall.total).toBe(result.groups.reduce((sum, group) => sum + group.total, 0));
+
+    const facts = buildFacts(plan, result, "currency");
+    const decline = facts.find((fact) => fact.kind === "decline")!;
+    expect(decline.text).toContain("Chi nhánh B");
+    expect(decline.text).toContain("−45,8%");
+    expect(buildCharts(plan, result, "currency").map((chart) => chart.kind)).toEqual([
+      "line",
+      "line",
+      "bar",
+      "change",
+    ]);
+  });
+
+  it("kỳ đang diễn ra vẫn vẽ nhưng không tính vào mức tăng/giảm", () => {
+    const typed = profileDataset(parseCsv(revenueCsv(), "x.csv"));
+    const { plan } = validatePlan(planWithRules(toSummary(typed), QUESTION), typed);
+    const { result, warnings } = executePlan(plan, typed, {
+      now: new Date(Date.UTC(2026, 0, 15, 10)),
+    });
+    expect(result.periods.at(-1)).toBe("2026-01");
+    expect(result.groups.find((group) => group.group === "Chi nhánh B")!.last).toBe(112e6);
+    expect(warnings.some((warning) => warning.includes("01/2026"))).toBe(true);
+  });
+
+  it("gộp các nhóm ngoài topN vào Khác mà tổng không đổi", () => {
+    const lines = ["cua_hang,doanh_thu"];
+    for (let store = 1; store <= 12; store += 1) lines.push(`CH${store},${store * 10}`);
+    const typed = profileDataset(parseCsv(lines.join("\n"), "x.csv"));
+    const plan: AnalysisPlan = {
+      intent: "So sánh cửa hàng",
+      measure: { column: "doanh_thu", aggregate: "sum", label: "Doanh thu" },
+      time: null,
+      groupBy: { column: "cua_hang", topN: 3 },
+      filters: [],
+      focus: "compare",
+    };
+    const { result } = executePlan(plan, typed);
+    expect(result.groups.map((group) => group.group)).toEqual(["CH12", "CH11", "CH10", "Khác"]);
+    expect(result.groups.at(-1)!.total).toBe(450);
+    expect(result.otherGroupCount).toBe(9);
+    expect(result.groups.reduce((sum, group) => sum + group.total, 0)).toBe(780);
+  });
+
+  it("bắt phần trăm AI tự bịa không có trong bảng tính", () => {
+    const { result, plan } = analyse(revenueCsv(), QUESTION);
+    const facts = buildFacts(plan, result, "currency");
+    const honest = {
+      headline: "Chi nhánh B giảm 45,8%.",
+      findings: ["A tăng +100%"],
+      recommendations: [],
+    };
+    expect(unverifiedPercents(honest, facts, result)).toEqual([]);
+    const invented = { headline: "Chi nhánh B giảm 37%.", findings: [], recommendations: [] };
+    expect(unverifiedPercents(invented, facts, result)).toEqual(["37%"]);
+  });
+});
+
+describe("API trợ lý phân tích", () => {
+  let fixture: Fixture;
+  let adminToken: string;
+
+  beforeEach(async () => {
+    await truncateAll();
+    fixture = await seedFixture();
+    adminToken = (await login("admin")).token;
+  });
+
+  afterAll(async () => {
+    await truncateAll();
+  });
+
+  it("phân tích tệp CSV tải lên, không có khóa AI thì dùng luật", async () => {
+    const response = await api()
+      .post("/api/v1/analytics/csv")
+      .set(authHeaders(adminToken))
+      .field("question", QUESTION)
+      .attach("file", Buffer.from(revenueCsv(), "utf8"), "doanh_thu.csv");
+
+    expect(response.status).toBe(200);
+    const data = response.body.data;
+    expect(data.planSource).toBe("rules");
+    expect(data.narrativeSource).toBe("rules");
+    expect(data.valueFormat).toBe("currency");
+    expect(data.narrative.headline).toContain("Chi nhánh B");
+    expect(data.charts).toHaveLength(4);
+    expect(data.summary.rowCount).toBe(39);
+  });
+
+  it("chạy lại theo kế hoạch gửi kèm, không lập kế hoạch lại", async () => {
+    const plan: AnalysisPlan = {
+      intent: "Doanh thu chi nhánh A",
+      measure: { column: "doanh_thu", aggregate: "sum", label: "Doanh thu" },
+      time: { column: "thang", grain: "quarter", lastPeriods: null },
+      groupBy: null,
+      filters: [{ column: "chi_nhanh", operator: "eq", values: ["chi nhánh a"] }],
+      focus: "trend",
+    };
+    const response = await api()
+      .post("/api/v1/analytics/csv")
+      .set(authHeaders(adminToken))
+      .field("plan", JSON.stringify(plan))
+      .field("narrate", "false")
+      .attach("file", Buffer.from(revenueCsv(), "utf8"), "doanh_thu.csv");
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.planSource).toBe("provided");
+    expect(response.body.data.result.rowsUsed).toBe(13);
+    expect(response.body.data.result.periods).toEqual([
+      "2025-Q1",
+      "2025-Q2",
+      "2025-Q3",
+      "2025-Q4",
+      "2026-Q1",
+    ]);
+  });
+
+  it("từ chối tệp không phải bảng dữ liệu và kế hoạch hỏng", async () => {
+    const empty = await api()
+      .post("/api/v1/analytics/csv")
+      .set(authHeaders(adminToken))
+      .attach("file", Buffer.from("chi_mot_dong\n"), "x.csv");
+    expect(empty.status).toBe(422);
+
+    const badPlan = await api()
+      .post("/api/v1/analytics/csv")
+      .set(authHeaders(adminToken))
+      .field("plan", "{khong phai json")
+      .attach("file", Buffer.from(revenueCsv()), "x.csv");
+    expect(badPlan.status).toBe(422);
+  });
+
+  it("người không có quyền báo cáo không dùng được", async () => {
+    const { token } = await login("duocsi");
+    const response = await api()
+      .post("/api/v1/analytics/chain")
+      .set(authHeaders(token, fixture.storeId))
+      .send({ question: QUESTION });
+    expect(response.status).toBe(403);
+  });
+
+  it("dữ liệu chuỗi gộp hóa đơn hoàn tất của mọi cửa hàng được xem", async () => {
+    const sold = (storeId: string, totalAmount: number, daysAgo: number, status = "COMPLETED") => {
+      const soldAt = new Date(Date.now() - daysAgo * 86_400_000);
+      return prisma.invoice.create({
+        data: {
+          storeId,
+          code: `HD-${storeId.slice(0, 4)}-${totalAmount}-${daysAgo}-${status}`,
+          sellerId: fixture.adminId,
+          soldAt,
+          businessDate: new Date(soldAt.toISOString().slice(0, 10)),
+          status,
+          subtotal: totalAmount,
+          totalAmount,
+        },
+      });
+    };
+    await sold(fixture.storeId, 300_000, 40);
+    await sold(fixture.storeId, 500_000, 2);
+    await sold(fixture.otherStoreId, 200_000, 2);
+    await sold(fixture.otherStoreId, 900_000, 2, "VOIDED");
+    // Ngoài cửa sổ 13 tháng.
+    await sold(fixture.otherStoreId, 700_000, 500);
+
+    const response = await api()
+      .post("/api/v1/analytics/chain")
+      .set(authHeaders(adminToken, fixture.storeId))
+      .send({ question: "So sánh doanh thu các cửa hàng theo tháng", window: "day" });
+
+    expect(response.status).toBe(200);
+    const data = response.body.data;
+    expect(data.summary.columns.map((column: { name: string }) => column.name)).toEqual([
+      "thoi_diem",
+      "cua_hang",
+      "doanh_thu",
+      "so_hoa_don",
+    ]);
+    expect(data.plan.groupBy.column).toBe("cua_hang");
+    expect(data.result.overall.total).toBe(1_000_000);
+    expect(data.result.groups).toHaveLength(2);
+  });
+
+  it("báo cấu hình AI cho giao diện", async () => {
+    const response = await api().get("/api/v1/analytics/config").set(authHeaders(adminToken));
+    expect(response.status).toBe(200);
+    expect(response.body.data).toEqual({
+      aiEnabled: false,
+      model: null,
+      windows: ["day", "hour", "minute"],
+    });
+  });
+});

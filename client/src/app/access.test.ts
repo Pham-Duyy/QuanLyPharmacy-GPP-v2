@@ -178,12 +178,13 @@ describe("sidebar theo quyền", () => {
     expect(visibleSidebar(ALL)).toHaveLength(9);
   });
 
-  it("nhóm Báo cáo gồm báo cáo kinh doanh và tổng kết tháng", () => {
+  it("nhóm Báo cáo gồm báo cáo kinh doanh, trợ lý phân tích và tổng kết tháng", () => {
     const reports = visibleSidebar(canFor("admin")).find(
       (entry) => entry.kind === "group" && entry.key === "reports",
     );
     expect(reports?.kind === "group" ? reports.pages.map((page) => page.path) : []).toEqual([
       "/bao-cao",
+      "/tro-ly-phan-tich",
       "/tong-ket-thang",
     ]);
   });

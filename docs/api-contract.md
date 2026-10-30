@@ -1410,15 +1410,47 @@ Tiền nhập, lãi gộp và giá trị tồn là `null` khi không có `stock.
 
 ---
 
-## 20. AI [Đã chốt – 11/10/2026: không làm]
+## 20. AI [Sửa 30/10/2026: chỉ dùng cho trợ lý phân tích]
 
-Phần mềm không dùng AI. Ngày 11/10/2026 quyết định bỏ toàn bộ kế hoạch AI trước đây: trợ lý tra cứu (P17), đọc ảnh đơn bằng OCR, AI giải thích cảnh báo, dự báo nhập hàng bằng AI. Bảng `ai_logs` và quyền `ai.use` (khai báo sẵn từ đầu, chưa từng dùng) gỡ ở migration `20261011150000_remove_ai`.
-
-Những việc từng định giao cho AI được làm theo cách tất định:
+Ngày 11/10/2026 quyết định không dùng AI. Ngày 30/10/2026 mở lại **một** chỗ: trợ lý phân tích dữ liệu kinh doanh (§20.1). Mọi nghiệp vụ dược vẫn tất định như trước:
 
 - Đơn thuốc: lấy bằng mã đơn điện tử (§12.1), gõ hoặc quét mã vạch/QR bằng máy quét hay camera; không đọc chữ trên ảnh đơn.
 - Tương tác, dị ứng, trùng hoạt chất: kiểm tra an toàn theo dữ liệu và luật (§13).
 - Gợi ý nhập hàng: đề xuất đặt hàng theo tốc độ bán và tồn tối thiểu (§10.5).
+
+Bảng `ai_logs` và quyền `ai.use` gỡ ở migration `20261011150000_remove_ai` vẫn không dùng lại: trợ lý phân tích dùng quyền báo cáo có sẵn và không lưu nhật ký AI.
+
+### 20.1. Trợ lý phân tích dữ liệu kinh doanh
+
+Người dùng hỏi bằng tiếng Việt (ví dụ "Phân tích xu hướng doanh thu 12 tháng gần nhất và cho biết chi nhánh nào giảm mạnh nhất"), hệ thống trả về biểu đồ theo thời gian, so sánh giữa các nhóm, mức tăng/giảm và nhận xét. Kiến trúc theo LIDA (Dibia, ACL 2023, [aclanthology.org/2023.acl-demo.11](https://aclanthology.org/2023.acl-demo.11.pdf)):
+
+| Bước | Làm gì | AI? |
+|---|---|---|
+| Tóm tắt (Summarizer) | Suy ra kiểu từng cột (thời gian, số, phân loại), thống kê gọn | Không |
+| Lập kế hoạch (Goal) | Câu hỏi → kế hoạch JSON: đại lượng, cột thời gian và đơn vị kỳ, số kỳ gần nhất, cột nhóm, bộ lọc | Có (luật dự phòng) |
+| Kiểm kế hoạch | Cột phải tồn tại, đúng kiểu; sai thì sửa về mặc định an toàn và ghi cảnh báo | Không |
+| Tính toán | Lọc, chia kỳ, tổng hợp, so kỳ đầu – kỳ cuối, đường xu hướng, kỳ bất thường | Không |
+| Biểu đồ (VizGenerator) | Đặc tả biểu đồ dạng dữ liệu (đường, cột xếp hạng, tăng/giảm); trình duyệt tự vẽ, không chạy mã sinh tự động | Không |
+| Nhận xét | Viết lại các sự kiện đã tính thành lời | Có (luật dự phòng) |
+| Tự kiểm | Mọi phần trăm trong nhận xét AI phải khớp số đã tính; lệch thì dùng nhận xét theo luật | Không |
+
+Quy tắc:
+
+- **AI không tự tính số.** Mọi con số trên biểu đồ, bảng và nhận xét đến từ bước tính toán.
+- **Chỉ gửi bản tóm tắt.** AI nhận bản tóm tắt cột (tên, kiểu, vài giá trị mẫu) và bảng đã tổng hợp, không nhận từng dòng dữ liệu. Không gửi thông tin khách hàng.
+- **Bật bằng cấu hình.** Chỉ gọi AI khi máy chủ có `ANTHROPIC_API_KEY`; mô hình đặt bằng `ANALYTICS_AI_MODEL` (mặc định `claude-opus-5-5`). Không có khóa hoặc AI lỗi thì cả hai bước dùng luật, kết quả vẫn trả về kèm cảnh báo.
+- **Kỳ đang diễn ra** (tháng, ngày, giờ, phút chưa kết thúc) vẫn vẽ trên biểu đồ nhưng không tính vào mức tăng/giảm.
+
+| Method | Endpoint | Mô tả | Quyền |
+|---|---|---|---|
+| GET | `/analytics/config` | `aiEnabled`, `model`, các khoảng dữ liệu chuỗi (`day`, `hour`, `minute`) | `report.sales` hoặc `report.chain` |
+| POST | `/analytics/csv` | Multipart: `file` (CSV, tối đa 5 MB, 100.000 dòng), `question`, `plan` (JSON, tùy chọn), `narrate` (`true`/`false`) | `report.sales` hoặc `report.chain` |
+| POST | `/analytics/chain` | JSON: `question`, `window` (`day` = 13 tháng theo ngày, `hour` = 7 ngày theo giờ, `minute` = 3 giờ theo phút), `plan`, `narrate` | `report.sales` hoặc `report.chain` |
+
+- Endpoint không đọc `X-Store-Id`. Nguồn chuỗi gộp hóa đơn `COMPLETED` (theo `sold_at`, giờ Việt Nam) của mọi cửa hàng đang hoạt động mà người dùng có `report.sales` hoặc `report.chain` tại đó; vai trò toàn chuỗi thấy mọi cửa hàng.
+- Gửi kèm `plan` thì bỏ qua bước lập kế hoạch (`planSource = "provided"`); giao diện dùng cách này để **tự cập nhật** biểu đồ (mỗi 15 giây với khoảng theo phút, 1 phút theo giờ, 5 phút theo ngày) mà không gọi AI. `narrate = false` thì không gọi AI viết nhận xét.
+- CSV: nhận dấu phân cách `,` `;` hoặc tab, BOM của Excel, bảng mã UTF-8 hoặc Windows-1258; số kiểu `1.234.567,5` hoặc `1,234,567.5`; thời gian kiểu `2025-03-01`, `2025-03-01 08:30`, `01/03/2025`, `03/2025`, `Tháng 3/2025`, `Q1/2025`. Tệp rỗng hoặc chỉ có tiêu đề: 422.
+- Phản hồi: `summary`, `plan`, `planSource` (`ai`/`rules`/`provided`), `columnLabels`, `valueFormat`, `result` (kỳ, chuỗi tổng, chuỗi từng nhóm, thống kê tổng và từng nhóm), `charts`, `facts`, `narrative` (`headline`, `findings`, `recommendations`), `narrativeSource` (`ai`/`rules`), `warnings`.
 
 ---
 
@@ -1611,7 +1643,7 @@ Toàn bộ P1–P17 được nhóm xác nhận ngày **12/09/2026**. Bảng dư�
 | P14 | Vai trò được bán thuốc kê đơn; cách tính hiệu lực đơn thuốc (đối chiếu quy định kê đơn hiện hành) | H2 | §4.2, §5.4 |
 | P15 | Danh mục bác sĩ để sau MVP | – | §12 |
 | P16 | Ngưỡng nhiệt độ – độ ẩm theo khu vực (đối chiếu GPP hiện hành) | – | §17 |
-| P17 | Có đưa trợ lý tra cứu AI (chỉ đọc) vào MVP không | – | §20 |
+| P17 | Có đưa trợ lý tra cứu AI (chỉ đọc) vào MVP không — đã thay bằng trợ lý phân tích dữ liệu kinh doanh (§20.1) | – | §20 |
 | P18 | **Mở rộng thành chuỗi nhiều nhà thuốc.** Thêm `store_id` và tài nguyên `/stores` ngay từ migration đầu tiên; header `X-Store-Id`; vai trò gán theo cửa hàng; báo cáo toàn chuỗi cần `report.chain` | – | §2.8, §4.2, §19, §21 |
 
 ---

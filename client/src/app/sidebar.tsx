@@ -16,8 +16,8 @@ import type { PagePath } from "./pages.js";
  *
  * 8 điểm vào chính theo công việc hằng ngày, Quản trị gập ở cuối. Việc dùng
  * nhiều nhất (Quầy bán, Tổng quan, Khách hàng) mở bằng một lần bấm; phần còn
- * lại tối đa hai lần: mở nhóm rồi chọn trang (Báo cáo gồm báo cáo kinh doanh
- * và tổng kết tháng).
+ * lại tối đa hai lần: mở nhóm rồi chọn trang (Báo cáo gồm báo cáo kinh doanh,
+ * trợ lý phân tích và tổng kết tháng).
  */
 export type SidebarEntry =
   | { kind: "page"; path: PagePath }
@@ -67,7 +67,7 @@ export const SIDEBAR: readonly SidebarEntry[] = [
     key: "reports",
     label: "Báo cáo",
     icon: <FundOutlined />,
-    paths: ["/bao-cao", "/tong-ket-thang"],
+    paths: ["/bao-cao", "/tro-ly-phan-tich", "/tong-ket-thang"],
   },
   {
     kind: "group",

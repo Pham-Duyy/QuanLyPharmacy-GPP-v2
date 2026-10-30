@@ -4100,3 +4100,194 @@
   min-width: 22px;
   padding: 0 5px;
 }
+
+/* --- Trợ lý phân tích ------------------------------------------------------ */
+.analysis-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.analysis-page .page-header {
+  margin-bottom: 4px;
+}
+
+.analysis-findings {
+  margin: 12px 0 8px;
+  padding-left: 20px;
+  color: var(--c-ink-700);
+  line-height: 1.7;
+}
+
+.analysis-line {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+}
+
+.analysis-line svg {
+  display: block;
+  touch-action: pan-y;
+}
+
+.analysis-grid {
+  stroke: var(--c-border);
+  stroke-dasharray: 3 4;
+}
+
+.analysis-axis {
+  fill: var(--c-ink-400);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.analysis-guide {
+  stroke: var(--c-ink-300);
+}
+
+.analysis-tooltip {
+  position: absolute;
+  min-width: 200px;
+  max-width: 260px;
+  padding: 8px 10px;
+  border: 1px solid var(--c-border);
+  border-radius: 8px;
+  background: var(--c-surface);
+  box-shadow: 0 6px 20px rgba(11, 36, 71, 0.12);
+  font-size: 12px;
+  pointer-events: none;
+}
+
+.analysis-tooltip-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.analysis-tooltip-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--c-ink-500);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.analysis-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin-top: 8px;
+  color: var(--c-ink-500);
+  font-size: 12px;
+}
+
+.analysis-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.analysis-rank,
+.analysis-change {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.analysis-rank-row,
+.analysis-change-row {
+  display: grid;
+  grid-template-columns: minmax(90px, 32%) 1fr auto;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.analysis-rank-label {
+  overflow: hidden;
+  color: var(--c-ink-700);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.analysis-rank-track,
+.analysis-change-track {
+  position: relative;
+  height: 14px;
+  border-radius: 7px;
+  background: var(--c-surface-2);
+}
+
+.analysis-rank-fill {
+  height: 100%;
+  border-radius: 7px;
+}
+
+.analysis-rank-value,
+.analysis-change-value {
+  min-width: 96px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--c-ink-900);
+}
+
+.analysis-rank-value small {
+  font-weight: 400;
+  color: var(--c-ink-400);
+}
+
+.analysis-change-axis {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  left: 50%;
+  border-left: 1px solid var(--c-border-strong);
+}
+
+.analysis-change-fill {
+  position: absolute;
+  top: 0;
+  height: 100%;
+}
+
+.analysis-change-fill.up {
+  border-radius: 0 7px 7px 0;
+  background: var(--tone-green);
+}
+
+.analysis-change-fill.down {
+  border-radius: 7px 0 0 7px;
+  background: var(--tone-red);
+}
+
+.analysis-change-value.up {
+  color: var(--tone-green);
+}
+
+.analysis-change-value.down {
+  color: var(--tone-red);
+}
+
+@media (max-width: 576px) {
+  .analysis-rank-row,
+  .analysis-change-row {
+    grid-template-columns: minmax(70px, 30%) 1fr auto;
+  }
+
+  .analysis-rank-value,
+  .analysis-change-value {
+    min-width: 72px;
+  }
+}
+
+/* Câu hỏi mẫu dài: xuống dòng thay vì tràn ngang trên điện thoại. */
+.analysis-sample {
+  max-width: 100%;
+  white-space: normal;
+  line-height: 1.5;
+  padding-block: 2px;
+}
