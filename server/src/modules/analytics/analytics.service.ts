@@ -79,7 +79,7 @@ export async function analyzeDataset(
   const charts = buildCharts(plan, executed.result, valueFormat);
   const facts = buildFacts(plan, executed.result, valueFormat);
 
-  let narrative: Narrative = narrativeFromFacts(facts);
+  let narrative: Narrative = narrativeFromFacts(facts, executed.result);
   let narrativeSource: AnalysisResponse["narrativeSource"] = "rules";
   if (options.narrate && aiEnabled() && executed.result.rowsUsed > 0) {
     try {

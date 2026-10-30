@@ -64,6 +64,10 @@ const GRAIN_MINUTES: Record<Grain, number> = {
   year: 525_960,
 };
 
+/** Đại lượng tiền được ưu tiên khi câu hỏi không nói rõ. */
+const MONEY_HINT =
+  /doanh thu|doanh so|revenue|tien|gia tri|thanh tien|loi nhuan|lai gop|profit|amount/;
+
 const MEASURE_HINT =
   /doanh thu|doanh so|revenue|sales|tien|amount|total|tong|gia tri|thanh tien|loi nhuan|profit|so luong|quantity|qty/;
 const GROUP_HINT =
@@ -72,7 +76,65 @@ const COMPARE_HINT =
   /so sanh|compare|chi nhanh|cua hang|nhom|theo tung|xep hang|rank|cao nhat|thap nhat|manh nhat|nhieu nhat|it nhat/;
 const CHANGE_HINT = /tang|giam|bien dong|thay doi|change|growth|decline|sut/;
 const SHARE_HINT = /ty trong|ti trong|co cau|chiem|share|phan tram/;
-const CURRENCY_HINT = /doanh|thu|tien|gia|revenue|amount|vnd|chi phi|cost|loi nhuan|profit|sales/;
+const CURRENCY_HINT =
+  /doanh|thu|tien|gia|revenue|amount|vnd|chi phi|cost|loi nhuan|lai gop|lai|profit|sales|von/;
+
+/** Từ nối không mang nghĩa khi so tên cột với câu hỏi. */
+const STOP_WORDS = new Set([
+  "cua",
+  "va",
+  "cac",
+  "nao",
+  "nhat",
+  "da",
+  "gom",
+  "co",
+  "ck",
+  "vat",
+  "trong",
+  "theo",
+]);
+/** Cột thứ hạng, số thứ tự: là nhãn, cộng lại vô nghĩa. */
+const RANK_NAME = /^(hang|xep hang|rank|stt|thu tu|so thu tu)$/;
+const PERCENT_NAME = /ty trong|ti trong|ty le|ti le|phan tram|percent/;
+/** Câu hỏi nhắc "mặt hàng", "thuốc" thì nhóm theo cột tên sản phẩm. */
+const ENTITY_QUESTION = /mat hang|san pham|thuoc|hang hoa|product|item/;
+const ENTITY_COLUMN = /ten san pham|san pham|ten thuoc|mat hang|ten hang|^ten$|product|name|item/;
+/** Bảng chỉ tiêu: mỗi dòng một chỉ tiêu khác loại (số phiếu, tiền…), không cộng dồn được. */
+export const METRIC_LABEL =
+  /^(chi tieu|khoan muc|hang muc|noi dung|metric|indicator|ten chi tieu)$/;
+const TIME_WORDS =
+  /xu huong|theo (phut|gio|ngay|tuan|thang|quy|nam)|gan nhat|tang|giam|bien dong|trend|over time/;
+const RANKING_WORDS =
+  /\bnao\b|xep hang|\btop\b|cao nhat|thap nhat|nhieu nhat|it nhat|lon nhat|nho nhat|which|highest|lowest/;
+
+/**
+ * Mức khớp giữa câu hỏi và tên cột: nhắc nguyên tên được điểm cao, còn lại
+ * đếm số từ của tên cột có trong câu hỏi. "Doanh thu thuần" thắng "Hạng" khi
+ * hỏi "mặt hàng nào doanh thu thuần cao nhất".
+ */
+function relevance(question: string, column: ColumnSummary): number {
+  const name = normalizeText(column.name);
+  if (name.length > 1 && ` ${question} `.includes(` ${name} `) && name.includes(" ")) return 10;
+  const words = new Set(question.split(" "));
+  return name
+    .split(" ")
+    .filter((word) => word.length > 1 && !STOP_WORDS.has(word))
+    .filter((word) => words.has(word)).length;
+}
+
+function best<T>(items: T[], score: (item: T) => number): T | undefined {
+  let winner: T | undefined;
+  let top = 0;
+  for (const item of items) {
+    const value = score(item);
+    if (value > top) {
+      top = value;
+      winner = item;
+    }
+  }
+  return winner;
+}
 
 function mentioned(question: string, column: ColumnSummary): boolean {
   const name = normalizeText(column.name);
@@ -114,13 +176,47 @@ export function planWithRules(summary: DataSummary, rawQuestion: string): Analys
     (column) => column.kind === "categorical" && column.distinct >= 2,
   );
 
+  // Cột thứ hạng và cột phần trăm không làm đại lượng cộng dồn, trừ khi được hỏi đích danh.
+  const measures = numeric.filter((column) => !RANK_NAME.test(normalizeText(column.name)));
+  const plain = measures.filter((column) => !PERCENT_NAME.test(normalizeText(column.name)));
   const measureColumn =
-    numeric.find((column) => mentioned(question, column)) ??
-    numeric.find((column) => MEASURE_HINT.test(normalizeText(column.name))) ??
-    numeric[0] ??
+    best(measures, (column) => relevance(question, column)) ??
+    plain.find((column) => MONEY_HINT.test(normalizeText(column.name))) ??
+    plain.find((column) => MEASURE_HINT.test(normalizeText(column.name))) ??
+    plain[0] ??
+    measures[0] ??
     null;
 
-  const timeColumn = temporal.find((column) => mentioned(question, column)) ?? temporal[0] ?? null;
+  // Nhóm theo: cột phân loại, hoặc cột tên (mỗi dòng một mặt hàng) khi câu hỏi nhắc tới.
+  const labels = summary.columns.filter(
+    (column) => (column.kind === "categorical" || column.kind === "text") && column.distinct >= 2,
+  );
+  const metricLabel = labels.find((column) => METRIC_LABEL.test(normalizeText(column.name)));
+  const wantsCompare = COMPARE_HINT.test(question);
+  const entityBonus = (column: ColumnSummary) => {
+    const name = normalizeText(column.name);
+    let score = relevance(question, column);
+    if (ENTITY_QUESTION.test(question) && ENTITY_COLUMN.test(name)) score += 3;
+    // Mã sản phẩm kém dễ đọc hơn tên sản phẩm.
+    if (/(^| )(ma|code|id)( |$)/.test(name)) score -= 1;
+    return score;
+  };
+  const groupColumn =
+    metricLabel ??
+    best(labels, entityBonus) ??
+    categorical.find(
+      (column) => GROUP_HINT.test(normalizeText(column.name)) && column.distinct <= 30,
+    ) ??
+    (wantsCompare ? categorical.find((column) => column.distinct <= 30) : undefined) ??
+    null;
+  // "Mặt hàng nào … nhiều nhất" là câu hỏi xếp hạng: không chia theo thời gian
+  // trừ khi câu hỏi nhắc tới thời gian hay xu hướng.
+  const ranking = RANKING_WORDS.test(question) && !TIME_WORDS.test(question);
+
+  const timeColumn =
+    metricLabel || (ranking && groupColumn)
+      ? null
+      : (temporal.find((column) => mentioned(question, column)) ?? temporal[0] ?? null);
   let time: AnalysisPlan["time"] = null;
   if (timeColumn) {
     const lastMatch =
@@ -150,26 +246,17 @@ export function planWithRules(summary: DataSummary, rawQuestion: string): Analys
     time = { column: timeColumn.name, grain, lastPeriods };
   }
 
-  const wantsCompare = COMPARE_HINT.test(question);
-  // Cột có tên kiểu "chi nhánh", "cửa hàng" thì nhóm luôn: so sánh giữa các
-  // đơn vị là câu hỏi hay gặp nhất của chuỗi.
-  const groupColumn =
-    categorical.find((column) => mentioned(question, column)) ??
-    categorical.find(
-      (column) => GROUP_HINT.test(normalizeText(column.name)) && column.distinct <= 30,
-    ) ??
-    (wantsCompare ? categorical.find((column) => column.distinct <= 30) : undefined) ??
-    null;
-
-  const focus = SHARE_HINT.test(question)
-    ? "share"
-    : CHANGE_HINT.test(question) && time
-      ? "change"
-      : time
-        ? "trend"
-        : groupColumn
-          ? "compare"
-          : "overview";
+  const focus = metricLabel
+    ? "overview"
+    : SHARE_HINT.test(question)
+      ? "share"
+      : CHANGE_HINT.test(question) && time
+        ? "change"
+        : time
+          ? "trend"
+          : groupColumn
+            ? "compare"
+            : "overview";
 
   // Câu hỏi nhắc đích danh giá trị ("của CN01", "Bình Thạnh") thì lọc theo giá trị đó.
   const filters: AnalysisPlan["filters"] = [];
@@ -191,7 +278,9 @@ export function planWithRules(summary: DataSummary, rawQuestion: string): Analys
       ? { column: measureColumn.name, aggregate: "sum", label: humanizeColumn(measureColumn.name) }
       : { column: null, aggregate: "count", label: "Số dòng" },
     time,
-    groupBy: groupColumn ? { column: groupColumn.name, topN: 8 } : null,
+    groupBy: groupColumn
+      ? { column: groupColumn.name, topN: metricLabel ? 20 : ranking ? 10 : 8 }
+      : null,
     filters,
     focus,
   };

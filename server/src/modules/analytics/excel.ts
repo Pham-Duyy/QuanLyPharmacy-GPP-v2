@@ -19,7 +19,8 @@ export type WorkbookSource = {
   notes: string[];
 };
 
-const TOTAL_ROW = /^(tong|tong cong|cong|total|grand total|sum|subtotal)\b/;
+/** Chỉ đúng chữ "Tổng cộng"; "Tổng tiền nhập" là một chỉ tiêu, không phải dòng tổng. */
+const TOTAL_ROW = /^(tong|tong cong|cong|tong so|total|grand total|sum|subtotal)$/;
 /** Tiêu đề cột tháng không ghi năm: "T1", "Tháng 1", "Th1". */
 const BARE_MONTH = /^(?:thang|th|t)\s*(\d{1,2})$/;
 

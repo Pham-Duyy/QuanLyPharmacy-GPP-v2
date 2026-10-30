@@ -14,7 +14,7 @@ import { executePlan } from "./execute.js";
 import { buildCharts, buildFacts } from "./insights.js";
 import { unverifiedPercents } from "./llm.js";
 import { detectNumberStyle, parseCsv, parseNumber, parseTemporal } from "./parse.js";
-import { planWithRules, validatePlan } from "./planner.js";
+import { planWithRules, validatePlan, valueFormatFor } from "./planner.js";
 import { profileDataset, toSummary } from "./summarize.js";
 import type { AnalysisPlan } from "./types.js";
 
@@ -145,6 +145,86 @@ describe("đọc Excel", () => {
     const buffer = await reportWorkbook();
     await expect(readWorkbook(buffer, "x.xlsx", "Nội bộ")).rejects.toThrow("Không có sheet");
     await expect(readWorkbook(Buffer.from("abc"), "x.xls")).rejects.toThrow(".xlsx");
+  });
+});
+
+/** Giống tệp "Tổng kết tháng" phần mềm xuất: bảng chỉ tiêu và bảng xếp hạng. */
+async function periodSummaryWorkbook(): Promise<Buffer> {
+  const workbook = new ExcelJS.Workbook();
+  const overview = workbook.addWorksheet("Tổng quan");
+  overview.addRow(["Chỉ tiêu", "Giá trị"]);
+  overview.addRow(["Số phiếu nhập", 19]);
+  overview.addRow(["Tổng tiền nhập (phải trả NCC)", 47_863_559]);
+  overview.addRow(["Doanh thu thuần", 78_367_900]);
+  overview.addRow(["Lãi gộp", 22_299_376]);
+  const ranking = workbook.addWorksheet("Xếp hạng bán");
+  ranking.addRow([
+    "Hạng",
+    "Mã sản phẩm",
+    "Tên sản phẩm",
+    "Số lượng bán",
+    "Doanh thu thuần",
+    "Lãi gộp",
+    "Tỷ trọng (%)",
+  ]);
+  const items: Array<[string, number, number]> = [
+    ["Dầu cá Omega-3", 4_160_000, 747_500],
+    ["Amoxicillin + Acid clavulanic 1g", 3_920_000, 1_372_000],
+    ["Siro ho Prospan", 2_660_000, 798_000],
+    ["Paracetamol 500mg", 2_480_940, 783_660],
+  ];
+  items.forEach(([name, revenue, profit], index) =>
+    ranking.addRow([index + 1, `TH${index}`, name, 100 - index, revenue, profit, 5 - index]),
+  );
+  return Buffer.from(await workbook.xlsx.writeBuffer());
+}
+
+describe("bảng tổng kết không theo thời gian", () => {
+  it("bảng chỉ tiêu: giữ dòng 'Tổng tiền nhập', không cộng các chỉ tiêu khác đơn vị", async () => {
+    const { dataset, source } = await readWorkbook(
+      await periodSummaryWorkbook(),
+      "x.xlsx",
+      "Tổng quan",
+    );
+    expect(source.notes).toEqual([]);
+    expect(dataset.rows).toHaveLength(4);
+    const typed = profileDataset(dataset);
+    const { plan } = validatePlan(planWithRules(toSummary(typed), "Tổng quan tháng này"), typed);
+    const { result } = executePlan(plan, typed);
+    expect(result.metricTable).toBe(true);
+    expect(result.groups.map((group) => group.group)).toEqual([
+      "Số phiếu nhập",
+      "Tổng tiền nhập (phải trả NCC)",
+      "Doanh thu thuần",
+      "Lãi gộp",
+    ]);
+    expect(result.groups.every((group) => group.share === null)).toBe(true);
+    expect(buildCharts(plan, result, "currency")).toEqual([]);
+    expect(buildFacts(plan, result, "currency").map((fact) => fact.text)).toEqual([
+      "Số phiếu nhập: 19.",
+      "Tổng tiền nhập (phải trả NCC): 47,9 triệu đ.",
+      "Doanh thu thuần: 78,4 triệu đ.",
+      "Lãi gộp: 22,3 triệu đ.",
+    ]);
+  });
+
+  it("bảng xếp hạng: đúng cột được hỏi, nhóm theo tên sản phẩm, không lấy cột Hạng", async () => {
+    const { dataset } = await readWorkbook(await periodSummaryWorkbook(), "x.xlsx", "Xếp hạng bán");
+    const typed = profileDataset(dataset);
+    const summary = toSummary(typed);
+    expect(summary.columns[0]).toMatchObject({ name: "Hạng", kind: "categorical" });
+
+    const plan = planWithRules(summary, "Mặt hàng nào có lãi gộp cao nhất?");
+    expect(plan.measure.column).toBe("Lãi gộp");
+    expect(plan.groupBy?.column).toBe("Tên sản phẩm");
+    const { result, plan: checked } = executePlan(validatePlan(plan, typed).plan, typed);
+    expect(result.groups[0]!.group).toBe("Amoxicillin + Acid clavulanic 1g");
+    expect(valueFormatFor(checked)).toBe("currency");
+
+    // Không nhắc cột nào: ưu tiên đại lượng tiền, bỏ qua cột Hạng và cột phần trăm.
+    expect(planWithRules(summary, "Xếp hạng các mặt hàng").measure.column).toBe("Doanh thu thuần");
+    // "Bán chạy" khớp cột "Số lượng bán": hiểu theo số lượng là hợp lý.
+    expect(planWithRules(summary, "Mặt hàng nào bán chạy?").measure.column).toBe("Số lượng bán");
   });
 });
 

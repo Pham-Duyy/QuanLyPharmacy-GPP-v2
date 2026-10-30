@@ -106,6 +106,8 @@ export type AnalysisResponse = {
     };
     groups: GroupStat[];
     otherGroupCount: number;
+    /** Bảng "Chỉ tiêu | Giá trị": không có tổng, tỷ trọng hay biểu đồ. */
+    metricTable: boolean;
   };
   charts: ChartSpec[];
   facts: Array<{ kind: string; tone: "positive" | "negative" | "neutral"; text: string }>;

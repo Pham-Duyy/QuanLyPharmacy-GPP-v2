@@ -143,6 +143,11 @@ export type ExecutionResult = {
   groups: GroupStat[];
   /** Số nhóm bị gộp vào "Khác" khi vượt topN. */
   otherGroupCount: number;
+  /**
+   * Bảng chỉ tiêu ("Chỉ tiêu | Giá trị"): mỗi nhóm đúng một dòng, đơn vị khác
+   * nhau (số phiếu, tiền…), nên không có tổng, tỷ trọng hay biểu đồ so sánh.
+   */
+  metricTable: boolean;
 };
 
 export type Fact = {

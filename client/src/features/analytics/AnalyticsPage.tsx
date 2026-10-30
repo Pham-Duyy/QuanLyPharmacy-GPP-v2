@@ -673,46 +673,52 @@ function AnalysisResult({
         ) : null}
       </Card>
 
-      <StatGrid>
-        <StatCard
-          icon={<FundOutlined />}
-          tone="blue"
-          label={`${AGGREGATE_LABEL[plan.measure.aggregate]} ${plan.measure.label.toLowerCase()}`}
-          value={formatCompact(overall.total, valueFormat)}
-          hint={`${result.rowsUsed.toLocaleString("vi-VN")} dòng dữ liệu`}
-        />
-        {hasTime ? (
+      {result.metricTable ? null : (
+        <StatGrid>
           <StatCard
-            icon={(overall.changePercent ?? 0) < 0 ? <FallOutlined /> : <RiseOutlined />}
-            tone={(overall.changePercent ?? 0) < 0 ? "red" : "green"}
-            label="Kỳ cuối so với kỳ đầu"
-            value={formatSignedPercent(overall.changePercent)}
-            hint={<Trend value={overall.trendPercent} suffix="theo đường xu hướng" />}
+            icon={<FundOutlined />}
+            tone="blue"
+            label={`${AGGREGATE_LABEL[plan.measure.aggregate]} ${plan.measure.label.toLowerCase()}`}
+            value={formatCompact(overall.total, valueFormat)}
+            hint={`${result.rowsUsed.toLocaleString("vi-VN")} dòng dữ liệu`}
           />
-        ) : null}
-        {hasTime && overall.peak ? (
-          <StatCard
-            icon={<RiseOutlined />}
-            tone="purple"
-            label="Kỳ cao nhất"
-            value={formatCompact(overall.peak.value, valueFormat)}
-            hint={overall.peak.period}
-          />
-        ) : null}
-        {result.groups.length > 1 ? (
-          <StatCard
-            icon={<ShopOutlined />}
-            tone="orange"
-            label={`Số ${groupUnit.toLowerCase()}`}
-            value={result.groups.length}
-            hint={
-              result.otherGroupCount > 0
-                ? `Gộp ${result.otherGroupCount} nhóm nhỏ vào "Khác"`
-                : `Dẫn đầu: ${result.groups[0]!.group}`
-            }
-          />
-        ) : null}
-      </StatGrid>
+          {hasTime ? (
+            <StatCard
+              icon={(overall.changePercent ?? 0) < 0 ? <FallOutlined /> : <RiseOutlined />}
+              tone={(overall.changePercent ?? 0) < 0 ? "red" : "green"}
+              label="Kỳ cuối so với kỳ đầu"
+              value={formatSignedPercent(overall.changePercent)}
+              hint={<Trend value={overall.trendPercent} suffix="theo đường xu hướng" />}
+            />
+          ) : null}
+          {hasTime && overall.peak ? (
+            <StatCard
+              icon={<RiseOutlined />}
+              tone="purple"
+              label="Kỳ cao nhất"
+              value={formatCompact(overall.peak.value, valueFormat)}
+              hint={overall.peak.period}
+            />
+          ) : null}
+          {result.groups.length > 1 ? (
+            <StatCard
+              icon={<ShopOutlined />}
+              tone="orange"
+              label={`Số ${groupUnit.toLowerCase()}`}
+              value={
+                result.otherGroupCount > 0
+                  ? result.groups.length - 1 + result.otherGroupCount
+                  : result.groups.length
+              }
+              hint={
+                result.otherGroupCount > 0
+                  ? `Gộp ${result.otherGroupCount} nhóm nhỏ vào "Khác"`
+                  : `Dẫn đầu: ${result.groups[0]!.group}`
+              }
+            />
+          ) : null}
+        </StatGrid>
+      )}
 
       <Row gutter={[16, 16]}>
         {response.charts.map((chart) => (
@@ -724,7 +730,7 @@ function AnalysisResult({
         ))}
       </Row>
 
-      {result.groups.length > 1 ? (
+      {result.groups.length > 1 && !result.metricTable ? (
         <Card title={`Chi tiết từng ${groupUnit.toLowerCase()}`}>
           <GroupTable groups={result.groups} hasTime={hasTime} response={response} />
         </Card>

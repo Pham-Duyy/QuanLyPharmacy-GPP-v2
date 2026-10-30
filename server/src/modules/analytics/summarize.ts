@@ -101,7 +101,8 @@ function profileColumn(name: string, raw: Array<string | number | null>): TypedC
   if (
     present.length > 0 &&
     numberHits.length >= present.length * TYPE_THRESHOLD &&
-    !IDENTIFIER_NAME.test(normalized)
+    !IDENTIFIER_NAME.test(normalized) &&
+    !/^(hang|xep hang|rank|stt|thu tu|so thu tu)$/.test(normalized)
   ) {
     const sum = numberHits.reduce((total, value) => total + value, 0);
     return {

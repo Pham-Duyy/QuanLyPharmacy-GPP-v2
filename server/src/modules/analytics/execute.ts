@@ -1,5 +1,5 @@
 import { normalizeText, parseNumber, parseTemporal } from "./parse.js";
-import { GRAIN_LABELS } from "./planner.js";
+import { GRAIN_LABELS, METRIC_LABEL } from "./planner.js";
 import type { TypedDataset } from "./summarize.js";
 import {
   GRAINS,
@@ -407,13 +407,21 @@ export function executePlan(
   }
 
   // Nhóm nhiều quá thì giữ topN nhóm lớn nhất, phần còn lại gộp "Khác" khi phép tính cộng dồn được.
-  const ranked = [...groupTotals.entries()].sort(
-    (a, b) => (valueOf(b[1], aggregate) ?? 0) - (valueOf(a[1], aggregate) ?? 0),
-  );
+  const metricTable =
+    !grain &&
+    groupColumn !== null &&
+    METRIC_LABEL.test(normalizeText(groupColumn.summary.name)) &&
+    [...groupTotals.values()].every((total) => total.count === 1);
+  // Bảng chỉ tiêu giữ thứ tự trong tệp; còn lại xếp từ lớn tới nhỏ.
+  const ranked = metricTable
+    ? [...groupTotals.entries()]
+    : [...groupTotals.entries()].sort(
+        (a, b) => (valueOf(b[1], aggregate) ?? 0) - (valueOf(a[1], aggregate) ?? 0),
+      );
   const topN = effectivePlan.groupBy?.topN ?? 8;
   const kept = ranked.slice(0, topN);
   const rest = ranked.slice(topN);
-  const additive = aggregate === "sum" || aggregate === "count";
+  const additive = (aggregate === "sum" || aggregate === "count") && !metricTable;
   if (rest.length > 0 && additive) {
     const otherTotal = emptyAccumulator();
     const otherCells = keys.map(() => emptyAccumulator());
@@ -533,6 +541,7 @@ export function executePlan(
       overall,
       groups,
       otherGroupCount: additive ? rest.length : 0,
+      metricTable,
     },
   };
 }

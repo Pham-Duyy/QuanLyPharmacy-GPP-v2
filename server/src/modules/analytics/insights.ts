@@ -1,4 +1,5 @@
 import { OTHER_GROUP } from "./execute.js";
+import { normalizeText } from "./parse.js";
 import { GRAIN_LABELS, humanizeColumn } from "./planner.js";
 import type {
   AnalysisPlan,
@@ -26,6 +27,21 @@ export function formatValue(value: number, format: ValueFormat): string {
 export function formatPercent(value: number): string {
   const text = Math.abs(value).toLocaleString("vi-VN", { maximumFractionDigits: 1 });
   return `${value > 0 ? "+" : value < 0 ? "−" : ""}${text}%`;
+}
+
+/** Viết thường chữ đầu để ghép vào câu, giữ nguyên chữ viết tắt như CK, VAT. */
+function inSentence(label: string): string {
+  return /^[A-ZĐ]{2,}/u.test(label) ? label : label.charAt(0).toLowerCase() + label.slice(1);
+}
+
+/** Đơn vị của từng chỉ tiêu theo tên: tiền hay số đếm. */
+export function metricFormat(label: string): ValueFormat {
+  const name = normalizeText(label);
+  if (/ty le|ti le|ty trong|phan tram|%/.test(name)) return "percent";
+  if (/^(so |mat hang)|so luong|so phieu|so hoa don|so ngay/.test(name)) return "number";
+  return /tien|doanh thu|lai|loi nhuan|gia tri|chiet khau|thue|chi phi|cong no|tra /.test(name)
+    ? "currency"
+    : "number";
 }
 
 /** Tên kỳ đầy đủ cho câu nhận xét, khác nhãn trục ngắn gọn trên biểu đồ. */
@@ -60,6 +76,8 @@ export function buildCharts(
   format: ValueFormat,
 ): ChartSpec[] {
   const charts: ChartSpec[] = [];
+  // Chỉ tiêu khác đơn vị (số phiếu cạnh tiền) đặt chung một biểu đồ sẽ gây hiểu sai.
+  if (result.metricTable) return charts;
   const measure = plan.measure.label;
   const grain = plan.time?.grain ?? null;
   const hasGroups = result.groups.length > 1;
@@ -71,14 +89,14 @@ export function buildCharts(
       title: `${measure} theo ${GRAIN_LABELS[grain]}`,
       periods: result.periods,
       labels: result.periodLabels,
-      series: [{ name: `Tổng ${measure.toLowerCase()}`, values: result.overallSeries }],
+      series: [{ name: `Tổng ${inSentence(measure)}`, values: result.overallSeries }],
       valueFormat: format,
     });
     if (hasGroups && result.groupSeries.length > 1)
       charts.push({
         kind: "line",
         id: "trend-groups",
-        title: `${measure} theo ${GRAIN_LABELS[grain]}, từng ${humanizeColumn(plan.groupBy!.column).toLowerCase()}`,
+        title: `${measure} theo ${GRAIN_LABELS[grain]}, từng ${inSentence(humanizeColumn(plan.groupBy!.column))}`,
         periods: result.periods,
         labels: result.periodLabels,
         series: result.groupSeries,
@@ -90,12 +108,14 @@ export function buildCharts(
     charts.push({
       kind: "bar",
       id: "compare-groups",
-      title: `So sánh ${measure.toLowerCase()} giữa các ${humanizeColumn(plan.groupBy!.column).toLowerCase()}`,
-      bars: result.groups.map((group) => ({
-        label: group.group,
-        value: group.total,
-        share: group.share,
-      })),
+      title:
+        result.otherGroupCount > 0
+          ? `Top ${result.groups.length - 1} theo ${inSentence(measure)}`
+          : `So sánh ${inSentence(measure)} giữa các ${inSentence(humanizeColumn(plan.groupBy!.column))}`,
+      // Nhóm "Khác" gộp hàng chục mục nhỏ: đưa lên biểu đồ sẽ đè bẹp các mục dẫn đầu.
+      bars: result.groups
+        .filter((group) => group.group !== OTHER_GROUP)
+        .map((group) => ({ label: group.group, value: group.total, share: group.share })),
       valueFormat: format,
     });
     if (grain && result.groups.some((group) => group.changePercent !== null))
@@ -135,6 +155,16 @@ export function buildFacts(
   const toneOf = (change: number | null): Fact["tone"] =>
     change === null || change === 0 ? "neutral" : change > 0 ? "positive" : "negative";
 
+  if (result.metricTable) {
+    for (const group of result.groups)
+      facts.push({
+        kind: "total",
+        tone: "neutral",
+        text: `${group.group}: ${formatValue(group.total, metricFormat(group.group))}.`,
+      });
+    return facts;
+  }
+
   if (result.rowsUsed === 0) {
     facts.push({
       kind: "total",
@@ -153,7 +183,7 @@ export function buildFacts(
     facts.push({
       kind: "total",
       tone: "neutral",
-      text: `Tổng ${measure.toLowerCase()}${span}: ${value(overall.total)}.`,
+      text: `Tổng ${inSentence(measure)}${span}: ${value(overall.total)}.`,
     });
 
   if (grain && overall.changePercent !== null && overall.first !== null && overall.last !== null) {
@@ -206,7 +236,7 @@ export function buildFacts(
         facts.push({
           kind: "decline",
           tone: "positive",
-          text: `Không ${unit.toLowerCase()} nào giảm; thấp nhất là "${worst.group}" với ${formatPercent(worst.changePercent!)}.`,
+          text: `Không ${inSentence(unit)} nào giảm; thấp nhất là "${worst.group}" với ${formatPercent(worst.changePercent!)}.`,
         });
       if (best !== worst && best.changePercent! > 0)
         facts.push({
@@ -219,19 +249,37 @@ export function buildFacts(
         facts.push({
           kind: "decline",
           tone: "negative",
-          text: `${declining.length}/${withChange.length} ${unit.toLowerCase()} có ${measure.toLowerCase()} kỳ cuối thấp hơn kỳ đầu: ${declining.map((group) => group.group).join(", ")}.`,
+          text: `${declining.length}/${withChange.length} ${inSentence(unit)} có ${inSentence(measure)} kỳ cuối thấp hơn kỳ đầu: ${declining.map((group) => group.group).join(", ")}.`,
         });
     }
     const leader = realGroups[0]!;
+    // Bị cắt ở topN thì nhóm cuối danh sách chưa chắc là thấp nhất thật.
+    const complete = result.otherGroupCount === 0;
     const laggard = realGroups.at(-1)!;
+    const tail = complete ? `; thấp nhất là "${laggard.group}" với ${value(laggard.total)}` : "";
     facts.push({
       kind: "share",
       tone: "neutral",
       text:
         leader.share !== null
-          ? `"${leader.group}" dẫn đầu với ${value(leader.total)} (${leader.share.toLocaleString("vi-VN")}% tổng); thấp nhất là "${laggard.group}" với ${value(laggard.total)}.`
-          : `"${leader.group}" cao nhất (${value(leader.total)}); thấp nhất là "${laggard.group}" (${value(laggard.total)}).`,
+          ? `"${leader.group}" dẫn đầu với ${value(leader.total)} (${leader.share.toLocaleString("vi-VN")}% tổng)${tail}.`
+          : `"${leader.group}" cao nhất (${value(leader.total)})${tail}.`,
     });
+    if (!grain && realGroups.length >= 3) {
+      const top = realGroups.slice(0, 5);
+      const topShare = top.every((group) => group.share !== null)
+        ? Math.round(top.reduce((sum, group) => sum + group.share!, 0) * 10) / 10
+        : null;
+      facts.push({
+        kind: "share",
+        tone: "neutral",
+        text: `Top ${top.length}: ${top.map((group) => `${group.group} (${value(group.total)})`).join(", ")}${
+          topShare !== null && result.otherGroupCount > 0
+            ? `; ${top.length} mục này chiếm ${topShare.toLocaleString("vi-VN")}% tổng`
+            : ""
+        }.`,
+      });
+    }
   }
 
   for (const anomaly of overall.anomalies.slice(0, 3))
@@ -245,10 +293,18 @@ export function buildFacts(
 }
 
 /** Nhận xét khi không dùng AI: câu tiêu đề lấy từ ý quan trọng nhất. */
-export function narrativeFromFacts(facts: Fact[]): Narrative {
+export function narrativeFromFacts(facts: Fact[], result?: ExecutionResult): Narrative {
+  if (result?.metricTable)
+    return {
+      headline: `Bảng gồm ${facts.length} chỉ tiêu, mỗi chỉ tiêu một đơn vị riêng nên không cộng dồn.`,
+      findings: facts.map((fact) => fact.text),
+      recommendations: [],
+    };
   const headline =
     facts.find((fact) => fact.kind === "decline" && fact.tone === "negative") ??
     facts.find((fact) => fact.kind === "change") ??
+    // Không có thời gian: câu hỏi xếp hạng, trả lời bằng nhóm dẫn đầu.
+    facts.find((fact) => fact.kind === "share") ??
     facts[0];
   return {
     headline: headline?.text ?? "Không có dữ liệu để nhận xét.",
