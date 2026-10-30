@@ -27,6 +27,7 @@ import threading
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 from app.analytics import kpi_summary, prepare_sales, sales_breakdown
@@ -333,6 +334,66 @@ def command_anomalies(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_forecast(args: argparse.Namespace) -> int:
+    """Dự báo doanh thu và nhu cầu thuốc (bước 3.4): mô hình chọn bằng backtest."""
+    from app.analytics.anomaly import WEEKDAYS
+    from app.analytics.forecast import MODEL_LABELS, forecast_demand, forecast_revenue
+
+    try:
+        results = process_folder(args.folder)
+    except (LoadError, FileNotFoundError) as error:
+        print(f"Không xử lý được: {error}", file=sys.stderr)
+        return 1
+    medicines = results["medicines"].data if "medicines" in results else None
+    sales = prepare_sales(results["sales"].data, medicines)
+    sales = sales[sales["sale_datetime"] < (pd.Timestamp(args.as_of) if args.as_of else now_local())]
+    as_of = pd.Timestamp(args.as_of) if args.as_of else now_local()
+    store = args.store.upper() if args.store else None
+
+    revenue = forecast_revenue(sales, as_of, store, horizon=args.horizon)
+    if args.json:
+        print(json.dumps(revenue, ensure_ascii=False, indent=2))
+        return 0
+    scope = f"cửa hàng {store}" if store else "toàn chuỗi"
+    print(f"\nDự báo doanh thu {scope}, {args.horizon} ngày tới (dữ liệu đến hết {as_of - pd.Timedelta(days=1):%d/%m/%Y})")
+    if revenue["status"] != "ok":
+        print(f"  {revenue['message']}")
+        return 0
+    print("Chọn mô hình bằng backtest 4 tuần trên doanh thu BÁN LẺ (WAPE: sai số, càng thấp càng tốt):")
+    for name, score in revenue["scores"].items():
+        mark = "  ← chọn" if name == revenue["model"] else ""
+        if score is None or score["wape"] is None:
+            print(f"  {MODEL_LABELS[name]:<28} chưa đủ dữ liệu")
+            continue
+        print(f"  {MODEL_LABELS[name]:<28} WAPE {_number(score['wape'] * 100, 1):>5}%   lệch {_number(score['bias'] * 100, 1):>5}%{mark}")
+    print(f"Cộng bán buôn trung bình {_money(revenue['wholesale_per_day'])}/ngày (đơn bán buôn không đoán trước được ngày).")
+    for point in revenue["points"]:
+        day = pd.Timestamp(point["date"])
+        print(f"  {WEEKDAYS[day.weekday()]:<9} {day:%d/%m}  {_money(point['value']):>18}")
+    print(
+        f"7 ngày tới: {_money(sum(point['value'] for point in revenue['points'][:7]))}"
+        f" (bán lẻ {_growth(revenue['change_vs_last_7_pct'])} so với 7 ngày vừa qua)"
+    )
+
+    demand = [row for row in forecast_demand(sales, as_of) if row["status"] == "ok" and (store is None or row["store_code"] == store)]
+    names = {} if medicines is None else medicines.set_index("medicine_code")["medicine_name"].to_dict()
+    demand.sort(key=lambda row: row["total"], reverse=True)
+    print(f"\nNhu cầu 7 ngày tới ({len(demand)} cặp cửa hàng × thuốc; 10 cặp cần nhiều nhất):")
+    for row in demand[:10]:
+        error = "chưa đo" if row["wape"] is None else f"±{_number(row['wape'] * 100)}%"
+        print(
+            f"  {row['store_code']} {names.get(row['medicine_code'], row['medicine_code']):<32} {_number(row['total']):>7}"
+            f"  bán lẻ {_growth(row['change_vs_last_7_pct'])}  sai số tổng 7 ngày {error}"
+        )
+    measured = [row["wape"] for row in demand if row["wape"] is not None]
+    if measured:
+        print(
+            f"Sai số tổng 7 ngày của nhu cầu thuốc (phần bán lẻ): trung vị {_number(float(np.median(measured)) * 100)}%,"
+            f" 3/4 số thuốc dưới {_number(float(np.percentile(measured, 75)) * 100)}%"
+        )
+    return 0
+
+
 def command_run(args: argparse.Namespace) -> int:
     store = AnalyticsStore(args.db)
     pipeline = Pipeline(args.folder, store)
@@ -480,6 +541,13 @@ def main() -> int:
     anomalies.add_argument("--db", type=Path, default=ANALYTICS_DB, help="Analytics Store chứa lịch sử tồn kho (luật R3)")
     anomalies.add_argument("--json", action="store_true", help="In kết quả dạng JSON")
     anomalies.set_defaults(handler=command_anomalies)
+    forecast = commands.add_parser("forecast", help="Dự báo doanh thu, nhu cầu thuốc (mô hình chọn bằng backtest)")
+    forecast.add_argument("folder", nargs="?", type=Path, default=SAMPLES_DIR, help="Thư mục chứa medicines/sales")
+    forecast.add_argument("--store", help="Chỉ một cửa hàng, ví dụ CH01")
+    forecast.add_argument("--horizon", type=int, choices=[7, 30], default=7, help="Số ngày dự báo (7 hoặc 30)")
+    forecast.add_argument("--as-of", help="Thời điểm tính (mặc định: bây giờ)")
+    forecast.add_argument("--json", action="store_true", help="In dự báo doanh thu dạng JSON")
+    forecast.set_defaults(handler=command_forecast)
     run = commands.add_parser("run", help="Chạy pipeline và lưu snapshot vào SQLite")
     run.add_argument("folder", nargs="?", type=Path, default=SAMPLES_DIR, help="Thư mục chứa medicines/sales/inventory")
     run.add_argument("--db", type=Path, default=ANALYTICS_DB, help="Tệp SQLite (mặc định data/analytics.db)")

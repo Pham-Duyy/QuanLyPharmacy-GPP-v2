@@ -190,3 +190,40 @@ với hôm qua" được thay bằng R1 (so cùng thứ, cùng giờ, có kiểm
 Đo trên 8 bộ dữ liệu mẫu ngẫu nhiên: ngày mất điện 8/8, Amoxicillin ngừng bán 8/8, khẩu trang tăng vọt 7/8 (bộ còn lại
 đợt tăng chỉ ×2,3, xác suất ngẫu nhiên 2–4%, không đủ bằng chứng), báo giả ngoài CH03: 0.
 
+## Dự báo Level 1 và backtest (Phase 3, bước 3.4)
+
+Code: `analytics-service/app/analytics/forecast.py`. Lệnh xem: `python main.py forecast [--store CH03] [--horizon 30]`.
+
+| Mô hình | Dự báo ngày t | Vai trò |
+|---|---|---|
+| Lặp lại tuần trước | = cùng thứ tuần trước | Mức chuẩn: mô hình khác phải thắng nó |
+| Trung bình 4 tuần theo thứ | = trung bình 4 cùng thứ gần nhất | Level 1 (§17 "Moving Average") |
+| Trung bình 28 ngày | = trung bình 28 ngày, mọi ngày như nhau | Phẳng |
+
+**Backtest:** đứng ở 4 thời điểm quá khứ (cách nhau 7 ngày, mỗi lần còn ≥ 28 ngày phía trước), dự báo 7 ngày, so với thật.
+
+```
+WAPE              = Σ|thật − dự báo| / Σ thật                  (không chia cho 0 khi có ngày bán 0)
+WAPE tổng 7 ngày  = Σ|tổng 7 ngày thật − tổng 7 ngày dự báo| / Σ thật
+Lệch (bias)       = Σ(dự báo − thật) / Σ thật                   (dương: dự báo cao hơn thật)
+```
+
+Mô hình có sai số thấp nhất được dùng; chưa đủ dữ liệu để thử (dưới 35 ngày) thì dùng trung bình theo thứ và ghi rõ
+"chưa đo được độ chính xác".
+
+**Tách bán buôn.** Đơn bán buôn (khoảng 22% doanh thu mẫu) là vài đơn lớn thất thường, không ai đoán được ngày nào có.
+Dự báo = phần bán lẻ (mô hình chọn qua backtest) + bán buôn trung bình 28 ngày. Độ chính xác báo cáo là của phần bán lẻ;
+mức thay đổi so với 7 ngày qua cũng so bán lẻ với bán lẻ (tuần qua không có đơn bán buôn thì so tổng ra "tăng gấp đôi" giả).
+
+**Doanh thu** chọn theo WAPE từng ngày (dùng vẽ biểu đồ). **Nhu cầu thuốc** chọn theo WAPE tổng 7 ngày: số bán từng ngày
+của một thuốc dao động rất mạnh (vài lần bán, mỗi lần 10–60 viên), nhưng quyết định nhập hàng cần tổng 7 ngày.
+
+Đo trên dữ liệu mẫu (đến hết 29/10):
+
+| Chuỗi | Sai số | Ghi chú |
+|---|---|---|
+| Doanh thu toàn chuỗi (gồm bán buôn trong chuỗi) | 16% | |
+| Doanh thu bán lẻ toàn chuỗi | **9,8%** | Trung bình 4 tuần theo thứ thắng |
+| Doanh thu bán lẻ CH03 | 26%, **lệch +16%** | Cửa hàng đang sụt: mô hình trung bình luôn đoán cao. Việc của Holt-Winters (3.5) |
+| Nhu cầu thuốc, tổng 7 ngày, bán lẻ | trung vị 30%, 3/4 số thuốc dưới 46% | Gần giới hạn tự nhiên: ~15 lần bán/tuần thì riêng phần ngẫu nhiên đã ~20–25% |
+

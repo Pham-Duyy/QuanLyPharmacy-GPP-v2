@@ -135,3 +135,14 @@ Z_PRODUCT_MAX_P = 0.00001
 EPISODE_GAP_DAYS = 2
 # Cảnh báo chỉ nêu đợt bất thường kết thúc trong ngần này ngày gần nhất (cũ hơn vẫn xem được ở danh sách).
 ANOMALY_ALERT_DAYS = 7
+
+# --- Dự báo (bước 3.4; quyết định D12) ------------------------------------------------
+
+# Tầm dự báo (ngày). Độ chính xác đo ở tầm 7 ngày.
+FORECAST_HORIZON_DAYS = 7
+FORECAST_LONG_DAYS = 30
+# Backtest: giả vờ đứng ở BACKTEST_FOLDS thời điểm quá khứ cách nhau 7 ngày, dự báo 7 ngày tiếp theo, so với số thật.
+BACKTEST_FOLDS = 4
+# Mô hình trung bình theo thứ dùng ngần này tuần; mô hình phẳng dùng ngần này ngày.
+WEEKDAY_MEAN_WEEKS = 4
+FLAT_MEAN_DAYS = 28
