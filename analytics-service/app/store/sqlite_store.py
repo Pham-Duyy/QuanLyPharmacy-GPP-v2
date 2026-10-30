@@ -10,6 +10,7 @@ Bảng:
 - data_issues  lỗi dữ liệu của từng lần chạy
 - kpi_daily    chỉ số theo ngày × cửa hàng (nền cho phát hiện bất thường, dự báo)
 - stock_history tổng tồn theo (cửa hàng, thuốc) mỗi lần tệp tồn kho đổi (luật R3, bước 3.2)
+- forecast_cache dự báo đã tính, theo dấu vân tay dữ liệu ngày đã trọn (bước 3.5)
 """
 
 from __future__ import annotations
@@ -21,7 +22,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterator
 
-from app.config import KEEP_ISSUE_RUNS, KEEP_RUNS, KEEP_SNAPSHOTS, KEEP_STOCK_VERSIONS
+from app.config import KEEP_FORECASTS, KEEP_ISSUE_RUNS, KEEP_RUNS, KEEP_SNAPSHOTS, KEEP_STOCK_VERSIONS
 from app.processor import DataIssue
 
 SCHEMA = """
@@ -86,6 +87,12 @@ CREATE TABLE IF NOT EXISTS stock_history (
     PRIMARY KEY (file_sha, store_code, medicine_code)
 );
 CREATE INDEX IF NOT EXISTS stock_history_saved ON stock_history(saved_at);
+
+CREATE TABLE IF NOT EXISTS forecast_cache (
+    data_key   TEXT PRIMARY KEY,               -- forecast.data_key: ngày đã trọn + tổng theo ngày + tham số
+    created_at TEXT NOT NULL,
+    payload    TEXT NOT NULL                   -- JSON của forecast_bundle
+);
 """
 
 
@@ -323,4 +330,22 @@ class AnalyticsStore:
                 ).fetchall()
                 result.append({"saved_at": version["saved_at"], "file_sha": version["file_sha"], "rows": [dict(row) for row in rows]})
         return result
+
+    # --- Bộ nhớ đệm dự báo (bước 3.5) -------------------------------------------------
+
+    def cached_forecast(self, data_key: str) -> dict[str, Any] | None:
+        with self._connect() as db:
+            row = db.execute("SELECT payload FROM forecast_cache WHERE data_key = ?", (data_key,)).fetchone()
+        return None if row is None else json.loads(row["payload"])
+
+    def save_forecast(self, data_key: str, created_at: str, payload: dict[str, Any]) -> None:
+        with self._connect() as db:
+            db.execute(
+                "INSERT OR REPLACE INTO forecast_cache (data_key, created_at, payload) VALUES (?, ?, ?)",
+                (data_key, created_at, json.dumps(payload, ensure_ascii=False)),
+            )
+            db.execute(
+                "DELETE FROM forecast_cache WHERE data_key NOT IN (SELECT data_key FROM forecast_cache ORDER BY created_at DESC LIMIT ?)",
+                (KEEP_FORECASTS,),
+            )
 

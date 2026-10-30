@@ -236,7 +236,10 @@ def test_inventory_and_expiry_filters(stocked):
 
     expiry = stocked.get("/api/analytics/expiry", params={"level": "expired"}).json()
     assert [lot["batch_code"] for lot in expiry["lots"]] == ["PA0"]
-    assert [lot["batch_code"] for lot in expiry["risk_lots"]] == ["AM1"]
+    # PA1 (3 viên, còn 5 ngày): theo trung bình 30 ngày (0,5 viên/ngày) thì bán kịp; nhưng từ bước 3.5
+    # FEFO dùng tốc độ bán DỰ BÁO, và tuần vừa qua CH01 không bán Paracetamol nào: dự báo ~0, lô có nguy cơ.
+    assert [lot["batch_code"] for lot in expiry["risk_lots"]] == ["AM1", "PA1"]
+    assert expiry["rate_source"] == "forecast"
     assert expiry["risk_lots"][0]["at_risk_quantity"] == 99  # 20 ngày × 2/30 viên/ngày ≈ 1 viên bán kịp
 
 

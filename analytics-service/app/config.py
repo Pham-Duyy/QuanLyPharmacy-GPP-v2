@@ -82,6 +82,9 @@ HIGH_STOCK_DAYS = 90
 EXPIRY_CRITICAL_DAYS = 7
 EXPIRY_WARNING_DAYS = 30
 EXPIRY_MONITOR_DAYS = 90
+# Chỉ coi lô là "có nguy cơ" khi phần không kịp bán từ ngần này phần lô trở lên: 1 viên trong lô 50 viên
+# là sai số làm tròn của tốc độ bán, không đáng một cảnh báo.
+EXPIRY_RISK_MIN_SHARE = 0.05
 
 # (Bước 2.5 từng có luật "doanh thu hôm nay giảm ≥ 20% so với hôm qua"; từ bước 3.3 thay bằng
 # luật R1 + Z-score: so với cùng thứ, cùng giờ, có kiểm định số đơn.)
@@ -146,3 +149,15 @@ BACKTEST_FOLDS = 4
 # Mô hình trung bình theo thứ dùng ngần này tuần; mô hình phẳng dùng ngần này ngày.
 WEEKDAY_MEAN_WEEKS = 4
 FLAT_MEAN_DAYS = 28
+
+# Holt-Winters (bước 3.5): lưới tham số thử; chọn tổ hợp có sai số một bước thấp nhất trên dữ liệu học.
+HW_ALPHAS = (0.1, 0.2, 0.4)   # tốc độ cập nhật MỨC
+HW_BETAS = (0.01, 0.05, 0.15)  # tốc độ cập nhật XU HƯỚNG
+HW_GAMMAS = (0.05, 0.15, 0.3)  # tốc độ cập nhật MÙA VỤ 7 ngày
+# Xu hướng "tắt dần" (damped trend): mỗi ngày tới chỉ giữ 90% xu hướng của ngày trước. Dự báo 30 ngày
+# của cửa hàng đang sụt không lao xuống 0 như đường thẳng kéo dài (Gardner & McKenzie).
+HW_DAMPING = 0.9
+# Khoảng tin cậy từ sai số backtest: phân vị 10% và 90% (khoảng 80%).
+INTERVAL_QUANTILES = (0.1, 0.9)
+# Số lần giữ dự báo đã tính trong forecast_cache.
+KEEP_FORECASTS = 5

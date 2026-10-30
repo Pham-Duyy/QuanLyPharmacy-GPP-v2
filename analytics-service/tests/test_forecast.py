@@ -182,3 +182,103 @@ def test_sample_declining_store_is_overestimated_by_level_1(sample):
     sales, as_of = sample
     ch03 = forecast_revenue(sales, as_of, "CH03")
     assert all(score["bias"] > 0.1 for score in ch03["scores"].values() if score)
+
+
+# --- Bước 3.5: Holt-Winters, khoảng tin cậy, ngày hết hàng, bộ nhớ đệm ---------------------
+
+from app.analytics.forecast import data_key, forecast_bundle, holt_winters, holt_winters_fit, stockout_projection  # noqa: E402
+
+
+def test_holt_winters_learns_weekly_pattern_and_trend():
+    history = weekly(8, trend=1.0).to_numpy()  # mỗi tuần cao hơn 1/ngày
+    predicted = holt_winters(history, 7)
+    expected = WEEK + 8  # tuần thứ 9
+    assert np.abs(predicted - expected).max() < 1.0  # bắt được cả mùa vụ lẫn xu hướng
+    assert predicted[6] > predicted[0]  # Chủ nhật vẫn cao hơn thứ Hai
+
+
+def test_holt_winters_trend_is_damped():
+    """Đang giảm đều: dự báo 60 ngày không lao xuống mãi theo đường thẳng (xu hướng tắt dần)."""
+    history = weekly(8, trend=-0.5).to_numpy()
+    far = holt_winters(history, 60)
+    straight_line_drop = 0.5 / 7 * 60
+    assert far[:7].mean() - far[-7:].mean() < straight_line_drop / 2
+
+
+def test_holt_winters_fit_needs_two_weeks():
+    with pytest.raises(ValueError):
+        holt_winters_fit(np.ones(13))
+    fit = holt_winters_fit(weekly(4).to_numpy())
+    assert {"alpha", "beta", "gamma", "level", "trend"} <= set(fit)
+
+
+def test_interval_comes_from_backtest_errors():
+    # Nhiễu ngẫu nhiên (cố định hạt giống): nhiễu lặp đúng từng tuần thì "lặp lại tuần trước" đoán
+    # trúng tuyệt đối và khoảng tin cậy rộng 0, cũng đúng nhưng không kiểm tra được gì.
+    noisy = weekly(8).to_numpy() + np.random.default_rng(1).normal(0, 2, 56)
+    result = forecast_series(pd.Series(noisy, index=weekly(8).index))
+    point = result["points"][0]
+    assert point["low"] <= point["value"] <= point["high"]
+    assert point["high"] - point["low"] > 0
+    unmeasured = forecast_series(weekly(4))["points"][0]  # chưa backtest được: không bịa khoảng
+    assert (unmeasured["low"], unmeasured["high"]) == (None, None)
+
+
+def test_stockout_projection_uses_daily_forecast():
+    demand = [
+        {"store_code": "CH01", "medicine_code": "AA", "start": "2026-11-02", "values": [10, 10, 30, 30, 10, 10, 10]},
+        {"store_code": "CH01", "medicine_code": "BB", "start": "2026-11-02", "values": [1] * 7},
+    ]
+    stock = pd.DataFrame(
+        [("CH01", "AA", 45.0), ("CH01", "BB", 100.0), ("CH01", "CC", 5.0)],
+        columns=["store_code", "medicine_code", "stock_quantity"],
+    )
+    found = stockout_projection(demand, stock)
+    assert found[0] == {
+        "store_code": "CH01",
+        "medicine_code": "AA",
+        "stock_quantity": 45.0,
+        "stockout_date": "2026-11-04",  # 10 + 10 + 30 ≥ 45 ở ngày thứ 3; "tồn / trung bình" sẽ nói 2,9 ngày
+        "days_until_stockout": 3,
+        "horizon_days": 7,
+    }
+    assert (found[1]["medicine_code"], found[1]["stockout_date"]) == ("BB", None)  # quá tầm dự báo
+
+
+def test_data_key_ignores_today_but_not_history(sample):
+    sales, as_of = sample
+    key = data_key(sales, as_of)
+    today = sales.iloc[[-1]].assign(sale_datetime=as_of - pd.Timedelta(hours=1), sale_id="MOI")
+    assert data_key(pd.concat([sales, today]), as_of) == key  # thêm hóa đơn hôm nay: không đổi
+    yesterday = today.assign(sale_datetime=as_of - pd.Timedelta(days=1))
+    assert data_key(pd.concat([sales, yesterday]), as_of) != key  # sửa ngày đã trọn: đổi
+    assert data_key(sales, as_of + pd.Timedelta(days=1)) != key  # sang ngày mới: đổi
+
+
+def test_sample_holt_winters_adapts_after_the_drop(sample):
+    """CH03 sụt từ 10/10: sau khi sụt, Holt-Winters lệch ít hơn hẳn mô hình trung bình."""
+    from app.analytics.forecast import MODELS, _split
+    from app.analytics.series import revenue_series
+
+    sales, as_of = sample
+    values = revenue_series(_split(sales)[0], as_of, "CH03").to_numpy()
+
+    def bias(name: str, fold: int) -> float:
+        origin = len(values) - fold * 7
+        actual = values[origin : origin + 7]
+        return (MODELS[name](values[:origin], 7).sum() - actual.sum()) / actual.sum()
+
+    for fold in (2, 1):  # đã sụt 1 và 2 tuần
+        assert abs(bias("holt_winters", fold)) < abs(bias("weekday_mean", fold)) / 2
+
+
+def test_sample_bundle(sample):
+    sales, as_of = sample
+    bundle = forecast_bundle(sales, as_of, ["CH01", "CH02", "CH03"])
+    assert set(bundle["revenue"]) == {"ALL", "CH01", "CH02", "CH03"}
+    assert bundle["revenue"]["ALL"]["wape"] < 0.12  # Holt-Winters toàn chuỗi
+    assert len(bundle["revenue"]["ALL"]["points"]) == 30
+    assert bundle["data_through"] == "2026-10-29"
+    row = next(item for item in bundle["demand"] if item["store_code"] == "CH02" and item["medicine_code"] == "GD001")
+    assert row["next_7_low"] <= row["next_7_days"] <= row["next_7_high"]
+    assert len(bundle["demand_points"][0]["values"]) == 30

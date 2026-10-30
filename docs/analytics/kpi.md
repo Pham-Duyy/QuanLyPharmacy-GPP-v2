@@ -227,3 +227,40 @@ của một thuốc dao động rất mạnh (vài lần bán, mỗi lần 10–
 | Doanh thu bán lẻ CH03 | 26%, **lệch +16%** | Cửa hàng đang sụt: mô hình trung bình luôn đoán cao. Việc của Holt-Winters (3.5) |
 | Nhu cầu thuốc, tổng 7 ngày, bán lẻ | trung vị 30%, 3/4 số thuốc dưới 46% | Gần giới hạn tự nhiên: ~15 lần bán/tuần thì riêng phần ngẫu nhiên đã ~20–25% |
 
+## Holt-Winters, khoảng tin cậy, ngày hết hàng (Phase 3, bước 3.5)
+
+Code: `analytics-service/app/analytics/forecast.py` (tự viết bằng numpy, quyết định D11).
+
+```
+mức_t      = α·(y_t − mùa_{t−7}) + (1−α)·(mức_{t−1} + φ·xu_hướng_{t−1})
+xu_hướng_t = β·(mức_t − mức_{t−1}) + (1−β)·φ·xu_hướng_{t−1}
+mùa_t      = γ·(y_t − mức_t) + (1−γ)·mùa_{t−7}
+dự_báo_{t+h} = mức_t + (φ + φ² + … + φ^h)·xu_hướng_t + mùa_{t+h−7}
+```
+
+- α, β, γ chọn trong lưới 3 × 3 × 3 theo sai số dự báo một bước trên dữ liệu học; cả 27 tổ hợp chạy cùng lúc bằng mảng numpy.
+- φ = 0,9: **xu hướng tắt dần**. Cửa hàng đang sụt thì dự báo 30 ngày không lao xuống 0 như đường thẳng kéo dài.
+- Holt-Winters là ứng viên thứ tư trong backtest: thắng mới được dùng.
+
+| Chuỗi | Level 1 tốt nhất | Holt-Winters |
+|---|---|---|
+| Doanh thu bán lẻ toàn chuỗi | 9,8% | **9,1%** |
+| CH03 (sụt từ 10/10), lần thử bắt đầu 16/10 | lệch +29% | **+5%** |
+| CH03, lần thử bắt đầu 23/10 | lệch +38% | **+12%** |
+| CH03, lần thử bắt đầu 09/10 (sụt ngay hôm sau) | +53% | +50%: không mô hình nào đoán được cú sụt chưa có dấu hiệu |
+
+Nhu cầu thuốc: Holt-Winters được chọn cho 42/180 chuỗi; sai số tổng 7 ngày trung vị vẫn ~30% (phần còn lại là dao động ngẫu nhiên).
+
+**Khoảng tin cậy ~80%:** phân vị 10% và 90% của sai số backtest (sai số = dự báo − thật, nên thật = dự báo − sai số). Không giả
+định phân phối chuẩn. Chưa backtest được thì không đưa khoảng. Tổng 7 ngày của nhu cầu thuốc: ± sai số tổng 7 ngày.
+
+**Ngày dự kiến hết hàng:** cộng dồn nhu cầu dự báo từng ngày (30 ngày), ngày đầu tiên tổng vượt tồn bán được. Khác "tồn / ADS"
+ở bước 2.3: tính được cuối tuần và xu hướng. Dữ liệu mẫu: CH02 Paracetamol hết sau 2 ngày, CH01 Amlodipin sau 4 ngày.
+
+**FEFO dùng tốc độ bán dự báo** (trung bình 30 ngày tới) thay cho trung bình 30 ngày qua (`rate_source: forecast`). Lô chỉ
+"có nguy cơ" khi phần không kịp bán ≥ 5% lô (1 viên trong lô 50 viên là sai số làm tròn).
+
+**Bộ nhớ đệm `forecast_cache`:** dự báo chỉ dùng ngày đã trọn, nên khóa = dấu vân tay (ngày cuối đã trọn + tổng theo ngày ×
+cửa hàng × thuốc × loại bán + tham số mô hình). Thêm hóa đơn hôm nay không đổi khóa: dùng lại, pipeline 3,6 giây thay vì 6,1 giây.
+Sang ngày mới hoặc sửa số ngày cũ thì tính lại. Ngày hết hàng tính lại mỗi lần chạy vì tệp tồn kho có thể đổi.
+

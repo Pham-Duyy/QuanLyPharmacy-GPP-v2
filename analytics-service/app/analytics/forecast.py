@@ -29,7 +29,18 @@ from typing import Callable
 import numpy as np
 import pandas as pd
 
-from app.config import BACKTEST_FOLDS, FLAT_MEAN_DAYS, FORECAST_HORIZON_DAYS, MIN_HISTORY_DAYS, WEEKDAY_MEAN_WEEKS
+from app.config import (
+    BACKTEST_FOLDS,
+    FLAT_MEAN_DAYS,
+    FORECAST_HORIZON_DAYS,
+    HW_ALPHAS,
+    HW_BETAS,
+    HW_DAMPING,
+    HW_GAMMAS,
+    INTERVAL_QUANTILES,
+    MIN_HISTORY_DAYS,
+    WEEKDAY_MEAN_WEEKS,
+)
 
 Model = Callable[[np.ndarray, int], np.ndarray]
 
@@ -53,11 +64,77 @@ def flat_mean(history: np.ndarray, horizon: int) -> np.ndarray:
     return np.full(horizon, float(history[-FLAT_MEAN_DAYS:].mean()))
 
 
-MODELS: dict[str, Model] = {"naive": naive, "weekday_mean": weekday_mean, "flat_mean": flat_mean}
+# --- Holt-Winters (Level 2, bước 3.5; quyết định D11) -------------------------------------
+#
+# Tách chuỗi thành ba phần, mỗi ngày cập nhật một lần:
+#   mức_t      = α·(y_t − mùa_{t−7}) + (1−α)·(mức_{t−1} + φ·xu_hướng_{t−1})
+#   xu_hướng_t = β·(mức_t − mức_{t−1}) + (1−β)·φ·xu_hướng_{t−1}
+#   mùa_t      = γ·(y_t − mức_t) + (1−γ)·mùa_{t−7}
+#   dự_báo_{t+h} = mức_t + (φ + φ² + … + φ^h)·xu_hướng_t + mùa_{t+h−7}
+# φ = HW_DAMPING (xu hướng tắt dần). α, β, γ chọn trong lưới HW_ALPHAS × HW_BETAS × HW_GAMMAS theo
+# sai số dự báo một bước trên dữ liệu học. Cả lưới chạy cùng lúc bằng mảng numpy (mỗi tổ hợp một
+# hàng), nên vòng lặp chỉ chạy theo ngày.
+
+_GRID = np.array([(a, b, g) for a in HW_ALPHAS for b in HW_BETAS for g in HW_GAMMAS], dtype="float64")
+
+
+def holt_winters_fit(history: np.ndarray, grid: np.ndarray = _GRID, damping: float = HW_DAMPING) -> dict:
+    """Chạy Holt-Winters cộng tính, mùa 7 ngày, cho mọi tổ hợp trong `grid`; giữ tổ hợp sai số nhỏ nhất.
+
+    Khởi tạo từ hai tuần đầu: mức = trung bình tuần 1, xu hướng = chênh trung bình tuần 2 và tuần 1 chia 7,
+    mùa = độ lệch từng ngày tuần 1 so với mức.
+    """
+    values = np.asarray(history, dtype="float64")
+    if len(values) < 14:
+        raise ValueError("Holt-Winters cần ít nhất 14 ngày")
+    alpha, beta, gamma = grid[:, 0], grid[:, 1], grid[:, 2]
+    size = len(grid)
+    level = np.full(size, values[:7].mean())
+    trend = np.full(size, (values[7:14].mean() - values[:7].mean()) / 7)
+    season = np.tile(values[:7] - values[:7].mean(), (size, 1))
+    sse = np.zeros(size)
+    for t in range(7, len(values)):
+        slot = t % 7
+        y = values[t]
+        predicted = level + damping * trend + season[:, slot]
+        sse += (y - predicted) ** 2
+        new_level = alpha * (y - season[:, slot]) + (1 - alpha) * (level + damping * trend)
+        trend = beta * (new_level - level) + (1 - beta) * damping * trend
+        season[:, slot] = gamma * (y - new_level) + (1 - gamma) * season[:, slot]
+        level = new_level
+    best = int(np.argmin(sse))
+    return {
+        "alpha": float(alpha[best]),
+        "beta": float(beta[best]),
+        "gamma": float(gamma[best]),
+        "level": float(level[best]),
+        "trend": float(trend[best]),
+        "season": season[best].copy(),
+        "next_slot": len(values) % 7,
+        "damping": damping,
+    }
+
+
+def holt_winters(history: np.ndarray, horizon: int) -> np.ndarray:
+    """Dự báo `horizon` ngày bằng Holt-Winters (tham số chọn trên chính `history`)."""
+    fit = holt_winters_fit(history)
+    steps = np.arange(1, horizon + 1)
+    damped = np.cumsum(fit["damping"] ** steps)  # φ + φ² + … + φ^h
+    slots = (fit["next_slot"] + steps - 1) % 7
+    return fit["level"] + damped * fit["trend"] + fit["season"][slots]
+
+
+MODELS: dict[str, Model] = {
+    "naive": naive,
+    "weekday_mean": weekday_mean,
+    "flat_mean": flat_mean,
+    "holt_winters": holt_winters,
+}
 MODEL_LABELS = {
     "naive": "Lặp lại tuần trước",
     "weekday_mean": f"Trung bình {WEEKDAY_MEAN_WEEKS} tuần theo thứ",
     "flat_mean": f"Trung bình {FLAT_MEAN_DAYS} ngày",
+    "holt_winters": "Holt-Winters (mức, xu hướng, mùa 7 ngày)",
 }
 
 
@@ -135,6 +212,14 @@ def forecast_series(
     predicted = np.maximum(MODELS[choice["model"]](values, horizon), 0.0)  # không có doanh thu/lượng bán âm
     start = clean.index[-1] + pd.Timedelta(days=1)
     dates = pd.date_range(start, periods=horizon, freq="D")
+    # Khoảng tin cậy ~80% từ sai số backtest (sai số = dự báo − thật, nên thật = dự báo − sai số).
+    # Không giả định phân phối chuẩn: lấy thẳng phân vị của các sai số đã gặp.
+    errors = np.asarray(choice["scores"][choice["model"]]["errors"] if choice["measured"] else [], dtype="float64")
+    if len(errors):
+        low_q, high_q = np.quantile(errors, INTERVAL_QUANTILES)
+        lows, highs = np.maximum(predicted - high_q, 0.0), np.maximum(predicted - low_q, 0.0)
+    else:
+        lows = highs = [None] * horizon
     last_week = float(values[-7:].sum())
     next_week = float(predicted[:7].sum())
     return {
@@ -149,7 +234,15 @@ def forecast_series(
             for name, score in choice["scores"].items()
         },
         "errors": choice["scores"][choice["model"]]["errors"] if choice["measured"] else [],
-        "points": [{"date": day.date().isoformat(), "value": round(float(value), 2)} for day, value in zip(dates, predicted)],
+        "points": [
+            {
+                "date": day.date().isoformat(),
+                "value": round(float(value), 2),
+                "low": None if low is None else round(float(low), 2),
+                "high": None if high is None else round(float(high), 2),
+            }
+            for day, value, low, high in zip(dates, predicted, lows, highs)
+        ],
         "total": round(float(predicted.sum()), 2),
         "last_7_days": round(last_week, 2),
         # "Dự kiến 7 ngày tới tăng 18%" (§17): 7 ngày tới so với 7 ngày vừa qua.
@@ -179,7 +272,13 @@ def _with_wholesale(result: dict, wholesale: pd.Series, retail_index: pd.Datetim
         return result
     aligned = wholesale.reindex(retail_index, fill_value=0.0)
     per_day = float(aligned.iloc[-FLAT_MEAN_DAYS:].mean()) if len(aligned) else 0.0
-    points = [{**point, "value": round(point["value"] + per_day, 2)} for point in result["points"]]
+    def shift(value: float | None) -> float | None:
+        return None if value is None else round(value + per_day, 2)
+
+    points = [
+        {**point, "value": shift(point["value"]), "low": shift(point["low"]), "high": shift(point["high"])}
+        for point in result["points"]
+    ]
     return {
         **result,
         "points": points,
@@ -217,9 +316,117 @@ def forecast_demand(sales: pd.DataFrame, as_of: pd.Timestamp, *, horizon: int = 
     rows = []
     for column in retail_table.columns:
         series = retail_table[column]
-        result = forecast_series(series, horizon=horizon, candidates=("naive", "weekday_mean"), metric="wape_total")
+        result = forecast_series(series, horizon=horizon, candidates=("naive", "weekday_mean", "holt_winters"), metric="wape_total")
         clean = series.dropna()
         extra = wholesale_table[column] if column in wholesale_table.columns else pd.Series(dtype="float64")
         result = _with_wholesale(result, extra.fillna(0.0), clean.index, float(clean.iloc[-7:].sum()))
         rows.append({"store_code": column[0], "medicine_code": column[1], **result})
     return rows
+
+
+# --- Ngày dự kiến hết hàng, gói dự báo (bước 3.5) --------------------------------------------
+
+
+def stockout_projection(demand: list[dict], stock: pd.DataFrame) -> list[dict]:
+    """Cộng dồn nhu cầu dự báo từng ngày; ngày đầu tiên tổng vượt tồn bán được là ngày dự kiến hết hàng.
+
+    Khác "số ngày tồn = tồn / ADS" (bước 2.3): tính được cuối tuần đông khách và xu hướng tăng/giảm.
+    `demand`: demand_points của forecast_bundle ({store_code, medicine_code, start, values}).
+    `stock`: sellable_stock (store_code, medicine_code, stock_quantity). Quá tầm dự báo thì để trống.
+    """
+    remaining = {(row.store_code, row.medicine_code): float(row.stock_quantity) for row in stock.itertuples()}
+    found = []
+    for row in demand:
+        key = (row["store_code"], row["medicine_code"])
+        if key not in remaining or remaining[key] <= 0:
+            continue
+        total, date, days = 0.0, None, None
+        for index, value in enumerate(row["values"]):
+            total += value
+            if total >= remaining[key]:
+                days = index + 1
+                date = (pd.Timestamp(row["start"]) + pd.Timedelta(days=index)).date().isoformat()
+                break
+        found.append(
+            {
+                "store_code": key[0],
+                "medicine_code": key[1],
+                "stock_quantity": remaining[key],
+                "stockout_date": date,
+                "days_until_stockout": days,
+                "horizon_days": len(row["values"]),
+            }
+        )
+    return sorted(found, key=lambda item: (item["days_until_stockout"] is None, item["days_until_stockout"] or 0))
+
+
+def data_key(sales: pd.DataFrame, as_of: pd.Timestamp) -> str:
+    """Dấu vân tay của dữ liệu NGÀY ĐÃ TRỌN: không đổi thì dự báo không đổi, dùng lại bản đã lưu.
+
+    Gồm ngày cuối đã trọn, tổng theo (ngày, cửa hàng, thuốc, loại bán) và tên các mô hình/tham số.
+    Thêm hóa đơn trong ngày hôm nay không làm đổi dấu này.
+    """
+    import hashlib
+
+    from .series import last_complete_day
+
+    end = last_complete_day(as_of)
+    complete = sales[sales["sale_datetime"] < as_of.normalize()]
+    keys = [complete["sale_datetime"].dt.normalize(), complete["store_code"], complete["medicine_code"]]
+    if "sale_type" in complete.columns:
+        keys.append(complete["sale_type"])
+    totals = complete.groupby(keys)[["quantity", "revenue"]].sum().round(4)
+    digest = hashlib.sha256()
+    digest.update(f"{end.date()}|{sorted(MODELS)}|{HW_ALPHAS}{HW_BETAS}{HW_GAMMAS}{HW_DAMPING}|{BACKTEST_FOLDS}".encode())
+    digest.update(pd.util.hash_pandas_object(totals, index=True).to_numpy().tobytes())
+    return digest.hexdigest()
+
+
+def forecast_bundle(sales: pd.DataFrame, as_of: pd.Timestamp, stores: list[str], *, horizon: int = 30) -> dict:
+    """Mọi dự báo cho snapshot: doanh thu từng ngày (toàn chuỗi + từng cửa hàng) và nhu cầu từng thuốc.
+
+    Nhu cầu chỉ giữ tổng 7 / 30 ngày và các con số tóm tắt, không giữ từng ngày (180 chuỗi × 30 ngày quá nặng);
+    `demand_points` (ngày đầu + mảng số lượng từng ngày) để tính ngày hết hàng và FEFO theo dự báo.
+    """
+    from .series import last_complete_day
+
+    revenue = {(store or "ALL"): forecast_revenue(sales, as_of, store, horizon=horizon) for store in [None, *stores]}
+    demand_full = forecast_demand(sales, as_of, horizon=horizon)
+    demand = []
+    for row in demand_full:
+        if row["status"] != "ok":
+            continue
+        values = [point["value"] for point in row["points"]]
+        week = sum(values[:7])
+        error = row["wape"]
+        demand.append(
+            {
+                "store_code": row["store_code"],
+                "medicine_code": row["medicine_code"],
+                "model": row["model"],
+                "wape_total": error,
+                "next_7_days": round(week, 2),
+                # Khoảng cho tổng 7 ngày: ± sai số tổng 7 ngày đo bằng backtest.
+                "next_7_low": None if error is None else round(max(week * (1 - error), 0.0), 2),
+                "next_7_high": None if error is None else round(week * (1 + error), 2),
+                "next_30_days": round(sum(values), 2),
+                "change_vs_last_7_pct": row["change_vs_last_7_pct"],
+                "wholesale_per_day": row.get("wholesale_per_day"),
+            }
+        )
+    return {
+        "data_through": last_complete_day(as_of).date().isoformat(),
+        "horizon_days": horizon,
+        "revenue": revenue,
+        "demand": demand,
+        "demand_points": [
+            {
+                "store_code": row["store_code"],
+                "medicine_code": row["medicine_code"],
+                "start": row["points"][0]["date"],
+                "values": [point["value"] for point in row["points"]],
+            }
+            for row in demand_full
+            if row["status"] == "ok"
+        ],
+    }

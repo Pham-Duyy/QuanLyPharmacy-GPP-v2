@@ -31,7 +31,13 @@ from typing import Literal
 
 import pandas as pd
 
-from app.config import EXPIRY_CRITICAL_DAYS, EXPIRY_MONITOR_DAYS, EXPIRY_WARNING_DAYS, SALES_LOOKBACK_DAYS
+from app.config import (
+    EXPIRY_CRITICAL_DAYS,
+    EXPIRY_MONITOR_DAYS,
+    EXPIRY_RISK_MIN_SHARE,
+    EXPIRY_WARNING_DAYS,
+    SALES_LOOKBACK_DAYS,
+)
 
 from .periods import Window
 
@@ -105,8 +111,13 @@ def lot_table(
     inventory: pd.DataFrame,
     medicines: pd.DataFrame | None,
     as_of: pd.Timestamp,
+    rates: dict[tuple[str, str], float] | None = None,
 ) -> pd.DataFrame:
-    """Mọi lô kèm mức hạn, thứ tự FEFO, số lượng và tiền có nguy cơ."""
+    """Mọi lô kèm mức hạn, thứ tự FEFO, số lượng và tiền có nguy cơ.
+
+    rates: tốc độ bán mỗi ngày theo DỰ BÁO (bước 3.5) cho từng (cửa hàng, thuốc); có thì dùng thay ADS
+    30 ngày qua (mùa cúm đang lên thì lô siro bán nhanh hơn trung bình cũ).
+    """
     today = as_of.normalize()
     lots = inventory.copy()
     lots["days_left"] = (lots["expiry_date"] - today).dt.days.astype(int)
@@ -115,6 +126,8 @@ def lot_table(
     lookback = Window(as_of - pd.Timedelta(days=SALES_LOOKBACK_DAYS), as_of)
     recent = sales[lookback.contains(sales["sale_datetime"])]
     ads = (recent.groupby(["store_code", "medicine_code"])["quantity"].sum() / SALES_LOOKBACK_DAYS).to_dict()
+    if rates:
+        ads.update(rates)
 
     planned = [
         fefo_plan(group, ads.get(key, 0.0)).assign(ads=ads.get(key, 0.0))
@@ -170,6 +183,7 @@ def expiry_analysis(
     medicines: pd.DataFrame | None,
     as_of: pd.Timestamp,
     store_code: str | None = None,
+    rates: dict[tuple[str, str], float] | None = None,
 ) -> dict:
     """Mức hạn và nguy cơ hết hạn của một cửa hàng, hoặc mọi cửa hàng (None)."""
     if inventory is None or inventory.empty:
@@ -179,7 +193,7 @@ def expiry_analysis(
         inventory = inventory[inventory["store_code"] == store_code]
         if inventory.empty:
             return {"store": store_code, "available": True, "levels": {}, "at_risk": None, "lots": [], "risk_lots": []}
-    table = lot_table(sales, inventory, medicines, as_of)
+    table = lot_table(sales, inventory, medicines, as_of, rates)
 
     levels = {}
     for level in LEVELS:
@@ -190,13 +204,14 @@ def expiry_analysis(
             "quantity": _number(part["quantity"].sum()),
             "value": _total(part["value"]),
         }
-    risky = table[table["at_risk_quantity"] > 0]
+    risky = table[(table["at_risk_quantity"] > 0) & (table["at_risk_quantity"] >= EXPIRY_RISK_MIN_SHARE * table["quantity"])]
     # Nguy cơ lớn nhất (theo tiền, rồi theo số lượng) lên đầu: việc cần xử lý trước.
     risky = risky.sort_values(["at_risk_value", "at_risk_quantity"], ascending=False, na_position="last")
     return {
         "store": store_code or "ALL",
         "available": True,
         "lookback_days": SALES_LOOKBACK_DAYS,
+        "rate_source": "forecast" if rates else "last_30_days",
         "thresholds": {"critical": EXPIRY_CRITICAL_DAYS, "warning": EXPIRY_WARNING_DAYS, "monitor": EXPIRY_MONITOR_DAYS},
         "levels": levels,
         "at_risk": {

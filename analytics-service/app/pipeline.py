@@ -31,6 +31,8 @@ from app.analytics import (
 )
 from app.analytics.alerts import build_alerts
 from app.analytics.anomaly_events import detect_anomalies
+from app.analytics.forecast import data_key, forecast_bundle, stockout_projection
+from app.analytics.stock import sellable_stock
 from app.analytics.breakdown import bucket_start
 from app.analytics.periods import Window, period_windows
 from app.config import ANOMALY_ALERT_DAYS, SNAPSHOT_REFRESH_SECONDS, TIMEZONE, TREND_DAYS
@@ -41,7 +43,7 @@ from app.store import AnalyticsStore, RunRecord
 Trigger = Literal["manual", "monitor", "refresh"]
 
 # Các khối mà phiên bản hiện tại luôn ghi vào snapshot.
-SNAPSHOT_KEYS = {"kpi", "trend", "breakdown_month", "products", "inventory", "expiry", "alerts", "anomalies"}
+SNAPSHOT_KEYS = {"kpi", "trend", "breakdown_month", "products", "inventory", "expiry", "alerts", "anomalies", "forecast"}
 Status = Literal["processed", "refreshed", "unchanged", "failed"]
 
 
@@ -114,6 +116,21 @@ class Pipeline:
         if SNAPSHOT_KEYS <= snapshot.keys():
             self._snapshot_at = pd.Timestamp(snapshot["as_of"])
 
+    def _forecast(self, sales: pd.DataFrame, moment: pd.Timestamp) -> dict:
+        """Dự báo chỉ đổi khi dữ liệu NGÀY ĐÃ TRỌN đổi (sang ngày mới, sửa số ngày cũ): dùng lại bản đã lưu.
+
+        Thêm hóa đơn hôm nay không làm dự báo lại 180 chuỗi (khoảng 1,5 giây mỗi lần).
+        """
+        past = sales[sales["sale_datetime"] < moment]
+        key = data_key(past, moment)
+        cached = self.store.cached_forecast(key)
+        if cached is not None:
+            return cached
+        stores = sorted(past["store_code"].dropna().unique().tolist())
+        bundle = forecast_bundle(past, moment, stores)
+        self.store.save_forecast(key, _now_text(), bundle)
+        return bundle
+
     def _previous_stock(self, fingerprints: dict[str, FileFingerprint]) -> dict | None:
         """Lần lưu tệp tồn kho gần nhất KHÁC nội dung hiện tại (luật R3): {saved_at, rows}."""
         if "inventory" not in fingerprints:
@@ -183,7 +200,10 @@ class Pipeline:
                 sales = prepare_sales(results["sales"].data, medicines)
                 self._cache = _Cache(source_hash, results, sales)
             cache = self._cache
-            snapshot = build_snapshot(cache.sales, cache.results, moment, fingerprints, self._previous_stock(fingerprints))
+            forecast = self._forecast(cache.sales, moment)
+            snapshot = build_snapshot(
+                cache.sales, cache.results, moment, fingerprints, self._previous_stock(fingerprints), forecast
+            )
             daily = daily_kpis(cache.sales)
         except (LoadError, FileNotFoundError, PermissionError) as error:
             # Tệp hỏng hoặc đang bị khóa: ghi nhận lỗi, GIỮ snapshot tốt gần nhất.
@@ -268,6 +288,7 @@ def build_snapshot(
     as_of: pd.Timestamp,
     fingerprints: dict[str, FileFingerprint],
     previous_stock: dict | None = None,
+    forecast: dict | None = None,
 ) -> dict:
     """Mọi thứ Dashboard cần, tính sẵn. Dữ liệu sau as_of không được tính."""
     sales = sales[sales["sale_datetime"] < as_of]
@@ -312,13 +333,21 @@ def build_snapshot(
     def events_of(store: str | None) -> list[dict]:
         return events if store is None else [event for event in events if event["store_code"] == store]
 
+    # Dự báo (bước 3.5): FEFO dùng tốc độ bán DỰ BÁO; ngày dự kiến hết hàng tính lại theo tồn hiện tại.
+    rates = None
+    stockout: list[dict] = []
+    if forecast:
+        rates = {(row["store_code"], row["medicine_code"]): row["next_30_days"] / 30 for row in forecast["demand"]}
+        if inventory is not None:
+            stockout = stockout_projection(forecast["demand_points"], sellable_stock(inventory, as_of))
+
     scopes: list[str | None] = [None, *stores]
     products, stock, expiry, alerts, anomalies = {}, {}, {}, {}, {}
     for store in scopes:
         key = store or "ALL"
         products[key] = product_analysis(sales, inventory, medicines, as_of, store)
         stock[key] = inventory_analysis(sales, inventory, medicines, as_of, store, stock_as_of=stock_as_of)
-        expiry[key] = expiry_analysis(sales, inventory, medicines, as_of, store)
+        expiry[key] = expiry_analysis(sales, inventory, medicines, as_of, store, rates)
         # Lỗi dữ liệu tính trên cả tệp nên chỉ cảnh báo ở toàn chuỗi.
         anomalies[key] = events_of(store)
         recent = [event for event in anomalies[key] if event["end"] >= recent_from]
@@ -349,6 +378,16 @@ def build_snapshot(
         "expiry": expiry,
         "alerts": alerts,
         "anomalies": anomalies,
+        "forecast": None
+        if forecast is None
+        else {
+            "data_through": forecast["data_through"],
+            "horizon_days": forecast["horizon_days"],
+            # Sai số từng ngày của backtest chỉ cần lúc dựng khoảng tin cậy: bỏ cho snapshot gọn.
+            "revenue": {scope: {k: v for k, v in result.items() if k != "errors"} for scope, result in forecast["revenue"].items()},
+            "demand": forecast["demand"],
+            "stockout": stockout,
+        },
     }
 
 

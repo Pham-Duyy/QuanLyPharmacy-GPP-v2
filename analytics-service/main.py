@@ -369,22 +369,42 @@ def command_forecast(args: argparse.Namespace) -> int:
     print(f"Cộng bán buôn trung bình {_money(revenue['wholesale_per_day'])}/ngày (đơn bán buôn không đoán trước được ngày).")
     for point in revenue["points"]:
         day = pd.Timestamp(point["date"])
-        print(f"  {WEEKDAYS[day.weekday()]:<9} {day:%d/%m}  {_money(point['value']):>18}")
+        band = "" if point["low"] is None else f"   (khoảng 80%: {_money(point['low'])} – {_money(point['high'])})"
+        print(f"  {WEEKDAYS[day.weekday()]:<9} {day:%d/%m}  {_money(point['value']):>18}{band}")
     print(
         f"7 ngày tới: {_money(sum(point['value'] for point in revenue['points'][:7]))}"
         f" (bán lẻ {_growth(revenue['change_vs_last_7_pct'])} so với 7 ngày vừa qua)"
     )
 
-    demand = [row for row in forecast_demand(sales, as_of) if row["status"] == "ok" and (store is None or row["store_code"] == store)]
+    demand = [
+        row
+        for row in forecast_demand(sales, as_of, horizon=args.horizon)
+        if row["status"] == "ok" and (store is None or row["store_code"] == store)
+    ]
     names = {} if medicines is None else medicines.set_index("medicine_code")["medicine_name"].to_dict()
     demand.sort(key=lambda row: row["total"], reverse=True)
     print(f"\nNhu cầu 7 ngày tới ({len(demand)} cặp cửa hàng × thuốc; 10 cặp cần nhiều nhất):")
     for row in demand[:10]:
         error = "chưa đo" if row["wape"] is None else f"±{_number(row['wape'] * 100)}%"
         print(
-            f"  {row['store_code']} {names.get(row['medicine_code'], row['medicine_code']):<32} {_number(row['total']):>7}"
+            f"  {row['store_code']} {names.get(row['medicine_code'], row['medicine_code']):<32} {_number(sum(p['value'] for p in row['points'][:7])):>7}"
             f"  bán lẻ {_growth(row['change_vs_last_7_pct'])}  sai số tổng 7 ngày {error}"
         )
+    if "inventory" in results:
+        from app.analytics.forecast import stockout_projection
+        from app.analytics.stock import sellable_stock
+
+        points = [
+            {"store_code": row["store_code"], "medicine_code": row["medicine_code"], "start": row["points"][0]["date"], "values": [p["value"] for p in row["points"]]}
+            for row in demand
+        ]
+        soon = [item for item in stockout_projection(points, sellable_stock(results["inventory"].data, as_of)) if item["days_until_stockout"]]
+        print(f"\nDự kiến hết hàng trong {args.horizon} ngày tới (cộng dồn nhu cầu dự báo từng ngày): {len(soon)}")
+        for item in soon[:10]:
+            print(
+                f"  {item['store_code']} {names.get(item['medicine_code'], item['medicine_code']):<32}"
+                f" tồn {_number(item['stock_quantity']):>7}  hết sau {item['days_until_stockout']:>2} ngày ({pd.Timestamp(item['stockout_date']):%d/%m})"
+            )
     measured = [row["wape"] for row in demand if row["wape"] is not None]
     if measured:
         print(

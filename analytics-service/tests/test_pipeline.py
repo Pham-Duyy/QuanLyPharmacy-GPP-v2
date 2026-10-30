@@ -232,3 +232,25 @@ def test_snapshot_from_older_version_is_recomputed_on_restart(workspace, reads):
     result = Pipeline(folder, store).run(as_of=AS_OF + pd.Timedelta(minutes=1))
     assert result.status == "processed"
     assert "alerts" in store.latest_snapshot()
+
+
+def test_forecast_is_reused_while_complete_days_do_not_change(workspace, monkeypatch):
+    """Thêm hóa đơn hôm nay: không dự báo lại. Sang ngày mới: dự báo lại."""
+    folder, store = workspace
+    calls = {"count": 0}
+    original = pipeline_module.forecast_bundle
+
+    def counting(*args, **kwargs):
+        calls["count"] += 1
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(pipeline_module, "forecast_bundle", counting)
+    pipeline = Pipeline(folder, store)
+    pipeline.run(as_of=AS_OF)
+    pd.DataFrame([*BASE_SALES, sale("HD4", "2026-10-29 10:30", quantity=5)]).to_excel(folder / "sales.xlsx", index=False)
+    pipeline.run(as_of=AS_OF + pd.Timedelta(minutes=1))
+    assert calls["count"] == 1
+    assert "forecast" in store.latest_snapshot()
+
+    pipeline.run(as_of=AS_OF + pd.Timedelta(days=1), force=True)
+    assert calls["count"] == 2
