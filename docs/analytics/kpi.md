@@ -264,3 +264,20 @@ Nhu cầu thuốc: Holt-Winters được chọn cho 42/180 chuỗi; sai số t�
 cửa hàng × thuốc × loại bán + tham số mô hình). Thêm hóa đơn hôm nay không đổi khóa: dùng lại, pipeline 3,6 giây thay vì 6,1 giây.
 Sang ngày mới hoặc sửa số ngày cũ thì tính lại. Ngày hết hàng tính lại mỗi lần chạy vì tệp tồn kho có thể đổi.
 
+## Phân loại ABC–XYZ (Phase 5, bước 5.1)
+
+Mã: `analytics-service/app/analytics/classify.py`; ngưỡng trong `app/config.py`. Lệnh: `python main.py abc [--store CH01]`.
+
+| Chỉ số | Cách tính |
+|---|---|
+| Doanh thu ABC | Tổng doanh thu (bán lẻ + bán buôn) `ABC_DAYS` = 90 ngày đã trọn gần nhất |
+| Nhóm ABC | Xếp thuốc theo doanh thu giảm dần; tỷ trọng cộng dồn **trước** thuốc đó < 80% → A, < 95% → B, còn lại C. Thuốc làm vượt ngưỡng vẫn ở nhóm trên. Thuốc còn tồn mà không bán → C |
+| Nhu cầu tuần | Số lượng **bán lẻ** mỗi tuần, 12 tuần trọn gần nhất (tuần kết thúc hôm qua). Bán buôn không tính: một đơn sỉ không nói gì về nhu cầu ở quầy |
+| CV | Độ lệch chuẩn (mẫu) / trung bình nhu cầu tuần. Tuần trước lần bán đầu tiên không tính (không phải "bán 0"); dưới 4 tuần thì chưa xếp |
+| Nhóm XYZ | CV ≤ 0,5 → X ổn định; ≤ 1,0 → Y dao động; > 1,0 → Z thất thường |
+| Mức phục vụ | Theo ô: AX 98%, AY 97%, AZ 95%, BX 95%, BY 95%, BZ 93%, CX 93%, CY 92%, CZ 90%; chưa xếp XYZ dùng cột Y. Dùng cho tồn an toàn ở bước 5.2 |
+
+Snapshot có `classification` cho toàn chuỗi và từng cửa hàng: tóm tắt A/B/C (số thuốc, doanh thu, tỷ trọng), ma trận 9 ô, danh sách thuốc (doanh thu, cộng dồn, CV, ô, mức phục vụ).
+
+Đo trên dữ liệu mẫu (61 thuốc, 3 cửa hàng): toàn chuỗi A 29 thuốc (81,3% doanh thu), B 16 (13,8%), C 16 (4,9%); gần như mọi thuốc là X (CV 0,1–0,4), vài thuốc Y ở từng cửa hàng. Dữ liệu mẫu tự sinh nên doanh thu dàn đều và nhu cầu đều hơn thực tế: với dữ liệu thật thường thấy A khoảng 20% số thuốc và nhiều thuốc bán lẻ tẻ ở Y, Z. Test dùng dữ liệu dựng tay để phủ đủ X, Y, Z. Tính 4 phạm vi mất khoảng 0,1 giây.
+

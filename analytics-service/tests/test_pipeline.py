@@ -89,6 +89,9 @@ def test_first_run_stores_snapshot_matching_kpi_engine(workspace, reads):
     assert snapshot["kpi"]["ALL"]["periods"]["day"]["current"]["revenue"] == 12_000
     assert len(snapshot["trend"]["daily"]["ALL"]) == 90
     assert snapshot["data_quality"]["sales"]["rows_rejected"] == 1
+    # Bước 5.1: phân loại ABC–XYZ cho toàn chuỗi và từng cửa hàng.
+    assert set(snapshot["classification"]) == {"ALL", "CH01", "CH02"}
+    assert snapshot["classification"]["ALL"]["summary"]["A"]["count"] >= 1
 
     # Bảng theo ngày × cửa hàng, nền cho phát hiện bất thường và dự báo.
     assert store.daily_kpis() == [

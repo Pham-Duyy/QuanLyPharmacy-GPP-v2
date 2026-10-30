@@ -492,7 +492,7 @@ số đặt         = max(0, cần có − tồn dùng được), làm tròn lê
 | 4.4 | Nhật ký `ai_agent_logs`, giới hạn tần suất (30 câu/giờ), lưu hội thoại chỉ-thêm | Xong |
 | 4.5 | Giao diện hỏi đáp trên Bảng điều hành: câu gợi ý, tool đã gọi, nguồn số, kết quả đối chiếu || Xong |
 | 4.6 | Bộ ~30 câu hỏi đánh giá; chạy thật cần API key, tốn tiền: báo chi phí và hỏi trước | Đã chuẩn bị, chờ API key để chạy |
-| 5.1 | Phân loại ABC–XYZ (doanh thu 90 ngày, biến động nhu cầu tuần), ma trận 9 ô | |
+| 5.1 | Phân loại ABC–XYZ (doanh thu 90 ngày, biến động nhu cầu tuần), ma trận 9 ô ([kpi.md](kpi.md#phân-loại-abcxyz-phase-5-bước-51)) | Xong |
 | 5.2 | Gợi ý đặt hàng theo dự báo: tồn an toàn theo ABC–XYZ, trừ lô sắp hết hạn (FEFO), làm tròn quy cách; cột tùy chọn D19 | |
 | 5.3 | Gợi ý chuyển hàng giữa cửa hàng trước khi mua | |
 | 5.4 | API, Gateway, tab "Đặt hàng" và "ABC" trên Bảng điều hành, 2 tool AI Agent, xuất Excel | |

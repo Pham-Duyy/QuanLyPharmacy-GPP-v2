@@ -30,6 +30,7 @@ from app.analytics import (
     sales_trend,
 )
 from app.analytics.alerts import build_alerts
+from app.analytics.classify import classify
 from app.analytics.anomaly_events import detect_anomalies
 from app.analytics.forecast import data_key, forecast_bundle, stockout_projection
 from app.analytics.stock import sellable_stock
@@ -43,7 +44,10 @@ from app.store import AnalyticsStore, RunRecord
 Trigger = Literal["manual", "monitor", "refresh"]
 
 # Các khối mà phiên bản hiện tại luôn ghi vào snapshot.
-SNAPSHOT_KEYS = {"kpi", "trend", "breakdown_month", "products", "inventory", "expiry", "alerts", "anomalies", "forecast"}
+SNAPSHOT_KEYS = {
+    "kpi", "trend", "breakdown_month", "products", "inventory", "expiry", "alerts", "anomalies", "forecast",
+    "classification",
+}
 Status = Literal["processed", "refreshed", "unchanged", "failed"]
 
 
@@ -350,10 +354,12 @@ def build_snapshot(
             stockout = stockout_projection(forecast["demand_points"], sellable_stock(inventory, as_of))
 
     scopes: list[str | None] = [None, *stores]
-    products, stock, expiry, alerts, anomalies = {}, {}, {}, {}, {}
+    products, stock, expiry, alerts, anomalies, classes = {}, {}, {}, {}, {}, {}
     for store in scopes:
         key = store or "ALL"
         products[key] = product_analysis(sales, inventory, medicines, as_of, store)
+        # Phase 5 (bước 5.1): ABC–XYZ, nền cho mức phục vụ khi gợi ý đặt hàng.
+        classes[key] = classify(sales, inventory, medicines, as_of, store)
         stock[key] = inventory_analysis(sales, inventory, medicines, as_of, store, stock_as_of=stock_as_of)
         expiry[key] = expiry_analysis(sales, inventory, medicines, as_of, store, rates)
         # Lỗi dữ liệu tính trên cả tệp nên chỉ cảnh báo ở toàn chuỗi.
@@ -386,6 +392,7 @@ def build_snapshot(
         "expiry": expiry,
         "alerts": alerts,
         "anomalies": anomalies,
+        "classification": classes,
         "forecast": None
         if forecast is None
         else {

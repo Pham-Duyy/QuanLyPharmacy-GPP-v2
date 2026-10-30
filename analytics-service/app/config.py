@@ -161,3 +161,23 @@ HW_DAMPING = 0.9
 INTERVAL_QUANTILES = (0.1, 0.9)
 # Số lần giữ dự báo đã tính trong forecast_cache.
 KEEP_FORECASTS = 5
+
+# --- Phân loại ABC–XYZ (Phase 5, bước 5.1; quyết định D20) ------------------------------
+
+# ABC theo doanh thu ngần này ngày đã trọn gần nhất (cả bán lẻ và bán buôn).
+ABC_DAYS = 90
+# Ngưỡng tỷ trọng cộng dồn: thuốc nằm trong 80% doanh thu đầu là A, tới 95% là B, còn lại C.
+# Thuốc làm vượt ngưỡng vẫn thuộc nhóm trên (ví dụ cộng dồn 78% → 83%: vẫn là A).
+ABC_SHARES = (0.80, 0.95)
+# XYZ theo hệ số biến thiên (độ lệch chuẩn / trung bình) của số lượng bán lẻ mỗi tuần, XYZ_WEEKS tuần trọn
+# gần nhất; tuần trước lần bán đầu tiên không tính. Ít hơn XYZ_MIN_WEEKS tuần thì chưa xếp.
+XYZ_WEEKS = 12
+XYZ_MIN_WEEKS = 4
+XYZ_LIMITS = (0.5, 1.0)  # ≤ 0,5: X ổn định; ≤ 1,0: Y dao động; > 1,0: Z thất thường
+# Mức phục vụ (xác suất không hết hàng trong một chu kỳ đặt) theo ô ABC–XYZ, dùng cho tồn an toàn (bước 5.2).
+# Thuốc chưa xếp được XYZ dùng cột Y.
+SERVICE_LEVELS = {
+    "AX": 0.98, "AY": 0.97, "AZ": 0.95,
+    "BX": 0.95, "BY": 0.95, "BZ": 0.93,
+    "CX": 0.93, "CY": 0.92, "CZ": 0.90,
+}

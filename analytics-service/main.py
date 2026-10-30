@@ -193,6 +193,49 @@ def _margin(value: float | None) -> str:
     return "—" if value is None else _number(value, 1) + "%"
 
 
+def command_abc(args: argparse.Namespace) -> int:
+    """Phân loại ABC–XYZ (bước 5.1): thuốc nào đem lại doanh thu, nhu cầu đều hay thất thường."""
+    from app.analytics.classify import XYZ_LABELS, classify
+
+    try:
+        results = process_folder(args.folder)
+    except (LoadError, FileNotFoundError) as error:
+        print(f"Không xử lý được: {error}", file=sys.stderr)
+        return 1
+    medicines = results["medicines"].data if "medicines" in results else None
+    inventory = results["inventory"].data if "inventory" in results else None
+    sales = prepare_sales(results["sales"].data, medicines)
+    as_of = pd.Timestamp(args.as_of) if args.as_of else now_local()
+    store = args.store.upper() if args.store and args.store.upper() != "ALL" else None
+    result = classify(sales, inventory, medicines, as_of, store)
+    if args.json:
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return 0
+
+    scope = f"cửa hàng {store}" if store else "toàn chuỗi"
+    window = result["window"]
+    print(f"\nABC–XYZ {scope}: doanh thu {window['start']} → {window['end']}, nhu cầu bán lẻ {result['weeks']} tuần")
+    for group, part in result["summary"].items():
+        print(f"  {group}: {part['count']:>3} thuốc  {_money(part['revenue']):>18}  {_number(part['share_pct'], 1):>5}% doanh thu")
+    print("\n       X ổn định   Y dao động  Z thất thường")
+    for abc in ("A", "B", "C"):
+        cells = [result["matrix"][f"{abc}{xyz}"] for xyz in ("X", "Y", "Z")]
+        print(f"  {abc}  " + "".join(f"{cell['count']:>4} ({_number(cell['service_level'] * 100, 0)}%)  " for cell in cells))
+    if result["unclassified_xyz"]:
+        print(f"  Chưa xếp XYZ (dưới vài tuần bán hoặc không bán): {result['unclassified_xyz']}")
+    print()
+    for item in result["items"][: args.top]:
+        xyz = XYZ_LABELS.get(item["xyz"] or "", "chưa xếp")
+        cv = "—" if item["cv"] is None else _number(item["cv"], 2)
+        print(
+            f"  {item['cell']:<3} {item['medicine_name'] or item['medicine_code']:<34}"
+            f" {_money(item['revenue']):>16}  cộng dồn {_number(item['cumulative_pct'], 1):>5}%  CV {cv:>5} {xyz}"
+        )
+    if len(result["items"]) > args.top:
+        print(f"  … và {len(result['items']) - args.top} thuốc khác")
+    return 0
+
+
 def command_inventory(args: argparse.Namespace) -> int:
     """Tình trạng tồn kho (bước 2.3): hết hàng, sắp hết, tồn chết, tồn cao."""
     from app.analytics.inventory import STATUS_LABELS, inventory_analysis
@@ -568,6 +611,13 @@ def main() -> int:
     forecast.add_argument("--as-of", help="Thời điểm tính (mặc định: bây giờ)")
     forecast.add_argument("--json", action="store_true", help="In dự báo doanh thu dạng JSON")
     forecast.set_defaults(handler=command_forecast)
+    abc = commands.add_parser("abc", help="Phân loại ABC–XYZ: đóng góp doanh thu, độ ổn định nhu cầu")
+    abc.add_argument("folder", nargs="?", type=Path, default=SAMPLES_DIR, help="Thư mục chứa medicines/sales/inventory")
+    abc.add_argument("--store", help="Một cửa hàng, ví dụ CH01 (mặc định toàn chuỗi)")
+    abc.add_argument("--as-of", help="Thời điểm tính (mặc định: bây giờ)")
+    abc.add_argument("--top", type=int, default=20, help="Số thuốc in ra (mặc định 20)")
+    abc.add_argument("--json", action="store_true", help="In kết quả dạng JSON")
+    abc.set_defaults(handler=command_abc)
     run = commands.add_parser("run", help="Chạy pipeline và lưu snapshot vào SQLite")
     run.add_argument("folder", nargs="?", type=Path, default=SAMPLES_DIR, help="Thư mục chứa medicines/sales/inventory")
     run.add_argument("--db", type=Path, default=ANALYTICS_DB, help="Tệp SQLite (mặc định data/analytics.db)")

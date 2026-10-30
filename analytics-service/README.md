@@ -48,6 +48,8 @@ python main.py expiry                          # lô hết hạn, sắp hết h�
 python main.py anomalies                       # bất thường: luật R1–R3 + Z-score; tụt và tăng vọt
 python main.py forecast                        # dự báo doanh thu 7 ngày, nhu cầu thuốc; sai số đo bằng backtest
 python main.py forecast --store CH03 --horizon 30
+python main.py abc                             # phân loại ABC–XYZ: đóng góp doanh thu, độ ổn định nhu cầu
+python main.py abc --store CH01 --top 30
 python main.py run                             # chạy pipeline, lưu snapshot vào data/analytics.db
 python main.py run --force                     # đọc lại tệp dù không đổi
 python main.py status                          # nhật ký các lần chạy
