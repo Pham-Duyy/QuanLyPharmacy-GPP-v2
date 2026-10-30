@@ -163,3 +163,30 @@ Vì sao có các điều kiện phụ (đã đo trên 8 bộ dữ liệu mẫu n
 Kết quả trên 8 bộ dữ liệu mẫu: R1 ở CH01 bắt đúng ngày mất điện và không gì khác; R2 bắt đúng Amoxicillin CH02 ngừng bán
 và không thuốc nào khác; CH03 sụt 35% (câu chuyện thật) được R1 báo 0–5 ngày.
 
+## Bất thường Level 2 và gộp sự kiện (Phase 3, bước 3.3)
+
+Code: `analytics-service/app/analytics/anomaly_stats.py` (Z-score), `anomaly_events.py` (gộp).
+Lệnh `python main.py anomalies` giờ in cả hai cấp.
+
+```
+z = (giá trị − trung vị) / (1,4826 × MAD)        MAD = trung vị |mẫu − trung vị|
+```
+
+Trung vị/MAD thay cho trung bình/độ lệch chuẩn: một ngày mất điện nằm trong mẫu kéo trung bình lệch và che bất thường
+khác; trung vị gần như không đổi. 1,4826 đưa MAD về cùng thang với độ lệch chuẩn. Ngưỡng |z| > 3,5 (Iglewicz & Hoaglin).
+
+| Đối tượng | Mẫu so | Điều kiện thêm |
+|---|---|---|
+| Doanh thu bán lẻ mỗi cửa hàng (tụt và tăng vọt) | 8 cùng thứ trước | Lệch ≥ 30% (đủ lớn, không chỉ hiếm); số đơn cũng lệch bất thường (Poisson < 1%) |
+| Từng thuốc ở từng cửa hàng (chỉ tăng vọt; tụt đã có R2) | 28 ngày trước | Số lần bán trong ngày hiếm tới mức xác suất < 0,001% (~2.500 phép kiểm mỗi lần chạy) |
+
+**Gộp.** Cùng nơi, cùng ngày, cùng chiều mà cả R1 và Z-score phát hiện thì là một bất thường có hai bằng chứng
+(`[R1+z]`). Các ngày bất thường cùng loại cách nhau ≤ 2 ngày gộp thành một **đợt**, lấy ngày lệch nhiều nhất làm đại diện.
+
+**Cảnh báo.** Đợt kết thúc trong 7 ngày gần nhất đi vào khối Cảnh báo: "bất thường giảm" (trung bình), "bất thường
+tăng vọt" (thấp), "tồn kho tăng bất thường" (thấp, mục tồn kho). Luật cũ của bước 2.5 "doanh thu hôm nay giảm ≥ 20% so
+với hôm qua" được thay bằng R1 (so cùng thứ, cùng giờ, có kiểm định số đơn).
+
+Đo trên 8 bộ dữ liệu mẫu ngẫu nhiên: ngày mất điện 8/8, Amoxicillin ngừng bán 8/8, khẩu trang tăng vọt 7/8 (bộ còn lại
+đợt tăng chỉ ×2,3, xác suất ngẫu nhiên 2–4%, không đủ bằng chứng), báo giả ngoài CH03: 0.
+

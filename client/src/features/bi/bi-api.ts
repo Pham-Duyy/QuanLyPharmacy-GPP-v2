@@ -98,7 +98,7 @@ export type Alert = {
   code: string;
   severity: Severity;
   title: string;
-  section: "inventory" | "expiry" | "kpi" | "data_quality";
+  section: "inventory" | "expiry" | "anomalies" | "kpi" | "data_quality";
   count: number | null;
   value: number | null;
   items: string[];

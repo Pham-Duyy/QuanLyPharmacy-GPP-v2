@@ -83,10 +83,8 @@ EXPIRY_CRITICAL_DAYS = 7
 EXPIRY_WARNING_DAYS = 30
 EXPIRY_MONITOR_DAYS = 90
 
-# Cảnh báo (bước 2.5): doanh thu hôm nay giảm từ ngần này % so với hôm qua cùng giờ.
-REVENUE_DROP_PCT = 20.0
-# ...và hôm qua cùng giờ có từ ngần này đơn: sáng sớm vài đơn thì % dao động mạnh, không cảnh báo.
-REVENUE_DROP_MIN_ORDERS = 10
+# (Bước 2.5 từng có luật "doanh thu hôm nay giảm ≥ 20% so với hôm qua"; từ bước 3.3 thay bằng
+# luật R1 + Z-score: so với cùng thứ, cùng giờ, có kiểm định số đơn.)
 
 # --- Bất thường, dự báo (Phase 3; quyết định D10–D13) -------------------------------
 
@@ -122,3 +120,18 @@ R2_MAX_P = 0.001
 
 # Luật R3: giữa hai lần lưu tệp tồn kho, tồn một thuốc tăng hơn ngần này lần lượng bán 30 ngày.
 R3_RATIO = 3.0
+
+# Level 2 (bước 3.3): Z-score bền vững z = (giá trị − trung vị) / (1,4826 × MAD), |z| > Z_THRESHOLD là bất thường.
+# 3,5 là ngưỡng chuẩn cho Z-score bền vững (Iglewicz & Hoaglin).
+Z_THRESHOLD = 3.5
+# Doanh thu: so với Z_WEEKS cùng thứ trước (cần ít nhất R1_WEEKS lần).
+Z_WEEKS = 8
+# Từng thuốc: so với Z_PRODUCT_BASE_DAYS ngày trước đó (bán lẻ tẻ nên không tách theo thứ),
+# và số lần bán trong ngày phải cao tới mức ngẫu nhiên khó gây ra (Poisson, xác suất < Z_PRODUCT_MAX_P).
+# 0,001% vì mỗi lần chạy kiểm ~180 cặp × 14 ngày ≈ 2.500 phép: 0,01% vẫn còn ~1 báo giả mỗi vài lần.
+Z_PRODUCT_BASE_DAYS = 28
+Z_PRODUCT_MAX_P = 0.00001
+# Các ngày bất thường cùng loại cách nhau không quá ngần này ngày được gộp thành một đợt.
+EPISODE_GAP_DAYS = 2
+# Cảnh báo chỉ nêu đợt bất thường kết thúc trong ngần này ngày gần nhất (cũ hơn vẫn xem được ở danh sách).
+ANOMALY_ALERT_DAYS = 7

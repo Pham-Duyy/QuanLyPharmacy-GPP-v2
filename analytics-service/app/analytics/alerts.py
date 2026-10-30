@@ -6,15 +6,15 @@ nào, không gọi LLM: câu chữ là khuôn cố định, số lấy thẳng t
 
     critical  lô đã hết hạn còn trong kho (GPP: phải tách khỏi khu bán)
     high      hàng có nguy cơ hết hạn trước khi bán kịp (FEFO); hết hàng
-    medium    lô hết hạn trong 30 ngày; sắp hết hàng; doanh thu hôm nay giảm mạnh
-    low       tồn chết; tệp dữ liệu có dòng bị loại
+    medium    lô hết hạn trong 30 ngày; sắp hết hàng; bất thường giảm (doanh thu, lượng bán)
+    low       tồn chết; tệp dữ liệu có dòng bị loại; bất thường tăng vọt; tồn kho tăng bất thường
 """
 
 from __future__ import annotations
 
 from typing import Literal
 
-from app.config import EXPIRY_WARNING_DAYS, REVENUE_DROP_MIN_ORDERS, REVENUE_DROP_PCT, SALES_LOOKBACK_DAYS
+from app.config import ANOMALY_ALERT_DAYS, EXPIRY_WARNING_DAYS, SALES_LOOKBACK_DAYS
 
 Severity = Literal["critical", "high", "medium", "low"]
 SEVERITY_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3}
@@ -33,7 +33,7 @@ def _alert(code: str, severity: Severity, title: str, *, section: str, count: in
         "code": code,
         "severity": severity,
         "title": title,
-        # Khối trên Dashboard nơi xem chi tiết: inventory, expiry, kpi, data_quality.
+        # Khối trên Dashboard nơi xem chi tiết: inventory, expiry, anomalies, data_quality.
         "section": section,
         "count": count,
         "value": value,
@@ -51,10 +51,10 @@ def _names(rows: list[dict], limit: int = 3) -> list[str]:
 
 
 def build_alerts(
-    kpi: dict,
     inventory: dict,
     expiry: dict,
     data_quality: dict | None = None,
+    anomalies: list[dict] | None = None,
 ) -> list[dict]:
     """Cảnh báo của một phạm vi. data_quality chỉ truyền cho toàn chuỗi (lỗi tính trên cả tệp)."""
     alerts: list[dict] = []
@@ -127,20 +127,34 @@ def build_alerts(
                 )
             )
 
-    today = kpi["periods"]["day"]
-    growth = today["growth"].get("revenue")
-    if (
-        growth is not None
-        and growth <= -REVENUE_DROP_PCT
-        and today["previous_same_span"]["orders"] >= REVENUE_DROP_MIN_ORDERS
+    # Bất thường (bước 3.3): đã gộp bằng chứng và gộp đợt; pipeline chỉ truyền đợt mới (ANOMALY_ALERT_DAYS ngày).
+    events = anomalies or []
+    for direction, severity, text in (
+        ("down", "medium", "bất thường giảm (doanh thu, lượng bán tụt so với mức thường)"),
+        ("up", "low", "bất thường tăng vọt (doanh thu, lượng bán)"),
     ):
+        found = [event for event in events if event["direction"] == direction and event["kind"] != "stock_jump"]
+        if found:
+            alerts.append(
+                _alert(
+                    f"anomaly_{direction}",
+                    severity,
+                    f"{len(found)} {text} trong {ANOMALY_ALERT_DAYS} ngày qua",
+                    section="anomalies",
+                    count=len(found),
+                    items=[event["short"] for event in found[:3]],
+                )
+            )
+    jumps = [event for event in events if event["kind"] == "stock_jump"]
+    if jumps:
         alerts.append(
             _alert(
-                "revenue_drop",
-                "medium",
-                f"Doanh thu hôm nay giảm {abs(growth):.0f}% so với hôm qua cùng giờ".replace(".", ","),
-                section="kpi",
-                value=growth,
+                "stock_jump",
+                "low",
+                f"{len(jumps)} sản phẩm có tồn kho tăng bất thường giữa hai lần lưu tệp: kiểm tra lại số nhập",
+                section="inventory",
+                count=len(jumps),
+                items=[event["short"] for event in jumps[:3]],
             )
         )
 

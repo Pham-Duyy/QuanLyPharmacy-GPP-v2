@@ -263,7 +263,7 @@ Ví dụ: ADS 10 hộp/ngày; lô A 50 hộp còn 7 ngày → bán hết sau 5 n
 
 **Cảnh báo theo luật** (`app/analytics/alerts.py`, câu chữ là khuôn cố định, số lấy thẳng từ kết quả, không gọi LLM):
 lô hết hạn còn trong kho (nguy cấp); lô nguy cấp/cảnh báo; hàng có nguy cơ không kịp bán;
-hết hàng/sắp hết; doanh thu hôm nay giảm ≥ 20% so với hôm qua cùng giờ; tệp có dòng lỗi.
+hết hàng/sắp hết; tệp có dòng lỗi. (Luật "doanh thu hôm nay giảm ≥ 20%" của bản đầu đã được thay bằng bất thường R1 + Z-score ở bước 3.3.)
 
 Thiếu `inventory.xlsx` thì phần bán hàng vẫn chạy; các khối tồn kho báo `available: false`.
 
@@ -304,7 +304,7 @@ không được báo là bất thường từng ngày.
 | 2.6 | Gateway (quyền D8) + Bảng điều hành: thẻ KPI tồn kho, khối Cảnh báo, tab Tồn kho / Hạn dùng / Sản phẩm | Xong |
 | 3.1 | Chuỗi theo ngày (cửa hàng, thuốc), kiểm tra đủ dữ liệu; bất thường cài trong dữ liệu mẫu | Xong |
 | 3.2 | Bất thường Level 1: luật R1, R2, R3 (+ bảng `stock_history`) ([kpi.md](kpi.md#bất-thường-theo-luật-phase-3-bước-32)) | Xong |
-| 3.3 | Bất thường Level 2: Z-score bền vững theo thứ; gộp bằng chứng; đưa vào Cảnh báo | |
+| 3.3 | Bất thường Level 2: Z-score bền vững theo thứ; gộp bằng chứng; đưa vào Cảnh báo ([kpi.md](kpi.md#bất-thường-level-2-và-gộp-sự-kiện-phase-3-bước-33)) | Xong |
 | 3.4 | Dự báo L1 (trung bình theo thứ) + backtest + WAPE + mô hình ngây thơ | |
 | 3.5 | Holt-Winters, chọn mô hình, khoảng tin cậy, ngày dự kiến hết hàng, `forecast_cache` | |
 | 3.6 | Snapshot, API `/anomalies`, `/forecast`, Gateway, Bảng điều hành | |

@@ -293,7 +293,7 @@ def command_expiry(args: argparse.Namespace) -> int:
 
 def command_anomalies(args: argparse.Namespace) -> int:
     """Bất thường theo luật R1–R3 (bước 3.2)."""
-    from app.analytics.anomaly import rule_anomalies
+    from app.analytics.anomaly_events import detect_anomalies
     from app.pipeline import sha256_of, stock_totals
     from app.processor import INVENTORY
     from app.processor.service import find_file
@@ -317,19 +317,19 @@ def command_anomalies(args: argparse.Namespace) -> int:
             older = [version for version in AnalyticsStore(args.db).stock_versions(5) if version["file_sha"] != sha]
             if older:
                 previous, previous_at = pd.DataFrame(older[0]["rows"]), older[0]["saved_at"]
-    found = rule_anomalies(sales, as_of, medicines, current_stock=current, previous_stock=previous, previous_saved_at=previous_at)
+    found = detect_anomalies(sales, as_of, medicines, current_stock=current, previous_stock=previous, previous_saved_at=previous_at)
     if args.store:
         found = [item for item in found if item["store_code"] == args.store.upper()]
     if args.json:
         print(json.dumps(found, ensure_ascii=False, indent=2))
         return 0
 
-    print(f"\nBất thường theo luật, tính đến {as_of:%d/%m/%Y %H:%M}: {len(found)}")
+    print(f"\nBất thường (luật R1–R3 + Z-score), tính đến {as_of:%d/%m/%Y %H:%M}: {len(found)} sự kiện")
     if previous is None:
         print("(R3 tồn kho: chưa có lần lưu tệp tồn kho trước đó trong Analytics Store để so)")
     for item in found:
-        rule = item["evidence"][0]["rule"]
-        print(f"  [{rule}] {item['date']}  {item['message']}")
+        how = "+".join(evidence.get("rule") or "z" for evidence in item["evidence"])
+        print(f"  [{how}] {item['end']}  {item['message']}")
     return 0
 
 
@@ -473,7 +473,7 @@ def main() -> int:
     expiry.add_argument("--top", type=int, default=15, help="Số dòng mỗi danh sách (mặc định 15)")
     expiry.add_argument("--json", action="store_true", help="In kết quả dạng JSON")
     expiry.set_defaults(handler=command_expiry)
-    anomalies = commands.add_parser("anomalies", help="Bất thường theo luật: doanh thu tụt, thuốc bán tụt, tồn tăng vọt")
+    anomalies = commands.add_parser("anomalies", help="Bất thường: doanh thu tụt/tăng vọt, thuốc bán tụt/tăng vọt, tồn tăng vọt")
     anomalies.add_argument("folder", nargs="?", type=Path, default=SAMPLES_DIR, help="Thư mục chứa medicines/sales/inventory")
     anomalies.add_argument("--store", help="Chỉ một cửa hàng (hoặc ALL cho toàn chuỗi)")
     anomalies.add_argument("--as-of", help="Thời điểm tính (mặc định: bây giờ)")

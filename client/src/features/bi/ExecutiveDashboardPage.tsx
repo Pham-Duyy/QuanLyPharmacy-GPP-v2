@@ -114,12 +114,15 @@ export function ExecutiveDashboardPage() {
   const inventoryAllowed = canSeeInventory(access.data, store);
   // Bấm "Xem" ở một cảnh báo: mở đúng tab chứa chi tiết.
   const openSection = (section: BiAlert["section"]) => {
-    const target = {
+    const tabs: Record<BiAlert["section"], string> = {
       inventory: "inventory",
       expiry: "expiry",
+      // Tab Bất thường có ở bước 3.6; tới lúc đó mở tab tổng quan.
+      anomalies: "overview",
       kpi: "overview",
       data_quality: "overview",
-    }[section];
+    };
+    const target = tabs[section];
     setTab(target);
     document.querySelector(".bi-tabs")?.scrollIntoView({ behavior: "smooth", block: "start" });
   };

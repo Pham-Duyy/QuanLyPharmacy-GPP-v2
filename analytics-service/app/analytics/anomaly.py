@@ -52,6 +52,8 @@ from app.config import (
 
 from .series import last_complete_day
 
+RULES = {"revenue_drop_today": "R1", "revenue_drop_day": "R1", "medicine_drop": "R2", "stock_jump": "R3"}
+
 WEEKDAYS = ["thứ Hai", "thứ Ba", "thứ Tư", "thứ Năm", "thứ Sáu", "thứ Bảy", "Chủ nhật"]
 
 
@@ -312,6 +314,7 @@ def _record(
     medicine_name: str | None = None,
     period_start: pd.Timestamp | None = None,
     extra: dict | None = None,
+    evidence: list[dict] | None = None,
 ) -> dict:
     return {
         "kind": kind,
@@ -325,7 +328,7 @@ def _record(
         "expected": round(float(expected), 2),
         "change_pct": _change(actual, expected) if expected else None,
         # Cách phát hiện: luật nào (bước 3.3 thêm "robust_z").
-        "evidence": [{"method": "rule", "rule": {"revenue_drop_today": "R1", "revenue_drop_day": "R1", "medicine_drop": "R2", "stock_jump": "R3"}[kind]}],
+        "evidence": evidence or [{"method": "rule", "rule": RULES[kind]}],
         "message": message,
         **(extra or {}),
     }

@@ -30,9 +30,10 @@ from app.analytics import (
     sales_trend,
 )
 from app.analytics.alerts import build_alerts
+from app.analytics.anomaly_events import detect_anomalies
 from app.analytics.breakdown import bucket_start
 from app.analytics.periods import Window, period_windows
-from app.config import SNAPSHOT_REFRESH_SECONDS, TIMEZONE, TREND_DAYS
+from app.config import ANOMALY_ALERT_DAYS, SNAPSHOT_REFRESH_SECONDS, TIMEZONE, TREND_DAYS
 from app.processor import INVENTORY, MEDICINES, SALES, LoadError, ProcessResult, process_folder
 from app.processor.service import find_file, now_local
 from app.store import AnalyticsStore, RunRecord
@@ -40,7 +41,7 @@ from app.store import AnalyticsStore, RunRecord
 Trigger = Literal["manual", "monitor", "refresh"]
 
 # Các khối mà phiên bản hiện tại luôn ghi vào snapshot.
-SNAPSHOT_KEYS = {"kpi", "trend", "breakdown_month", "products", "inventory", "expiry", "alerts"}
+SNAPSHOT_KEYS = {"kpi", "trend", "breakdown_month", "products", "inventory", "expiry", "alerts", "anomalies"}
 Status = Literal["processed", "refreshed", "unchanged", "failed"]
 
 
@@ -113,6 +114,16 @@ class Pipeline:
         if SNAPSHOT_KEYS <= snapshot.keys():
             self._snapshot_at = pd.Timestamp(snapshot["as_of"])
 
+    def _previous_stock(self, fingerprints: dict[str, FileFingerprint]) -> dict | None:
+        """Lần lưu tệp tồn kho gần nhất KHÁC nội dung hiện tại (luật R3): {saved_at, rows}."""
+        if "inventory" not in fingerprints:
+            return None
+        current = fingerprints["inventory"].sha256
+        for version in self.store.stock_versions(3):
+            if version["file_sha"] != current:
+                return version
+        return None
+
     def _record_stock(self, fingerprint: FileFingerprint, inventory: pd.DataFrame) -> None:
         """Mỗi nội dung tệp tồn kho ghi một lần vào stock_history (luật R3 so hai lần liên tiếp)."""
         rows = stock_totals(inventory).to_dict("records")
@@ -172,7 +183,7 @@ class Pipeline:
                 sales = prepare_sales(results["sales"].data, medicines)
                 self._cache = _Cache(source_hash, results, sales)
             cache = self._cache
-            snapshot = build_snapshot(cache.sales, cache.results, moment, fingerprints)
+            snapshot = build_snapshot(cache.sales, cache.results, moment, fingerprints, self._previous_stock(fingerprints))
             daily = daily_kpis(cache.sales)
         except (LoadError, FileNotFoundError, PermissionError) as error:
             # Tệp hỏng hoặc đang bị khóa: ghi nhận lỗi, GIỮ snapshot tốt gần nhất.
@@ -256,6 +267,7 @@ def build_snapshot(
     results: dict[str, ProcessResult],
     as_of: pd.Timestamp,
     fingerprints: dict[str, FileFingerprint],
+    previous_stock: dict | None = None,
 ) -> dict:
     """Mọi thứ Dashboard cần, tính sẵn. Dữ liệu sau as_of không được tính."""
     sales = sales[sales["sale_datetime"] < as_of]
@@ -285,15 +297,32 @@ def build_snapshot(
     medicines = results["medicines"].data if "medicines" in results else None
     inventory = results["inventory"].data if "inventory" in results else None
     stock_as_of = file_time(fingerprints["inventory"]) if "inventory" in fingerprints else None
+    # Phase 3: bất thường (luật R1–R3 + Z-score), tính một lần cho cả chuỗi rồi chia theo phạm vi.
+    events = detect_anomalies(
+        sales,
+        as_of,
+        medicines,
+        current_stock=None if inventory is None else stock_totals(inventory),
+        previous_stock=None if previous_stock is None else pd.DataFrame(previous_stock["rows"]),
+        saved_at=None if stock_as_of is None else stock_as_of.isoformat(),
+        previous_saved_at=None if previous_stock is None else previous_stock["saved_at"],
+    )
+    recent_from = (as_of.normalize() - pd.Timedelta(days=ANOMALY_ALERT_DAYS)).date().isoformat()
+
+    def events_of(store: str | None) -> list[dict]:
+        return events if store is None else [event for event in events if event["store_code"] == store]
+
     scopes: list[str | None] = [None, *stores]
-    products, stock, expiry, alerts = {}, {}, {}, {}
+    products, stock, expiry, alerts, anomalies = {}, {}, {}, {}, {}
     for store in scopes:
         key = store or "ALL"
         products[key] = product_analysis(sales, inventory, medicines, as_of, store)
         stock[key] = inventory_analysis(sales, inventory, medicines, as_of, store, stock_as_of=stock_as_of)
         expiry[key] = expiry_analysis(sales, inventory, medicines, as_of, store)
         # Lỗi dữ liệu tính trên cả tệp nên chỉ cảnh báo ở toàn chuỗi.
-        alerts[key] = build_alerts(kpi[key], stock[key], expiry[key], data_quality if store is None else None)
+        anomalies[key] = events_of(store)
+        recent = [event for event in anomalies[key] if event["end"] >= recent_from]
+        alerts[key] = build_alerts(stock[key], expiry[key], data_quality if store is None else None, recent)
 
     return {
         "generated_at": _now_text(),
@@ -319,6 +348,7 @@ def build_snapshot(
         "inventory": stock,
         "expiry": expiry,
         "alerts": alerts,
+        "anomalies": anomalies,
     }
 
 
