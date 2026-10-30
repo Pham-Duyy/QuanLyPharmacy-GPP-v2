@@ -319,6 +319,20 @@ năng" kèm bằng chứng, nội dung trong kết quả tool là dữ liệu ch
 Hội thoại lưu phía server, chỉ thêm (model hiện tại yêu cầu gửi lại lịch sử nguyên vẹn), tối đa 10 lượt, hết hạn 24 giờ.
 Chi phí ước tính khoảng 1.000–2.000 đ/câu (Opus 5.5: $4 / $20 mỗi triệu token, đọc cache $0,20); số thật ghi nhật ký.
 
+### Lớp tool (bước 4.1, đã làm)
+
+- `server/src/modules/bi/bi.service.ts`: quyền và lọc số liệu (D8) tách khỏi route, dùng chung cho `/bi/*` và tool.
+  Người chỉ xem NT01 hay thiếu `report.inventory` bị giới hạn y như nhau dù bấm giao diện hay hỏi Agent.
+- `server/src/modules/bi/agent/tools.ts`: 16 tool. Tham số khai báo bằng zod, gửi Claude dạng JSON Schema với
+  `strict: true` (bỏ các từ khóa strict không nhận như `pattern`, `maximum`; zod vẫn kiểm lại đủ khi chạy). Thứ tự
+  định nghĩa cố định để prompt caching trúng.
+- `runTool(access, name, input)` không bao giờ ném lỗi ra vòng lặp vì lỗi nghiệp vụ: tool lạ, tham số sai, thiếu quyền
+  (403), analytics-service chưa chạy đều thành kết quả `ok: false` có câu lỗi tiếng Việt để Claude đọc và báo lại.
+- Kết quả cắt gọn: tối đa 10 dòng xếp hạng, 15 dòng tồn kho/lô hạn dùng/bất thường, 40 điểm xu hướng, 14 điểm dự báo; bỏ trường chỉ dùng cho giao diện
+  (nhãn ngắn, sai số từng ngày). Tổng dự báo 7 ngày do server cộng sẵn để Claude không phải tự tính.
+- get_customer_debt, get_supplier_data trả `available: false` kèm lời dặn không ước đoán.
+- Test: `server/src/modules/bi/agent/tools.test.ts` (14 test, analytics-service giả, không gọi Claude, không tốn tiền).
+
 ## Lộ trình
 
 | Phase | Nội dung | Trạng thái |
@@ -342,7 +356,7 @@ Chi phí ước tính khoảng 1.000–2.000 đ/câu (Opus 5.5: $4 / $20 mỗi t
 | 3.4 | Dự báo L1 (trung bình theo thứ) + backtest + WAPE + mô hình ngây thơ ([kpi.md](kpi.md#dự-báo-level-1-và-backtest-phase-3-bước-34)) | Xong |
 | 3.5 | Holt-Winters, chọn mô hình, khoảng tin cậy, ngày dự kiến hết hàng, `forecast_cache` ([kpi.md](kpi.md#holt-winters-khoảng-tin-cậy-ngày-hết-hàng-phase-3-bước-35)) | Xong |
 | 3.6 | Snapshot, API `/anomalies`, `/forecast`, Gateway, Bảng điều hành | Xong |
-| 4.1 | Lớp tool: định nghĩa (schema chặt), gọi qua Gateway, lọc quyền, cắt gọn kết quả | |
+| 4.1 | Lớp tool: định nghĩa (schema chặt), gọi qua Gateway, lọc quyền, cắt gọn kết quả | Xong |
 | 4.2 | Vòng lặp Agent, system prompt, prompt caching, giới hạn (6 vòng, 60 giây), tính chi phí; test bằng Claude giả | |
 | 4.3 | Đối chiếu số, sửa 1 lần, chặn; trả lời "không đủ dữ liệu" | |
 | 4.4 | Nhật ký `ai_agent_logs`, giới hạn tần suất (30 câu/giờ), lưu hội thoại chỉ-thêm | |
