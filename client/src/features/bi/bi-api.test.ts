@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { ageText, clockText, trendChart, type Trend } from "./bi-api.js";
+import {
+  ageText,
+  canSeeInventory,
+  clockText,
+  matchesText,
+  money,
+  trendChart,
+  type Trend,
+} from "./bi-api.js";
 
 describe("bảng điều hành", () => {
   it("biểu đồ đánh dấu kỳ đang dở", () => {
@@ -35,5 +43,24 @@ describe("bảng điều hành", () => {
     expect(ageText(185)).toBe("3 phút trước");
     expect(ageText(7_300)).toBe("2 giờ trước");
     expect(ageText(null)).toBe("chưa rõ");
+  });
+
+  it("quyền xem tồn kho theo phạm vi", () => {
+    const access = { allStores: true, stores: [], inventoryAll: false, inventoryStores: ["NT01"] };
+    expect(canSeeInventory(access, "NT01")).toBe(true);
+    expect(canSeeInventory(access, "NT02")).toBe(false);
+    expect(canSeeInventory(access, "ALL")).toBe(false);
+    expect(canSeeInventory({ ...access, inventoryAll: true }, "ALL")).toBe(true);
+    expect(canSeeInventory(undefined, "NT01")).toBe(false);
+  });
+
+  it("tìm không dấu, tiền tròn đồng", () => {
+    expect(matchesText("siro ho", "Siro ho Prospan 100ml")).toBe(true);
+    expect(matchesText("đường", null, "Que thử đường huyết")).toBe(true);
+    expect(matchesText("duong", "Que thử đường huyết")).toBe(true);
+    expect(matchesText("xyz", "Paracetamol")).toBe(false);
+    expect(matchesText("  ", "bất kỳ")).toBe(true);
+    expect(money(3_606_160.72)).toBe(money(3_606_161));
+    expect(money(null)).toBe("—");
   });
 });

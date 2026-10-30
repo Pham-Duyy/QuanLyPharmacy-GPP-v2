@@ -17,7 +17,19 @@ const SUMMARY = {
   stores: ["NT01", "NT02", "NT03"],
   periods: { day: { current: { revenue: 12_000 } } },
   data_quality: { sales: { rows_rejected: 12 } },
+  overview: { total_stock_value: 806_000_000, low_stock: 2 },
 };
+
+const ALERTS = {
+  version: 7,
+  alerts: [
+    { code: "expired_in_stock", severity: "critical", section: "expiry" },
+    { code: "low", severity: "medium", section: "inventory" },
+    { code: "revenue_drop", severity: "medium", section: "kpi" },
+  ],
+};
+
+const productRow = () => ({ medicine_code: "TB010", stock_quantity: 3, stock_value: 1_950_000 });
 
 const HEALTH = {
   status: "ok",
@@ -40,6 +52,9 @@ beforeAll(async () => {
     "sales-trend": { version: 7, points: [] },
     breakdown: { version: 7, rows: [{ label: "Giảm đau", revenue: 18_000 }] },
     "data-quality": { version: 7, total: 12, issues: [] },
+    inventory: { version: 7, available: true, items: [] },
+    expiry: { version: 7, available: true, lots: [] },
+    alerts: ALERTS,
   });
   process.env["ANALYTICS_SERVICE_URL"] = stub.baseUrl;
 });
@@ -75,6 +90,8 @@ describe("cổng Bảng điều hành /api/v1/bi", () => {
         { code: "NT01", name: "Nhà thuốc kiểm thử 1" },
         { code: "NT02", name: "Nhà thuốc kiểm thử 2" },
       ],
+      inventoryAll: true,
+      inventoryStores: ["NT01", "NT02"],
     });
 
     const summary = await get("summary", adminToken);
@@ -89,6 +106,8 @@ describe("cổng Bảng điều hành /api/v1/bi", () => {
     expect(access.body.data).toEqual({
       allStores: false,
       stores: [{ code: "NT01", name: "Nhà thuốc kiểm thử 1" }],
+      inventoryAll: false,
+      inventoryStores: ["NT01"],
     });
 
     const summary = await get("summary", token);
@@ -173,5 +192,43 @@ describe("cổng Bảng điều hành /api/v1/bi", () => {
     const { token } = await login("banhang");
     expect((await get("summary", token)).status).toBe(403);
     expect(stub.requests).toEqual([]);
+  });
+
+  it("tồn kho, hạn dùng: cần report.inventory ở đúng phạm vi", async () => {
+    expect((await get("inventory?status=low", adminToken)).status).toBe(200);
+    expect(stub.requests.at(-1)).toBe("/api/analytics/inventory?store=ALL&status=low");
+    expect((await get("expiry?level=expired", adminToken)).status).toBe(200);
+    expect((await get("expiry?level=normal", adminToken)).status).toBe(422);
+
+    const viewer = await storeViewerToken();
+    expect((await get("inventory", viewer)).status).toBe(200);
+    expect(stub.requests.at(-1)).toBe("/api/analytics/inventory?store=NT01");
+    expect((await get("inventory?store=ALL", viewer)).status).toBe(403);
+    expect((await get("expiry?store=NT02", viewer)).status).toBe(403);
+  });
+
+  it("không có report.inventory: lọc phần tồn kho khỏi cảnh báo, sản phẩm, tổng quan", async () => {
+    stub.respond("products", 200, {
+      version: 7,
+      stock: { slow: [productRow()], not_sold: [productRow()] },
+    });
+    // Admin thấy đủ.
+    expect((await get("alerts", adminToken)).body.data.alerts).toHaveLength(3);
+    expect((await get("products", adminToken)).body.data.stock.slow[0].stock_value).toBe(1_950_000);
+
+    await useTestRole(fixture.pharmacistId, "auditor", fixture.storeId, ["report.inventory"]);
+    const token = (await login("duocsi")).token;
+    expect((await get("access", token)).body.data.inventoryStores).toEqual([]);
+    expect((await get("inventory", token)).status).toBe(403);
+
+    const alerts = await get("alerts", token);
+    expect(alerts.body.data.alerts.map((alert: { code: string }) => alert.code)).toEqual([
+      "revenue_drop",
+    ]);
+    const products = await get("products?period=week", token);
+    expect(products.body.data.stock.slow[0]).toEqual({ medicine_code: "TB010" });
+    expect(products.body.data.stock.not_sold[0]).toEqual({ medicine_code: "TB010" });
+    expect(stub.requests.at(-1)).toBe("/api/analytics/products?store=NT01&period=week");
+    expect((await get("summary", token)).body.data.overview).toBeNull();
   });
 });

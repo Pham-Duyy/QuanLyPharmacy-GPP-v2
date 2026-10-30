@@ -3,7 +3,7 @@
 Dịch vụ Python của **Pharmacy Intelligent Analytics**: theo dõi tệp dữ liệu, xử lý,
 tính chỉ số kinh doanh. Không gọi LLM. Kiến trúc: [docs/analytics/architecture.md](../docs/analytics/architecture.md).
 
-Hiện có: bước 1.1 (schema, dữ liệu mẫu), 1.2 (xử lý dữ liệu), 1.3 (KPI Engine), 1.4 (pipeline + SQLite), 1.5 (File Monitor), 1.6 (Analytics API), 1.7 (Bảng điều hành trên web); Phase 2: 2.1 (tệp tồn kho theo lô), 2.2 (phân tích sản phẩm), 2.3 (phân tích tồn kho), 2.4 (hạn dùng, FEFO), 2.5 (cảnh báo, API tồn kho).
+Hiện có: bước 1.1 (schema, dữ liệu mẫu), 1.2 (xử lý dữ liệu), 1.3 (KPI Engine), 1.4 (pipeline + SQLite), 1.5 (File Monitor), 1.6 (Analytics API), 1.7 (Bảng điều hành trên web); Phase 2: 2.1 (tệp tồn kho theo lô), 2.2 (phân tích sản phẩm), 2.3 (phân tích tồn kho), 2.4 (hạn dùng, FEFO), 2.5 (cảnh báo, API tồn kho), 2.6 (tồn kho, hạn dùng, cảnh báo trên Bảng điều hành). Phase 2 hoàn thành.
 
 ## Cài đặt (một lần)
 
@@ -97,7 +97,8 @@ npm run dev
 npm run dev
 ```
 
-Đăng nhập, mở **Báo cáo → Bảng điều hành**. Mở `data/inbox/sales.xlsx` bằng Excel, thêm dòng, Lưu:
+Đăng nhập, mở **Báo cáo → Bảng điều hành**. Đầu trang là khối **Cảnh báo**; bên dưới có các tab
+Sản phẩm, Tồn kho, Hạn dùng (hai tab sau cần quyền `report.inventory`). Mở `data/inbox/sales.xlsx` bằng Excel, thêm dòng, Lưu:
 trong vòng 60 giây số liệu trên trang tự đổi. `store_code` trong tệp phải trùng mã cửa hàng trong phần mềm
 thì người chỉ được xem một cửa hàng mới thấy số của cửa hàng đó.
 

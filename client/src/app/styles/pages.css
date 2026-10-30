@@ -4335,3 +4335,35 @@
     grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 }
+
+.bi-alerts {
+  display: grid;
+  gap: 8px;
+}
+
+.bi-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.bi-alert-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.bi-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 14px 0 10px;
+}
+
+.bi-subtitle {
+  margin: 0 0 8px;
+  font-weight: 600;
+}

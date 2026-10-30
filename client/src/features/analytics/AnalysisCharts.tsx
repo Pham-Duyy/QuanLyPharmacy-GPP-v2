@@ -241,7 +241,8 @@ export function RankBars({
   bars,
   valueFormat,
 }: {
-  bars: Array<{ label: string; value: number; share: number | null }>;
+  /** color: màu riêng khi màu mang nghĩa (đỏ = hết hạn…); bỏ trống thì lấy theo thứ tự. */
+  bars: Array<{ label: string; value: number; share: number | null; color?: string }>;
   valueFormat: ValueFormat;
 }) {
   const maximum = Math.max(...bars.map((bar) => Math.abs(bar.value)), 1);
@@ -257,7 +258,7 @@ export function RankBars({
               className="analysis-rank-fill"
               style={{
                 width: `${Math.max((Math.abs(bar.value) / maximum) * 100, 1)}%`,
-                background: chartColors[index % chartColors.length],
+                background: bar.color ?? chartColors[index % chartColors.length],
               }}
             />
           </div>

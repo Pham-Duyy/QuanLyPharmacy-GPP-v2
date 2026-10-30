@@ -206,6 +206,15 @@ Trình duyệt ──JWT──▶ Node /api/v1/bi/* ──(đã kiểm quyền)�
 - Dịch vụ chưa chạy: 502 `ANALYTICS_UNAVAILABLE` kèm cách bật; chưa có số liệu: 503 `ANALYTICS_NO_DATA`.
 - Địa chỉ dịch vụ: biến `ANALYTICS_SERVICE_URL` (mặc định `http://127.0.0.1:8000`), timeout 5 giây.
 
+Phase 2 (bước 2.6) thêm `GET /bi/{products, inventory, expiry, alerts}`. Quyền tồn kho (D8): `/bi/inventory`, `/bi/expiry`
+cần `report.inventory` ở phạm vi đang xem (toàn chuỗi: ở mọi cửa hàng), thiếu thì 403. Không có quyền đó thì
+`/bi/alerts` bỏ các cảnh báo tồn kho/hạn dùng, `/bi/products` bỏ số tồn và tiền vốn của "bán chậm/không bán được",
+`/bi/summary` trả `overview: null`. `/bi/access` cho biết `inventoryAll`, `inventoryStores` để giao diện ẩn tab.
+
+Bảng điều hành (bước 2.6): khối **Cảnh báo** ở đầu trang (bấm "Xem" mở đúng tab), hàng thẻ KPI tồn kho (giá trị tồn,
+sắp hết/hết hàng, lô hết hạn trong 30 ngày, tiền có nguy cơ hết hạn), và các tab **Cơ cấu và dữ liệu / Sản phẩm /
+Tồn kho / Hạn dùng** (biểu đồ giá trị theo trạng thái và theo mức hạn, bảng có lọc và tìm không dấu).
+
 Tự cập nhật: trang hỏi `/bi/version` mỗi 30 giây. Version nằm trong khóa truy vấn của mọi khối số liệu
 nên version tăng thì các khối tự tải lại, không tải lại trang. Độ trễ tối đa ≈ 30 giây (polling)
 + 2 giây (debounce) + ~2 giây (xử lý) < 60 giây.
@@ -274,7 +283,7 @@ khoảng 3 giây. Snapshot của phiên bản cũ (thiếu khối mới) đượ
 | 2.3 | Phân tích tồn kho: ADS, số ngày tồn, giá trị tồn, 5 trạng thái ([kpi.md](kpi.md#phân-tích-tồn-kho-phase-2-bước-23)) | Xong |
 | 2.4 | Hạn dùng 5 mức + FEFO: số lượng và tiền có nguy cơ không kịp bán ([kpi.md](kpi.md#hạn-dùng-và-fefo-phase-2-bước-24)) | Xong |
 | 2.5 | Cảnh báo theo luật; snapshot; Analytics API `/products`, `/inventory`, `/expiry`, `/alerts` | Xong |
-| 2.6 | Gateway (quyền D8) + Bảng điều hành: thẻ KPI tồn kho, khối Cảnh báo, tab Tồn kho / Hạn dùng / Sản phẩm | |
+| 2.6 | Gateway (quyền D8) + Bảng điều hành: thẻ KPI tồn kho, khối Cảnh báo, tab Tồn kho / Hạn dùng / Sản phẩm | Xong |
 | 3 | Bất thường (luật → Z-score/IQR), dự báo (MA → Holt-Winters), backtest | |
 | 4 | AI Agent: tool calling, đối chiếu số, nhật ký, bộ câu hỏi đánh giá | |
 | 5 | Gợi ý đặt hàng, ABC, ML nâng cao, nguồn PostgreSQL | |

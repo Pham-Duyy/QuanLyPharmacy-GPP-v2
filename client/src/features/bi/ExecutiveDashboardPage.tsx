@@ -20,31 +20,30 @@ import {
   Select,
   Skeleton,
   Table,
+  Tabs,
   Tag,
 } from "antd";
 import { useEffect, useRef, useState } from "react";
 import { getErrorMessage } from "../../api/http.js";
-import { formatVnd } from "../../api/types.js";
 import { formatNumber } from "../../ui/format.js";
 import { PageHeader } from "../../ui/PageHeader.js";
 import { StatCard, StatGrid, Trend } from "../../ui/StatCard.js";
 import { LineChart, RankBars } from "../analytics/AnalysisCharts.js";
+import { AlertsPanel, ExpiryTab, InventoryCards, InventoryTab, ProductsTab } from "./BiSections.js";
 import {
   ISSUE_LABELS,
   VERSION_POLL_MS,
   ageText,
   biApi,
+  canSeeInventory,
   clockText,
+  money,
   trendChart,
+  type Alert as BiAlert,
   type BreakdownBy,
   type Period,
   type Summary,
 } from "./bi-api.js";
-
-/** Giá vốn bình quân làm lợi nhuận có phần lẻ; tiền hiển thị tròn đồng. */
-function money(value: number | null): string {
-  return formatVnd(value === null ? null : Math.round(value));
-}
 
 const PERIOD_OPTIONS: Array<{ value: Period; label: string }> = [
   { value: "day", label: "Hôm nay" },
@@ -68,6 +67,7 @@ export function ExecutiveDashboardPage() {
   const { message } = App.useApp();
   const [period, setPeriod] = useState<Period>("day");
   const [chosenStore, setChosenStore] = useState<string | null>(null);
+  const [tab, setTab] = useState("overview");
 
   const access = useQuery({ queryKey: ["bi", "access"], queryFn: biApi.access });
   const version = useQuery({
@@ -111,6 +111,18 @@ export function ExecutiveDashboardPage() {
   }, [v, message]);
 
   const storeOptions = buildStoreOptions(access.data, summary.data);
+  const inventoryAllowed = canSeeInventory(access.data, store);
+  // Bấm "Xem" ở một cảnh báo: mở đúng tab chứa chi tiết.
+  const openSection = (section: BiAlert["section"]) => {
+    const target = {
+      inventory: "inventory",
+      expiry: "expiry",
+      kpi: "overview",
+      data_quality: "overview",
+    }[section];
+    setTab(target);
+    document.querySelector(".bi-tabs")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
   const kpi = summary.data?.periods[period];
   const chart = trend.data ? trendChart(trend.data) : null;
 
@@ -165,6 +177,8 @@ export function ExecutiveDashboardPage() {
       {ready ? (
         <>
           <FreshnessBar asOf={summary.data?.as_of} version={v} health={health.data} />
+
+          <AlertsPanel store={store} version={v} onOpen={openSection} />
 
           {summary.isError ? (
             <Alert
@@ -252,6 +266,8 @@ export function ExecutiveDashboardPage() {
             <Skeleton active paragraph={{ rows: 2 }} />
           )}
 
+          {summary.data?.overview ? <InventoryCards overview={summary.data.overview} /> : null}
+
           <Card title={GRAIN_TITLE[period]} style={{ marginBottom: 14 }}>
             {chart ? (
               chart.labels.length ? (
@@ -271,20 +287,60 @@ export function ExecutiveDashboardPage() {
             )}
           </Card>
 
-          {allStores ? (
-            <>
-              <div className="bi-grid">
-                <BreakdownCard title="Cơ cấu tháng này theo nhóm thuốc" by="category" version={v} />
-                <BreakdownCard title="Doanh thu tháng này theo cửa hàng" by="store" version={v} />
-              </div>
-              <BreakdownCard
-                title="10 thuốc doanh thu cao nhất tháng này"
-                by="top_medicines"
-                version={v}
-              />
-              <DataQualityCard version={v} />
-            </>
-          ) : null}
+          <Tabs
+            className="bi-tabs"
+            activeKey={tab}
+            onChange={setTab}
+            items={[
+              {
+                key: "overview",
+                label: "Cơ cấu và dữ liệu",
+                children: allStores ? (
+                  <>
+                    <div className="bi-grid">
+                      <BreakdownCard
+                        title="Cơ cấu tháng này theo nhóm thuốc"
+                        by="category"
+                        version={v}
+                      />
+                      <BreakdownCard
+                        title="Doanh thu tháng này theo cửa hàng"
+                        by="store"
+                        version={v}
+                      />
+                    </div>
+                    <BreakdownCard
+                      title="10 thuốc doanh thu cao nhất tháng này"
+                      by="top_medicines"
+                      version={v}
+                    />
+                    <DataQualityCard version={v} />
+                  </>
+                ) : (
+                  <Empty description="Cơ cấu toàn chuỗi và chất lượng dữ liệu chỉ dành cho người xem được mọi cửa hàng" />
+                ),
+              },
+              {
+                key: "products",
+                label: "Sản phẩm",
+                children: <ProductsTab store={store} period={period} version={v} />,
+              },
+              ...(inventoryAllowed
+                ? [
+                    {
+                      key: "inventory",
+                      label: "Tồn kho",
+                      children: <InventoryTab store={store} version={v} />,
+                    },
+                    {
+                      key: "expiry",
+                      label: "Hạn dùng",
+                      children: <ExpiryTab store={store} version={v} />,
+                    },
+                  ]
+                : []),
+            ]}
+          />
         </>
       ) : null}
     </div>
