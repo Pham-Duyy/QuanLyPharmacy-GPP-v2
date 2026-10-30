@@ -303,7 +303,7 @@ không được báo là bất thường từng ngày.
 | 2.5 | Cảnh báo theo luật; snapshot; Analytics API `/products`, `/inventory`, `/expiry`, `/alerts` | Xong |
 | 2.6 | Gateway (quyền D8) + Bảng điều hành: thẻ KPI tồn kho, khối Cảnh báo, tab Tồn kho / Hạn dùng / Sản phẩm | Xong |
 | 3.1 | Chuỗi theo ngày (cửa hàng, thuốc), kiểm tra đủ dữ liệu; bất thường cài trong dữ liệu mẫu | Xong |
-| 3.2 | Bất thường Level 1: luật R1, R2, R3 (+ bảng `stock_history`) | |
+| 3.2 | Bất thường Level 1: luật R1, R2, R3 (+ bảng `stock_history`) ([kpi.md](kpi.md#bất-thường-theo-luật-phase-3-bước-32)) | Xong |
 | 3.3 | Bất thường Level 2: Z-score bền vững theo thứ; gộp bằng chứng; đưa vào Cảnh báo | |
 | 3.4 | Dự báo L1 (trung bình theo thứ) + backtest + WAPE + mô hình ngây thơ | |
 | 3.5 | Holt-Winters, chọn mô hình, khoảng tin cậy, ngày dự kiến hết hàng, `forecast_cache` | |

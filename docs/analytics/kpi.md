@@ -139,3 +139,27 @@ Ví dụ ADS 10: lô A 50 hộp còn 7 ngày bán hết sau 5 ngày, an toàn; l
 - Không ai mua (ADS = 0): cả lô còn ≤ 90 ngày là nguy cơ.
 - Số lượng nguy cơ làm tròn tới đơn vị; lô thiếu giá nhập thì tổng tiền để trống.
 
+## Bất thường theo luật (Phase 3, bước 3.2)
+
+Code: `analytics-service/app/analytics/anomaly.py`. Lệnh xem: `python main.py anomalies [--store CH01]`.
+
+| Luật | So sánh | Điều kiện chống báo giả |
+|---|---|---|
+| R1 doanh thu giảm > 30% | Hôm nay đến giờ này với trung bình 4 cùng thứ trước **cùng giờ**; 14 ngày đã trọn gần nhất với trung bình 4 cùng thứ trước | Nền ≥ 10 đơn; **số đơn** cũng thấp tới mức ngẫu nhiên khó gây ra (Poisson, xác suất < 1%) |
+| R2 lượng bán một thuốc giảm > 50% | 7 ngày đã trọn gần nhất với trung bình một tuần của 28 ngày trước đó, theo cửa hàng | Thuốc có từ đầu khoảng nền, ≥ 5 dòng bán/tuần; **số lần bán** thấp tới mức xác suất ngẫu nhiên < 0,1%, so với kỳ vọng đã điều chỉnh theo mức chung của cửa hàng |
+| R3 tồn tăng bất thường | Tồn giữa hai lần lưu `inventory.xlsx` (bảng `stock_history`) | Tăng > 3 lần lượng bán 30 ngày và ≥ `min_stock`; chỉ ở mức "thấp", cần xem lại |
+
+Vì sao có các điều kiện phụ (đã đo trên 8 bộ dữ liệu mẫu ngẫu nhiên):
+
+- **Chỉ tính bán lẻ.** Một đơn bán buôn (10 máy đo huyết áp = 8 triệu) bằng cả ngày bán lẻ; rơi vào tuần nền là
+  "trung bình" đội lên, mọi ngày sau trông như tụt. Chưa loại bán buôn: R2 báo 15 thuốc, R1 báo nhiều ngày giả.
+- **Kiểm định Poisson cho số đơn / số lần bán.** X ~ Poisson(λ) mô tả số lần một việc ngẫu nhiên xảy ra khi trung bình
+  là λ; P(X ≤ k) cho biết "bán ≤ k lần" hiếm cỡ nào. Thuốc thường bán 10 lần/tuần mà còn 5: P ≈ 7%, tự nhiên, không báo.
+  Thường 18 lần mà còn 2: P < 0,001%, báo. Ngưỡng R2 là 0,1% vì mỗi tuần kiểm ~180 cặp (cửa hàng, thuốc).
+- **R1 cần số đơn thấp, không chỉ doanh thu thấp.** Doanh thu có "đuôi dài": hôm có hay không có khách mua máy đo huyết
+  áp lệch ±20–30% dù lượng khách như thường. Sự cố thật (mất điện, đóng cửa) luôn đi kèm ít khách hơn hẳn.
+- **R2 so với mức chung của cửa hàng.** Cửa hàng giảm 35% (R1 đã báo) thì mọi thuốc giảm theo; chỉ báo thuốc giảm hơn hẳn.
+
+Kết quả trên 8 bộ dữ liệu mẫu: R1 ở CH01 bắt đúng ngày mất điện và không gì khác; R2 bắt đúng Amoxicillin CH02 ngừng bán
+và không thuốc nào khác; CH03 sụt 35% (câu chuyện thật) được R1 báo 0–5 ngày.
+

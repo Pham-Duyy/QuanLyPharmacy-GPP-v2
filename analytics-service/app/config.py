@@ -37,6 +37,8 @@ SNAPSHOT_REFRESH_SECONDS = 300
 KEEP_SNAPSHOTS = 30
 KEEP_RUNS = 200
 KEEP_ISSUE_RUNS = 20
+# Số phiên bản tệp tồn kho giữ trong stock_history (luật R3 chỉ cần hai).
+KEEP_STOCK_VERSIONS = 10
 
 # Số ngày của chuỗi doanh thu theo ngày trong snapshot (biểu đồ đường).
 TREND_DAYS = 90
@@ -92,3 +94,31 @@ REVENUE_DROP_MIN_ORDERS = 10
 MIN_HISTORY_DAYS = 28
 # Chuỗi theo ngày dài nhất dùng cho bất thường, dự báo (đủ 8 tuần mẫu + 14 ngày xét + dư).
 SERIES_MAX_DAYS = 120
+
+# Luật R1: doanh thu giảm từ ngần này % so với trung bình R1_WEEKS cùng thứ trước (cùng giờ nếu là hôm nay).
+R1_DROP_PCT = 30.0
+R1_WEEKS = 4
+# ...và mức nền (trung bình các cùng thứ) có từ ngần này đơn: ít đơn thì % dao động mạnh.
+R1_MIN_ORDERS = 10
+# ...và SỐ ĐƠN cũng thấp tới mức ngẫu nhiên khó gây ra (Poisson, xác suất < R1_MAX_P). Doanh thu có
+# "đuôi dài": hôm có hay không có khách mua máy đo huyết áp lệch ±20–30% dù lượng khách như thường;
+# sự cố thật (mất điện, đóng cửa, thiếu người) thì luôn ít khách hơn hẳn.
+R1_MAX_P = 0.01
+# Số ngày đã trọn gần nhất được xét bất thường (ngoài hôm nay).
+ANOMALY_LOOKBACK_DAYS = 14
+
+# Luật R2: số lượng bán 7 ngày gần nhất của một thuốc giảm từ ngần này % so với trung bình
+# một tuần của 28 ngày trước đó, VÀ số lần bán thấp tới mức dao động ngẫu nhiên khó gây ra
+# (kiểm định Poisson, xác suất < R2_MAX_P). Ví dụ: thuốc thường bán 10 lần/tuần mà tuần này
+# 5 lần thì khoảng 7% số tuần vẫn tự nhiên như vậy: không báo. Thường 18 lần mà còn 2: báo.
+# 0,1% (không phải 1%) vì mỗi tuần kiểm ~180 cặp (cửa hàng, thuốc): 1% sẽ cho ~2 báo động giả/tuần.
+# Mức kỳ vọng được điều chỉnh theo mức chung của cửa hàng: cả cửa hàng giảm 35% (R1 đã báo)
+# thì chỉ báo thuốc giảm HƠN HẲN mức đó.
+R2_DROP_PCT = 50.0
+R2_RECENT_DAYS = 7
+R2_BASE_DAYS = 28
+R2_MIN_WEEKLY_LINES = 5
+R2_MAX_P = 0.001
+
+# Luật R3: giữa hai lần lưu tệp tồn kho, tồn một thuốc tăng hơn ngần này lần lượng bán 30 ngày.
+R3_RATIO = 3.0

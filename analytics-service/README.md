@@ -3,7 +3,7 @@
 Dịch vụ Python của **Pharmacy Intelligent Analytics**: theo dõi tệp dữ liệu, xử lý,
 tính chỉ số kinh doanh. Không gọi LLM. Kiến trúc: [docs/analytics/architecture.md](../docs/analytics/architecture.md).
 
-Hiện có: bước 1.1 (schema, dữ liệu mẫu), 1.2 (xử lý dữ liệu), 1.3 (KPI Engine), 1.4 (pipeline + SQLite), 1.5 (File Monitor), 1.6 (Analytics API), 1.7 (Bảng điều hành trên web); Phase 2: 2.1 (tệp tồn kho theo lô), 2.2 (phân tích sản phẩm), 2.3 (phân tích tồn kho), 2.4 (hạn dùng, FEFO), 2.5 (cảnh báo, API tồn kho), 2.6 (tồn kho, hạn dùng, cảnh báo trên Bảng điều hành). Phase 2 hoàn thành. Phase 3: 3.1 (chuỗi theo ngày).
+Hiện có: bước 1.1 (schema, dữ liệu mẫu), 1.2 (xử lý dữ liệu), 1.3 (KPI Engine), 1.4 (pipeline + SQLite), 1.5 (File Monitor), 1.6 (Analytics API), 1.7 (Bảng điều hành trên web); Phase 2: 2.1 (tệp tồn kho theo lô), 2.2 (phân tích sản phẩm), 2.3 (phân tích tồn kho), 2.4 (hạn dùng, FEFO), 2.5 (cảnh báo, API tồn kho), 2.6 (tồn kho, hạn dùng, cảnh báo trên Bảng điều hành). Phase 2 hoàn thành. Phase 3: 3.1 (chuỗi theo ngày), 3.2 (bất thường theo luật).
 
 ## Cài đặt (một lần)
 
@@ -45,6 +45,7 @@ python main.py products --store CH03 --period week
 python main.py inventory                       # hết hàng, sắp hết, tồn chết, tồn cao (cần inventory.xlsx)
 python main.py inventory --store CH01 --status low
 python main.py expiry                          # lô hết hạn, sắp hết hạn, hàng có nguy cơ không kịp bán
+python main.py anomalies                       # bất thường theo luật: doanh thu tụt, thuốc bán tụt, tồn tăng vọt
 python main.py run                             # chạy pipeline, lưu snapshot vào data/analytics.db
 python main.py run --force                     # đọc lại tệp dù không đổi
 python main.py status                          # nhật ký các lần chạy
@@ -135,6 +136,7 @@ app/
     expiry.py            hạn dùng 5 mức, FEFO (bước 2.4)
     alerts.py            cảnh báo theo luật (bước 2.5)
     series.py            chuỗi theo ngày cho bất thường, dự báo (bước 3.1)
+    anomaly.py           bất thường theo luật R1–R3 (bước 3.2)
   store/sqlite_store.py  Analytics Store: runs, snapshots, data_issues, kpi_daily
   pipeline.py            Processor → KPI → Store, phát hiện tệp thay đổi
   monitor/watcher.py     theo dõi thư mục: sự kiện + debounce + polling dự phòng
@@ -142,6 +144,6 @@ app/
   analytics/daily.py     gộp kpi_daily thành chuỗi ngày/tuần/tháng
   api/routes.py          Analytics API (FastAPI), chỉ đọc
 scripts/generate_sample_data.py, scripts/simulate_sales.py
-tests/test_processor.py, test_kpi.py, test_products.py, test_inventory.py, test_expiry.py, test_alerts.py, test_series.py, test_pipeline.py, test_monitor.py, test_api.py
+tests/test_processor.py, test_kpi.py, test_products.py, test_inventory.py, test_expiry.py, test_alerts.py, test_series.py, test_anomaly.py, test_pipeline.py, test_monitor.py, test_api.py
 main.py                  lệnh chạy
 ```

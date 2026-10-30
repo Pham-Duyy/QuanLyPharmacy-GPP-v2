@@ -165,7 +165,8 @@ def stock_rankings(
     table = candidates.merge(recent[["medicine_code", "revenue", "units", "orders"]], on="medicine_code", how="left")
     table = table.merge(names, on="medicine_code", how="left")
     table[["revenue", "units", "orders"]] = table[["revenue", "units", "orders"]].fillna(0)
-    table["last_sale"] = table["medicine_code"].map(last_sale)
+    # reindex thay vì map: map lỗi khi kiểu ngày gặp bảng rỗng (pandas ép về float).
+    table["last_sale"] = last_sale.reindex(table["medicine_code"]).to_numpy()
     table["days_since_sale"] = ((as_of - table["last_sale"]).dt.days).astype("Int64")
 
     sold = table[table["orders"] > 0]

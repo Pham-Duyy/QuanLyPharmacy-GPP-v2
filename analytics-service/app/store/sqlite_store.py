@@ -9,6 +9,7 @@ Bảng:
 - snapshots    kết quả đã tính dạng JSON, version tăng dần
 - data_issues  lỗi dữ liệu của từng lần chạy
 - kpi_daily    chỉ số theo ngày × cửa hàng (nền cho phát hiện bất thường, dự báo)
+- stock_history tổng tồn theo (cửa hàng, thuốc) mỗi lần tệp tồn kho đổi (luật R3, bước 3.2)
 """
 
 from __future__ import annotations
@@ -20,7 +21,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterator
 
-from app.config import KEEP_ISSUE_RUNS, KEEP_RUNS, KEEP_SNAPSHOTS
+from app.config import KEEP_ISSUE_RUNS, KEEP_RUNS, KEEP_SNAPSHOTS, KEEP_STOCK_VERSIONS
 from app.processor import DataIssue
 
 SCHEMA = """
@@ -75,6 +76,16 @@ CREATE TABLE IF NOT EXISTS kpi_daily (
     updated_run INTEGER NOT NULL,
     PRIMARY KEY (date, store_code)
 );
+
+CREATE TABLE IF NOT EXISTS stock_history (
+    saved_at      TEXT NOT NULL,              -- giờ lưu tệp tồn kho (giờ Việt Nam)
+    file_sha      TEXT NOT NULL,              -- mỗi nội dung tệp chỉ ghi một lần
+    store_code    TEXT NOT NULL,
+    medicine_code TEXT NOT NULL,
+    quantity      REAL NOT NULL,              -- tổng mọi lô, kể cả lô hết hạn
+    PRIMARY KEY (file_sha, store_code, medicine_code)
+);
+CREATE INDEX IF NOT EXISTS stock_history_saved ON stock_history(saved_at);
 """
 
 
@@ -277,3 +288,39 @@ class AnalyticsStore:
                 params,
             ).fetchall()
         return [dict(row) for row in rows]
+
+    # --- Lịch sử tồn kho (bước 3.2) ---------------------------------------------------
+
+    def record_stock(self, saved_at: str, file_sha: str, rows: list[dict[str, Any]]) -> bool:
+        """Ghi tổng tồn của một phiên bản tệp tồn kho. Đã có phiên bản này thì bỏ qua (trả False)."""
+        with self._connect() as db:
+            if db.execute("SELECT 1 FROM stock_history WHERE file_sha = ? LIMIT 1", (file_sha,)).fetchone():
+                return False
+            db.executemany(
+                "INSERT INTO stock_history (saved_at, file_sha, store_code, medicine_code, quantity) VALUES (?, ?, ?, ?, ?)",
+                [(saved_at, file_sha, row["store_code"], row["medicine_code"], row["quantity"]) for row in rows],
+            )
+            # Chỉ giữ vài phiên bản gần nhất: luật R3 chỉ cần hai.
+            db.execute(
+                """DELETE FROM stock_history WHERE file_sha NOT IN (
+                       SELECT file_sha FROM stock_history GROUP BY file_sha ORDER BY MAX(saved_at) DESC LIMIT ?)""",
+                (KEEP_STOCK_VERSIONS,),
+            )
+        return True
+
+    def stock_versions(self, limit: int = 2) -> list[dict[str, Any]]:
+        """Các phiên bản tồn kho gần nhất, mới trước: [{saved_at, file_sha, rows: [...]}]."""
+        with self._connect() as db:
+            versions = db.execute(
+                "SELECT file_sha, MAX(saved_at) AS saved_at FROM stock_history GROUP BY file_sha ORDER BY saved_at DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+            result = []
+            for version in versions:
+                rows = db.execute(
+                    "SELECT store_code, medicine_code, quantity FROM stock_history WHERE file_sha = ?",
+                    (version["file_sha"],),
+                ).fetchall()
+                result.append({"saved_at": version["saved_at"], "file_sha": version["file_sha"], "rows": [dict(row) for row in rows]})
+        return result
+

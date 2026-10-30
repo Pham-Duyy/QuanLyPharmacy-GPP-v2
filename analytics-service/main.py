@@ -291,6 +291,48 @@ def command_expiry(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_anomalies(args: argparse.Namespace) -> int:
+    """Bất thường theo luật R1–R3 (bước 3.2)."""
+    from app.analytics.anomaly import rule_anomalies
+    from app.pipeline import sha256_of, stock_totals
+    from app.processor import INVENTORY
+    from app.processor.service import find_file
+
+    try:
+        results = process_folder(args.folder)
+    except (LoadError, FileNotFoundError) as error:
+        print(f"Không xử lý được: {error}", file=sys.stderr)
+        return 1
+    medicines = results["medicines"].data if "medicines" in results else None
+    sales = prepare_sales(results["sales"].data, medicines)
+    as_of = pd.Timestamp(args.as_of) if args.as_of else now_local()
+
+    # R3 cần lần lưu tệp tồn kho TRƯỚC đó: lấy từ stock_history trong Analytics Store.
+    current = previous = None
+    previous_at = None
+    if "inventory" in results:
+        current = stock_totals(results["inventory"].data)
+        sha = sha256_of(find_file(args.folder, INVENTORY))
+        if args.db.exists():
+            older = [version for version in AnalyticsStore(args.db).stock_versions(5) if version["file_sha"] != sha]
+            if older:
+                previous, previous_at = pd.DataFrame(older[0]["rows"]), older[0]["saved_at"]
+    found = rule_anomalies(sales, as_of, medicines, current_stock=current, previous_stock=previous, previous_saved_at=previous_at)
+    if args.store:
+        found = [item for item in found if item["store_code"] == args.store.upper()]
+    if args.json:
+        print(json.dumps(found, ensure_ascii=False, indent=2))
+        return 0
+
+    print(f"\nBất thường theo luật, tính đến {as_of:%d/%m/%Y %H:%M}: {len(found)}")
+    if previous is None:
+        print("(R3 tồn kho: chưa có lần lưu tệp tồn kho trước đó trong Analytics Store để so)")
+    for item in found:
+        rule = item["evidence"][0]["rule"]
+        print(f"  [{rule}] {item['date']}  {item['message']}")
+    return 0
+
+
 def command_run(args: argparse.Namespace) -> int:
     store = AnalyticsStore(args.db)
     pipeline = Pipeline(args.folder, store)
@@ -431,6 +473,13 @@ def main() -> int:
     expiry.add_argument("--top", type=int, default=15, help="Số dòng mỗi danh sách (mặc định 15)")
     expiry.add_argument("--json", action="store_true", help="In kết quả dạng JSON")
     expiry.set_defaults(handler=command_expiry)
+    anomalies = commands.add_parser("anomalies", help="Bất thường theo luật: doanh thu tụt, thuốc bán tụt, tồn tăng vọt")
+    anomalies.add_argument("folder", nargs="?", type=Path, default=SAMPLES_DIR, help="Thư mục chứa medicines/sales/inventory")
+    anomalies.add_argument("--store", help="Chỉ một cửa hàng (hoặc ALL cho toàn chuỗi)")
+    anomalies.add_argument("--as-of", help="Thời điểm tính (mặc định: bây giờ)")
+    anomalies.add_argument("--db", type=Path, default=ANALYTICS_DB, help="Analytics Store chứa lịch sử tồn kho (luật R3)")
+    anomalies.add_argument("--json", action="store_true", help="In kết quả dạng JSON")
+    anomalies.set_defaults(handler=command_anomalies)
     run = commands.add_parser("run", help="Chạy pipeline và lưu snapshot vào SQLite")
     run.add_argument("folder", nargs="?", type=Path, default=SAMPLES_DIR, help="Thư mục chứa medicines/sales/inventory")
     run.add_argument("--db", type=Path, default=ANALYTICS_DB, help="Tệp SQLite (mặc định data/analytics.db)")

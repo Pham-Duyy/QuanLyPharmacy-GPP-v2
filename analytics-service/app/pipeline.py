@@ -113,6 +113,11 @@ class Pipeline:
         if SNAPSHOT_KEYS <= snapshot.keys():
             self._snapshot_at = pd.Timestamp(snapshot["as_of"])
 
+    def _record_stock(self, fingerprint: FileFingerprint, inventory: pd.DataFrame) -> None:
+        """Mỗi nội dung tệp tồn kho ghi một lần vào stock_history (luật R3 so hai lần liên tiếp)."""
+        rows = stock_totals(inventory).to_dict("records")
+        self.store.record_stock(file_time(fingerprint).isoformat(), fingerprint.sha256, rows)
+
     # --- Phát hiện thay đổi -----------------------------------------------------------
 
     def _fingerprints(self) -> dict[str, FileFingerprint]:
@@ -188,6 +193,8 @@ class Pipeline:
             return PipelineResult("failed", str(error), run_id=run_id, duration_ms=_elapsed(started))
 
         results = cache.results
+        if reprocessed and "inventory" in results:
+            self._record_stock(fingerprints["inventory"], results["inventory"].data)
         issues = [(result.file, issue) for result in results.values() for issue in result.issues] if reprocessed else []
         files = [
             {**fingerprint.to_dict(), "rows_read": results[name].rows_read, "rows_valid": results[name].rows_valid}
@@ -219,6 +226,17 @@ class Pipeline:
         status: Status = "processed" if reprocessed else "refreshed"
         message = "Đã đọc lại tệp và tính KPI" if reprocessed else "Tệp không đổi: tính lại KPI theo giờ hiện tại"
         return PipelineResult(status, message, run_id, version, _elapsed(started), results)
+
+
+def stock_totals(inventory: pd.DataFrame) -> pd.DataFrame:
+    """Tổng tồn theo (cửa hàng, thuốc), mọi lô kể cả hết hạn: dùng để so giữa hai lần lưu tệp (R3)."""
+    return inventory.groupby(["store_code", "medicine_code"], as_index=False)["quantity"].sum()
+
+
+def file_time(fingerprint: FileFingerprint) -> pd.Timestamp:
+    """Giờ lưu tệp theo giờ Việt Nam, không múi giờ (cùng kiểu với dữ liệu Excel)."""
+    saved = pd.Timestamp(fingerprint.mtime, unit="s", tz="UTC").tz_convert(TIMEZONE).tz_localize(None)
+    return saved.floor("s")
 
 
 def _now_text() -> str:
@@ -266,10 +284,7 @@ def build_snapshot(
     # Phase 2: sản phẩm, tồn kho, hạn dùng, cảnh báo. Tồn kho không bắt buộc (quyết định D7).
     medicines = results["medicines"].data if "medicines" in results else None
     inventory = results["inventory"].data if "inventory" in results else None
-    stock_as_of = None
-    if "inventory" in fingerprints:
-        saved = pd.Timestamp(fingerprints["inventory"].mtime, unit="s", tz="UTC").tz_convert(TIMEZONE).tz_localize(None)
-        stock_as_of = saved.floor("s")
+    stock_as_of = file_time(fingerprints["inventory"]) if "inventory" in fingerprints else None
     scopes: list[str | None] = [None, *stores]
     products, stock, expiry, alerts = {}, {}, {}, {}
     for store in scopes:
