@@ -3470,25 +3470,25 @@
 .excel-section {
   margin-bottom: 28px;
 }
-.excel-section-head {
+/* Khoảng ngày dùng chung cho mọi mục xuất theo kỳ: đặt ngay đầu tab Xuất. */
+.excel-range {
   display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 16px;
+  align-items: center;
   flex-wrap: wrap;
-  margin-bottom: 14px;
+  gap: 10px;
+  margin-bottom: 18px;
+  color: var(--c-ink-500);
 }
-.excel-section-head h2 {
-  margin: 0;
-  font-size: 16px;
+.excel-group-title {
+  margin: 0 0 12px;
+  font-size: 15px;
   font-weight: 650;
   color: var(--c-ink-900);
 }
-.excel-section-head p {
-  margin: 4px 0 0;
+.excel-hint {
+  margin: 0 0 14px;
   color: var(--c-ink-500);
   font-size: 13px;
-  max-width: 760px;
 }
 .excel-grid {
   display: grid;
@@ -3504,10 +3504,6 @@
   border: 1px solid var(--c-border);
   border-radius: var(--r-lg);
   box-shadow: var(--shadow-xs);
-}
-.excel-card.is-featured {
-  border-color: var(--tone-green);
-  background: linear-gradient(180deg, var(--tone-green-bg), var(--c-surface) 60%);
 }
 .excel-card-head {
   display: flex;
@@ -3558,14 +3554,11 @@
   flex: 1;
 }
 .excel-card-actions {
+  margin-top: auto;
   display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
-}
-.excel-card-range {
-  color: var(--c-ink-500);
-  font-size: 12px;
 }
 .excel-import-busy {
   display: flex;

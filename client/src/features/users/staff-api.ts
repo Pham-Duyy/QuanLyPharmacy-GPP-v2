@@ -31,9 +31,10 @@ export const staffKeys = {
   stores: ["all-stores"] as const,
 };
 
-export function useStaffList() {
+export function useStaffList(enabled = true) {
   return useQuery({
     queryKey: staffKeys.list,
+    enabled,
     queryFn: async () => (await http.get<Envelope<UserListItem[]>>("/users")).data.data,
   });
 }

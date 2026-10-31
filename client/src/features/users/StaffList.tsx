@@ -1,11 +1,4 @@
-import {
-  CheckCircleOutlined,
-  EyeOutlined,
-  LockOutlined,
-  SearchOutlined,
-  TeamOutlined,
-  UserDeleteOutlined,
-} from "@ant-design/icons";
+import { RightOutlined, SearchOutlined } from "@ant-design/icons";
 import { Button, Card, Drawer, Empty, Grid, Input, Result, Select, Table, Tag } from "antd";
 import { useMemo, useState } from "react";
 import { getErrorMessage } from "../../api/http.js";
@@ -13,13 +6,17 @@ import type { UserListItem } from "../../api/types.js";
 import { foldText } from "../../app/fold-text.js";
 import { useRoles, useStaffList, useStores } from "./staff-api.js";
 import { CHAIN_SCOPE } from "./staff-scope.js";
-import { AccountStatus, PersonCell, StaffStat } from "./staff-ui.js";
+import { roleLabel } from "./staff-format.js";
+import { AccountStatus, PersonCell } from "./staff-ui.js";
 import { StaffProfile } from "./StaffProfile.js";
 
 type Filters = { search: string; scope: string; role: string; status: "all" | "active" | "locked" };
 const NO_FILTER: Filters = { search: "", scope: "all", role: "all", status: "all" };
 
-/** Danh sách nhân viên bằng dữ liệu thật của API tài khoản (contract §21). */
+/**
+ * Danh sách nhân viên bằng dữ liệu thật của API tài khoản (contract §21). Bảng dùng hết chiều
+ * rộng; bấm một dòng thì hồ sơ mở trong ngăn trượt bên phải.
+ */
 export function StaffList({
   selectedId,
   onSelect,
@@ -28,7 +25,6 @@ export function StaffList({
   onSelect: (id: string | null) => void;
 }) {
   const screens = Grid.useBreakpoint();
-  const asDrawer = !screens.xl;
   const list = useStaffList();
   const stores = useStores();
   const roles = useRoles();
@@ -179,42 +175,42 @@ export function StaffList({
               title: "Nhân viên",
               key: "person",
               fixed: "left",
-              width: 210,
+              width: 240,
               render: (_, row) => (
                 <PersonCell name={row.fullName} id={row.id} sub={`@${row.username}`} />
               ),
             },
-            { title: "Cửa hàng", key: "store", width: 150, render: (_, row) => scopesOf(row) },
+            { title: "Cửa hàng", key: "store", width: 180, render: (_, row) => scopesOf(row) },
             {
-              title: "Vai trò truy cập",
+              title: "Vai trò",
               key: "roles",
               width: 170,
               render: (_, row) =>
                 row.roles.length === 0 ? (
                   <span className="staff-muted">Chưa gán</span>
                 ) : (
-                  [...new Set(row.roles.map((role) => role.roleName))].map((name) => (
-                    <Tag key={name} className="staff-role-tag">
-                      {name}
+                  [...new Set(row.roles.map((role) => role.roleCode))].map((code) => (
+                    <Tag key={code} className="staff-role-tag">
+                      {roleLabel(code, row.roles.find((role) => role.roleCode === code)?.roleName)}
                     </Tag>
                   ))
                 ),
             },
             {
-              title: "Trạng thái tài khoản",
+              title: "Trạng thái",
               key: "status",
-              width: 150,
+              width: 140,
               render: (_, row) => <AccountStatus active={row.isActive} />,
             },
             {
-              title: "Thao tác",
-              key: "actions",
-              width: 64,
+              key: "open",
+              width: 48,
               align: "center",
+              fixed: "right",
               render: (_, row) => (
                 <Button
                   type="text"
-                  icon={<EyeOutlined />}
+                  icon={<RightOutlined />}
                   aria-label={`Xem hồ sơ ${row.fullName}`}
                   onClick={(event) => {
                     event.stopPropagation();
@@ -236,52 +232,42 @@ export function StaffList({
 
   const profile = <StaffProfile id={selectedId} onClose={() => onSelect(null)} />;
 
+  const locked = all.filter((user) => !user.isActive).length;
+  const unassigned = all.filter((user) => user.roles.length === 0).length;
+
   return (
     <>
-      <div className="staff-stats">
-        <StaffStat
-          icon={<TeamOutlined />}
-          value={list.isLoading ? "…" : all.length}
-          label="Tài khoản nhân viên"
-        />
-        <StaffStat
-          icon={<CheckCircleOutlined />}
-          tone="green"
-          value={list.isLoading ? "…" : all.filter((user) => user.isActive).length}
-          label="Đang hoạt động"
-        />
-        <StaffStat
-          icon={<LockOutlined />}
-          tone="red"
-          value={list.isLoading ? "…" : all.filter((user) => !user.isActive).length}
-          label="Đã khóa"
-        />
-        <StaffStat
-          icon={<UserDeleteOutlined />}
-          tone="orange"
-          value={list.isLoading ? "…" : all.filter((user) => user.roles.length === 0).length}
-          label="Chưa gán vai trò"
-        />
-      </div>
-      <div className={asDrawer ? "" : "staff-split"}>
-        <Card className="staff-card">{body}</Card>
-        {asDrawer ? (
-          <Drawer
-            open={selectedId !== null}
-            onClose={() => onSelect(null)}
-            title="Hồ sơ nhân viên"
-            size={screens.md ? "large" : "default"}
-            closable={false}
-            styles={{ body: { paddingTop: 8 } }}
-          >
-            {profile}
-          </Drawer>
-        ) : (
-          <Card className="staff-card staff-aside" title="Thông tin nhân viên">
-            {profile}
-          </Card>
-        )}
-      </div>
+      {list.isLoading ? null : (
+        <div className="admin-summary" aria-label="Tóm tắt">
+          <span>
+            <b>{all.length}</b> tài khoản
+          </span>
+          <span>
+            <b>{all.length - locked}</b> đang hoạt động
+          </span>
+          {locked ? (
+            <span className="is-danger">
+              <b>{locked}</b> đã khóa
+            </span>
+          ) : null}
+          {unassigned ? (
+            <span className="is-warning">
+              <b>{unassigned}</b> chưa gán vai trò
+            </span>
+          ) : null}
+        </div>
+      )}
+      <Card className="staff-card">{body}</Card>
+      <Drawer
+        open={selectedId !== null}
+        onClose={() => onSelect(null)}
+        title="Hồ sơ nhân viên"
+        size={screens.md ? "large" : "default"}
+        closable={false}
+        styles={{ body: { paddingTop: 8 } }}
+      >
+        {profile}
+      </Drawer>
     </>
   );
 }

@@ -60,33 +60,6 @@ export function Pairs({ items }: { items: Array<[ReactNode, ReactNode]> }) {
   );
 }
 
-export function StaffStat({
-  icon,
-  label,
-  value,
-  hint,
-  tone = "blue",
-}: {
-  icon: ReactNode;
-  label: ReactNode;
-  value: ReactNode;
-  hint?: ReactNode;
-  tone?: "blue" | "green" | "orange" | "purple" | "red";
-}) {
-  return (
-    <div className={`staff-stat tone-${tone}`}>
-      <span className="staff-stat-icon" aria-hidden>
-        {icon}
-      </span>
-      <div>
-        <strong>{value}</strong>
-        <span>{label}</span>
-        {hint ? <small>{hint}</small> : null}
-      </div>
-    </div>
-  );
-}
-
 /** Ghi chú nhỏ màu xanh, dùng cho các lưu ý nghiệp vụ ngắn. */
 export function StaffNote({ children }: { children: ReactNode }) {
   return (

@@ -28,6 +28,14 @@ storesRouter.get("/stores", async (req, res) => {
       : { isActive: true, id: { in: auth.assignedStoreIds } },
     orderBy: { code: "asc" },
   });
+  // Số nhân viên đang hoạt động được gán vai trò tại từng cửa hàng (vai trò toàn chuỗi không tính).
+  const staff = await prisma.userRole.findMany({
+    where: { storeId: { in: stores.map((store) => store.id) }, user: { isActive: true } },
+    select: { storeId: true, userId: true },
+    distinct: ["storeId", "userId"],
+  });
+  const staffCount = new Map<string, number>();
+  for (const row of staff) staffCount.set(row.storeId!, (staffCount.get(row.storeId!) ?? 0) + 1);
 
   sendData(res, {
     items: stores.map((store) => ({
@@ -36,6 +44,8 @@ storesRouter.get("/stores", async (req, res) => {
       name: store.name,
       address: store.address,
       phone: store.phone,
+      gppCertificateNumber: store.gppCertificateNumber,
+      staffCount: staffCount.get(store.id) ?? 0,
       isDefault: store.id === auth.defaultStoreId,
       permissions: [...auth.permissionsForStore(store.id)].sort(),
     })),

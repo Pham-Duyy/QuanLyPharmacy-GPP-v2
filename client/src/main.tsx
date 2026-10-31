@@ -4,7 +4,6 @@ import { BrowserRouter } from "react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { App as AntApp, ConfigProvider } from "antd";
 import viVN from "antd/locale/vi_VN";
-import "@fontsource-variable/inter";
 import "antd/dist/reset.css";
 import "./app/app.css";
 import App from "./App.js";

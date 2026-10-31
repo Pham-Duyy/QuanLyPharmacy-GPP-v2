@@ -15,86 +15,10 @@
 }
 
 /* ---------- Thẻ số liệu ---------- */
-.staff-stats {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 16px;
-  margin-bottom: 20px;
-}
-.staff-stat {
-  display: flex;
-  gap: 14px;
-  align-items: center;
-  padding: 18px;
-  background: var(--c-surface);
-  border: 1px solid var(--c-border);
-  border-radius: var(--r-lg);
-  box-shadow: var(--shadow-xs);
-  min-width: 0;
-}
-.staff-stat-icon {
-  display: inline-grid;
-  place-items: center;
-  width: 48px;
-  height: 48px;
-  flex-shrink: 0;
-  border-radius: var(--r-lg);
-  font-size: 22px;
-  color: var(--tone-blue);
-  background: var(--tone-blue-bg);
-}
-.staff-stat.tone-green .staff-stat-icon {
-  color: var(--tone-green);
-  background: var(--tone-green-bg);
-}
-.staff-stat.tone-orange .staff-stat-icon {
-  color: var(--tone-orange);
-  background: var(--tone-orange-bg);
-}
-.staff-stat.tone-purple .staff-stat-icon {
-  color: var(--tone-purple);
-  background: var(--tone-purple-bg);
-}
-.staff-stat.tone-red .staff-stat-icon {
-  color: var(--tone-red);
-  background: var(--tone-red-bg);
-}
-.staff-stat > div {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-.staff-stat strong {
-  font-size: 22px;
-  line-height: 1.2;
-  color: var(--c-ink-900);
-  font-variant-numeric: tabular-nums;
-  overflow-wrap: anywhere;
-}
-.staff-stat > div > span {
-  color: var(--c-ink-500);
-  font-size: 13px;
-}
-.staff-stat > div > small {
-  color: var(--c-ink-400);
-  font-size: 12px;
-}
-
-/* ---------- Bố cục hai cột: nội dung + panel chi tiết ---------- */
-.staff-split {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 340px;
-  gap: 20px;
-  align-items: start;
-}
 .staff-card {
   border-color: var(--c-border);
   box-shadow: var(--shadow-xs);
   min-width: 0;
-}
-.staff-aside {
-  position: sticky;
-  top: calc(var(--header-h) + 16px);
 }
 
 /* ---------- Bộ lọc & bảng ---------- */
@@ -567,22 +491,6 @@
 /* ---------- Ô nhập trong hộp thoại ---------- */
 
 /* ---------- Màn hình nhỏ ---------- */
-@media (max-width: 1280px) {
-  .staff-split {
-    grid-template-columns: minmax(0, 1fr) 320px;
-  }
-}
-@media (max-width: 1199px) {
-  .staff-split {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .staff-aside {
-    position: static;
-  }
-  .staff-stats {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
 @media (max-width: 860px) {
   .staff-create-grid {
     grid-template-columns: minmax(0, 1fr);
@@ -595,15 +503,11 @@
   }
 }
 @media (max-width: 640px) {
-  .staff-stats,
   .staff-two {
     grid-template-columns: minmax(0, 1fr);
   }
   .staff-toolbar > * {
     flex: 1 1 100% !important;
-  }
-  .staff-stat strong {
-    font-size: 19px;
   }
   .staff-role-row {
     grid-template-columns: minmax(0, 1fr) auto;

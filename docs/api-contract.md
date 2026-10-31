@@ -1505,7 +1505,7 @@ Hỏi đáp tiếng Việt trên số liệu analytics-service. Claude chỉ g�
 
 | Method | Endpoint | Mô tả | Quyền |
 |---|---|---|---|
-| GET | `/stores` | Danh sách cửa hàng người dùng được phép làm việc | Đã đăng nhập |
+| GET | `/stores` | Danh sách cửa hàng người dùng được phép làm việc; mỗi dòng có `gppCertificateNumber` và `staffCount` (nhân viên đang hoạt động được gán vai trò tại cửa hàng, không tính vai trò toàn chuỗi) | Đã đăng nhập |
 | GET | `/stores/{id}` | Chi tiết cửa hàng | Có vai trò tại cửa hàng, hoặc `store.manage` |
 | POST | `/stores` | Mở cửa hàng mới trong chuỗi. Người tạo không có `store.manage` toàn chuỗi được gán vai trò quản lý tại cửa hàng mới trong cùng giao dịch, để thấy và vào được ngay; audit `STORE_CREATE` ghi `creatorAssignedRoles` | `store.manage` |
 | PATCH | `/stores/{id}` | Sửa thông tin cửa hàng | `store.manage` tại chính cửa hàng đó hoặc toàn chuỗi (`403`) |

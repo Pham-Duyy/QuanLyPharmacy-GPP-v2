@@ -1,7 +1,6 @@
 import {
   EditOutlined,
   EnvironmentOutlined,
-  FileSearchOutlined,
   PhoneOutlined,
   PlusOutlined,
   PoweroffOutlined,
@@ -13,6 +12,7 @@ import {
   Button,
   Card,
   Col,
+  Drawer,
   Empty,
   Form,
   Input,
@@ -27,7 +27,6 @@ import { useState } from "react";
 import { getErrorMessage, http } from "../../api/http.js";
 import { type Envelope, type StoreDetail } from "../../api/types.js";
 import { PageHeader } from "../../ui/PageHeader.js";
-import { PanelEmpty } from "../../ui/PanelEmpty.js";
 import { useAuth } from "../auth/auth-context.js";
 
 type StoreListItem = {
@@ -36,9 +35,11 @@ type StoreListItem = {
   name: string;
   address: string | null;
   phone: string | null;
+  gppCertificateNumber: string | null;
+  staffCount: number;
 };
 
-/** Quản lý cửa hàng trong chuỗi (contract §21). */
+/** Quản lý cửa hàng trong chuỗi (contract §21). Bấm một dòng: hồ sơ mở trong ngăn trượt. */
 export function StoresPage() {
   const { can, reloadMe } = useAuth();
   const [openId, setOpenId] = useState<string | null>(null);
@@ -74,51 +75,68 @@ export function StoresPage() {
           ) : null
         }
       />
-      <div className="split-layout">
-        <Card>
-          <Table
-            rowKey="id"
-            loading={list.isLoading}
-            dataSource={list.data ?? []}
-            scroll={{ x: 560 }}
-            onRow={(row) => ({ onClick: () => setOpenId(row.id), style: { cursor: "pointer" } })}
-            rowClassName={(row) => (row.id === openId ? "row-selected" : "")}
-            pagination={false}
-            locale={{
-              emptyText: (
-                <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có cửa hàng" />
+      <Card>
+        <Table
+          rowKey="id"
+          loading={list.isLoading}
+          dataSource={list.data ?? []}
+          scroll={{ x: 720 }}
+          onRow={(row) => ({ onClick: () => setOpenId(row.id), style: { cursor: "pointer" } })}
+          rowClassName={(row) => (row.id === openId ? "row-selected" : "")}
+          pagination={false}
+          locale={{
+            emptyText: (
+              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có cửa hàng" />
+            ),
+          }}
+          columns={[
+            {
+              title: "Cửa hàng",
+              key: "name",
+              render: (_: unknown, row: StoreListItem) => (
+                <div className="cell-main">
+                  <strong>{row.name}</strong>
+                  <span className="mono">{row.code}</span>
+                </div>
               ),
-            }}
-            columns={[
-              {
-                title: "Cửa hàng",
-                key: "name",
-                render: (_: unknown, row: StoreListItem) => (
-                  <div className="cell-main">
-                    <strong>{row.name}</strong>
-                    <span className="mono">{row.code}</span>
-                  </div>
-                ),
-              },
-              {
-                title: "Địa chỉ",
-                dataIndex: "address",
-                ellipsis: true,
-                render: (value: string | null) => value ?? "—",
-              },
-              {
-                title: "Điện thoại",
-                dataIndex: "phone",
-                width: 140,
-                render: (value: string | null) => <span className="mono">{value ?? "—"}</span>,
-              },
-            ]}
-          />
-        </Card>
-        <aside className="split-aside">
-          <StorePanel id={openId} onClose={() => setOpenId(null)} onChanged={refresh} />
-        </aside>
-      </div>
+            },
+            {
+              title: "Địa chỉ",
+              dataIndex: "address",
+              ellipsis: true,
+              render: (value: string | null) => value ?? "—",
+            },
+            {
+              title: "Điện thoại",
+              dataIndex: "phone",
+              width: 130,
+              render: (value: string | null) => <span className="mono">{value ?? "—"}</span>,
+            },
+            {
+              title: "Chứng nhận GPP",
+              dataIndex: "gppCertificateNumber",
+              width: 150,
+              render: (value: string | null) =>
+                value ? <span className="mono">{value}</span> : <Tag color="orange">Chưa có</Tag>,
+            },
+            {
+              title: "Nhân viên",
+              dataIndex: "staffCount",
+              width: 100,
+              align: "right",
+            },
+          ]}
+        />
+      </Card>
+      <Drawer
+        open={openId !== null}
+        onClose={() => setOpenId(null)}
+        title="Hồ sơ cửa hàng"
+        size="default"
+        destroyOnHidden
+      >
+        {openId ? <StorePanel id={openId} onChanged={refresh} /> : null}
+      </Drawer>
       <StoreFormModal
         open={creating}
         store={null}
@@ -132,15 +150,7 @@ export function StoresPage() {
   );
 }
 
-function StorePanel({
-  id,
-  onClose,
-  onChanged,
-}: {
-  id: string | null;
-  onClose: () => void;
-  onChanged: () => Promise<void>;
-}) {
+function StorePanel({ id, onChanged }: { id: string; onChanged: () => Promise<void> }) {
   const { message } = App.useApp();
   const [editing, setEditing] = useState(false);
   const queryClient = useQueryClient();
@@ -168,29 +178,10 @@ function StorePanel({
       void message.error(getErrorMessage(error, "Không cập nhật được trạng thái")),
   });
 
-  if (id === null) {
-    return (
-      <Card title="Chi tiết cửa hàng">
-        <PanelEmpty
-          icon={<FileSearchOutlined />}
-          title="Chưa chọn cửa hàng"
-          description="Bấm vào một cửa hàng để xem hồ sơ pháp lý."
-        />
-      </Card>
-    );
-  }
-
   const store = detail.data;
 
   return (
-    <Card
-      title="Chi tiết cửa hàng"
-      extra={
-        <Button type="text" size="small" onClick={onClose}>
-          Đóng
-        </Button>
-      }
-    >
+    <>
       {detail.isLoading || !store ? (
         <Skeleton active paragraph={{ rows: 5 }} />
       ) : (
@@ -259,7 +250,7 @@ function StorePanel({
           }}
         />
       ) : null}
-    </Card>
+    </>
   );
 }
 

@@ -22,3 +22,15 @@ export function avatarTone(key: string): AvatarTone {
   for (const char of key) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
   return AVATAR_TONES[hash % AVATAR_TONES.length]!;
 }
+
+/** Tên vai trò ngắn cho bảng; hồ sơ vẫn hiện tên đầy đủ. Vai trò lạ giữ nguyên tên. */
+const ROLE_SHORT: Record<string, string> = {
+  admin: "Quản lý",
+  pharmacist: "Dược sĩ",
+  warehouse_staff: "Kho",
+  auditor: "Kiểm toán",
+};
+
+export function roleLabel(code: string, name?: string): string {
+  return ROLE_SHORT[code] ?? name ?? code;
+}

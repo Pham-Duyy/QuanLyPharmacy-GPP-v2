@@ -295,6 +295,36 @@
   min-width: 0;
 }
 
+/* Nhật ký hệ thống: các ô lọc chia đều một hàng, xuống dòng khi hẹp. */
+.audit-toolbar > * {
+  flex: 1 1 170px;
+  min-width: 0;
+}
+.audit-toolbar > .ant-picker-range {
+  flex: 1 1 250px;
+}
+
+/* Dòng tóm tắt gọn thay cho hàng thẻ số liệu (trang quản trị): "2 tài khoản · 2 đang hoạt động". */
+.admin-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  margin: -4px 0 14px;
+  color: var(--c-ink-500);
+  font-size: 13px;
+}
+.admin-summary b {
+  color: var(--c-ink-900);
+  font-size: 15px;
+  margin-right: 3px;
+}
+.admin-summary .is-danger b {
+  color: var(--tone-red);
+}
+.admin-summary .is-warning b {
+  color: var(--tone-orange);
+}
+
 .section-note {
   margin: -2px 0 14px;
   color: var(--c-ink-500);

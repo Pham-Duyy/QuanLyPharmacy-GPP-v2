@@ -46,6 +46,15 @@ describe("Mở cửa hàng mới", () => {
 
     const list = await api().get("/api/v1/stores").set(h()).expect(200);
     expect(list.body.data.items.some((item: { code: string }) => item.code === "NT03")).toBe(true);
+    // Cửa hàng mới chưa có ai được gán; cửa hàng mẫu có nhân viên.
+    const byCode = new Map(
+      list.body.data.items.map((item: { code: string; staffCount: number }) => [
+        item.code,
+        item.staffCount,
+      ]),
+    );
+    expect(byCode.get("NT03")).toBe(0);
+    expect(byCode.get("NT01")).toBeGreaterThan(0);
   });
 
   it("quản lý một cửa hàng mở cửa hàng mới: được gán quản lý tại đó, thấy và vào được ngay", async () => {
