@@ -23,12 +23,20 @@ const CHAIN: BiAccess = {
   ],
   inventoryAll: true,
   inventoryStores: ["NT01", "NT02"],
+  costAll: true,
+  costStores: ["NT01", "NT02"],
+  salesStores: ["NT01", "NT02"],
+  canAsk: true,
 };
 const NT01_SALES_ONLY: BiAccess = {
   allStores: false,
   stores: [{ code: "NT01", name: "Nhà thuốc 1" }],
   inventoryAll: false,
   inventoryStores: [],
+  costAll: false,
+  costStores: ["NT01"],
+  salesStores: ["NT01"],
+  canAsk: true,
 };
 const NOW = new Date("2026-10-30T07:05:00Z");
 

@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   ageText,
+  canSeeCost,
   canSeeInventory,
+  canSeeProducts,
   clockText,
   errorText,
   matchesText,
@@ -44,6 +46,14 @@ describe("bảng điều hành", () => {
         points: [{ ...trend.points[0]!, period_start: "2026-10-01" }],
       }).labels,
     ).toEqual(["10/2026"]);
+    // Không có quyền giá vốn: máy chủ bỏ profit, chỉ còn đường doanh thu (D23).
+    const noCost = trendChart({
+      ...trend,
+      points: trend.points.map(
+        ({ profit: _profit, ...point }) => point as typeof point & { profit: number },
+      ),
+    });
+    expect(noCost.series.map((line) => line.name)).toEqual(["Doanh thu"]);
   });
 
   it("thời điểm và độ cũ của số liệu", () => {
@@ -56,12 +66,51 @@ describe("bảng điều hành", () => {
   });
 
   it("quyền xem tồn kho theo phạm vi", () => {
-    const access = { allStores: true, stores: [], inventoryAll: false, inventoryStores: ["NT01"] };
+    const access = {
+      allStores: true,
+      stores: [],
+      inventoryAll: false,
+      inventoryStores: ["NT01"],
+      costAll: false,
+      costStores: [],
+      salesStores: [],
+      canAsk: false,
+    };
     expect(canSeeInventory(access, "NT01")).toBe(true);
     expect(canSeeInventory(access, "NT02")).toBe(false);
     expect(canSeeInventory(access, "ALL")).toBe(false);
     expect(canSeeInventory({ ...access, inventoryAll: true }, "ALL")).toBe(true);
     expect(canSeeInventory(undefined, "NT01")).toBe(false);
+  });
+
+  it("dược sĩ (D23, D24): xem cửa hàng mình, không thấy lợi nhuận, không xếp hạng sản phẩm", () => {
+    const pharmacist = {
+      allStores: false,
+      stores: [{ code: "NT01", name: "Nhà thuốc 1" }],
+      inventoryAll: false,
+      inventoryStores: ["NT01"],
+      costAll: false,
+      costStores: [],
+      salesStores: [],
+      canAsk: false,
+    };
+    expect(canSeeInventory(pharmacist, "NT01")).toBe(true);
+    expect(canSeeCost(pharmacist, "NT01")).toBe(false);
+    expect(canSeeProducts(pharmacist, "NT01")).toBe(false);
+    const owner = {
+      ...pharmacist,
+      allStores: true,
+      stores: [
+        { code: "NT01", name: "1" },
+        { code: "NT02", name: "2" },
+      ],
+      costAll: true,
+      costStores: ["NT01", "NT02"],
+      salesStores: ["NT01", "NT02"],
+    };
+    expect(canSeeCost(owner, "ALL")).toBe(true);
+    expect(canSeeProducts(owner, "ALL")).toBe(true);
+    expect(canSeeProducts({ ...owner, salesStores: ["NT01"] }, "ALL")).toBe(false);
   });
 
   it("tìm không dấu, tiền tròn đồng", () => {

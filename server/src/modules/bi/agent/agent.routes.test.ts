@@ -164,7 +164,8 @@ describe("POST /api/v1/bi/ask", () => {
     const first = await ask(adminToken, { question: "Chào" });
     const conversationId = first.body.data.conversationId as string;
 
-    await useTestRole(fixture.pharmacistId, "auditor", fixture.storeId);
+    // Quản lý riêng NT01: có report.ai nhưng không phải chủ hội thoại.
+    await useTestRole(fixture.pharmacistId, "admin", fixture.storeId);
     const other = (await login("duocsi")).token;
     expect((await ask(other, { question: "x", conversationId })).status).toBe(404);
 
@@ -191,7 +192,8 @@ describe("POST /api/v1/bi/ask", () => {
     expect((await ask(adminToken, { question: "Doanh thu?", store: "nt02" })).status).toBe(200);
     expect(calls[0]!.messages[0]!.content).toContain("Phạm vi mặc định: NT02");
 
-    await useTestRole(fixture.pharmacistId, "auditor", fixture.storeId);
+    // Quản lý riêng NT01 (có report.ai): chỉ hỏi được trong phạm vi NT01.
+    await useTestRole(fixture.pharmacistId, "admin", fixture.storeId);
     const viewer = (await login("duocsi")).token;
     expect((await ask(viewer, { question: "x", store: "NT02" })).status).toBe(403);
     expect((await ask(viewer, { question: "x", store: "ALL" })).status).toBe(403);

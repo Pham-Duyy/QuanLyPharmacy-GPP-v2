@@ -290,10 +290,13 @@ export function ProductsTab({
   store,
   period,
   version,
+  costAllowed,
 }: {
   store: string;
   period: Period;
   version: number;
+  /** Được xem lợi nhuận (D23): không thì bỏ cách xếp theo lợi nhuận và cột lợi nhuận, biên. */
+  costAllowed: boolean;
 }) {
   const [ranking, setRanking] = useState<ProductRanking>("revenue");
   const query = useQuery({
@@ -351,20 +354,22 @@ export function ProductsTab({
                     render: formatNumber,
                   },
                 ]
-              : [
-                  {
-                    title: "Lợi nhuận",
-                    dataIndex: "profit",
-                    align: "right" as const,
-                    render: money,
-                  },
-                  {
-                    title: "Biên",
-                    dataIndex: "margin_pct",
-                    align: "right" as const,
-                    render: percent,
-                  },
-                ]),
+              : !costAllowed
+                ? []
+                : [
+                    {
+                      title: "Lợi nhuận",
+                      dataIndex: "profit",
+                      align: "right" as const,
+                      render: money,
+                    },
+                    {
+                      title: "Biên",
+                      dataIndex: "margin_pct",
+                      align: "right" as const,
+                      render: percent,
+                    },
+                  ]),
           ]),
     ...(showStock
       ? [
@@ -411,7 +416,11 @@ export function ProductsTab({
       <Filters>
         <Segmented
           value={ranking}
-          options={RANKING_OPTIONS}
+          options={
+            costAllowed
+              ? RANKING_OPTIONS
+              : RANKING_OPTIONS.filter((item) => !["profit", "low_profit"].includes(item.value))
+          }
           onChange={(value) => setRanking(value as ProductRanking)}
         />
       </Filters>

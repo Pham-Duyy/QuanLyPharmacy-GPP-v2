@@ -523,8 +523,14 @@ Bước:
 - **6.2 Cấu hình và ngân sách AI**: `settings` khóa `ai.agent`; `GET/PUT /bi/ai/settings`; `/bi/ask` từ chối khi tắt
   hoặc hết ngân sách (trạng thái `disabled`, `budget_exceeded`); giới hạn câu/giờ đọc từ cấu hình; `/bi/ask/status` trả
   chi tiêu tháng.
-- **6.3 Nhật ký AI**: `GET /bi/ai/logs` (lọc người, trạng thái, tháng; phân trang; tổng chi phí, số câu theo trạng thái).
-- **6.4 Trang "Phân tích & AI"** trong nhóm Quản trị; tài liệu, hướng dẫn.
+- **6.3 Lịch sử hội thoại, tiến trình, nhật ký**: hội thoại giữ 30 ngày, có tiêu đề (lấy từ câu hỏi đầu, không gọi AI);
+  API danh sách, đổi tên, xóa; gửi tiến trình tra cứu từng bước (SSE) trong lúc AI làm việc; `GET /bi/ai/logs` cho admin.
+- **6.4 Trang "Trợ lý AI"** (mục riêng trên sidebar, giao diện kiểu Claude): cột lịch sử, khung trò chuyện, câu gợi ý,
+  tiến trình tra cứu, dấu đối chiếu số, **biểu đồ trong câu trả lời** vẽ từ chính kết quả tool (không để AI tự vẽ số);
+  bỏ tab "Hỏi AI" trên Tổng quan, nút "Hỏi AI" mở mục mới.
+- **6.5 Trang Quản trị "Phân tích & AI"**: nguồn số liệu, hạn mức AI, nhật ký AI (D27).
+- **6.6 Đính kèm tệp Excel/CSV** trong Trợ lý AI (thay trang "Trợ lý phân tích": trang cũ chỉ có 4 cột thời điểm, cửa
+  hàng, doanh thu, số hóa đơn nên không trả lời được theo nhóm thuốc, sản phẩm, lợi nhuận); bỏ trang cũ khỏi sidebar.
 
 ## Lộ trình
 
@@ -561,9 +567,11 @@ Bước:
 | 5.4 | API, Gateway, tab "Đặt hàng" và "ABC" trên Bảng điều hành, 2 tool AI Agent, xuất Excel | Xong |
 | 5.5 | Nguồn PostgreSQL: view chỉ đọc `analytics_src`, tài khoản chỉ đọc, phát hiện thay đổi; cột "Theo dự báo" ở trang Đề xuất đặt hàng || Xong |
 | 5.6 | ML bên thách đấu (scikit-learn, đặc trưng thứ, độ trễ, lễ Tết), chỉ dùng khi backtest tốt hơn ([kpi.md](kpi.md#ml-bên-thách-đấu-phase-5-bước-56)); đo ngoài mẫu không tốt hơn nên tắt mặc định | Xong |
-| 6.1 | Quyền: `report.ai`, ẩn lợi nhuận khi thiếu `stock.cost.read`, dược sĩ xem Bảng điều hành cửa hàng mình (D23–D25) | Chưa làm |
+| 6.1 | Quyền: `report.ai`, ẩn lợi nhuận khi thiếu `stock.cost.read`, dược sĩ xem Bảng điều hành cửa hàng mình (D23–D25) | Xong |
 | 6.2 | Cấu hình AI: bật/tắt, câu/giờ, ngân sách 10 USD/tháng, chặn trước khi gọi Claude (D26) | Chưa làm |
-| 6.3 | API nhật ký AI: lọc, phân trang, tổng chi phí tháng | Chưa làm |
-| 6.4 | Trang Quản trị "Phân tích & AI": nguồn số liệu, hạn mức AI, nhật ký AI (D27) | Chưa làm |
+| 6.3 | Lịch sử hội thoại 30 ngày, tiến trình tra cứu (SSE), API nhật ký AI | Chưa làm |
+| 6.4 | Trang "Trợ lý AI" kiểu Claude, biểu đồ trong câu trả lời; bỏ tab Hỏi AI | Chưa làm |
+| 6.5 | Trang Quản trị "Phân tích & AI": nguồn số liệu, hạn mức AI, nhật ký AI (D27) | Chưa làm |
+| 6.6 | Đính kèm tệp Excel/CSV trong Trợ lý AI, bỏ trang "Trợ lý phân tích" cũ | Chưa làm |
 
 Schema dữ liệu và luật kiểm tra: [data-schema.md](data-schema.md). Công thức KPI: [kpi.md](kpi.md).

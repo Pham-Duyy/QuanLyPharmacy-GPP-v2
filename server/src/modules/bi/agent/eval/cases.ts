@@ -41,12 +41,34 @@ export function personaAccess(persona: Persona, stores: string[]): BiAccess {
       stores: [{ code, name: code }],
       inventoryAll: false,
       inventoryStores: [code],
+      costAll: false,
+      costStores: [code],
+      salesStores: [code],
+      canAsk: true,
     };
   }
   if (persona === "no_inventory") {
-    return { allStores: true, stores: all, inventoryAll: false, inventoryStores: [] };
+    return {
+      allStores: true,
+      stores: all,
+      inventoryAll: false,
+      inventoryStores: [],
+      costAll: true,
+      costStores: stores,
+      salesStores: stores,
+      canAsk: true,
+    };
   }
-  return { allStores: true, stores: all, inventoryAll: true, inventoryStores: stores };
+  return {
+    allStores: true,
+    stores: all,
+    inventoryAll: true,
+    inventoryStores: stores,
+    costAll: true,
+    costStores: stores,
+    salesStores: stores,
+    canAsk: true,
+  };
 }
 
 /** Đáp án lấy bằng quyền toàn chuỗi, đúng kết quả tool mà Agent nhận. */

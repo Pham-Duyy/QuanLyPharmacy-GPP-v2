@@ -290,6 +290,7 @@ Quy tắc:
 | `storage_log.write` | Ghi sổ nhiệt độ – độ ẩm |
 | `report.sales` | Báo cáo doanh thu, bán chạy |
 | `report.inventory` | Báo cáo xuất – nhập – tồn, hạn dùng |
+| `report.ai` | Hỏi trợ lý AI phân tích số liệu (tính phí theo câu hỏi; Phase 6, D25) |
 | `audit.read` | Đọc audit log |
 | `controlled.read` | Xem sổ theo dõi thuốc kiểm soát đặc biệt |
 | `supplier_debt.read` | Xem công nợ nhà cung cấp |
@@ -344,6 +345,7 @@ Mô hình cập nhật ngày 30/09/2026. `admin`: quản lý; `pharmacist`: dư�
 | `storage_log.write` |  | ✓ | ✓ |  |
 | `report.sales` | ✓ |  |  | ✓ |
 | `report.inventory` | ✓ | ✓ |  | ✓ |
+| `report.ai` | ✓ |  |  |  |
 | `audit.read` | ✓ |  |  | ✓ |
 | `controlled.read` | ✓ | ✓ |  | ✓ |
 | `supplier_debt.read` | ✓ |  |  | ✓ |
@@ -1426,7 +1428,7 @@ Bảng `ai_logs` và quyền `ai.use` gỡ ở migration `20261011150000_remove_
 
 Hướng phát triển chính của phần phân tích từ 30/10/2026: dịch vụ Python riêng `analytics-service/` theo dõi tệp dữ liệu, xử lý và tính chỉ số **không gọi LLM**; AI Agent chỉ là lớp hỏi đáp phía trên, đọc số liệu qua tool định nghĩa sẵn. Kiến trúc, quyết định và lộ trình: [docs/analytics/architecture.md](analytics/architecture.md); schema tệp và luật kiểm tra: [docs/analytics/data-schema.md](analytics/data-schema.md). Trợ lý ở §20.1 giữ lại làm tính năng "hỏi nhanh trên một tệp bất kỳ".
 
-Cổng `GET /api/v1/bi/{access, version, health, summary, revenue, profit, sales-trend, breakdown, data-quality, products, inventory, expiry, alerts, anomalies, forecast, classification, reorder, reorder/export}` (quyền `report.sales` hoặc `report.chain`) chuyển tiếp sang Analytics API sau khi áp quyền theo cửa hàng: chỉ người xem được mọi cửa hàng mới dùng `store=ALL`, `breakdown`, `data-quality`; còn lại 403. `inventory`, `expiry` cần thêm `report.inventory` ở phạm vi đang xem; thiếu quyền này thì `alerts`, `products`, `summary`, `anomalies` (tồn tăng bất thường), `forecast` (ngày hết hàng) được lọc bỏ phần tồn kho. Phase 5: `classification` (ABC–XYZ, lọc `abc`, `xyz`) chỉ cần quyền báo cáo; `reorder` (gợi ý đặt hàng và chuyển hàng, lọc `action=order|transfer`) và `reorder/export` (Excel: sheet Mua xếp theo nhà cung cấp, sheet Chuyển hàng) cần `report.inventory` ở phạm vi xem; cửa hàng mà người xem không được xem tồn kho xuất hiện trong chuyến chuyển hàng dưới tên "Cửa hàng khác". Lỗi riêng: `502 ANALYTICS_UNAVAILABLE` (dịch vụ chưa chạy), `503 ANALYTICS_NO_DATA` (chưa có snapshot). Chi tiết: [architecture.md](analytics/architecture.md#node-gateway-và-bảng-điều-hành-bước-17).
+Cổng `GET /api/v1/bi/{access, version, health, summary, revenue, profit, sales-trend, breakdown, data-quality, products, inventory, expiry, alerts, anomalies, forecast, classification, reorder, reorder/export}` (quyền `report.sales`, `report.chain` hoặc `report.inventory`; Phase 6, D24: dược sĩ xem cửa hàng mình) chuyển tiếp sang Analytics API sau khi áp quyền theo cửa hàng. `access` trả thêm `costAll`, `costStores`, `salesStores`, `canAsk`. Lợi nhuận, giá vốn, biên (`profit`, `cogs`, `margin_pct`, `cost_coverage_pct`, `below_cost`, danh sách `low_profit`) bị bỏ ở mọi tầng khi thiếu `stock.cost.read` ở phạm vi xem; `profit` khi đó trả 403 (D23). `products` cần `report.sales` hoặc `report.chain` ở phạm vi xem (D8). Còn lại: chỉ người xem được mọi cửa hàng mới dùng `store=ALL`, `breakdown`, `data-quality`; còn lại 403. `inventory`, `expiry` cần thêm `report.inventory` ở phạm vi đang xem; thiếu quyền này thì `alerts`, `products`, `summary`, `anomalies` (tồn tăng bất thường), `forecast` (ngày hết hàng) được lọc bỏ phần tồn kho. Phase 5: `classification` (ABC–XYZ, lọc `abc`, `xyz`) chỉ cần quyền báo cáo; `reorder` (gợi ý đặt hàng và chuyển hàng, lọc `action=order|transfer`) và `reorder/export` (Excel: sheet Mua xếp theo nhà cung cấp, sheet Chuyển hàng) cần `report.inventory` ở phạm vi xem; cửa hàng mà người xem không được xem tồn kho xuất hiện trong chuyến chuyển hàng dưới tên "Cửa hàng khác". Lỗi riêng: `502 ANALYTICS_UNAVAILABLE` (dịch vụ chưa chạy), `503 ANALYTICS_NO_DATA` (chưa có snapshot). Chi tiết: [architecture.md](analytics/architecture.md#node-gateway-và-bảng-điều-hành-bước-17).
 
 ### 20.1. Trợ lý phân tích dữ liệu kinh doanh
 
@@ -1470,8 +1472,8 @@ Hỏi đáp tiếng Việt trên số liệu analytics-service. Claude chỉ g�
 
 | Method | Endpoint | Mô tả | Quyền |
 |---|---|---|---|
-| GET | `/bi/ask/status` | `enabled` (có `ANTHROPIC_API_KEY`), `limits`: `questionsPerHour` 30, `remainingThisHour`, `conversationTurns` 10, `questionChars` 1.000, `timeoutSeconds` 60 | `report.sales` hoặc `report.chain` |
-| POST | `/bi/ask` | JSON: `question` (1–1.000 ký tự), `conversationId` (UUID, tùy chọn: hỏi tiếp hội thoại cũ), `store` (tùy chọn: cửa hàng đang chọn trên Bảng điều hành, làm phạm vi mặc định khi câu hỏi không nêu; không được xem thì 403) | `report.sales` hoặc `report.chain` |
+| GET | `/bi/ask/status` | `allowed` (có `report.ai`), `enabled` (có `ANTHROPIC_API_KEY`), `limits`: `questionsPerHour` 30, `remainingThisHour`, `conversationTurns` 10, `questionChars` 1.000, `timeoutSeconds` 60 | `report.sales`, `report.chain` hoặc `report.inventory` |
+| POST | `/bi/ask` | JSON: `question` (1–1.000 ký tự), `conversationId` (UUID, tùy chọn: hỏi tiếp hội thoại cũ), `store` (tùy chọn: cửa hàng đang chọn trên Bảng điều hành, làm phạm vi mặc định khi câu hỏi không nêu; không được xem thì 403) | `report.ai` (D25; thiếu thì 403 trước khi gọi Claude) |
 
 - Phản hồi: `conversationId`, `status` (`answered`, `blocked`, `round_limit`, `timeout`, `refused`, `truncated`, `unavailable`), `answer` (chỉ khi `answered`), `notice` (câu cố định cho các trạng thái còn lại; `blocked`: "Không đủ dữ liệu đã kiểm chứng để trả lời câu này…"), `detail` (chỉ khi `unavailable`: lý do Claude API từ chối kèm cách sửa, ví dụ khóa sai 401, hết tiền; không chứa khóa), `verification` (`checked`, `unverified`, `retried`), `toolCalls` (`name`, `input`, `ok`, `durationMs`, `error`), `rounds`, `model`, `durationMs`, `usage` (token), `costUsd` (ước tính), `conversation` (`turns`, `maxTurns`, `expiresAt`), `remainingThisHour`, `logId`.
 - Lỗi: `503 AI_DISABLED` (chưa cấu hình khóa), `429 RATE_LIMITED` (quá 30 câu trong 1 giờ, kể cả câu lỗi; thông báo kèm giờ hỏi lại được), `409 AGENT_BUSY` (câu trước của chính người đó chưa xong), `404` (hội thoại không có hoặc của người khác), `409 CONVERSATION_EXPIRED` (quá 24 giờ), `409 CONVERSATION_FULL` (đủ 10 câu).

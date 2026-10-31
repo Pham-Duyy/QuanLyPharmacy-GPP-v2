@@ -210,6 +210,14 @@ export const AGENT_TOOLS: AgentTool[] = [
       input: { store: string; period: "day" | "week" | "month"; rank: string },
     ) => {
       const data = await getProducts(access, input);
+      // Xếp theo lợi nhuận bị bỏ khi người hỏi không được xem giá vốn (D23): báo rõ, không trả danh sách rỗng.
+      if (!(input.rank in data)) {
+        throw new AppError(
+          403,
+          "FORBIDDEN",
+          "Bạn không được xem lợi nhuận, giá vốn (cần stock.cost.read)",
+        );
+      }
       return {
         ...pick(data, ["as_of", "store", "label", "previous_label"]),
         rank: input.rank,

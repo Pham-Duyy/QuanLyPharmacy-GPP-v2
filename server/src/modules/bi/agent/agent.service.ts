@@ -80,8 +80,13 @@ async function questionsLastHour(userId: string, now: Date) {
 }
 
 export async function agentStatus(auth: AuthContext) {
-  const used = await questionsLastHour(auth.userId, new Date());
+  const [used, access] = await Promise.all([
+    questionsLastHour(auth.userId, new Date()),
+    biAccess(auth),
+  ]);
   return {
+    /** Người này có quyền hỏi AI không (report.ai, D25). */
+    allowed: access.canAsk,
     enabled: claudeClient() !== null,
     limits: {
       questionsPerHour: AGENT_POLICY.questionsPerHour,
@@ -158,6 +163,10 @@ export async function askQuestion(
   body: { question: string; conversationId?: string | undefined; store?: string | undefined },
 ) {
   const now = new Date();
+  const access = await biAccess(auth);
+  if (!access.canAsk) {
+    throw new AppError(403, "FORBIDDEN", "Bạn chưa được dùng trợ lý AI (cần quyền report.ai)");
+  }
   if (!claudeClient()) {
     throw new AppError(503, "AI_DISABLED", "Chưa cấu hình ANTHROPIC_API_KEY cho trợ lý AI");
   }
@@ -181,7 +190,6 @@ export async function askQuestion(
   try {
     // Dọn hội thoại hết hạn (nhật ký giữ lại, conversation_id thành null).
     await prisma.aiAgentConversation.deleteMany({ where: { expiresAt: { lt: now } } });
-    const access = await biAccess(auth);
     const scope = body.store ? resolveStore(access, body.store) : undefined;
     let result: AgentResult;
     try {

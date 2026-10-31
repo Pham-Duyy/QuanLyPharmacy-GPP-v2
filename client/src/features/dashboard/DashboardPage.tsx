@@ -39,7 +39,7 @@ const ExecutiveDashboard = lazy(async () => ({
 
 /**
  * Tổng quan.
- * - Có quyền báo cáo (admin, kiểm toán): Bảng điều hành theo dõi toàn chuỗi, kèm việc hôm nay của
+ * - Có quyền báo cáo (admin, kiểm toán, dược sĩ): Bảng điều hành theo phạm vi được xem, kèm việc hôm nay của
  *   cửa hàng đang chọn đặt trên các tab phân tích.
  * - Còn lại: việc hôm nay của cửa hàng (chỉ số trong ngày, lô cần xử lý, hàng dưới mức tối thiểu).
  * Chỉ hiển thị số liệu API trả về.
@@ -60,7 +60,8 @@ export function DashboardPage() {
 
   if (!me) return null;
 
-  if (can("report.sales") || can("report.chain")) {
+  // report.inventory: dược sĩ xem Bảng điều hành cửa hàng mình, không thấy lợi nhuận (D23, D24).
+  if (can("report.sales") || can("report.chain") || can("report.inventory")) {
     return (
       <Suspense fallback={<Skeleton active paragraph={{ rows: 10 }} />}>
         <ExecutiveDashboard

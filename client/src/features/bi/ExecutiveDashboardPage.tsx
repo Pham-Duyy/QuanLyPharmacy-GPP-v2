@@ -35,7 +35,9 @@ import {
   VERSION_POLL_MS,
   ageText,
   biApi,
+  canSeeCost,
   canSeeInventory,
+  canSeeProducts,
   clockText,
   money,
   errorText,
@@ -121,6 +123,9 @@ export function ExecutiveDashboardPage({
 
   const storeOptions = buildStoreOptions(access.data, summary.data);
   const inventoryAllowed = canSeeInventory(access.data, store);
+  const costAllowed = canSeeCost(access.data, store);
+  const productsAllowed = canSeeProducts(access.data, store);
+  const canAsk = access.data?.canAsk ?? false;
   const openTab = (key: string) => {
     setTab(key);
     document.querySelector(".bi-tabs")?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -181,7 +186,7 @@ export function ExecutiveDashboardPage({
               options={PERIOD_OPTIONS}
               onChange={(value) => setPeriod(value as Period)}
             />
-            {ready ? (
+            {ready && canAsk ? (
               <Button className="bi-ask" icon={<RobotOutlined />} onClick={() => openTab("agent")}>
                 Hỏi AI
               </Button>
@@ -241,38 +246,43 @@ export function ExecutiveDashboardPage({
                     />
                   }
                 />
-                <StatCard
-                  tone="blue"
-                  icon={<RiseOutlined />}
-                  label="Lợi nhuận gộp"
-                  value={money(kpi.current.profit)}
-                  hint={
-                    <Trend
-                      value={kpi.growth.profit}
-                      suffix={`· ${kpi.previous_label.toLowerCase()}`}
+                {/* Lợi nhuận, biên chỉ khi được xem giá vốn (D23). */}
+                {costAllowed ? (
+                  <>
+                    <StatCard
+                      tone="blue"
+                      icon={<RiseOutlined />}
+                      label="Lợi nhuận gộp"
+                      value={money(kpi.current.profit)}
+                      hint={
+                        <Trend
+                          value={kpi.growth.profit}
+                          suffix={`· ${kpi.previous_label.toLowerCase()}`}
+                        />
+                      }
                     />
-                  }
-                />
-                <StatCard
-                  tone="cyan"
-                  icon={<PercentageOutlined />}
-                  label="Biên lợi nhuận"
-                  value={
-                    kpi.current.margin_pct === null
-                      ? "—"
-                      : `${kpi.current.margin_pct.toLocaleString("vi-VN")}%`
-                  }
-                  hint={
-                    kpi.current.cost_coverage_pct !== null &&
-                    kpi.current.cost_coverage_pct < 100 ? (
-                      <span className="muted">
-                        {kpi.current.cost_coverage_pct}% doanh thu có giá vốn
-                      </span>
-                    ) : (
-                      <span className="muted">Lợi nhuận / doanh thu</span>
-                    )
-                  }
-                />
+                    <StatCard
+                      tone="cyan"
+                      icon={<PercentageOutlined />}
+                      label="Biên lợi nhuận"
+                      value={
+                        kpi.current.margin_pct === null
+                          ? "—"
+                          : `${kpi.current.margin_pct.toLocaleString("vi-VN")}%`
+                      }
+                      hint={
+                        kpi.current.cost_coverage_pct !== null &&
+                        kpi.current.cost_coverage_pct < 100 ? (
+                          <span className="muted">
+                            {kpi.current.cost_coverage_pct}% doanh thu có giá vốn
+                          </span>
+                        ) : (
+                          <span className="muted">Lợi nhuận / doanh thu</span>
+                        )
+                      }
+                    />
+                  </>
+                ) : null}
                 <StatCard
                   tone="purple"
                   icon={<FileTextOutlined />}
@@ -377,11 +387,22 @@ export function ExecutiveDashboardPage({
                   </Panel>
                 ),
               },
-              {
-                key: "products",
-                label: "Sản phẩm",
-                children: <ProductsTab store={store} period={period} version={v} />,
-              },
+              ...(productsAllowed
+                ? [
+                    {
+                      key: "products",
+                      label: "Sản phẩm",
+                      children: (
+                        <ProductsTab
+                          store={store}
+                          period={period}
+                          version={v}
+                          costAllowed={costAllowed}
+                        />
+                      ),
+                    },
+                  ]
+                : []),
               {
                 key: "anomalies",
                 label: "Bất thường",
@@ -418,15 +439,19 @@ export function ExecutiveDashboardPage({
                 label: "ABC",
                 children: <AbcTab store={store} version={v} />,
               },
-              {
-                key: "agent",
-                label: (
-                  <span>
-                    <RobotOutlined /> Hỏi AI
-                  </span>
-                ),
-                children: <AgentPanel store={store} inventoryAllowed={inventoryAllowed} />,
-              },
+              ...(canAsk
+                ? [
+                    {
+                      key: "agent",
+                      label: (
+                        <span>
+                          <RobotOutlined /> Hỏi AI
+                        </span>
+                      ),
+                      children: <AgentPanel store={store} inventoryAllowed={inventoryAllowed} />,
+                    },
+                  ]
+                : []),
             ]}
           />
         </>

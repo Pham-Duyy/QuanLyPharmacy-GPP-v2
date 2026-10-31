@@ -15,8 +15,13 @@ const SUMMARY = {
   as_of: "2026-10-29T12:00:00+07:00",
   store: "ALL",
   stores: ["NT01", "NT02", "NT03"],
-  periods: { day: { current: { revenue: 12_000 } } },
-  data_quality: { sales: { rows_rejected: 12 } },
+  periods: {
+    day: {
+      current: { revenue: 12_000, cogs: 9_000, profit: 3_000, margin_pct: 25, orders: 4 },
+      growth: { revenue: 5, profit: 7, orders: 1 },
+    },
+  },
+  data_quality: { sales: { rows_rejected: 12, by_code: { below_cost: 1 } } },
   overview: { total_stock_value: 806_000_000, low_stock: 2 },
 };
 
@@ -105,6 +110,10 @@ describe("cổng Bảng điều hành /api/v1/bi", () => {
       ],
       inventoryAll: true,
       inventoryStores: ["NT01", "NT02"],
+      costAll: true,
+      costStores: ["NT01", "NT02"],
+      salesStores: ["NT01", "NT02"],
+      canAsk: true,
     });
 
     const summary = await get("summary", adminToken);
@@ -121,6 +130,11 @@ describe("cổng Bảng điều hành /api/v1/bi", () => {
       stores: [{ code: "NT01", name: "Nhà thuốc kiểm thử 1" }],
       inventoryAll: false,
       inventoryStores: ["NT01"],
+      costAll: false,
+      costStores: ["NT01"],
+      salesStores: ["NT01"],
+      // Kiểm toán chỉ đọc: không được hỏi AI (D25).
+      canAsk: false,
     });
 
     const summary = await get("summary", token);
@@ -202,6 +216,8 @@ describe("cổng Bảng điều hành /api/v1/bi", () => {
 
   it("không đăng nhập hoặc không có quyền báo cáo thì không vào được", async () => {
     expect((await api().get("/api/v1/bi/summary")).status).toBe(401);
+    // Nhân viên kho không có quyền báo cáo nào.
+    await useTestRole(fixture.salesId, "warehouse_staff", fixture.storeId);
     const { token } = await login("banhang");
     expect((await get("summary", token)).status).toBe(403);
     expect(stub.requests).toEqual([]);
@@ -366,5 +382,66 @@ describe("ABC–XYZ, gợi ý đặt hàng (Phase 5)", () => {
     expect(buy.getRow(2).getCell(5).value).toBe(1_000);
     expect(buy.getRow(2).getCell(11).value).toBe("Hết hàng");
     expect(workbook.getWorksheet("Chuyển hàng")!.getRow(2).getCell(5).value).toBe(250);
+  });
+});
+
+describe("Phase 6: dược sĩ, lợi nhuận, quyền hỏi AI (D23–D25)", () => {
+  beforeEach(() => {
+    stub.respond("sales-trend", 200, {
+      version: 7,
+      points: [{ period_start: "2026-10-28", revenue: 5_000, cogs: 3_000, profit: 2_000 }],
+    });
+  });
+
+  it("dược sĩ vào được Bảng điều hành cửa hàng mình qua report.inventory, không có report.sales", async () => {
+    const token = (await login("duocsi")).token;
+    const access = (await get("access", token)).body.data;
+    expect(access).toMatchObject({
+      allStores: false,
+      stores: [{ code: "NT01", name: "Nhà thuốc kiểm thử 1" }],
+      inventoryStores: ["NT01"],
+      costStores: [],
+      salesStores: [],
+      canAsk: false,
+    });
+    expect((await get("inventory", token)).status).toBe(200);
+    expect((await get("expiry", token)).status).toBe(200);
+    expect((await get("summary?store=NT02", token)).status).toBe(403);
+    // Xếp hạng sản phẩm vẫn cần report.sales (D8).
+    expect((await get("products", token)).status).toBe(403);
+  });
+
+  it("thiếu stock.cost.read: bỏ lợi nhuận, giá vốn, biên ở mọi tầng; xem kỳ lợi nhuận bị 403", async () => {
+    const token = (await login("duocsi")).token;
+    const summary = (await get("summary", token)).body.data;
+    expect(summary.periods.day).toEqual({
+      current: { revenue: 12_000, orders: 4 },
+      growth: { revenue: 5, orders: 1 },
+    });
+    const trend = (await get("sales-trend?grain=day", token)).body.data;
+    expect(trend.points).toEqual([{ period_start: "2026-10-28", revenue: 5_000 }]);
+    expect((await get("profit?period=month", token)).status).toBe(403);
+    expect((await get("revenue?period=week", token)).status).toBe(200);
+  });
+
+  it("có stock.cost.read thì thấy đủ lợi nhuận", async () => {
+    const summary = (await get("summary", adminToken)).body.data;
+    expect(summary.periods.day.current.profit).toBe(3_000);
+    expect(summary.data_quality.sales.by_code.below_cost).toBe(1);
+    const trend = (await get("sales-trend?grain=day", adminToken)).body.data;
+    expect(trend.points[0].profit).toBe(2_000);
+    expect((await get("profit?period=month", adminToken)).status).toBe(200);
+  });
+
+  it("hỏi AI cần report.ai: dược sĩ và kiểm toán bị chặn trước khi gọi Claude", async () => {
+    const pharmacist = (await login("duocsi")).token;
+    const ask = (token: string) =>
+      api().post("/api/v1/bi/ask").set(authHeaders(token)).send({ question: "Doanh thu hôm nay?" });
+    expect((await ask(pharmacist)).status).toBe(403);
+    expect((await get("ask/status", pharmacist)).body.data.allowed).toBe(false);
+
+    const auditor = await storeViewerToken();
+    expect((await ask(auditor)).status).toBe(403);
+    expect((await get("ask/status", adminToken)).body.data.allowed).toBe(true);
   });
 });

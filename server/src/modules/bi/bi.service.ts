@@ -16,6 +16,12 @@ import { fetchAnalytics } from "./bi.client.js";
  * - Tồn kho, hạn dùng (có giá nhập) cần thêm `report.inventory` ở phạm vi đó
  *   (quyết định D8). Thiếu quyền này thì cảnh báo, xếp hạng sản phẩm, bất
  *   thường, dự báo được lọc bỏ phần tồn kho, còn tồn kho/hạn dùng trả 403.
+ * - Vào Bảng điều hành: `report.sales`, `report.chain` hoặc `report.inventory` (D24: dược sĩ
+ *   xem cửa hàng mình qua quyền tồn kho, không cần `report.sales`). Xếp hạng sản phẩm vẫn cần
+ *   `report.sales`/`report.chain` (D8).
+ * - Lợi nhuận, giá vốn, biên lợi nhuận cần `stock.cost.read` ở phạm vi xem (D23); thiếu thì
+ *   các trường này bị bỏ trước khi trả về, kể cả cho tool của Agent.
+ * - Hỏi AI cần `report.ai` (D25).
  */
 
 export type BiAccess = {
@@ -26,6 +32,14 @@ export type BiAccess = {
   inventoryAll: boolean;
   /** Mã các cửa hàng được xem tồn kho, hạn dùng. */
   inventoryStores: string[];
+  /** Có `stock.cost.read` ở mọi cửa hàng được xem: thấy lợi nhuận toàn chuỗi (D23). */
+  costAll: boolean;
+  /** Mã các cửa hàng được xem lợi nhuận, giá vốn. */
+  costStores: string[];
+  /** Mã các cửa hàng được xem xếp hạng sản phẩm (`report.sales`/`report.chain`, D8). */
+  salesStores: string[];
+  /** Được hỏi trợ lý AI (`report.ai`, D25). */
+  canAsk: boolean;
 };
 
 export async function biAccess(auth: AuthContext): Promise<BiAccess> {
@@ -34,18 +48,23 @@ export async function biAccess(auth: AuthContext): Promise<BiAccess> {
     select: { id: true, code: true, name: true },
     orderBy: { code: "asc" },
   });
-  const allowed = active.filter((store) => {
-    const permissions = auth.permissionsForStore(store.id);
-    return permissions.has("report.sales") || permissions.has("report.chain");
-  });
-  const inventory = allowed.filter((store) =>
-    auth.permissionsForStore(store.id).has("report.inventory"),
+  const has = (store: { id: string }, code: string) => auth.permissionsForStore(store.id).has(code);
+  const allowed = active.filter((store) =>
+    ["report.sales", "report.chain", "report.inventory"].some((code) => has(store, code)),
   );
+  const inventory = allowed.filter((store) => has(store, "report.inventory"));
+  const cost = allowed.filter((store) => has(store, "stock.cost.read"));
+  const sales = allowed.filter((store) => has(store, "report.sales") || has(store, "report.chain"));
+  const every = (subset: unknown[]) => subset.length > 0 && subset.length === active.length;
   return {
-    allStores: allowed.length > 0 && allowed.length === active.length,
+    allStores: every(allowed),
     stores: allowed.map(({ code, name }) => ({ code, name })),
-    inventoryAll: inventory.length > 0 && inventory.length === active.length,
+    inventoryAll: every(inventory),
     inventoryStores: inventory.map((store) => store.code),
+    costAll: every(cost),
+    costStores: cost.map((store) => store.code),
+    salesStores: sales.map((store) => store.code),
+    canAsk: allowed.some((store) => has(store, "report.ai")),
   };
 }
 
@@ -53,6 +72,51 @@ export async function biAccess(auth: AuthContext): Promise<BiAccess> {
 export function canSeeInventory(access: BiAccess, store: string): boolean {
   if (access.inventoryAll) return true;
   return store !== "ALL" && access.inventoryStores.includes(store);
+}
+
+/** Phạm vi đang xem có được thấy lợi nhuận, giá vốn, biên lợi nhuận không (D23). */
+export function canSeeCost(access: BiAccess, store: string): boolean {
+  if (access.costAll) return true;
+  return store !== "ALL" && access.costStores.includes(store);
+}
+
+/** Xếp hạng sản phẩm: cần report.sales/report.chain ở phạm vi xem (D8). */
+function requireSales(access: BiAccess, store: string): void {
+  const ok =
+    store === "ALL"
+      ? access.allStores && access.salesStores.length === access.stores.length
+      : access.salesStores.includes(store);
+  if (!ok) {
+    throw new AppError(
+      403,
+      "FORBIDDEN",
+      "Xếp hạng sản phẩm cần quyền báo cáo bán hàng (report.sales)",
+    );
+  }
+}
+
+/** Trường lộ giá vốn (D23). `low_profit` là danh sách xếp theo biên lợi nhuận thấp. */
+const COST_KEYS = new Set([
+  "profit",
+  "cogs",
+  "margin_pct",
+  "cost_coverage_pct",
+  "below_cost",
+  "low_profit",
+]);
+
+/** Bỏ mọi trường lộ giá vốn ở mọi tầng (kỳ, tăng trưởng, điểm xu hướng, dòng cơ cấu, xếp hạng). */
+export function stripCost<T>(value: T): T {
+  if (Array.isArray(value)) {
+    for (const item of value) stripCost(item);
+  } else if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    for (const key of Object.keys(record)) {
+      if (COST_KEYS.has(key)) delete record[key];
+      else stripCost(record[key]);
+    }
+  }
+  return value;
 }
 
 function requireInventory(access: BiAccess, store: string): void {
@@ -112,7 +176,7 @@ export async function getSummary(access: BiAccess, query: { store?: string }) {
     // Thống kê lỗi tính trên cả tệp, gồm dòng của cửa hàng khác.
     summary.data_quality = null;
   }
-  return summary;
+  return canSeeCost(access, store) ? summary : stripCost(summary);
 }
 
 export async function getPeriodView(
@@ -120,36 +184,44 @@ export async function getPeriodView(
   view: "revenue" | "profit",
   query: { store?: string; period?: Period },
 ) {
-  return fetchAnalytics<Json>(view, {
-    store: resolveStore(access, query.store),
-    period: query.period,
-  });
+  const store = resolveStore(access, query.store);
+  if (view === "profit" && !canSeeCost(access, store)) {
+    throw new AppError(
+      403,
+      "FORBIDDEN",
+      "Bạn không được xem lợi nhuận, giá vốn (cần stock.cost.read)",
+    );
+  }
+  const body = await fetchAnalytics<Json>(view, { store, period: query.period });
+  return canSeeCost(access, store) ? body : stripCost(body);
 }
 
 export async function getSalesTrend(
   access: BiAccess,
   query: { store?: string; grain: Period; start?: string; end?: string },
 ) {
-  return fetchAnalytics<Json & { points: Json[] }>("sales-trend", {
-    ...query,
-    store: resolveStore(access, query.store),
-  });
+  const store = resolveStore(access, query.store);
+  const body = await fetchAnalytics<Json & { points: Json[] }>("sales-trend", { ...query, store });
+  return canSeeCost(access, store) ? body : stripCost(body);
 }
 
 export async function getBreakdown(access: BiAccess, query: { by: string }) {
   requireAllStores(access);
-  return fetchAnalytics<Json & { rows: Json[] }>("breakdown", query);
+  const body = await fetchAnalytics<Json & { rows: Json[] }>("breakdown", query);
+  return access.costAll ? body : stripCost(body);
 }
 
 export async function getDataQuality(access: BiAccess, query: { limit: number }) {
   requireAllStores(access);
-  return fetchAnalytics<Json>("data-quality", query);
+  const body = await fetchAnalytics<Json>("data-quality", query);
+  return access.costAll ? body : stripCost(body);
 }
 
 type StockRow = Json;
 
 export async function getProducts(access: BiAccess, query: { store?: string; period: Period }) {
   const store = resolveStore(access, query.store);
+  requireSales(access, store);
   const products = await fetchAnalytics<
     Json & { stock: Json & { slow: StockRow[]; not_sold: StockRow[] } }
   >("products", { store, period: query.period });
@@ -160,7 +232,7 @@ export async function getProducts(access: BiAccess, query: { store?: string; per
       delete row["stock_value"];
     }
   }
-  return products;
+  return canSeeCost(access, store) ? products : stripCost(products);
 }
 
 export async function getInventory(access: BiAccess, query: { store?: string; status?: string }) {

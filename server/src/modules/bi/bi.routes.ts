@@ -36,7 +36,12 @@ export { biAccess, type BiAccess } from "./bi.service.js";
  */
 export const biRouter = Router();
 
-biRouter.use("/bi", authenticate, requireAnyPermission("report.sales", "report.chain"));
+// report.inventory: dược sĩ xem Bảng điều hành cửa hàng mình (D24). Lọc chi tiết nằm ở bi.service.ts.
+biRouter.use(
+  "/bi",
+  authenticate,
+  requireAnyPermission("report.sales", "report.chain", "report.inventory"),
+);
 
 const storeField = z
   .string()

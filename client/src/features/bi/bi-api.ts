@@ -19,7 +19,28 @@ export type BiAccess = {
   /** Có quyền report.inventory ở mọi cửa hàng. */
   inventoryAll: boolean;
   inventoryStores: string[];
+  /** Có stock.cost.read ở mọi cửa hàng: thấy lợi nhuận toàn chuỗi (D23). */
+  costAll: boolean;
+  costStores: string[];
+  /** Cửa hàng được xem xếp hạng sản phẩm (report.sales/report.chain). */
+  salesStores: string[];
+  /** Được hỏi trợ lý AI (report.ai, D25). */
+  canAsk: boolean;
 };
+
+/** Phạm vi đang xem có được thấy lợi nhuận, giá vốn, biên lợi nhuận không (D23). */
+export function canSeeCost(access: BiAccess | undefined, store: string): boolean {
+  if (!access) return false;
+  return access.costAll || (store !== "ALL" && access.costStores.includes(store));
+}
+
+/** Phạm vi đang xem có được xem xếp hạng sản phẩm không (D8). */
+export function canSeeProducts(access: BiAccess | undefined, store: string): boolean {
+  if (!access) return false;
+  return store === "ALL"
+    ? access.allStores && access.salesStores.length === access.stores.length
+    : access.salesStores.includes(store);
+}
 
 /** Phạm vi đang xem (ALL hoặc mã cửa hàng) có được xem tồn kho, hạn dùng không. */
 export function canSeeInventory(access: BiAccess | undefined, store: string): boolean {
@@ -573,7 +594,7 @@ function pointLabel(periodStart: string, grain: Period): string {
   return grain === "week" ? `Tuần ${day}/${month}` : `${day}/${month}`;
 }
 
-/** Dữ liệu cho LineChart: hai đường doanh thu và lợi nhuận; kỳ đang dở gắn dấu *. */
+/** Dữ liệu cho LineChart: đường doanh thu và (nếu được xem) lợi nhuận; kỳ đang dở gắn dấu *. */
 export function trendChart(trend: Trend): {
   labels: string[];
   series: SeriesLine[];
@@ -586,7 +607,10 @@ export function trendChart(trend: Trend): {
     labels,
     series: [
       { name: "Doanh thu", values: trend.points.map((point) => point.revenue) },
-      { name: "Lợi nhuận", values: trend.points.map((point) => point.profit) },
+      // Không có quyền giá vốn thì máy chủ bỏ trường profit (D23): không vẽ đường lợi nhuận.
+      ...(trend.points.some((point) => point.profit !== undefined)
+        ? [{ name: "Lợi nhuận", values: trend.points.map((point) => point.profit) }]
+        : []),
     ],
     hasPartial: trend.points.some((point) => point.partial),
   };
