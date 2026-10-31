@@ -1,4 +1,5 @@
 -- Tài khoản CHỈ ĐỌC cho analytics-service (Phase 5, bước 5.5; quyết định D22).
+-- Cách dễ hơn, không cần psql: trong thư mục server chạy `npm run db:analytics-reader`.
 -- Quản trị chạy MỘT lần bằng tài khoản chủ CSDL, sau khi đã áp migration
 -- 20261031150000_analytics_source_views. Đổi mật khẩu trước khi chạy:
 --

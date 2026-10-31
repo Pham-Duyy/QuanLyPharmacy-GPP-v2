@@ -130,13 +130,16 @@ Thay vì đặt tệp Excel vào `data/inbox`, analytics-service đọc thẳng 
 Mã cửa hàng, mã thuốc trùng phần mềm; trang "Đề xuất đặt hàng" có thêm cột "Theo dự báo".
 
 1. Áp migration (trong thư mục `server`): `npm run db:migrate`.
-2. Tạo tài khoản chỉ đọc (một lần, đổi mật khẩu):
+2. Tạo tài khoản chỉ đọc (một lần; không cần cài psql, dùng `DATABASE_URL` trong `server/.env`), trong thư mục `server`:
 
    ```
-   psql "postgresql://gpp:...@localhost:5432/pharmacy_gpp" -v reader_password="'mat-khau-manh'" -f prisma/sql/analytics-reader.sql
+   npm run db:analytics-reader
    ```
 
+   Lệnh tự tạo mật khẩu và in sẵn chuỗi kết nối cùng các dòng PowerShell ở bước 3. Chạy lại là đặt mật khẩu mới.
    Tài khoản `analytics_reader` chỉ đọc được 4 view (không thấy bảng khách hàng, đơn thuốc, người dùng) và không ghi được gì.
+   Tài khoản trong `DATABASE_URL` cần quyền tạo tài khoản (thường là `postgres`); thiếu quyền thì lệnh báo cách xử lý.
+   Ai quen psql có thể dùng `prisma/sql/analytics-reader.sql`.
 3. Chạy analytics-service với nguồn PostgreSQL (PowerShell):
 
    ```
