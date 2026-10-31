@@ -20,6 +20,7 @@ Chưa có: sao lưu trong phần mềm, đơn đặt hàng gửi nhà cung cấp
 |---|---|
 | [docs/api-contract.md](docs/api-contract.md) | Contract có hiệu lực: endpoint, quyền, trạng thái, quy tắc nghiệp vụ |
 | [docs/erd.md](docs/erd.md) | Thiết kế CSDL ban đầu (v1.1, 41 bảng): ràng buộc, chỉ mục. Các bảng thêm sau đó chỉ có trong `server/prisma/schema.prisma` và migration |
+| [docs/huong-dan-su-dung.md](docs/huong-dan-su-dung.md) | **Hướng dẫn sử dụng**: vai trò, chủ nhà thuốc kiêm dược sĩ, công việc hằng ngày |
 | [docs/phase7-nen-tang.md](docs/phase7-nen-tang.md) | Phase 7: kiểm tra dữ liệu nhập, sao lưu, MFA, đơn đặt hàng, khởi động bằng Docker |
 | [docs/restful-api-review.md](docs/restful-api-review.md) | Bản đặc tả API ban đầu, giữ để tham chiếu |
 

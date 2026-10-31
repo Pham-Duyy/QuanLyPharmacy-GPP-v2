@@ -45,9 +45,27 @@ export const patchUserSchema = z.object({
   version: z.coerce.number().int().positive("Thiếu version"),
 });
 
+/**
+ * `POST /users/me/pharmacist-role` (Phase 7, D29): quản lý nhân sự tự thêm vai
+ * trò Dược sĩ cho chính mình tại một cửa hàng — chủ nhà thuốc có chứng chỉ
+ * hành nghề kiêm đứng quầy.
+ */
+export const ownPharmacistRoleSchema = z.object({
+  storeId: z.uuid("storeId không hợp lệ"),
+  qualificationReference: z
+    .string()
+    .trim()
+    .min(1, "Ghi căn cứ bằng cấp chuyên môn (ví dụ số bằng Dược sĩ, nơi cấp)")
+    .max(500),
+  /** Bắt buộc khi hồ sơ chưa có số chứng chỉ hành nghề. */
+  practiceCertificateNumber: z.string().trim().min(1).max(100).nullish(),
+  responsibleProfessional: z.boolean().default(false),
+});
+
 /** `PUT /users/{id}/roles`: thân request là chính mảng gán vai trò (contract §21). */
 export const replaceRolesSchema = z.array(roleAssignmentSchema);
 
 export type CreateUserInput = z.infer<typeof createUserSchema>;
 export type PatchUserInput = z.infer<typeof patchUserSchema>;
+export type OwnPharmacistRoleInput = z.infer<typeof ownPharmacistRoleSchema>;
 export type RoleAssignmentInput = z.infer<typeof roleAssignmentSchema>;

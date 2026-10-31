@@ -4,7 +4,12 @@ import { AppError } from "../../lib/app-error.js";
 import { updateWithVersion } from "../../lib/optimistic.js";
 import { generateTempPassword, hashPassword } from "../../lib/password.js";
 import { withMappedErrors } from "../../lib/prisma-errors.js";
-import type { CreateUserInput, PatchUserInput, RoleAssignmentInput } from "./users.schema.js";
+import type {
+  CreateUserInput,
+  OwnPharmacistRoleInput,
+  PatchUserInput,
+  RoleAssignmentInput,
+} from "./users.schema.js";
 
 import { ROLES, PERMISSIONS, additionalPermissionsFor } from "../../config/permissions.js";
 import type { AuthContext } from "../auth/auth.context.js";
@@ -399,6 +404,85 @@ export async function replaceRoles(
         });
       }),
     { conflictMessage: "Phân công bị trùng; tải lại thông tin trước khi lưu" },
+  );
+}
+
+/**
+ * Quản lý tự thêm vai trò Dược sĩ cho chính mình tại một cửa hàng (Phase 7,
+ * D29). `replaceRoles` cấm tự đổi vai trò để không ai tự gỡ hay tự nâng quyền;
+ * riêng việc này mở một lối hẹp vì nhà thuốc một chủ không có ai khác làm hộ:
+ * - chỉ **thêm** vai trò Dược sĩ, không gỡ hay đổi vai trò khác;
+ * - người làm phải quản lý nhân sự tại chính cửa hàng đó, tức là vốn đã tạo
+ *   được một tài khoản dược sĩ khác cho mình, nên không có quyền mới nào lọt ra;
+ * - vẫn bắt ghi căn cứ bằng cấp và có số chứng chỉ hành nghề như khi gán cho
+ *   người khác, ghi nhật ký riêng `USER_SELF_PHARMACIST`.
+ * Không thu hồi phiên: quyền mới có ngay khi giao diện tải lại thông tin.
+ */
+export async function addOwnPharmacistRole(
+  actor: AuthContext,
+  input: OwnPharmacistRoleInput,
+): Promise<void> {
+  if (!managesScope(actor, input.storeId))
+    throw new AppError(403, "FORBIDDEN", "Bạn không quản lý nhân sự tại cửa hàng này");
+  await withMappedErrors(() =>
+    prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(724091)`;
+      const user = await tx.user.findUnique({
+        where: { id: actor.userId },
+        include: { userRoles: { include: { role: true } } },
+      });
+      if (!user) throw AppError.notFound("Không tìm thấy người dùng");
+      if (
+        user.userRoles.some(
+          (a) =>
+            a.role.code === "pharmacist" && (a.storeId === null || a.storeId === input.storeId),
+        )
+      )
+        throw AppError.invalidState("Bạn đã có vai trò Dược sĩ tại cửa hàng này");
+
+      const certificate = input.practiceCertificateNumber ?? user.practiceCertificateNumber;
+      if (!certificate?.trim())
+        throw AppError.validation(
+          "Bán thuốc cần số chứng chỉ hành nghề dược; nhập số chứng chỉ của bạn",
+        );
+      if (certificate !== user.practiceCertificateNumber)
+        await tx.user.update({
+          where: { id: user.id },
+          data: { practiceCertificateNumber: certificate, version: { increment: 1 } },
+        });
+
+      const assignment: RoleAssignmentInput = {
+        roleCode: "pharmacist",
+        storeId: input.storeId,
+        additionalPermissions: [],
+        qualificationReference: input.qualificationReference,
+        responsibleProfessional: input.responsibleProfessional,
+      };
+      const roleByCode = await validateAssignments(tx, [assignment], {
+        id: user.id,
+        isActive: user.isActive,
+        practiceCertificateNumber: certificate,
+      });
+      await tx.userRole.createMany({
+        data: assignmentRows(user.id, actor.userId, [assignment], roleByCode),
+      });
+      await tx.auditLog.create({
+        data: {
+          actorId: actor.userId,
+          action: "USER_SELF_PHARMACIST",
+          resourceType: "user",
+          resourceId: user.id,
+          storeId: input.storeId,
+          after: {
+            roleCode: "pharmacist",
+            storeId: input.storeId,
+            qualificationReference: input.qualificationReference,
+            practiceCertificateNumber: certificate,
+            responsibleProfessional: input.responsibleProfessional,
+          },
+        },
+      });
+    }),
   );
 }
 

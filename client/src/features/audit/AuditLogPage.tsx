@@ -47,6 +47,7 @@ const ACTION_LABEL: Record<string, string> = {
   USER_DEACTIVATE: "Khóa tài khoản",
   USER_PASSWORD_RESET: "Đặt lại mật khẩu",
   USER_ROLES_REPLACE: "Đổi vai trò",
+  USER_SELF_PHARMACIST: "Tự thêm vai trò Dược sĩ",
 };
 
 const RESOURCE_LABEL: Record<string, string> = {

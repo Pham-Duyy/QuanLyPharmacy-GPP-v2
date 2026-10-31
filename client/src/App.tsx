@@ -8,6 +8,10 @@ import { PAGES } from "./app/pages.js";
 import { useAuth } from "./features/auth/auth-context.js";
 import { PasswordChangeGate } from "./features/auth/ChangePasswordModal.js";
 import { LoginPage } from "./features/auth/LoginPage.js";
+import { SellingForbidden } from "./features/users/SellingForbidden.js";
+
+/** Trang chỉ dược sĩ dùng: thiếu quyền thì giải thích cách thêm vai trò Dược sĩ (D29). */
+const PHARMACIST_PAGES = new Set(["/ban-hang", "/don-thuoc"]);
 
 /**
  * Lớp kiểm quyền ở giao diện: vào thẳng URL của trang không có quyền thì báo
@@ -23,6 +27,7 @@ function Guard({ path, children }: { path: string; children: ReactNode }) {
   const navigate = useNavigate();
   const access = pageAccess(path, can);
   if (access === "allowed") return children;
+  if (access === "forbidden" && PHARMACIST_PAGES.has(path)) return <SellingForbidden />;
 
   return (
     <Result

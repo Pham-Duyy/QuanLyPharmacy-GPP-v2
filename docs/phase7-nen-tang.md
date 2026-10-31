@@ -7,7 +7,7 @@ Mục tiêu: bù các chức năng nền còn thiếu sau lần đánh giá ph�
 | Mã | Quyết định |
 |---|---|
 | D28 | **Kiểm tra dữ liệu đầu vào** chạy ở **máy chủ** (zod + kiểm tra trùng trong service). Form giao diện chỉ kiểm tra lại để báo lỗi sớm, không thay thế máy chủ. Lỗi trùng trả 409 với mã lỗi riêng và thông báo chỉ rõ bản ghi đang dùng giá trị đó. Tiền luôn là số nguyên đồng. |
-| D29 | **Chủ nhà thuốc kiêm dược sĩ**: giữ tách vai trò theo GPP, Quản lý không tự có quyền bán. Chủ có chứng chỉ hành nghề thì gán thêm vai trò Dược sĩ cho chính mình tại cửa hàng đó; phần mềm đã cho phép hai vai trò ở cùng cửa hàng. Trang Quầy bán giải thích cách làm thay cho câu "không có quyền". Ghi trong [Hướng dẫn sử dụng](huong-dan-su-dung.md). |
+| D29 | **Chủ nhà thuốc kiêm dược sĩ**: giữ tách vai trò theo GPP, Quản lý không tự có quyền bán. Chủ có chứng chỉ hành nghề thì gán thêm vai trò Dược sĩ cho chính mình tại cửa hàng đó. Vì `PUT /users/{id}/roles` cấm tự đổi vai trò (chống tự gỡ hay tự nâng quyền) mà nhà thuốc một chủ không có ai làm hộ, mở lối hẹp `POST /users/me/pharmacist-role`: chỉ **thêm** vai trò Dược sĩ, người làm phải quản lý nhân sự tại cửa hàng đó (vốn đã tạo được tài khoản dược sĩ khác cho mình, nên không lọt quyền mới), vẫn bắt căn cứ bằng cấp và số chứng chỉ hành nghề, ghi nhật ký `USER_SELF_PHARMACIST`. Mục Quầy bán vẫn hiện với người quản lý nhân sự; mở ra là trang giải thích kèm nút "Thêm vai trò Dược sĩ cho tôi". Ghi trong [Hướng dẫn sử dụng](huong-dan-su-dung.md). |
 | D30 | **Sao lưu trong phần mềm**, không cần cài `pg_dump`. Một bản sao lưu là một tệp nén gồm toàn bộ bảng dữ liệu và thư mục `storage/`. Tự động mỗi ngày lúc 23:00 giờ Việt Nam, giữ 14 bản gần nhất. Thư mục đặt bằng biến `BACKUP_DIR`; trên Windows đề xuất `D:\sao-luu-nha-thuoc`. Trang Quản trị → Sao lưu cho xem danh sách, sao lưu ngay, tải về. **Phục hồi chỉ bằng lệnh** `npm run db:restore -- <tệp>` có bước xác nhận, không có nút trên giao diện vì phục hồi ghi đè toàn bộ dữ liệu. |
 | D31 | **Xác thực hai lớp (MFA)** bằng mã TOTP 6 số (RFC 6238) từ ứng dụng Google Authenticator / Microsoft Authenticator. **Tùy chọn cho mọi người**; chủ nhà thuốc bật được cài đặt "bắt buộc với Quản lý". 10 mã dự phòng dùng một lần. Quản lý chuỗi đặt lại được MFA cho nhân viên, có ghi nhật ký. Không thêm thư viện: tự cài thuật toán bằng `node:crypto`, mã QR dùng component của antd. |
 | D32 | **Đơn đặt hàng** là chứng từ mới: Nháp → Đã gửi → Nhận một phần / Đã nhận đủ, hoặc Đã hủy. Tạo từ "Đề xuất đặt hàng" (tách theo nhà cung cấp) hoặc tạo tay. Gửi bằng cách in / lưu PDF / tải Excel (gửi qua Zalo), và gửi email nếu cấu hình máy chủ thư SMTP. Nhà cung cấp có thêm ô email. Hàng về thì tạo phiếu nhập từ đơn, tự điền hàng và số lượng còn thiếu. |
@@ -18,7 +18,7 @@ Mục tiêu: bù các chức năng nền còn thiếu sau lần đánh giá ph�
 | Bước | Nội dung | Trạng thái |
 |---|---|---|
 | 7.1 | Rà kiểm tra dữ liệu đầu vào ở mọi API tạo/sửa: trùng, số âm/bằng 0, tiền nguyên đồng, ngày, chuỗi, số điện thoại; test cho từng lỗi; bộ test đầu cuối chạy lại được (D28) | Xong |
-| 7.2 | Chủ nhà thuốc kiêm dược sĩ: trang Quầy bán giải thích, Hướng dẫn sử dụng (D29) | Chưa làm |
+| 7.2 | Chủ nhà thuốc kiêm dược sĩ: trang Quầy bán giải thích, tự thêm vai trò Dược sĩ, Hướng dẫn sử dụng (D29) | Xong |
 | 7.3 | Sao lưu trong phần mềm, lịch tự động, trang Sao lưu, lệnh phục hồi (D30) | Chưa làm |
 | 7.4 | Xác thực hai lớp TOTP, mã dự phòng, đặt lại, cài đặt bắt buộc (D31) | Chưa làm |
 | 7.5 | Đơn đặt hàng gửi nhà cung cấp, email SMTP, tạo phiếu nhập từ đơn (D32) | Chưa làm |

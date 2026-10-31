@@ -74,9 +74,19 @@ function inUse(page: PageDef, can: Can, featureOn: FeatureOn): boolean {
  * Sidebar sau khi lọc quyền: bỏ trang không được mở, trang chức năng cửa hàng
  * chưa bật, và bỏ luôn nhóm không còn trang nào.
  */
+/**
+ * Quản lý nhân sự vẫn thấy mục Quầy bán dù chưa có vai trò Dược sĩ: mở ra là
+ * trang giải thích và nút tự thêm vai trò (Phase 7, D29). Chủ nhà thuốc đứng
+ * quầy nhờ vậy tìm được cách bán hàng thay vì không thấy mục nào.
+ */
+function shownAsHint(page: PageDef, can: Can): boolean {
+  return page.path === "/ban-hang" && can("user.manage");
+}
+
 export function visibleSidebar(can: Can, featureOn: FeatureOn = () => true): VisibleEntry[] {
   const show = (page: PageDef | undefined): page is PageDef =>
-    page !== undefined && isAllowed(page, can) && inUse(page, can, featureOn);
+    page !== undefined &&
+    ((isAllowed(page, can) && inUse(page, can, featureOn)) || shownAsHint(page, can));
   const out: VisibleEntry[] = [];
   for (const entry of SIDEBAR) {
     if (entry.kind === "page") {

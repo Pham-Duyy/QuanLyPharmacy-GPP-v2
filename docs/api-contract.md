@@ -1520,6 +1520,7 @@ Hỏi đáp tiếng Việt trên số liệu analytics-service. Claude chỉ g�
 | GET | `/users/{id}` | Chi tiết; người ngoài phạm vi thấy được trả `404` | `user.manage` |
 | POST | `/users` | Tạo tài khoản. Có thể gửi kèm `password`, `mustChangePassword`, `roles` để tạo tài khoản, mật khẩu và phân quyền trong một giao dịch (xem dưới) | `user.manage` |
 | PATCH | `/users/{id}` | Sửa `fullName`, `phone`, `practiceCertificateNumber` (số chứng chỉ hành nghề). Cần quản lý mọi phạm vi của người đó (`403`, xem dưới) | `user.manage` |
+| POST | `/users/me/pharmacist-role` | Phase 7, D29. Người quản lý nhân sự tự **thêm** vai trò Dược sĩ cho mình tại một cửa hàng: `storeId`, `qualificationReference` (bắt buộc), `practiceCertificateNumber` (bắt buộc khi hồ sơ chưa có), `responsibleProfessional`. Đã có vai trò Dược sĩ ở đó: `409`. Không thu hồi phiên; ghi audit `USER_SELF_PHARMACIST` | `user.manage` tại cửa hàng đó |
 | PUT | `/users/{id}/roles` | Thay toàn bộ vai trò; body là mảng `{ roleCode, storeId }`, `storeId = null` là toàn chuỗi; ghi audit. Người sửa phải quản lý nhân sự ở mọi phạm vi cũ và mới (`403`) | `user.manage` |
 | POST | `/users/{id}/deactivate` | Vô hiệu hóa, thu hồi mọi phiên. Cần quản lý mọi phạm vi của người đó (`403`) | `user.manage` |
 | POST | `/users/{id}/activate` | Kích hoạt lại. Cần quản lý mọi phạm vi của người đó (`403`) | `user.manage` |

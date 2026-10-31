@@ -4,7 +4,12 @@ import { sendData } from "../../lib/respond.js";
 import { parseOrThrow } from "../../lib/validate.js";
 import { authenticate } from "../../middlewares/authenticate.js";
 import { requirePermission } from "../../middlewares/require-permission.js";
-import { createUserSchema, patchUserSchema, replaceRolesSchema } from "./users.schema.js";
+import {
+  createUserSchema,
+  ownPharmacistRoleSchema,
+  patchUserSchema,
+  replaceRolesSchema,
+} from "./users.schema.js";
 import * as service from "./users.service.js";
 
 export const usersRouter = Router();
@@ -43,6 +48,12 @@ usersRouter.patch("/users/:id", async (req, res) => {
   const id = String(req.params.id);
   await service.update(id, input, req.auth!);
   sendData(res, await service.getDetail(id, req.auth!));
+});
+
+usersRouter.post("/users/me/pharmacist-role", async (req, res) => {
+  const input = parseOrThrow(ownPharmacistRoleSchema, req.body);
+  await service.addOwnPharmacistRole(req.auth!, input);
+  sendData(res, await service.getDetail(req.auth!.userId, req.auth!), 201);
 });
 
 usersRouter.put("/users/:id/roles", async (req, res) => {

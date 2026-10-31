@@ -55,7 +55,7 @@ async function assertSupplierFree(
       throw new AppError(
         409,
         "DUPLICATE_NAME",
-        `Đã có nhà cung cấp "${other.name}"${other.isActive ? "" : " (đang ngừng giao dịch, bấm Giao dịch lại để dùng)"}`,
+        `Đã có nhà cung cấp "${other.name}"${other.isActive ? "" : " (đang ngừng sử dụng, bấm Kích hoạt lại để dùng)"}`,
       );
     }
   }

@@ -45,7 +45,7 @@ async function assertCategoryFree(name: string, parentId: string | null, exceptI
     throw new AppError(
       409,
       "DUPLICATE_NAME",
-      `Đã có nhóm "${same.name}"${same.isActive ? "" : " (đang ngừng dùng, bấm Dùng lại để mở)"}`,
+      `Đã có nhóm "${same.name}"${same.isActive ? "" : " (đang ngừng sử dụng, bấm Kích hoạt lại để dùng)"}`,
     );
   }
 }

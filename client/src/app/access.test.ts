@@ -86,14 +86,17 @@ describe("danh sách đăng ký trang", () => {
 });
 
 describe("quyền mở trang", () => {
-  it("quản lý thuần không vào quầy, quản lý kiêm dược sĩ được vào", () => {
+  it("quản lý thuần không bán được, quản lý kiêm dược sĩ được vào quầy", () => {
     expect(pageAccess("/ban-hang", canFor("admin"))).toBe("forbidden");
     expect(pageAccess("/ban-hang", canFor("admin", "pharmacist"))).toBe("allowed");
-    expect(
-      visibleSidebar(canFor("admin")).some(
-        (entry) => entry.kind === "page" && entry.page.path === "/ban-hang",
-      ),
-    ).toBe(false);
+  });
+
+  it("quản lý vẫn thấy mục Quầy bán để mở trang hướng dẫn thêm vai trò Dược sĩ (D29)", () => {
+    const hasPos = (can: (permission: string) => boolean) =>
+      visibleSidebar(can).some((entry) => entry.kind === "page" && entry.page.path === "/ban-hang");
+    expect(hasPos(canFor("admin"))).toBe(true);
+    expect(hasPos(canFor("warehouse_staff"))).toBe(false);
+    expect(hasPos(canFor("auditor"))).toBe(false);
   });
 
   it("chỉ còn bốn vai trò và vai trò bán hàng cũ không được cấp quyền", () => {
