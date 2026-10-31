@@ -1788,6 +1788,8 @@ model CashMovement {
 model AiAgentConversation {
   id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   userId    String   @map("user_id") @db.Uuid
+  /// Tiêu đề hiện ở cột lịch sử: lấy từ câu hỏi đầu, người dùng đổi được (bước 6.3).
+  title     String?
   messages  Json     @default("[]")
   turns     Int      @default(0)
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
@@ -1798,6 +1800,7 @@ model AiAgentConversation {
   logs AiAgentLog[]
 
   @@index([expiresAt], map: "ai_agent_conversations_expires_idx")
+  @@index([userId, updatedAt(sort: Desc)], map: "ai_agent_conversations_user_idx")
   @@map("ai_agent_conversations")
 }
 

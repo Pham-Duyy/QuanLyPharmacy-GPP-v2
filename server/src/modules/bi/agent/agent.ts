@@ -216,6 +216,17 @@ export function costUsd(model: string, usage: AgentUsage): number | null {
  * về trong `messages` kèm câu hỏi và các lượt mới. Không ném lỗi vì Claude hay
  * hết giờ: kết quả luôn có `status` để ghi nhật ký và hiện cho người dùng.
  */
+/**
+ * Tiến trình gửi dần cho giao diện trong lúc trả lời (bước 6.3): đang hỏi Claude, đang tra cứu
+ * tool nào, đang đối chiếu số. Chỉ mô tả bước, không chứa số liệu.
+ */
+export type AgentProgress =
+  | { type: "thinking"; round: number }
+  | { type: "tool_start"; round: number; name: string; input: unknown }
+  | { type: "tool_done"; round: number; name: string; ok: boolean; durationMs: number }
+  | { type: "verifying"; round: number }
+  | { type: "correcting"; round: number };
+
 export async function askAgent(options: {
   access: BiAccess;
   question: string;
@@ -226,6 +237,8 @@ export async function askAgent(options: {
   timeoutMs?: number;
   /** Phạm vi đang xem trên Bảng điều hành, đã qua resolveStore. */
   scope?: string;
+  /** Nhận tiến trình từng bước; lỗi trong hàm này không làm hỏng câu trả lời. */
+  onProgress?: (event: AgentProgress) => void;
 }): Promise<AgentResult> {
   const question = options.question.trim();
   if (!question) throw new AppError(422, "VALIDATION_ERROR", "Câu hỏi trống");
@@ -242,6 +255,13 @@ export async function askAgent(options: {
   }
 
   const started = Date.now();
+  const progress = (event: AgentProgress) => {
+    try {
+      options.onProgress?.(event);
+    } catch {
+      // Người nghe tiến trình (kết nối trình duyệt) lỗi không được làm hỏng câu trả lời.
+    }
+  };
   const timeoutMs = options.timeoutMs ?? AGENT_LIMITS.timeoutMs;
   const deadline = started + timeoutMs;
   const messages: BetaMessageParam[] = [
@@ -280,6 +300,7 @@ export async function askAgent(options: {
     const remaining = deadline - Date.now();
     if (remaining <= 0) return finish("timeout", `Quá ${timeoutMs / 1000} giây`);
     rounds += 1;
+    progress({ type: "thinking", round: rounds });
 
     let response: BetaMessage;
     const controller = new AbortController();
@@ -341,11 +362,13 @@ export async function askAgent(options: {
     if (response.stop_reason !== "tool_use" || uses.length === 0) {
       // Đối chiếu số (D16): sai thì yêu cầu sửa một lần, vẫn sai thì chặn.
       const retried: boolean = verification !== null;
+      progress({ type: "verifying", round: rounds });
       verification = { ...verifyAnswer(textOf(finalContent), collectFacts(messages)), retried };
       if (verification.unverified.length === 0) return finish("answered");
       if (retried || rounds >= AGENT_LIMITS.rounds) {
         return finish("blocked", `Số không kiểm chứng được: ${verification.unverified.join("; ")}`);
       }
+      progress({ type: "correcting", round: rounds });
       messages.push(correctionTurn(verification.unverified));
       continue;
     }
@@ -354,9 +377,19 @@ export async function askAgent(options: {
     // Tính trước số tool còn được chạy: các tool trong một lượt chạy song song.
     const allowed = rounds < AGENT_LIMITS.rounds ? AGENT_LIMITS.toolCalls - toolCalls.length : 0;
     const outcomes = await Promise.all(
-      uses.map((use, index) =>
-        index < allowed ? runTool(options.access, use.name, use.input) : null,
-      ),
+      uses.map(async (use, index) => {
+        if (index >= allowed) return null;
+        progress({ type: "tool_start", round: rounds, name: use.name, input: use.input });
+        const outcome = await runTool(options.access, use.name, use.input);
+        progress({
+          type: "tool_done",
+          round: rounds,
+          name: use.name,
+          ok: outcome.ok,
+          durationMs: outcome.durationMs,
+        });
+        return outcome;
+      }),
     );
     const results: BetaContentBlockParam[] = uses.map((use, index): BetaToolResultBlockParam => {
       const outcome = outcomes[index];

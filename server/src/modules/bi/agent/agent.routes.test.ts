@@ -112,7 +112,7 @@ describe("POST /api/v1/bi/ask", () => {
       toolCalls: [{ name: "get_revenue", input: { store: "ALL", period: "day" }, ok: true }],
       rounds: 2,
       model: "claude-opus-5-5",
-      conversation: { turns: 1, maxTurns: 10 },
+      conversation: { turns: 1, maxTurns: 20 },
       remainingThisHour: 29,
     });
     // 2 vòng × (1.000×4 + 200×20 + 4.000×0,2) = 17.600 phần triệu USD.
@@ -138,7 +138,7 @@ describe("POST /api/v1/bi/ask", () => {
     expect(conversation.turns).toBe(1);
     expect(conversation.messages).toHaveLength(4);
     expect(conversation.expiresAt.getTime() - conversation.createdAt.getTime()).toBeCloseTo(
-      24 * 3600 * 1000,
+      30 * 24 * 3600 * 1000,
       -4,
     );
   });
@@ -159,7 +159,7 @@ describe("POST /api/v1/bi/ask", () => {
     expect(calls[0]!.messages).toHaveLength(saved.length + 1);
   });
 
-  it("hội thoại của người khác, hết hạn, đã đủ 10 câu: không hỏi tiếp được", async () => {
+  it("hội thoại của người khác, hết hạn, đã đủ 20 câu: không hỏi tiếp được", async () => {
     fakeClaude([reply("Xin chào.")]);
     const first = await ask(adminToken, { question: "Chào" });
     const conversationId = first.body.data.conversationId as string;
@@ -169,7 +169,7 @@ describe("POST /api/v1/bi/ask", () => {
     const other = (await login("duocsi")).token;
     expect((await ask(other, { question: "x", conversationId })).status).toBe(404);
 
-    await prisma.aiAgentConversation.update({ where: { id: conversationId }, data: { turns: 10 } });
+    await prisma.aiAgentConversation.update({ where: { id: conversationId }, data: { turns: 20 } });
     const full = await ask(adminToken, { question: "x", conversationId });
     expect(full.status).toBe(409);
     expect(full.body.error.code).toBe("CONVERSATION_FULL");
@@ -219,7 +219,7 @@ describe("POST /api/v1/bi/ask", () => {
     const status = await api().get("/api/v1/bi/ask/status").set(authHeaders(adminToken));
     expect(status.body.data).toMatchObject({
       enabled: true,
-      limits: { questionsPerHour: 30, remainingThisHour: 0, conversationTurns: 10 },
+      limits: { questionsPerHour: 30, remainingThisHour: 0, conversationTurns: 20 },
     });
 
     // Câu cũ hơn 1 giờ không tính.
@@ -395,5 +395,164 @@ describe("cấu hình trợ lý AI: bật/tắt, câu mỗi giờ, ngân sách t
     expect(vnMonthRange(new Date("2026-10-31T16:00:00Z")).start).toEqual(
       new Date("2026-09-30T17:00:00Z"),
     );
+  });
+});
+
+describe("lịch sử hội thoại, tiến trình, nhật ký AI (bước 6.3)", () => {
+  const conversations = (token: string, path = "") =>
+    api().get(`/api/v1/bi/ask/conversations${path}`).set(authHeaders(token));
+
+  it("lưu tiêu đề từ câu hỏi đầu, xem lại, đổi tên, xóa; chỉ chủ hội thoại thấy", async () => {
+    fakeClaude([revenueCall(), reply("Hôm nay 22,9 triệu đ."), reply("Tuần này 22,9 triệu đ.")]);
+    const first = await ask(adminToken, {
+      question:
+        "  Doanh thu   hôm nay của toàn chuỗi là bao nhiêu và so với hôm qua thế nào, có gì bất thường không?",
+    });
+    const id = first.body.data.conversationId as string;
+    expect(first.body.data.conversation.title).toBe(
+      "Doanh thu hôm nay của toàn chuỗi là bao nhiêu và so với hôm qua thế nào, có gì…",
+    );
+    await ask(adminToken, { question: "Còn tuần này?", conversationId: id });
+
+    const list = await conversations(adminToken);
+    expect(list.body.data.items).toMatchObject([{ id, turns: 2, maxTurns: 20 }]);
+
+    const detail = await conversations(adminToken, `/${id}`);
+    expect(detail.status).toBe(200);
+    expect(detail.body.data.messages.map((turn: { question: string }) => turn.question)).toEqual([
+      "Doanh thu   hôm nay của toàn chuỗi là bao nhiêu và so với hôm qua thế nào, có gì bất thường không?",
+      "Còn tuần này?",
+    ]);
+    expect(detail.body.data.messages[0]).toMatchObject({
+      status: "answered",
+      answer: "Hôm nay 22,9 triệu đ.",
+      toolCalls: [{ name: "get_revenue", ok: true }],
+    });
+
+    const renamed = await api()
+      .patch(`/api/v1/bi/ask/conversations/${id}`)
+      .set(authHeaders(adminToken))
+      .send({ title: "Doanh thu" });
+    expect(renamed.body.data.title).toBe("Doanh thu");
+
+    // Người khác (có report.ai) không thấy, không xóa được.
+    await useTestRole(fixture.pharmacistId, "admin", fixture.storeId);
+    const other = (await login("duocsi")).token;
+    expect((await conversations(other)).body.data.items).toEqual([]);
+    expect((await conversations(other, `/${id}`)).status).toBe(404);
+    expect(
+      (await api().delete(`/api/v1/bi/ask/conversations/${id}`).set(authHeaders(other))).status,
+    ).toBe(404);
+
+    expect(
+      (await api().delete(`/api/v1/bi/ask/conversations/${id}`).set(authHeaders(adminToken)))
+        .status,
+    ).toBe(204);
+    expect((await conversations(adminToken, `/${id}`)).status).toBe(404);
+    // Nhật ký vẫn giữ để đối soát chi phí.
+    expect(await prisma.aiAgentLog.count({ where: { conversationId: null } })).toBe(2);
+  });
+
+  it("hỏi tiếp thì gia hạn 30 ngày; hội thoại hết hạn không còn trong danh sách", async () => {
+    fakeClaude([reply("ok")]);
+    const first = await ask(adminToken, { question: "Doanh thu?" });
+    const id = first.body.data.conversationId as string;
+    await prisma.aiAgentConversation.update({
+      where: { id },
+      data: { expiresAt: new Date(Date.now() + 60_000) },
+    });
+    await ask(adminToken, { question: "Còn gì nữa?", conversationId: id });
+    const saved = await prisma.aiAgentConversation.findUniqueOrThrow({ where: { id } });
+    expect(saved.expiresAt.getTime() - Date.now()).toBeGreaterThan(29 * 86_400_000);
+
+    await prisma.aiAgentConversation.update({
+      where: { id },
+      data: { expiresAt: new Date(Date.now() - 1_000) },
+    });
+    expect((await conversations(adminToken)).body.data.items).toEqual([]);
+  });
+
+  it("gửi dần tiến trình rồi kết quả (Server-Sent Events); từ chối đi qua sự kiện error", async () => {
+    fakeClaude([revenueCall(), reply("Hôm nay 22,9 triệu đ.")]);
+    const stream = await api()
+      .post("/api/v1/bi/ask/stream")
+      .set(authHeaders(adminToken))
+      .send({ question: "Doanh thu hôm nay?" });
+    expect(stream.status).toBe(200);
+    expect(stream.headers["content-type"]).toContain("text/event-stream");
+    const events = stream.text
+      .trim()
+      .split("\n\n")
+      .map((chunk) => {
+        const [eventLine, dataLine] = chunk.split("\n");
+        return { event: eventLine!.slice(7), data: JSON.parse(dataLine!.slice(6)) };
+      });
+    expect(events.map((item) => [item.event, item.data.type ?? null])).toEqual([
+      ["progress", "thinking"],
+      ["progress", "tool_start"],
+      ["progress", "tool_done"],
+      ["progress", "thinking"],
+      ["progress", "verifying"],
+      ["result", null],
+    ]);
+    expect(events[1]!.data).toMatchObject({ name: "get_revenue", input: { store: "ALL" } });
+    expect(events.at(-1)!.data).toMatchObject({
+      status: "answered",
+      answer: "Hôm nay 22,9 triệu đ.",
+    });
+
+    await api()
+      .put("/api/v1/bi/ai/settings")
+      .set(authHeaders(adminToken))
+      .send({ enabled: false, questionsPerHour: 30, monthlyBudgetUsd: 10 });
+    const refused = await api()
+      .post("/api/v1/bi/ask/stream")
+      .set(authHeaders(adminToken))
+      .send({ question: "Doanh thu hôm nay?" });
+    expect(refused.text).toContain("event: error");
+    expect(refused.text).toContain('"code":"AI_TURNED_OFF"');
+    // Câu hỏi sai định dạng vẫn là 422 thường.
+    expect(
+      (
+        await api()
+          .post("/api/v1/bi/ask/stream")
+          .set(authHeaders(adminToken))
+          .send({ question: "" })
+      ).status,
+    ).toBe(422);
+  });
+
+  it("nhật ký AI theo tháng: tổng chi phí, theo trạng thái, theo người; cần audit.read toàn chuỗi", async () => {
+    const log = (status: string, costUsd: number, occurredAt = new Date()) =>
+      prisma.aiAgentLog.create({
+        data: { userId: fixture.adminId, question: `câu ${status}`, status, costUsd, occurredAt },
+      });
+    await log("answered", 0.05);
+    await log("blocked", 0.03);
+    await log("answered", 9, new Date(Date.now() - 40 * 86_400_000)); // tháng trước
+
+    const logs = await api().get("/api/v1/bi/ai/logs").set(authHeaders(adminToken));
+    expect(logs.status).toBe(200);
+    expect(logs.body.data.summary).toMatchObject({
+      questions: 2,
+      costUsd: 0.08,
+      byStatus: { answered: 1, blocked: 1 },
+      byUser: [{ userId: fixture.adminId, questions: 2, costUsd: 0.08 }],
+    });
+    expect(logs.body.data.items[0]).toMatchObject({ user: { id: fixture.adminId } });
+
+    const blocked = await api()
+      .get("/api/v1/bi/ai/logs?status=blocked")
+      .set(authHeaders(adminToken));
+    expect(blocked.body.data.items.map((item: { status: string }) => item.status)).toEqual([
+      "blocked",
+    ]);
+    expect(
+      (await api().get("/api/v1/bi/ai/logs?month=2026-13").set(authHeaders(adminToken))).status,
+    ).toBe(422);
+
+    await useTestRole(fixture.pharmacistId, "admin", fixture.storeId);
+    const storeAdmin = (await login("duocsi")).token;
+    expect((await api().get("/api/v1/bi/ai/logs").set(authHeaders(storeAdmin))).status).toBe(403);
   });
 });

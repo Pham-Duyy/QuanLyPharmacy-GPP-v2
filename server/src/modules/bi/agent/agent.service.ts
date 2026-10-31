@@ -9,6 +9,7 @@ import {
   BLOCKED_ANSWER,
   askAgent,
   claudeClient,
+  type AgentProgress,
   type AgentResult,
   type AgentStatus,
 } from "./agent.js";
@@ -20,16 +21,27 @@ import {
  *   câu lỗi), một câu đang chạy mỗi người. Chỉ gọi Claude khi người dùng gửi câu hỏi.
  * - Cấu hình chung (bước 6.2, D26): chủ nhà thuốc tắt AI hoặc chuỗi đã dùng hết ngân sách tháng
  *   thì câu hỏi bị từ chối trước khi gọi Claude, không tốn tiền.
- * - Hội thoại lưu phía server, chỉ thêm, tối đa 10 câu, hết hạn 24 giờ sau khi tạo.
- *   Chỉ người tạo mới đọc, hỏi tiếp được.
+ * - Hội thoại lưu phía server, chỉ thêm, tối đa 20 câu; giữ 30 ngày kể từ lần hỏi gần nhất
+ *   (bước 6.3). Tiêu đề lấy từ câu hỏi đầu, không gọi AI. Chỉ người tạo mới xem, hỏi tiếp,
+ *   đổi tên, xóa được. Xóa hội thoại vẫn giữ nhật ký (conversation_id thành null).
  * - Mỗi câu hỏi ghi một dòng `ai_agent_logs`: câu hỏi, trạng thái, câu trả lời, tool
  *   đã gọi (tên, tham số, lỗi; không lưu số liệu trả về), đối chiếu số, token, chi phí.
  */
 
 export const AGENT_POLICY = {
-  conversationTurns: 10,
-  conversationTtlMs: 24 * 60 * 60 * 1000,
+  /** Mỗi câu hỏi gửi lại cả lịch sử: hội thoại càng dài, câu sau càng tốn token. */
+  conversationTurns: 20,
+  conversationTtlMs: 30 * 24 * 60 * 60 * 1000,
+  titleChars: 80,
 } as const;
+
+/** Tiêu đề hội thoại từ câu hỏi đầu: một dòng, tối đa 80 ký tự. */
+export function titleFrom(question: string): string {
+  const line = question.replace(/\s+/g, " ").trim();
+  return line.length > AGENT_POLICY.titleChars
+    ? `${line.slice(0, AGENT_POLICY.titleChars - 1).trimEnd()}…`
+    : line;
+}
 
 const HOUR_MS = 60 * 60 * 1000;
 
@@ -132,7 +144,7 @@ async function loadConversation(userId: string, id: string, now: Date) {
     throw new AppError(
       409,
       "CONVERSATION_EXPIRED",
-      "Hội thoại đã quá 24 giờ, hãy bắt đầu hội thoại mới",
+      "Hội thoại đã quá 30 ngày không dùng, hãy bắt đầu hội thoại mới",
     );
   }
   if (conversation.turns >= AGENT_POLICY.conversationTurns) {
@@ -179,6 +191,7 @@ function logData(input: LogInput) {
 export async function askQuestion(
   auth: AuthContext,
   body: { question: string; conversationId?: string | undefined; store?: string | undefined },
+  options: { onProgress?: (event: AgentProgress) => void } = {},
 ) {
   const now = new Date();
   const access = await biAccess(auth);
@@ -230,6 +243,7 @@ export async function askQuestion(
         history: (existing?.messages ?? []) as unknown as BetaMessageParam[],
         now,
         ...(scope ? { scope } : {}),
+        ...(options.onProgress ? { onProgress: options.onProgress } : {}),
       });
     } catch (error) {
       if (error instanceof AppError && error.status < 500) throw error;
@@ -252,24 +266,30 @@ export async function askQuestion(
         // Chỉ ghi nếu không ai nối thêm vào hội thoại trong lúc chờ Claude.
         const updated = await tx.aiAgentConversation.updateMany({
           where: { id: existing.id, turns: existing.turns },
-          data: { messages: result.messages as object[], turns: existing.turns + 1 },
+          data: {
+            messages: result.messages as object[],
+            turns: existing.turns + 1,
+            // Giữ 30 ngày kể từ lần hỏi gần nhất.
+            expiresAt: new Date(now.getTime() + AGENT_POLICY.conversationTtlMs),
+          },
         });
         if (updated.count === 0) {
           throw new AppError(409, "CONFLICT", "Hội thoại vừa thay đổi, hãy tải lại");
         }
         saved = await tx.aiAgentConversation.findUniqueOrThrow({
           where: { id: existing.id },
-          select: { id: true, turns: true, expiresAt: true },
+          select: { id: true, turns: true, expiresAt: true, title: true },
         });
       } else {
         saved = await tx.aiAgentConversation.create({
           data: {
             userId: auth.userId,
+            title: titleFrom(body.question),
             messages: result.messages as object[],
             turns: 1,
             expiresAt: new Date(now.getTime() + AGENT_POLICY.conversationTtlMs),
           },
-          select: { id: true, turns: true, expiresAt: true },
+          select: { id: true, turns: true, expiresAt: true, title: true },
         });
       }
       const entry = await tx.aiAgentLog.create({
@@ -280,33 +300,32 @@ export async function askQuestion(
           status: result.status,
           result,
         }),
-        select: { id: true },
+        select: { id: true, occurredAt: true },
       });
       return { conversation: saved, log: entry };
     });
 
     return {
-      logId: log.id.toString(),
+      ...turnView({
+        id: log.id,
+        occurredAt: log.occurredAt,
+        question: body.question.trim(),
+        status: result.status,
+        answer: result.answer,
+        error: result.error ?? null,
+        verification: result.verification,
+        toolCalls: result.toolCalls,
+        costUsd: result.costUsd,
+        durationMs: result.durationMs,
+      }),
       conversationId: conversation.id,
-      status: result.status,
-      answer: result.status === "answered" ? result.answer : null,
-      notice: result.status === "answered" ? null : NOTICES[result.status],
-      // Lý do cụ thể khi không gọi được Claude (khóa sai, hết tiền...): người quản trị tự sửa được.
-      detail: result.status === "unavailable" ? explainAgentError(result.error) : null,
-      verification: result.verification,
-      toolCalls: result.toolCalls.map(({ name, input, ok, durationMs, error }) => ({
-        name,
-        input,
-        ok,
-        durationMs,
-        ...(error ? { error } : {}),
-      })),
       rounds: result.rounds,
       model: result.model,
       durationMs: result.durationMs,
       usage: result.usage,
       costUsd: result.costUsd,
       conversation: {
+        title: conversation.title,
         turns: conversation.turns,
         maxTurns: AGENT_POLICY.conversationTurns,
         expiresAt: conversation.expiresAt,
@@ -316,4 +335,134 @@ export async function askQuestion(
   } finally {
     inFlight.delete(auth.userId);
   }
+}
+
+type StoredToolCall = {
+  name: string;
+  input: unknown;
+  ok: boolean;
+  durationMs: number;
+  error?: string;
+};
+
+/** Một lượt hỏi đáp như giao diện hiện: dùng chung cho câu vừa hỏi và lịch sử hội thoại. */
+function turnView(row: {
+  id: bigint;
+  occurredAt: Date;
+  question: string;
+  status: string;
+  answer: string | null;
+  error: string | null;
+  verification: unknown;
+  toolCalls: unknown;
+  costUsd: number | { toString(): string } | null;
+  durationMs: number;
+}) {
+  const status = row.status as AgentStatus | "error";
+  return {
+    logId: row.id.toString(),
+    occurredAt: row.occurredAt,
+    question: row.question,
+    status,
+    answer: status === "answered" ? row.answer : null,
+    notice:
+      status === "answered"
+        ? null
+        : status === "error"
+          ? "Trợ lý gặp lỗi khi trả lời câu này."
+          : NOTICES[status],
+    // Lý do cụ thể khi không gọi được Claude (khóa sai, hết tiền...): người quản trị tự sửa được.
+    detail: status === "unavailable" ? explainAgentError(row.error ?? undefined) : null,
+    verification: row.verification ?? null,
+    toolCalls: ((row.toolCalls ?? []) as StoredToolCall[]).map(
+      ({ name, input, ok, durationMs, error }) => ({
+        name,
+        input,
+        ok,
+        durationMs,
+        ...(error ? { error } : {}),
+      }),
+    ),
+    costUsd: row.costUsd === null ? null : Number(row.costUsd),
+    durationMs: row.durationMs,
+  };
+}
+
+// --- Lịch sử hội thoại (bước 6.3) ------------------------------------------------------------
+
+async function requireAsker(auth: AuthContext): Promise<void> {
+  if (!(await biAccess(auth)).canAsk) {
+    throw new AppError(403, "FORBIDDEN", "Bạn chưa được dùng trợ lý AI (cần quyền report.ai)");
+  }
+}
+
+async function ownConversation(auth: AuthContext, id: string) {
+  const conversation = await prisma.aiAgentConversation.findUnique({
+    where: { id },
+    select: { id: true, userId: true, title: true, turns: true, updatedAt: true, expiresAt: true },
+  });
+  if (
+    !conversation ||
+    conversation.userId !== auth.userId ||
+    conversation.expiresAt <= new Date()
+  ) {
+    throw new AppError(404, "NOT_FOUND", "Không tìm thấy hội thoại");
+  }
+  return conversation;
+}
+
+const conversationInfo = (row: {
+  id: string;
+  title: string | null;
+  turns: number;
+  updatedAt: Date;
+  expiresAt: Date;
+}) => ({
+  id: row.id,
+  title: row.title ?? "Cuộc trò chuyện",
+  turns: row.turns,
+  maxTurns: AGENT_POLICY.conversationTurns,
+  updatedAt: row.updatedAt,
+  expiresAt: row.expiresAt,
+});
+
+/** Hội thoại còn hạn của chính người hỏi, mới nhất trước. */
+export async function listConversations(auth: AuthContext) {
+  await requireAsker(auth);
+  const rows = await prisma.aiAgentConversation.findMany({
+    where: { userId: auth.userId, expiresAt: { gt: new Date() } },
+    select: { id: true, title: true, turns: true, updatedAt: true, expiresAt: true },
+    orderBy: { updatedAt: "desc" },
+    take: 100,
+  });
+  return { items: rows.map(conversationInfo) };
+}
+
+/** Một hội thoại kèm các lượt hỏi đáp (lấy từ nhật ký, theo thứ tự hỏi). */
+export async function getConversation(auth: AuthContext, id: string) {
+  await requireAsker(auth);
+  const conversation = await ownConversation(auth, id);
+  const logs = await prisma.aiAgentLog.findMany({
+    where: { conversationId: id },
+    orderBy: { occurredAt: "asc" },
+  });
+  return { ...conversationInfo(conversation), messages: logs.map(turnView) };
+}
+
+export async function renameConversation(auth: AuthContext, id: string, title: string) {
+  await requireAsker(auth);
+  await ownConversation(auth, id);
+  const saved = await prisma.aiAgentConversation.update({
+    where: { id },
+    data: { title: titleFrom(title) },
+    select: { id: true, title: true, turns: true, updatedAt: true, expiresAt: true },
+  });
+  return conversationInfo(saved);
+}
+
+/** Xóa hội thoại; nhật ký từng câu vẫn giữ (conversation_id thành null) để đối soát chi phí. */
+export async function deleteConversation(auth: AuthContext, id: string) {
+  await requireAsker(auth);
+  await ownConversation(auth, id);
+  await prisma.aiAgentConversation.delete({ where: { id } });
 }

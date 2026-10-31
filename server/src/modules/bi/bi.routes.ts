@@ -6,7 +6,15 @@ import { parseOrThrow } from "../../lib/validate.js";
 import { authenticate } from "../../middlewares/authenticate.js";
 import { requireAnyPermission } from "../../middlewares/require-permission.js";
 import type { AuthContext } from "../auth/auth.context.js";
-import { agentStatus, askQuestion } from "./agent/agent.service.js";
+import { aiLogsQuery, listAiLogs } from "./agent/ai-logs.js";
+import {
+  agentStatus,
+  askQuestion,
+  deleteConversation,
+  getConversation,
+  listConversations,
+  renameConversation,
+} from "./agent/agent.service.js";
 import { aiBudget, aiSettingsSchema, getAiSettings, saveAiSettings } from "./agent/ai-settings.js";
 import { fetchAnalytics } from "./bi.client.js";
 import {
@@ -253,4 +261,76 @@ biRouter.get("/bi/ask/status", async (req, res) => {
 biRouter.post("/bi/ask", async (req, res) => {
   const body = parseOrThrow(askBody, req.body);
   sendData(res, await askQuestion(req.auth!, body));
+});
+
+/**
+ * Như `/bi/ask` nhưng gửi dần tiến trình bằng Server-Sent Events (bước 6.3):
+ * `progress` (đang hỏi Claude, đang tra cứu tool nào, đang đối chiếu số), rồi `result` (đúng
+ * nội dung `data` của `/bi/ask`) hoặc `error` (`status`, `code`, `message`). Câu hỏi sai định
+ * dạng vẫn trả 422 thường; các từ chối sau đó (quyền, tắt, ngân sách, giới hạn) đi qua `error`.
+ * Trình duyệt đóng kết nối giữa chừng thì câu trả lời vẫn chạy xong và được lưu vào hội thoại.
+ */
+biRouter.post("/bi/ask/stream", async (req, res) => {
+  const body = parseOrThrow(askBody, req.body);
+  res.status(200).set({
+    "Content-Type": "text/event-stream; charset=utf-8",
+    "Cache-Control": "no-cache, no-transform",
+    Connection: "keep-alive",
+    "X-Accel-Buffering": "no",
+  });
+  res.flushHeaders();
+  const send = (event: string, data: unknown) => {
+    if (!res.writableEnded && !res.destroyed) {
+      res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    }
+  };
+  try {
+    const result = await askQuestion(req.auth!, body, {
+      onProgress: (event) => send("progress", event),
+    });
+    send("result", result);
+  } catch (error) {
+    if (!(error instanceof AppError)) console.error("Trợ lý AI lỗi:", error);
+    send(
+      "error",
+      error instanceof AppError
+        ? { status: error.status, code: error.code, message: error.message }
+        : { status: 500, code: "INTERNAL_ERROR", message: "Máy chủ gặp lỗi khi trả lời" },
+    );
+  } finally {
+    res.end();
+  }
+});
+
+// --- Lịch sử hội thoại, nhật ký AI (bước 6.3) ------------------------------------------------
+
+const conversationId = z.object({ id: z.uuid("Mã hội thoại không hợp lệ") });
+const renameBody = z.object({
+  title: z.string().trim().min(1, "Tiêu đề trống").max(200, "Tiêu đề quá dài"),
+});
+
+biRouter.get("/bi/ask/conversations", async (req, res) => {
+  sendData(res, await listConversations(req.auth!));
+});
+
+biRouter.get("/bi/ask/conversations/:id", async (req, res) => {
+  const { id } = parseOrThrow(conversationId, req.params);
+  sendData(res, await getConversation(req.auth!, id));
+});
+
+biRouter.patch("/bi/ask/conversations/:id", async (req, res) => {
+  const { id } = parseOrThrow(conversationId, req.params);
+  const { title } = parseOrThrow(renameBody, req.body);
+  sendData(res, await renameConversation(req.auth!, id, title));
+});
+
+biRouter.delete("/bi/ask/conversations/:id", async (req, res) => {
+  const { id } = parseOrThrow(conversationId, req.params);
+  await deleteConversation(req.auth!, id);
+  res.status(204).end();
+});
+
+biRouter.get("/bi/ai/logs", async (req, res) => {
+  const query = parseOrThrow(aiLogsQuery, req.query);
+  sendData(res, await listAiLogs(req.auth!, query));
 });

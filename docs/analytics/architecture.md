@@ -526,6 +526,10 @@ Bước:
   trước mỗi câu, nên câu cuối cùng có thể làm chi tiêu vượt nhẹ (một câu thường dưới 0,2 USD).
 - **6.3 Lịch sử hội thoại, tiến trình, nhật ký**: hội thoại giữ 30 ngày, có tiêu đề (lấy từ câu hỏi đầu, không gọi AI);
   API danh sách, đổi tên, xóa; gửi tiến trình tra cứu từng bước (SSE) trong lúc AI làm việc; `GET /bi/ai/logs` cho admin.
+  Đã làm: hội thoại tối đa 20 câu (mỗi câu gửi lại cả lịch sử nên câu sau tốn token hơn; prompt caching giảm phần này),
+  gia hạn 30 ngày mỗi lần hỏi; xóa hội thoại vẫn giữ nhật ký để đối soát chi phí. Tiến trình chỉ mô tả bước (tên tool,
+  tham số), không chứa số liệu; câu trả lời chỉ hiện khi đã đối chiếu số xong (D16), nên không truyền dần từng chữ.
+  Migration `20261101120000_ai_conversation_history` (cột `title`, chỉ mục theo người, giới hạn 20 câu).
 - **6.4 Trang "Trợ lý AI"** (mục riêng trên sidebar, giao diện kiểu Claude): cột lịch sử, khung trò chuyện, câu gợi ý,
   tiến trình tra cứu, dấu đối chiếu số, **biểu đồ trong câu trả lời** vẽ từ chính kết quả tool (không để AI tự vẽ số);
   bỏ tab "Hỏi AI" trên Tổng quan, nút "Hỏi AI" mở mục mới.
@@ -570,7 +574,7 @@ Bước:
 | 5.6 | ML bên thách đấu (scikit-learn, đặc trưng thứ, độ trễ, lễ Tết), chỉ dùng khi backtest tốt hơn ([kpi.md](kpi.md#ml-bên-thách-đấu-phase-5-bước-56)); đo ngoài mẫu không tốt hơn nên tắt mặc định | Xong |
 | 6.1 | Quyền: `report.ai`, ẩn lợi nhuận khi thiếu `stock.cost.read`, dược sĩ xem Bảng điều hành cửa hàng mình (D23–D25) | Xong |
 | 6.2 | Cấu hình AI: bật/tắt, câu/giờ, ngân sách 10 USD/tháng, chặn trước khi gọi Claude (D26) | Xong |
-| 6.3 | Lịch sử hội thoại 30 ngày, tiến trình tra cứu (SSE), API nhật ký AI | Chưa làm |
+| 6.3 | Lịch sử hội thoại 30 ngày, tiến trình tra cứu (SSE), API nhật ký AI | Xong |
 | 6.4 | Trang "Trợ lý AI" kiểu Claude, biểu đồ trong câu trả lời; bỏ tab Hỏi AI | Chưa làm |
 | 6.5 | Trang Quản trị "Phân tích & AI": nguồn số liệu, hạn mức AI, nhật ký AI (D27) | Chưa làm |
 | 6.6 | Đính kèm tệp Excel/CSV trong Trợ lý AI, bỏ trang "Trợ lý phân tích" cũ | Chưa làm |
