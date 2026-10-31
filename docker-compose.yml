@@ -1,3 +1,19 @@
+# Chạy cả phần mềm bằng một lệnh (Phase 7, D33):
+#
+#   docker compose up -d --build      lần đầu, hoặc sau khi cập nhật mã nguồn
+#   docker compose up -d              những lần sau
+#
+# Mở http://localhost:8080 (máy khác trong mạng: http://<IP máy này>:8080).
+# Lần đầu đăng nhập admin / Admin@12345 rồi đổi mật khẩu.
+#
+# Lập trình viên chỉ cần CSDL để chạy npm run dev: docker compose up -d db
+#
+# Thiết lập tùy chọn đặt trong tệp .env cạnh tệp này (mẫu: docker.env.example).
+# Không có .env vẫn chạy được: khóa bí mật tự sinh lần đầu và giữ trong volume "secrets".
+
+# Không đặt "name:": giữ tên project theo thư mục như trước, để volume CSDL cũ
+# (dữ liệu đang có) vẫn được dùng, không sinh volume mới rỗng.
+
 services:
   db:
     image: postgres:17
@@ -5,10 +21,13 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: gpp
-      POSTGRES_PASSWORD: gpp_dev_password
+      # Chỉ có tác dụng ở lần tạo CSDL đầu tiên. Đổi sau đó phải đổi cả trong PostgreSQL.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-gpp_dev_password}
       POSTGRES_DB: pharmacy_gpp
+      TZ: Asia/Ho_Chi_Minh
+    # Chỉ mở cho chính máy này (npm run dev, công cụ quản trị CSDL), không mở ra mạng.
     ports:
-      - "5432:5432"
+      - "127.0.0.1:${DB_PORT:-5432}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
@@ -18,5 +37,64 @@ services:
       timeout: 5s
       retries: 5
 
+  server:
+    build: ./server
+    container_name: gpp-server
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://gpp:${POSTGRES_PASSWORD:-gpp_dev_password}@db:5432/pharmacy_gpp
+      # Để trống: tự sinh lần đầu, lưu trong volume secrets; máy chủ và lệnh bảo trì đọc từ tệp.
+      JWT_SECRET: ${JWT_SECRET:-}
+      JWT_SECRET_FILE: /secrets/jwt_secret
+      ANALYTICS_READER_PASSWORD: ${ANALYTICS_READER_PASSWORD:-}
+      ANALYTICS_SERVICE_URL: http://analytics:8000
+      # nginx đứng trước: tin một lớp proxy để đọc đúng IP người dùng.
+      TRUST_PROXY: "1"
+      # Trong mạng nội bộ dùng http thì phải là false (xem server/src/config/env.ts).
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      CORS_ORIGIN: ${PUBLIC_URL:-http://localhost:8080}
+      BACKUP_DIR_LABEL: ${BACKUP_HOST_DIR:-thư mục backups cạnh docker-compose.yml}
+      BACKUP_KEEP: ${BACKUP_KEEP:-14}
+      BACKUP_TIME: ${BACKUP_TIME:-23:00}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+    volumes:
+      - storage:/app/storage
+      # Bản sao lưu ra thẳng thư mục trên máy (mặc định ./backups), chép đi nơi khác được ngay.
+      - ${BACKUP_HOST_DIR:-./backups}:/backups
+      - secrets:/secrets
+
+  analytics:
+    build: ./analytics-service
+    container_name: gpp-analytics
+    restart: unless-stopped
+    depends_on:
+      server:
+        condition: service_healthy
+    volumes:
+      - analytics-data:/app/data
+      - secrets:/secrets:ro
+
+  web:
+    build: ./client
+    container_name: gpp-web
+    restart: unless-stopped
+    depends_on:
+      server:
+        condition: service_healthy
+    ports:
+      - "${WEB_PORT:-8080}:80"
+
 volumes:
   pgdata:
+  storage:
+  secrets:
+  analytics-data:

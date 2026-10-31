@@ -113,7 +113,8 @@ export async function backupStatus(): Promise<{
   items: BackupSummary[];
 }> {
   return {
-    dir: backupDir(),
+    // Trong Docker, /backups là đường dẫn trong container: hiện thư mục thật trên máy.
+    dir: process.env["BACKUP_DIR_LABEL"] || backupDir(),
     auto: env.BACKUP_AUTO,
     time: env.BACKUP_TIME,
     keep: env.BACKUP_KEEP,

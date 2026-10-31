@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { readFileSync } from "node:fs";
 import { z } from "zod";
 
 /**
@@ -74,6 +75,13 @@ const envSchema = z.object({
   SMTP_PASS: z.string().min(1).optional(),
   /** Địa chỉ người gửi, ví dụ `Nhà thuốc GPP <donhang@nhathuoc.vn>`. Bỏ trống thì dùng SMTP_USER. */
   SMTP_FROM: z.string().min(3).optional(),
+  /**
+   * Cờ `Secure` của cookie đăng nhập. Mặc định bật khi NODE_ENV=production.
+   * Chạy trong mạng nội bộ bằng http (máy khác mở http://192.168.x.x) thì
+   * phải đặt `false`, nếu không trình duyệt bỏ cookie và cứ 15 phút bị đăng
+   * xuất. Có https thì để mặc định.
+   */
+  COOKIE_SECURE: z.enum(["true", "false"]).optional(),
   /** `false` thì tắt sao lưu tự động (vẫn sao lưu tay được). */
   BACKUP_AUTO: z
     .enum(["true", "false"])
@@ -81,7 +89,20 @@ const envSchema = z.object({
     .transform((value) => value === "true"),
 });
 
-const parsed = envSchema.safeParse(process.env);
+// Docker: khóa bí mật nằm trong tệp (JWT_SECRET_FILE) thay vì biến môi trường, để
+// lệnh chạy bằng `docker compose exec` (seed, sao lưu, phục hồi) cũng đọc được.
+if (!process.env["JWT_SECRET"] && process.env["JWT_SECRET_FILE"]) {
+  try {
+    process.env["JWT_SECRET"] = readFileSync(process.env["JWT_SECRET_FILE"], "utf8").trim();
+  } catch {
+    // Không đọc được tệp: để kiểm tra bên dưới báo thiếu JWT_SECRET.
+  }
+}
+
+// Biến đặt mà để trống (VAR= trong .env, hoặc ${VAR:-} trong docker-compose) coi như không đặt.
+const parsed = envSchema.safeParse(
+  Object.fromEntries(Object.entries(process.env).filter(([, value]) => value !== "")),
+);
 
 if (!parsed.success) {
   console.error("Cấu hình môi trường không hợp lệ:");
@@ -94,3 +115,7 @@ if (!parsed.success) {
 
 export const env = parsed.data;
 export const isProduction = env.NODE_ENV === "production";
+
+/** Cờ Secure của cookie đăng nhập (xem COOKIE_SECURE). */
+export const cookieSecure =
+  env.COOKIE_SECURE === undefined ? isProduction : env.COOKIE_SECURE === "true";

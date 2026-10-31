@@ -2,7 +2,7 @@ import { Router } from "express";
 import { AppError } from "../../lib/app-error.js";
 import { parseOrThrow } from "../../lib/validate.js";
 import { sendData } from "../../lib/respond.js";
-import { isProduction } from "../../config/env.js";
+import { cookieSecure } from "../../config/env.js";
 import { REFRESH_COOKIE_NAME } from "../../lib/tokens.js";
 import { authenticate, authenticateAllowingTempPassword } from "../../middlewares/authenticate.js";
 import {
@@ -26,7 +26,7 @@ const loginGuard = createLoginGuard();
 function setRefreshCookie(res: Response, tokens: TokenPair): void {
   res.cookie(REFRESH_COOKIE_NAME, tokens.refreshToken, {
     httpOnly: true,
-    secure: isProduction,
+    secure: cookieSecure,
     sameSite: "strict",
     path: "/api/v1/auth",
     expires: tokens.refreshExpiresAt,

@@ -22,7 +22,7 @@ Mục tiêu: bù các chức năng nền còn thiếu sau lần đánh giá ph�
 | 7.3 | Sao lưu trong phần mềm, lịch tự động, trang Sao lưu, lệnh phục hồi (D30) | Xong |
 | 7.4 | Xác thực hai lớp TOTP, mã dự phòng, đặt lại, cài đặt bắt buộc (D31) | Xong |
 | 7.5 | Đơn đặt hàng gửi nhà cung cấp, email SMTP, tạo phiếu nhập từ đơn (D32) | Xong |
-| 7.6 | Docker Compose chạy cả 3 thành phần, hướng dẫn cài đặt (D33) | Chưa làm |
+| 7.6 | Docker Compose chạy cả 3 thành phần, hướng dẫn cài đặt (D33) | Xong |
 
 ## Kết quả rà soát 7.1
 
@@ -87,4 +87,15 @@ Test: `server/src/lib/totp.test.ts` (bảng kiểm thử RFC), `server/src/modul
 - **Mẫu in**: thêm loại "Đơn đặt hàng" vào Cài đặt → Mẫu in phiếu (khổ A4/A5, tiêu đề, lời cuối, chữ ký).
 
 Test: `server/src/modules/inventory/purchase-orders.test.ts` (lập, sửa, quyền gửi, email qua transport giả, chưa cấu hình SMTP, in, Excel, nhận một phần / nhận đủ, dòng không đạt không tính, chặn lập phiếu từ đơn nháp hoặc sai nhà cung cấp, không thấy đơn cửa hàng khác), `client/src/features/purchase-orders/purchase-orders-api.test.ts`. Chạy thử trên trình duyệt: lập đơn tay, gửi (tự gửi), tải Excel, xem trước bản in, lập phiếu nhập từ đơn.
+
+## Khởi động bằng Docker (7.6)
+
+- `docker compose up -d --build` chạy `db` (PostgreSQL 17), `server` (Node), `analytics` (Python), `web` (nginx: bản build giao diện, chuyển `/api` và giữ SSE của Trợ lý AI). Chỉ `web` mở ra mạng (cổng 8080); CSDL chỉ mở cho chính máy (`127.0.0.1`); `server` và `analytics` chỉ trong mạng nội bộ của Docker. Hướng dẫn: [cai-dat.md](cai-dat.md).
+- **Không cần tệp `.env`**: lần đầu `server/docker-entrypoint.sh` sinh `JWT_SECRET` và mật khẩu `analytics_reader`, cất trong volume `secrets`; analytics đọc mật khẩu qua volume này. Máy chủ đọc khóa bằng `JWT_SECRET_FILE`, nên lệnh `docker compose exec server npm run …` (seed, sao lưu, phục hồi) cũng dùng được.
+- **Khởi động**: áp migration (`npm run db:migrate`, kèm kiểm tra checksum), CSDL chưa có tài khoản thì seed, tạo/đặt lại `analytics_reader`. Khởi động lại không seed lại, không sinh khóa mới.
+- **Giữ dữ liệu cũ của lập trình viên**: không đặt `name:` trong compose để tên project (và volume `pgdata`) vẫn theo thư mục như trước. Chỉ chạy CSDL khi phát triển: `docker compose up -d db`.
+- **Sửa mã đi kèm**: `COOKIE_SECURE` (mặc định theo `NODE_ENV`; Docker đặt `false` vì máy khác trong mạng mở bằng http, nếu không cookie đăng nhập bị trình duyệt bỏ và 15 phút là bị đăng xuất); biến môi trường để trống coi như không đặt; `BACKUP_DIR_LABEL` để trang Sao lưu hiện thư mục thật trên máy thay cho `/backups` trong container; `*.sh` luôn LF.
+- **Đã chạy thật** bằng Docker 29 trong môi trường phát triển: build 3 image, chạy cả bộ, tất cả `healthy`; đăng nhập qua nginx, đổi mật khẩu, tải lại trang vẫn giữ phiên; sao lưu ra thư mục trên máy; tắt/bật lại giữ dữ liệu, mật khẩu, khóa bí mật; `docker compose exec server npm run db:restore` phục hồi đúng; bộ test đầu cuối 78/78 lượt qua nginx.
+- **Phát hiện khi build**: giao diện không build được trong Docker vì tệp test import mã của server nằm ngoài ngữ cảnh build, nên image chỉ chạy `vite build` (kiểm tra kiểu vẫn ở `npm run build` khi phát triển); `npm ci` của server chạy `prisma generate` nên phải chép schema trước.
+- **Chưa kiểm chứng được** trên chính Windows + Docker Desktop (môi trường phát triển là Linux). Image server khá lớn (~1,5 GB) vì giữ devDependencies cho lệnh bảo trì; có thể tách nhỏ sau.
 

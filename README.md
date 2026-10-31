@@ -13,12 +13,25 @@ Nghiệp vụ dược không dùng AI (contract §20): đơn thuốc lấy bằn
 
 **Pharmacy Intelligent Analytics** (đang xây dựng): dịch vụ Python `analytics-service/` tự theo dõi tệp Excel/CSV, xử lý và tính chỉ số kinh doanh không cần gọi AI; AI Agent hỏi đáp nằm phía trên. Xem [docs/analytics/architecture.md](docs/analytics/architecture.md) và [analytics-service/README.md](analytics-service/README.md).
 
+## Cài đặt nhanh (chạy cả bộ bằng một lệnh)
+
+Cần Docker Desktop. Trong thư mục dự án:
+
+```bash
+docker compose up -d --build
+```
+
+Mở http://localhost:8080, đăng nhập `admin` / `Admin@12345`. Hướng dẫn đầy đủ cho máy Windows của nhà thuốc (máy khác trong mạng, sao lưu, phục hồi, cập nhật): [docs/cai-dat.md](docs/cai-dat.md).
+
+Các mục dưới đây dành cho lập trình viên chạy từng phần để sửa mã.
+
 ## Tài liệu thiết kế
 
 | Tài liệu | Nội dung |
 |---|---|
 | [docs/api-contract.md](docs/api-contract.md) | Contract có hiệu lực: endpoint, quyền, trạng thái, quy tắc nghiệp vụ |
 | [docs/erd.md](docs/erd.md) | Thiết kế CSDL ban đầu (v1.1, 41 bảng): ràng buộc, chỉ mục. Các bảng thêm sau đó chỉ có trong `server/prisma/schema.prisma` và migration |
+| [docs/cai-dat.md](docs/cai-dat.md) | **Cài đặt bằng Docker** cho máy nhà thuốc: chạy một lệnh, máy khác trong mạng, sao lưu, cập nhật |
 | [docs/huong-dan-su-dung.md](docs/huong-dan-su-dung.md) | **Hướng dẫn sử dụng**: vai trò, chủ nhà thuốc kiêm dược sĩ, công việc hằng ngày |
 | [docs/phase7-nen-tang.md](docs/phase7-nen-tang.md) | Phase 7: kiểm tra dữ liệu nhập, sao lưu, MFA, đơn đặt hàng, khởi động bằng Docker |
 | [docs/restful-api-review.md](docs/restful-api-review.md) | Bản đặc tả API ban đầu, giữ để tham chiếu |
@@ -34,7 +47,7 @@ Nghiệp vụ dược không dùng AI (contract §20): đơn thuốc lấy bằn
 ## Chạy cơ sở dữ liệu
 
 ```bash
-docker compose up -d      # khởi động PostgreSQL
+docker compose up -d db   # chỉ PostgreSQL (không có "db" là chạy cả bộ phần mềm trong Docker)
 docker compose ps         # xem trạng thái, cột STATUS phải là "healthy"
 docker compose logs db    # xem log khi có lỗi
 ```
@@ -177,7 +190,7 @@ npm run dev              # http://localhost:5173
 
 Vite chuyển tiếp mọi request `/api` sang backend ở cổng 3000, nên không bị lỗi CORS và cookie refresh token hoạt động bình thường khi phát triển.
 
-Chạy đủ bộ cần ba việc: `docker compose up -d` cho CSDL, `npm run dev` trong `server/`, và `npm run dev` trong `client/`.
+Chạy đủ bộ khi phát triển cần ba việc: `docker compose up -d db` cho CSDL, `npm run dev` trong `server/`, và `npm run dev` trong `client/`.
 
 Quét mã: máy quét cầm tay (kiểu bàn phím) dùng được ở mọi máy. Nút camera (quét mã hộp thuốc, mã đơn thuốc điện tử) chỉ bật khi mở phần mềm bằng `https` hoặc `localhost`, vì trình duyệt chặn camera trên `http` thường; máy khác trong mạng nội bộ muốn dùng camera thì phải phục vụ giao diện qua https. Bộ đọc mã (ZXing, tệp `.wasm` khoảng 1 MB) đóng gói cùng giao diện và chỉ tải khi bấm nút camera.
 

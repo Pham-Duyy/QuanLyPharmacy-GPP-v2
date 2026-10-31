@@ -22,3 +22,6 @@ server/prisma/migrations/**/migration.sql text eol=lf
 *.pdf binary
 *.woff binary
 *.woff2 binary
+
+# Script chạy trong container Linux: CRLF làm container báo "/bin/sh^M: not found".
+*.sh text eol=lf
