@@ -17,8 +17,7 @@ import type { PagePath } from "./pages.js";
  * 8 điểm vào chính theo công việc hằng ngày, Quản trị gập ở cuối. Việc dùng
  * nhiều nhất (Tổng quan, Quầy bán, Khách hàng) đứng đầu, mở bằng một lần bấm;
  * phần còn lại tối đa hai lần: mở nhóm rồi chọn trang. Trong mỗi nhóm, trang
- * dùng thường xuyên đứng trước (Báo cáo: Bảng điều hành trước, báo cáo kinh
- * doanh, tổng kết tháng, trợ lý phân tích).
+ * dùng thường xuyên đứng trước. Bảng điều hành nằm ngay trong Tổng quan.
  */
 export type SidebarEntry =
   | { kind: "page"; path: PagePath }
@@ -68,7 +67,7 @@ export const SIDEBAR: readonly SidebarEntry[] = [
     key: "reports",
     label: "Báo cáo",
     icon: <FundOutlined />,
-    paths: ["/bang-dieu-hanh", "/bao-cao", "/tong-ket-thang", "/tro-ly-phan-tich"],
+    paths: ["/bao-cao", "/tong-ket-thang", "/tro-ly-phan-tich"],
   },
   {
     kind: "group",

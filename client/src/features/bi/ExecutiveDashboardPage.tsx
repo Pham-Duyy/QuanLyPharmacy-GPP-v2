@@ -10,7 +10,7 @@ import {
 } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
 import { Alert, App, Button, Result, Segmented, Select, Skeleton, Table, Tabs, Tag } from "antd";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { getErrorMessage } from "../../api/http.js";
 import { formatNumber } from "../../ui/format.js";
 import { PageHeader } from "../../ui/PageHeader.js";
@@ -60,11 +60,19 @@ const GRAIN_TITLE: Record<Period, string> = {
 };
 
 /**
- * Bảng điều hành: số liệu kinh doanh từ tệp Excel/CSV mà analytics-service
- * theo dõi. Cứ 30 giây hỏi version (rất nhẹ); version tăng thì các khối số
+ * Bảng điều hành, hiển thị ngay trên trang Tổng quan cho người có quyền báo cáo (admin theo dõi
+ * toàn chuỗi): số liệu kinh doanh do analytics-service tính từ tệp Excel/CSV hoặc PostgreSQL.
+ * `storeWork`: phần việc hôm nay của cửa hàng đang chọn (số liệu trực tiếp), đặt trên các tab;
+ * vẫn hiện khi analytics-service chưa chạy. Cứ 30 giây hỏi version (rất nhẹ); version tăng thì các khối số
  * liệu tự tải lại vì version nằm trong khóa truy vấn. Không tải lại trang.
  */
-export function ExecutiveDashboardPage() {
+export function ExecutiveDashboardPage({
+  title = "Bảng điều hành",
+  storeWork,
+}: {
+  title?: string;
+  storeWork?: ReactNode;
+}) {
   const { message } = App.useApp();
   const [period, setPeriod] = useState<Period>("day");
   const [chosenStore, setChosenStore] = useState<string | null>(null);
@@ -151,7 +159,7 @@ export function ExecutiveDashboardPage() {
     <div>
       <PageHeader
         icon={<FundProjectionScreenOutlined />}
-        title="Bảng điều hành"
+        title={title}
         description={
           ready ? (
             <FreshnessBar asOf={summary.data?.as_of} version={v} health={health.data} />
@@ -291,7 +299,8 @@ export function ExecutiveDashboardPage() {
                 />
               </StatGrid>
             </div>
-          ) : (
+          ) : // Lỗi đã báo ở khối cảnh báo phía trên: không để khung chờ tải quay mãi.
+          summary.isError ? null : (
             <Skeleton active paragraph={{ rows: 2 }} />
           )}
 
@@ -336,10 +345,14 @@ export function ExecutiveDashboardPage() {
               ) : (
                 <EmptyState text="Chưa có dữ liệu bán hàng" />
               )
+            ) : trend.isError ? (
+              <EmptyState text={getErrorMessage(trend.error)} />
             ) : (
               <Skeleton active />
             )}
           </Panel>
+
+          {storeWork}
 
           <Tabs
             className="bi-tabs"
@@ -418,6 +431,7 @@ export function ExecutiveDashboardPage() {
           />
         </>
       ) : null}
+      {ready ? null : storeWork}
     </div>
   );
 }

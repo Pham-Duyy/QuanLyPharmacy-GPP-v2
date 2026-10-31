@@ -95,6 +95,8 @@ export default function App() {
         ))}
         {/* Trang "Cảnh báo" cũ đã gộp vào "Hàng cận hạn": giữ đường dẫn cũ cho dấu trang. */}
         <Route path="/canh-bao" element={<Navigate to="/can-han" replace />} />
+        {/* Bảng điều hành đã gộp vào Tổng quan. */}
+        <Route path="/bang-dieu-hanh" element={<Navigate to="/tai-khoan" replace />} />
         <Route path="*" element={<HomeRedirect />} />
       </Route>
     </Routes>

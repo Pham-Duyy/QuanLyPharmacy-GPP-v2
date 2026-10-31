@@ -205,7 +205,13 @@ Monitor ở luồng nền là nơi duy nhất ghi SQLite). Tài liệu tự sinh
 
 ## Node Gateway và Bảng điều hành (bước 1.7)
 
-Code: `server/src/modules/bi/` (cổng), `client/src/features/bi/` (trang `/bang-dieu-hanh`, nhóm Báo cáo).
+Code: `server/src/modules/bi/` (cổng), `client/src/features/bi/` (Bảng điều hành).
+
+Bảng điều hành nằm **ngay trên trang Tổng quan** (`/tai-khoan`) cho người có `report.sales` hoặc `report.chain`
+(admin theo dõi toàn chuỗi); giữa biểu đồ và các tab là khối "Việc hôm nay" của cửa hàng đang chọn (lô sắp hết hạn,
+việc cần chú ý, hàng dưới mức tối thiểu; số liệu trực tiếp từ `/dashboard`, vẫn hiện khi analytics-service chưa chạy).
+Người không có quyền báo cáo chỉ thấy phần việc hôm nay. Đường dẫn cũ `/bang-dieu-hanh` chuyển về `/tai-khoan`.
+Muốn theo dõi bán hàng thật gần như tức thời (~30 giây) thì chạy analytics-service với `ANALYTICS_SOURCE=postgres` (D22).
 
 ```
 Trình duyệt ──JWT──▶ Node /api/v1/bi/* ──(đã kiểm quyền)──▶ analytics-service 127.0.0.1:8000

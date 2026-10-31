@@ -2,18 +2,17 @@ import {
   BellOutlined,
   DollarCircleOutlined,
   FileTextOutlined,
-  FundProjectionScreenOutlined,
   ReloadOutlined,
   RightOutlined,
   TeamOutlined,
   WarningOutlined,
 } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
-import { Button, Card, Col, Empty, Result, Row, Skeleton, Table, Typography } from "antd";
+import { Alert, Button, Card, Col, Empty, Result, Row, Skeleton, Table, Typography } from "antd";
+import { lazy, Suspense } from "react";
 import { useNavigate } from "react-router";
 import { http } from "../../api/http.js";
 import type { DashboardData, Envelope } from "../../api/types.js";
-import { pageAccess } from "../../app/access.js";
 import { InfoTip } from "../../ui/InfoTip.js";
 import { StatCard, StatGrid, Trend } from "../../ui/StatCard.js";
 import { useAuth } from "../auth/auth-context.js";
@@ -33,9 +32,17 @@ function greeting(): string {
   return "Chào buổi tối";
 }
 
+// Tải riêng: nhân viên không có quyền báo cáo không phải tải phần Bảng điều hành.
+const ExecutiveDashboard = lazy(async () => ({
+  default: (await import("../bi/ExecutiveDashboardPage.js")).ExecutiveDashboardPage,
+}));
+
 /**
- * Tổng quan: việc hôm nay của cửa hàng đang chọn (chỉ số trong ngày, lô cần xử lý, hàng dưới mức
- * tối thiểu). Phân tích, biểu đồ, toàn chuỗi nằm ở Bảng điều hành. Chỉ hiển thị số liệu API trả về.
+ * Tổng quan.
+ * - Có quyền báo cáo (admin, kiểm toán): Bảng điều hành theo dõi toàn chuỗi, kèm việc hôm nay của
+ *   cửa hàng đang chọn đặt trên các tab phân tích.
+ * - Còn lại: việc hôm nay của cửa hàng (chỉ số trong ngày, lô cần xử lý, hàng dưới mức tối thiểu).
+ * Chỉ hiển thị số liệu API trả về.
  */
 export function DashboardPage() {
   const { me, storeId, can } = useAuth();
@@ -52,6 +59,40 @@ export function DashboardPage() {
   const store = me?.stores.find((item) => item.id === storeId);
 
   if (!me) return null;
+
+  if (can("report.sales") || can("report.chain")) {
+    return (
+      <Suspense fallback={<Skeleton active paragraph={{ rows: 10 }} />}>
+        <ExecutiveDashboard
+          title="Tổng quan"
+          storeWork={
+            <section className="store-work">
+              <h2>
+                Việc hôm nay <span>· {store?.name ?? "cửa hàng đang chọn"}</span>
+              </h2>
+              {dashboard.isLoading ? (
+                <Skeleton active paragraph={{ rows: 4 }} />
+              ) : dashboard.isError || !data ? (
+                <Alert
+                  type="warning"
+                  showIcon
+                  title="Không tải được việc hôm nay của cửa hàng"
+                  action={
+                    <Button size="small" onClick={() => void dashboard.refetch()}>
+                      Thử lại
+                    </Button>
+                  }
+                />
+              ) : (
+                <StoreWork data={data} navigate={navigate} />
+              )}
+            </section>
+          }
+        />
+      </Suspense>
+    );
+  }
+
   if (dashboard.isLoading) {
     return (
       <div className="dashboard-page">
@@ -97,14 +138,6 @@ export function DashboardPage() {
             Tình hình hoạt động tại {store?.name ?? "cửa hàng đang chọn"} · cập nhật lúc {updatedAt}
           </p>
         </div>
-        {pageAccess("/bang-dieu-hanh", can) === "allowed" ? (
-          <Button
-            icon={<FundProjectionScreenOutlined />}
-            onClick={() => void navigate("/bang-dieu-hanh")}
-          >
-            Xem phân tích
-          </Button>
-        ) : null}
       </section>
 
       <StatGrid>
@@ -167,6 +200,15 @@ export function DashboardPage() {
         />
       </StatGrid>
 
+      <StoreWork data={data} navigate={navigate} />
+    </div>
+  );
+}
+
+/** Lô cần xử lý, việc cần chú ý, hàng dưới mức tối thiểu của cửa hàng đang chọn. */
+function StoreWork({ data, navigate }: { data: DashboardData; navigate: (href: string) => void }) {
+  return (
+    <>
       <Row gutter={[16, 16]}>
         <Col xs={24} xl={15}>
           <Card
@@ -254,7 +296,7 @@ export function DashboardPage() {
           <NoPermission />
         )}
       </Card>
-    </div>
+    </>
   );
 }
 

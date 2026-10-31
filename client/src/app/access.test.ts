@@ -178,12 +178,11 @@ describe("sidebar theo quyền", () => {
     expect(visibleSidebar(ALL)).toHaveLength(9);
   });
 
-  it("nhóm Báo cáo: Bảng điều hành đứng đầu, rồi báo cáo kinh doanh, tổng kết tháng, trợ lý phân tích", () => {
+  it("nhóm Báo cáo: báo cáo kinh doanh, tổng kết tháng, trợ lý phân tích (Bảng điều hành nằm trong Tổng quan)", () => {
     const reports = visibleSidebar(canFor("admin")).find(
       (entry) => entry.kind === "group" && entry.key === "reports",
     );
     expect(reports?.kind === "group" ? reports.pages.map((page) => page.path) : []).toEqual([
-      "/bang-dieu-hanh",
       "/bao-cao",
       "/tong-ket-thang",
       "/tro-ly-phan-tich",

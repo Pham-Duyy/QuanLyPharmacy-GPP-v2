@@ -15,7 +15,6 @@ import {
   ExperimentOutlined,
   RobotOutlined,
   FieldTimeOutlined,
-  FundProjectionScreenOutlined,
   FileDoneOutlined,
   FileExcelOutlined,
   FileProtectOutlined,
@@ -78,7 +77,8 @@ export const PAGES = [
     label: "Tổng quan",
     icon: <DashboardOutlined />,
     permission: "catalog.read",
-    keywords: "dashboard trang chu bang dieu khien viec can xu ly",
+    keywords:
+      "dashboard trang chu bang dieu khien bang dieu hanh bi kpi doanh thu loi nhuan chuoi cua hang du bao viec can xu ly",
   },
   {
     path: "/ban-hang",
@@ -100,13 +100,6 @@ export const PAGES = [
     icon: <BarChartOutlined />,
     permission: "report.sales",
     keywords: "doanh thu loi nhuan lai gop",
-  },
-  {
-    path: "/bang-dieu-hanh",
-    label: "Bảng điều hành",
-    icon: <FundProjectionScreenOutlined />,
-    permission: ["report.sales", "report.chain"],
-    keywords: "bi kpi doanh thu loi nhuan excel tu cap nhat theo doi tep chuoi cua hang",
   },
   {
     path: "/tro-ly-phan-tich",

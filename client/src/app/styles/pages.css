@@ -5,6 +5,23 @@
   gap: 16px;
 }
 
+/* Tổng quan của người có quyền báo cáo: việc hôm nay của cửa hàng, nằm giữa biểu đồ và các tab. */
+.store-work {
+  display: grid;
+  gap: 16px;
+  margin: 20px 0 24px;
+}
+.store-work > h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 650;
+  color: var(--c-ink-900);
+}
+.store-work > h2 span {
+  color: var(--c-ink-500);
+  font-weight: 400;
+}
+
 .dashboard-welcome {
   display: flex;
   align-items: center;
