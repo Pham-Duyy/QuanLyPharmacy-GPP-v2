@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
+import { money, vatRate } from "../../lib/validators.js";
 import { prisma } from "../../db/prisma.js";
 import { AppError } from "../../lib/app-error.js";
 import { withMappedErrors } from "../../lib/prisma-errors.js";
@@ -16,9 +17,21 @@ pricesRouter.use("/products", authenticate, storeContext);
 
 const createSchema = z.object({
   unitId: z.uuid("unitId không hợp lệ"),
-  salePrice: z.coerce.number().int().min(0, "Giá bán không được âm"),
-  vatRatePercent: z.coerce.number().min(0).max(100),
-  effectiveFrom: z.coerce.date().optional(),
+  salePrice: money("Giá bán"),
+  vatRatePercent: vatRate(),
+  // Không cho lùi ngày hiệu lực: lịch sử giá là bằng chứng giá tại thời điểm bán (D28).
+  // Đặt trước giá cho ngày sau thì được, tối đa một năm.
+  effectiveFrom: z.coerce
+    .date("Ngày hiệu lực không hợp lệ")
+    .refine(
+      (value) => value.getTime() >= Date.now() - 5 * 60_000,
+      "Ngày hiệu lực không được ở quá khứ",
+    )
+    .refine(
+      (value) => value.getTime() <= Date.now() + 366 * 86_400_000,
+      "Ngày hiệu lực tối đa một năm tới",
+    )
+    .optional(),
   /** CHAIN là giá chung toàn chuỗi, STORE là giá riêng của cửa hàng đang chọn. */
   scope: z.enum(["CHAIN", "STORE"]).default("CHAIN"),
 });

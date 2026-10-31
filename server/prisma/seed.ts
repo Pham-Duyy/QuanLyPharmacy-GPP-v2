@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../src/generated/prisma/client.js";
 import { PERMISSIONS, ROLES } from "../src/config/permissions.js";
+import { codeDay, nextDocumentCode } from "../src/lib/document-code.js";
 import { DEFAULT_STORAGE_LOCATIONS } from "../src/modules/inventory/storage-location-defaults.js";
 import { CATEGORIES, INGREDIENTS, SUPPLIERS, PRODUCTS } from "./seed-catalog.js";
 
@@ -226,10 +227,6 @@ async function seedCatalog() {
   }
 }
 
-function yyyymmdd(date: Date): string {
-  return date.toISOString().slice(0, 10).replace(/-/g, "");
-}
-
 /**
  * Tồn đầu kỳ đi đúng đường của phiếu nhập: tạo chứng từ, tạo lô, ghi thẻ kho.
  * Nhờ vậy bất biến "tồn của lô bằng tổng thẻ kho" vẫn đúng ngay sau khi seed.
@@ -252,7 +249,7 @@ async function seedOpeningBalance(storeId: string, adminId: string) {
       const receipt = await tx.goodsReceipt.create({
         data: {
           storeId,
-          code: `PN-${STORE_CODE}-${yyyymmdd(now)}-0001`,
+          code: await nextDocumentCode(tx, storeId, `PN-${STORE_CODE}-${codeDay(now)}-`),
           type: "OPENING_BALANCE",
           receivedAt: now,
           status: "CONFIRMED",

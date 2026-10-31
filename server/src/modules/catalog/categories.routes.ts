@@ -28,6 +28,28 @@ const patchSchema = z.object({
   version: z.coerce.number().int().positive(),
 });
 
+/**
+ * Trùng tên trong cùng nhóm cha, không phân biệt hoa thường (D28). Ràng buộc
+ * unique của CSDL không bắt được nhóm gốc vì `parent_id` NULL khác nhau.
+ */
+async function assertCategoryFree(name: string, parentId: string | null, exceptId?: string) {
+  const same = await prisma.category.findFirst({
+    where: {
+      parentId,
+      name: { equals: name, mode: "insensitive" },
+      ...(exceptId ? { id: { not: exceptId } } : {}),
+    },
+    select: { name: true, isActive: true },
+  });
+  if (same) {
+    throw new AppError(
+      409,
+      "DUPLICATE_NAME",
+      `Đã có nhóm "${same.name}"${same.isActive ? "" : " (đang ngừng dùng, bấm Dùng lại để mở)"}`,
+    );
+  }
+}
+
 categoriesRouter.get("/categories", requirePermission("catalog.read"), async (req, res) => {
   const page = parsePageQuery(req.query, { sortable: ["name", "createdAt"], defaultSort: "name" });
   const search = typeof req.query["search"] === "string" ? req.query["search"].trim() : "";
@@ -57,6 +79,7 @@ categoriesRouter.get("/categories/:id", requirePermission("catalog.read"), async
 
 categoriesRouter.post("/categories", requirePermission("catalog.manage"), async (req, res) => {
   const input = parseOrThrow(createSchema, req.body);
+  await assertCategoryFree(input.name, input.parentId ?? null);
   const category = await withMappedErrors(
     () => prisma.category.create({ data: { name: input.name, parentId: input.parentId ?? null } }),
     { conflictMessage: "Nhóm sản phẩm này đã tồn tại" },
@@ -67,6 +90,10 @@ categoriesRouter.post("/categories", requirePermission("catalog.manage"), async 
 categoriesRouter.patch("/categories/:id", requirePermission("catalog.manage"), async (req, res) => {
   const id = String(req.params.id);
   const input = parseOrThrow(patchSchema, req.body);
+  if (input.name) {
+    const current = await prisma.category.findUnique({ where: { id }, select: { parentId: true } });
+    if (current) await assertCategoryFree(input.name, current.parentId, id);
+  }
 
   await updateWithVersion({
     notFoundMessage: "Không tìm thấy nhóm sản phẩm",

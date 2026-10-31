@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MAX_LINE_QUANTITY } from "../../lib/validators.js";
 
 const SCOPE_TYPES = ["ALL", "CATEGORY", "SHELF"] as const;
 
@@ -23,7 +24,7 @@ export const saveCountsSchema = z.object({
       z.object({
         lineId: z.uuid("lineId không hợp lệ"),
         unitId: z.uuid("unitId không hợp lệ").nullish(),
-        quantity: z.coerce.number().int().min(0).max(1_000_000).nullish(),
+        quantity: z.coerce.number().int().min(0).max(MAX_LINE_QUANTITY).nullish(),
         note: z.string().trim().max(300).nullish(),
         /** true: xóa số đếm, đưa dòng về trạng thái chưa đếm. */
         clear: z.boolean().optional(),

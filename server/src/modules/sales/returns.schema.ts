@@ -1,10 +1,11 @@
 import { z } from "zod";
+import { lineQuantity } from "../../lib/validators.js";
 
 const returnLineSchema = z.object({
   invoiceLineId: z.uuid("invoiceLineId không hợp lệ"),
   allocationId: z.uuid("allocationId không hợp lệ").nullish(),
   unitId: z.uuid("unitId không hợp lệ"),
-  quantity: z.coerce.number().int().positive("Số lượng trả phải lớn hơn 0"),
+  quantity: lineQuantity("Số lượng trả"),
 });
 
 export const createReturnSchema = z.object({

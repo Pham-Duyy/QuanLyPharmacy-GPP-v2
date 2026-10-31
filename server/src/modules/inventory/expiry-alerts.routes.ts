@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
+import { dateKey, vnDay } from "../../lib/dates.js";
 import { sendData } from "../../lib/respond.js";
 import { parseOrThrow } from "../../lib/validate.js";
 import { authenticate } from "../../middlewares/authenticate.js";
@@ -24,7 +25,10 @@ const listSchema = z.object({
 const planSchema = z.object({
   batchId: z.uuid("batchId không hợp lệ"),
   action: z.enum(EXPIRY_ACTIONS),
-  dueDate: z.coerce.date().nullish(),
+  dueDate: z.coerce
+    .date("Hạn xử lý không hợp lệ")
+    .refine((value) => dateKey(value) >= vnDay(), "Hạn xử lý không được trước hôm nay")
+    .nullish(),
   note: z.string().trim().max(500).nullish(),
 });
 

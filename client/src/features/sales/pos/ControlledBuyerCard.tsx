@@ -1,6 +1,7 @@
 import { CheckCircleFilled, EditOutlined, SafetyCertificateOutlined } from "@ant-design/icons";
 import { Alert, Button, Form, Input, Modal, Select } from "antd";
 import { useState } from "react";
+import { phoneRule } from "../../../ui/validators";
 
 export type ControlledBuyer = {
   buyerName: string;
@@ -123,7 +124,7 @@ export function ControlledBuyerCard({
           >
             <Input placeholder="12 Lý Thường Kiệt, Quận 10, TP.HCM" maxLength={300} />
           </Form.Item>
-          <Form.Item name="buyerPhone" label="Điện thoại">
+          <Form.Item name="buyerPhone" label="Điện thoại" rules={[phoneRule]}>
             <Input placeholder="0901234567" maxLength={20} />
           </Form.Item>
           <Form.Item

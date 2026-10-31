@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MAX_LINE_QUANTITY, lineQuantity } from "../../lib/validators.js";
 
 /**
  * Mỗi dòng gửi đúng một trong hai hình dạng theo `reasonCode` (contract §10.3):
@@ -17,8 +18,8 @@ const lineSchema = z
       "RECALL_DISPOSAL",
       "OTHER",
     ]),
-    countedQuantity: z.coerce.number().int().min(0).nullish(),
-    quantity: z.coerce.number().int().positive().nullish(),
+    countedQuantity: z.coerce.number().int().min(0).max(MAX_LINE_QUANTITY).nullish(),
+    quantity: lineQuantity().nullish(),
   })
   .refine(
     (line) =>

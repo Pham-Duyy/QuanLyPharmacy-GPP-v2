@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
+import { lineQuantity } from "../../lib/validators.js";
 import { sendData } from "../../lib/respond.js";
 import { parseOrThrow } from "../../lib/validate.js";
 import { authenticate } from "../../middlewares/authenticate.js";
@@ -22,7 +23,7 @@ const createSchema = z.object({
       z.object({
         batchId: z.uuid("batchId không hợp lệ"),
         unitId: z.uuid("unitId không hợp lệ"),
-        quantity: z.coerce.number().int().positive("Số lượng phải lớn hơn 0"),
+        quantity: lineQuantity(),
         note: z.string().trim().max(300).nullish(),
       }),
     )

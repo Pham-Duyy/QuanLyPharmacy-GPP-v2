@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { optionalPhone } from "../../lib/validators.js";
 import { newPasswordSchema } from "../auth/auth.schema.js";
 
 const roleAssignmentSchema = z.object({
@@ -24,7 +25,7 @@ export const createUserSchema = z.object({
     .max(50)
     .regex(/^[a-z0-9._-]+$/i, "Chỉ gồm chữ, số, dấu chấm, gạch dưới, gạch ngang"),
   fullName: z.string().trim().min(1, "Thiếu họ tên").max(200),
-  phone: z.string().trim().max(20).nullish(),
+  phone: optionalPhone(),
   practiceCertificateNumber: z.string().trim().max(100).nullish(),
   defaultStoreId: z.uuid("defaultStoreId không hợp lệ").nullish(),
   password: newPasswordSchema.optional(),
@@ -39,7 +40,7 @@ export const createUserSchema = z.object({
  */
 export const patchUserSchema = z.object({
   fullName: z.string().trim().min(1, "Thiếu họ tên").max(200).optional(),
-  phone: z.string().trim().max(20).nullish(),
+  phone: optionalPhone(),
   practiceCertificateNumber: z.string().trim().max(100).nullish(),
   version: z.coerce.number().int().positive("Thiếu version"),
 });

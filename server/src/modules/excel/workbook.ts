@@ -1,3 +1,4 @@
+import { MAX_MONEY } from "../../lib/validators.js";
 import ExcelJS from "exceljs";
 import { AppError } from "../../lib/app-error.js";
 
@@ -214,7 +215,7 @@ export function asText(value: unknown, max: number, label: string): string | nul
 export function asInt(
   value: unknown,
   label: string,
-  options: { min?: number } = {},
+  options: { min?: number; max?: number } = {},
 ): number | null {
   if (value === null || value === undefined || value === "") return null;
   const number =
@@ -229,6 +230,9 @@ export function asInt(
     throw new CellError(`${label} phải là số nguyên`);
   if (options.min !== undefined && number < options.min)
     throw new CellError(`${label} phải từ ${options.min} trở lên`);
+  // Không đặt max thì vẫn chặn ở mức tiền lớn nhất, tránh tràn cột trong CSDL.
+  const max = options.max ?? MAX_MONEY;
+  if (number > max) throw new CellError(`${label} tối đa ${max.toLocaleString("vi-VN")}`);
   return number;
 }
 

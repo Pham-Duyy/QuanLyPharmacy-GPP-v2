@@ -1,4 +1,13 @@
 import { z } from "zod";
+import {
+  MAX_SHELF_YEARS,
+  lineQuantity,
+  money,
+  notFuture,
+  notFutureDay,
+  withinYearsAhead,
+  withinYearsBack,
+} from "../../lib/validators.js";
 import { dateKey, vnDay } from "../../lib/dates.js";
 
 /** Tuổi thọ tối thiểu hợp lý giữa ngày sản xuất và hạn dùng; ngắn hơn gần như chắc chắn là nhập nhầm. */
@@ -9,16 +18,24 @@ const lineSchema = z
   .object({
     productId: z.uuid("productId không hợp lệ"),
     unitId: z.uuid("unitId không hợp lệ"),
-    quantity: z.coerce.number().int().positive("Số lượng phải lớn hơn 0"),
-    unitCost: z.coerce.number().int().min(0, "Giá nhập không được âm"),
+    quantity: lineQuantity(),
+    unitCost: money("Giá nhập"),
     batchNumber: z.string().trim().min(1, "Thiếu số lô").max(50),
     manufactureDate: z.coerce
-      .date()
+      .date("Ngày sản xuất không hợp lệ")
       .refine((value) => dateKey(value) <= vnDay(), "Ngày sản xuất không được ở tương lai")
+      .refine(
+        (value) => withinYearsBack(value),
+        `Ngày sản xuất cách đây quá ${MAX_SHELF_YEARS} năm — kiểm tra lại năm`,
+      )
       .nullish(),
     expiryDate: z.coerce
-      .date()
-      .refine((value) => dateKey(value) > vnDay(), "Hạn dùng phải sau hôm nay"),
+      .date("Hạn dùng không hợp lệ")
+      .refine((value) => dateKey(value) > vnDay(), "Hạn dùng phải sau hôm nay")
+      .refine(
+        (value) => withinYearsAhead(value),
+        `Hạn dùng xa quá ${MAX_SHELF_YEARS} năm — kiểm tra lại năm`,
+      ),
   })
   .refine(
     (line) =>
@@ -30,15 +47,38 @@ const lineSchema = z
     },
   );
 
+/**
+ * Một lô của một sản phẩm chỉ nằm trên một dòng (D28): hai dòng cùng lô dễ là
+ * nhập trùng, và nếu khác hạn dùng thì không biết hạn nào đúng.
+ */
+const receiptLines = z
+  .array(lineSchema)
+  .min(1, "Phiếu nhập phải có ít nhất một dòng")
+  .max(500)
+  .superRefine((lines, ctx) => {
+    const seen = new Map<string, number>();
+    lines.forEach((line, index) => {
+      const key = `${line.productId}|${line.batchNumber.toUpperCase()}`;
+      const first = seen.get(key);
+      if (first !== undefined) {
+        ctx.addIssue({
+          code: "custom",
+          path: [index, "batchNumber"],
+          message: `Lô ${line.batchNumber} đã có ở dòng ${first + 1}; gộp thành một dòng`,
+        });
+      } else seen.set(key, index);
+    });
+  });
+
 export const createReceiptSchema = z.object({
   supplierId: z.uuid("supplierId không hợp lệ"),
   supplierInvoiceNumber: z.string().trim().max(50).nullish(),
-  supplierInvoiceDate: z.coerce.date().nullish(),
-  receivedAt: z.coerce.date().default(() => new Date()),
+  supplierInvoiceDate: notFutureDay("Ngày hóa đơn").nullish(),
+  receivedAt: notFuture("Ngày nhận hàng").default(() => new Date()),
   note: z.string().trim().max(500).nullish(),
-  discountAmount: z.coerce.number().int().min(0, "Chiết khấu không được âm").default(0),
-  vatAmount: z.coerce.number().int().min(0, "Thuế không được âm").default(0),
-  lines: z.array(lineSchema).min(1, "Phiếu nhập phải có ít nhất một dòng"),
+  discountAmount: money("Chiết khấu").default(0),
+  vatAmount: money("Thuế").default(0),
+  lines: receiptLines,
 });
 
 export const cancelSchema = z.object({
@@ -79,12 +119,12 @@ export const patchReceiptSchema = z.object({
   version: z.coerce.number().int().positive("Thiếu version"),
   supplierId: z.uuid("supplierId không hợp lệ").optional(),
   supplierInvoiceNumber: z.string().trim().max(50).nullish(),
-  supplierInvoiceDate: z.coerce.date().nullish(),
-  receivedAt: z.coerce.date().optional(),
+  supplierInvoiceDate: notFutureDay("Ngày hóa đơn").nullish(),
+  receivedAt: notFuture("Ngày nhận hàng").optional(),
   note: z.string().trim().max(500).nullish(),
-  discountAmount: z.coerce.number().int().min(0, "Chiết khấu không được âm").optional(),
-  vatAmount: z.coerce.number().int().min(0, "Thuế không được âm").optional(),
-  lines: z.array(lineSchema).min(1, "Phiếu nhập phải có ít nhất một dòng").optional(),
+  discountAmount: money("Chiết khấu").optional(),
+  vatAmount: money("Thuế").optional(),
+  lines: receiptLines.optional(),
 });
 
 export type CreateReceiptInput = z.infer<typeof createReceiptSchema>;

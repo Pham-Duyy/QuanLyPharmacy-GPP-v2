@@ -1,4 +1,5 @@
 import { prisma } from "../../db/prisma.js";
+import { MAX_LINE_QUANTITY } from "../../lib/validators.js";
 import { AppError } from "../../lib/app-error.js";
 import { saveCounts } from "../inventory/stock-counts.service.js";
 import {
@@ -107,7 +108,9 @@ export const stockCountImport: ImportDefinition<CountEntryRow> = {
       const productCode = r.read("productCode", () => asText(v["productCode"], 50, "Mã sản phẩm"));
       const batchNumber = r.read("batchNumber", () => asText(v["batchNumber"], 50, "Số lô"));
       const unitName = r.read("unit", () => asText(v["unit"], 50, "Đơn vị đếm"));
-      const counted = r.read("counted", () => asInt(v["counted"], "Số đếm được", { min: 0 }));
+      const counted = r.read("counted", () =>
+        asInt(v["counted"], "Số đếm được", { min: 0, max: MAX_LINE_QUANTITY }),
+      );
       const note = r.read("note", () => asText(v["note"], 300, "Ghi chú"));
 
       r.require("productCode", productCode);

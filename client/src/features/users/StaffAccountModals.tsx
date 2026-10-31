@@ -6,6 +6,7 @@ import { getErrorMessage, http } from "../../api/http.js";
 import type { UserDetail } from "../../api/types.js";
 import { useRoles } from "./staff-api.js";
 import { CHAIN_SCOPE, scopeToStoreId, storeIdToScope, useManagedScopes } from "./staff-scope.js";
+import { phoneRule } from "../../ui/validators";
 
 /** Mật khẩu tạm do máy chủ sinh khi đặt lại — hiện đúng một lần. */
 export function TempPasswordAlert({
@@ -92,11 +93,7 @@ export function EditUserModal({
         >
           <Input />
         </Form.Item>
-        <Form.Item
-          name="phone"
-          label="Số điện thoại"
-          rules={[{ max: 20, message: "Tối đa 20 ký tự" }]}
-        >
+        <Form.Item name="phone" label="Số điện thoại" rules={[phoneRule]}>
           <Input inputMode="tel" />
         </Form.Item>
         <Form.Item name="practiceCertificateNumber" label="Số chứng chỉ hành nghề">

@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
+import { MAX_CONVERSION, MAX_LINE_QUANTITY, lineQuantity } from "../../lib/validators.js";
 import { sendData } from "../../lib/respond.js";
 import { parseOrThrow } from "../../lib/validate.js";
 import { authenticate } from "../../middlewares/authenticate.js";
@@ -28,7 +29,7 @@ const createSchema = z.object({
       z.object({
         batchId: z.uuid("batchId không hợp lệ"),
         unitId: z.uuid("unitId không hợp lệ"),
-        quantity: z.coerce.number().int().positive("Số lượng phải lớn hơn 0"),
+        quantity: lineQuantity(),
       }),
     )
     .min(1, "Phiếu chuyển phải có ít nhất một dòng")
@@ -41,7 +42,11 @@ const receiveSchema = z.object({
     .array(
       z.object({
         lineId: z.uuid("lineId không hợp lệ"),
-        receivedBaseQuantity: z.coerce.number().int().min(0, "Số thực nhận không được âm"),
+        receivedBaseQuantity: z.coerce
+          .number()
+          .int()
+          .min(0, "Số thực nhận không được âm")
+          .max(MAX_LINE_QUANTITY * MAX_CONVERSION),
         passed: z.boolean(),
         rejectReason: z.string().trim().max(300).nullish(),
       }),

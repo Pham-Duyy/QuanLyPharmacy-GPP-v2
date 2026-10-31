@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { App, Form, Input, Modal, Typography } from "antd";
 import { getErrorMessage, http } from "../../../api/http.js";
 import type { Envelope, SupplierListItem } from "../../../api/types.js";
+import { phoneRule, taxCodeRule } from "../../../ui/validators";
 
 type SupplierForm = {
   name: string;
@@ -76,13 +77,13 @@ export function QuickSupplierModal({
           <Input placeholder="Ví dụ: Công ty CP Dược phẩm Traphaco" autoFocus />
         </Form.Item>
         <div className="form-grid">
-          <Form.Item name="taxCode" label="Mã số thuế">
+          <Form.Item name="taxCode" label="Mã số thuế" rules={[taxCodeRule]}>
             <Input placeholder="10 hoặc 13 số" maxLength={20} />
           </Form.Item>
           <Form.Item name="licenseNumber" label="Số giấy phép kinh doanh dược">
             <Input maxLength={50} />
           </Form.Item>
-          <Form.Item name="phone" label="Số điện thoại">
+          <Form.Item name="phone" label="Số điện thoại" rules={[phoneRule]}>
             <Input inputMode="tel" maxLength={20} />
           </Form.Item>
         </div>

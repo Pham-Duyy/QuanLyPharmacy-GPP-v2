@@ -1128,6 +1128,11 @@
   font-style: italic;
 }
 
+.field-error {
+  color: var(--c-danger, #c0392b);
+  font-size: 12px;
+}
+
 .supplier-picker {
   display: flex;
   gap: 8px;

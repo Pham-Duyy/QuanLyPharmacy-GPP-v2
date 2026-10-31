@@ -14,6 +14,7 @@
 import "dotenv/config";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../src/generated/prisma/client.js";
+import { codeDay, nextDocumentCode } from "../src/lib/document-code.js";
 import { hashPassword } from "../src/lib/password.js";
 
 const prisma = new PrismaClient({
@@ -66,10 +67,8 @@ async function ensureBatchWithLedger(
   }
 
   const now = new Date();
-  const prefix = `PN-${(await prisma.store.findUniqueOrThrow({ where: { id: storeId } })).code}-${new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Ho_Chi_Minh" }).format(now).replace(/-/g, "")}-`;
-  const countToday = await prisma.goodsReceipt.count({
-    where: { storeId, code: { startsWith: prefix } },
-  });
+  // Lấy số từ bộ đếm chung: tự đếm thì phiếu nhập lập tay trong ngày bị trùng mã.
+  const prefix = `PN-${(await prisma.store.findUniqueOrThrow({ where: { id: storeId } })).code}-${codeDay(now)}-`;
   const quantity = existing ? missing : item.baseQuantity;
   const lineCost = BigInt(item.unitCost) * BigInt(quantity);
 
@@ -77,7 +76,7 @@ async function ensureBatchWithLedger(
     const receipt = await tx.goodsReceipt.create({
       data: {
         storeId,
-        code: `${prefix}${String(countToday + 950).padStart(4, "0")}`,
+        code: await nextDocumentCode(tx, storeId, prefix),
         type: "OPENING_BALANCE",
         receivedAt: now,
         status: "CONFIRMED",
@@ -285,14 +284,13 @@ async function main(): Promise<void> {
   // 5. Đơn thuốc đã duyệt, sẵn sàng bán thuốc kê đơn ------------------------
   const existingRx = await prisma.prescription.findFirst({ where: { externalCode: "DEMO-RX" } });
   if (!existingRx) {
-    const day = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Ho_Chi_Minh" })
-      .format(new Date())
-      .replace(/-/g, "");
-    const count = await prisma.prescription.count({ where: { storeId: store.id } });
+    const code = await prisma.$transaction((tx) =>
+      nextDocumentCode(tx, store.id, `DT-${store.code}-${codeDay()}-`),
+    );
     await prisma.prescription.create({
       data: {
         storeId: store.id,
-        code: `DT-${store.code}-${day}-${String(count + 900).padStart(4, "0")}`,
+        code,
         externalCode: "DEMO-RX",
         customerId: demoCustomer.id,
         prescriberName: "BS. Trần Văn An",
@@ -327,18 +325,14 @@ async function main(): Promise<void> {
     where: { supplierInvoiceNumber: "DEMO-0001" },
   });
   if (!draft) {
-    const day = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Ho_Chi_Minh" })
-      .format(new Date())
-      .replace(/-/g, "");
-    const prefix = `PN-${store.code}-${day}-`;
-    const countToday = await prisma.goodsReceipt.count({
-      where: { storeId: store.id, code: { startsWith: prefix } },
-    });
+    const code = await prisma.$transaction((tx) =>
+      nextDocumentCode(tx, store.id, `PN-${store.code}-${codeDay()}-`),
+    );
     const goodsAmount = 20n * 70_000n;
     await prisma.goodsReceipt.create({
       data: {
         storeId: store.id,
-        code: `${prefix}${String(countToday + 900).padStart(4, "0")}`,
+        code,
         type: "PURCHASE",
         supplierId: supplier.id,
         supplierInvoiceNumber: "DEMO-0001",

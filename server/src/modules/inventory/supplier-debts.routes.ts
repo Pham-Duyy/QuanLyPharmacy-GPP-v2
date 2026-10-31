@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
+import { money, notFuture } from "../../lib/validators.js";
 import { sendData } from "../../lib/respond.js";
 import { parseOrThrow } from "../../lib/validate.js";
 import { authenticate } from "../../middlewares/authenticate.js";
@@ -27,7 +28,7 @@ const debtQuerySchema = z.object({
 
 const paymentSchema = z.object({
   supplierId: z.uuid("supplierId không hợp lệ"),
-  paidAt: z.coerce.date().default(() => new Date()),
+  paidAt: notFuture("Ngày trả tiền").default(() => new Date()),
   method: z.enum(["CASH", "BANK_TRANSFER"]).default("BANK_TRANSFER"),
   reference: z.string().trim().max(100).nullish(),
   note: z.string().trim().max(500).nullish(),
@@ -35,7 +36,7 @@ const paymentSchema = z.object({
     .array(
       z.object({
         goodsReceiptId: z.uuid("goodsReceiptId không hợp lệ"),
-        amount: z.coerce.number().int().positive("Số tiền phải lớn hơn 0"),
+        amount: money().positive("Số tiền phải lớn hơn 0"),
       }),
     )
     .min(1, "Phải chọn ít nhất một phiếu nhập để trả tiền"),

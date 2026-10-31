@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { optionalPhone } from "../../lib/validators.js";
 
 const CURRENT_YEAR = new Date().getUTCFullYear();
 
@@ -9,7 +10,7 @@ export const searchCustomersSchema = z.object({
 /** Trường thông tin cơ bản, dùng chung cho tạo mới và sửa. */
 const customerFieldsSchema = z.object({
   fullName: z.string().trim().min(1, "Thiếu họ tên").max(200).nullish(),
-  phone: z.string().trim().min(1, "Thiếu số điện thoại").max(20).nullish(),
+  phone: optionalPhone(),
   birthYear: z.coerce.number().int().min(1900).max(CURRENT_YEAR).nullish(),
   gender: z.enum(["MALE", "FEMALE", "OTHER"]).nullish(),
   note: z.string().trim().max(1000).nullish(),

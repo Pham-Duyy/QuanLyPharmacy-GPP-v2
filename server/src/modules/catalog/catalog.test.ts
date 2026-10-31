@@ -181,7 +181,7 @@ describe("Đơn vị quy đổi và mã vạch", () => {
       .send({ name: "Vỉ", conversionToBase: 10, barcodes: ["8934567000011"] })
       .expect(409);
 
-    expect(response.body.error.code).toBe("DUPLICATE");
+    expect(response.body.error.code).toBe("DUPLICATE_BARCODE");
   });
 
   it("quét mã vạch trả đúng sản phẩm, đơn vị và giá hiện hành", async () => {

@@ -13,6 +13,7 @@
 import "dotenv/config";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../src/generated/prisma/client.js";
+import { codeDay, nextDocumentCode } from "../src/lib/document-code.js";
 import { EXTRA_CATEGORIES, EXTRA_INGREDIENTS, EXTRA_PRODUCTS } from "./catalog-extra.js";
 
 const prisma = new PrismaClient({
@@ -26,10 +27,6 @@ function dayOffset(days: number): Date {
   const date = new Date(`${vnToday}T00:00:00.000Z`);
   date.setUTCDate(date.getUTCDate() + days);
   return date;
-}
-
-function yyyymmdd(date: Date): string {
-  return date.toISOString().slice(0, 10).replace(/-/g, "");
 }
 
 async function main(): Promise<void> {
@@ -145,17 +142,15 @@ async function main(): Promise<void> {
 
   if (pending.length > 0) {
     const now = new Date();
-    const prefix = `PN-${store.code}-${yyyymmdd(now)}-`;
-    const countToday = await prisma.goodsReceipt.count({
-      where: { storeId: store.id, code: { startsWith: prefix } },
-    });
+    // Lấy số từ bộ đếm chung: tự đếm thì phiếu nhập lập tay trong ngày bị trùng mã.
+    const prefix = `PN-${store.code}-${codeDay(now)}-`;
 
     await prisma.$transaction(
       async (tx) => {
         const receipt = await tx.goodsReceipt.create({
           data: {
             storeId: store.id,
-            code: `${prefix}${String(countToday + 1).padStart(4, "0")}`,
+            code: await nextDocumentCode(tx, store.id, prefix),
             type: "OPENING_BALANCE",
             receivedAt: now,
             status: "CONFIRMED",

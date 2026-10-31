@@ -195,11 +195,31 @@ Lỗi:
 | 401 | Chưa đăng nhập, token hết hạn hoặc bị thu hồi | `UNAUTHENTICATED`, `TOKEN_EXPIRED` |
 | 403 | Thiếu permission, không có quyền tại cửa hàng được chỉ định, hoặc tài khoản còn mật khẩu tạm | `FORBIDDEN`, `STORE_FORBIDDEN`, `PASSWORD_CHANGE_REQUIRED` |
 | 404 | Không tìm thấy tài nguyên | `NOT_FOUND` |
-| 409 | Xung đột trạng thái, phiên bản hoặc tồn kho | `INVALID_STATE`, `VERSION_CONFLICT`, `INSUFFICIENT_STOCK`, `REQUEST_IN_PROGRESS`, `REQUEST_ALREADY_COMMITTED`, `IDEMPOTENCY_OWNERSHIP_LOST`, `BATCH_EXPIRY_MISMATCH`, `LOYALTY_DISABLED` |
+| 409 | Xung đột trạng thái, phiên bản hoặc tồn kho | `INVALID_STATE`, `VERSION_CONFLICT`, `INSUFFICIENT_STOCK`, `REQUEST_IN_PROGRESS`, `REQUEST_ALREADY_COMMITTED`, `IDEMPOTENCY_OWNERSHIP_LOST`, `BATCH_EXPIRY_MISMATCH`, `LOYALTY_DISABLED`, `DUPLICATE`, `DUPLICATE_PHONE`, `DUPLICATE_TAX_CODE`, `DUPLICATE_NAME`, `DUPLICATE_UNIT`, `DUPLICATE_BARCODE` |
 | 422 | Dữ liệu đúng cú pháp nhưng vi phạm validation hoặc quy tắc nghiệp vụ | `VALIDATION_ERROR`, `UNIT_NOT_IN_PRODUCT`, `PRICE_NOT_SET`, `BATCH_NOT_SELLABLE`, `CONTROLLED_DRUG_NOT_SUPPORTED`, `PRESCRIPTION_REQUIRED`, `PRESCRIPTION_NOT_VERIFIED`, `PRESCRIPTION_EXPIRED`, `PRESCRIBED_QUANTITY_EXCEEDED`, `SAFETY_ACK_REQUIRED`, `DISCOUNT_LIMIT_EXCEEDED`, `RETURN_QUANTITY_EXCEEDED`, `RETURN_WINDOW_EXPIRED`, `RETURN_NOT_ALLOWED_FOR_RX`, `SELF_APPROVAL_NOT_ALLOWED`, `IDEMPOTENCY_KEY_REUSED`, `DEBT_CREDIT_EXCEEDED` |
 | 429 | Vượt giới hạn request | `RATE_LIMITED` |
 | 500 | Lỗi không mong muốn | `INTERNAL_ERROR` |
 | 503 | Máy chủ tạm hết kết nối CSDL; gửi lại sau ít giây (cùng Idempotency-Key vẫn an toàn) | `SERVICE_BUSY` |
+
+### 2.7a Kiểm tra dữ liệu nhập tay [Đã chốt – Phase 7, D28]
+
+Máy chủ kiểm tra mọi dữ liệu nhập, form chỉ báo sớm. Luật dùng chung ở `server/src/lib/validators.ts`, áp cho cả API và nhập Excel:
+
+| Loại | Luật |
+|---|---|
+| Số điện thoại | Di động 10 số, máy bàn 11 số, bắt đầu bằng 0. Nhận cả cách viết có khoảng trắng, dấu chấm, `+84`; lưu dạng chuẩn `0xxxxxxxxx`. Excel mất số 0 đầu thì tự thêm lại |
+| Mã số thuế | 10 số, chi nhánh thêm `-` và 3 số |
+| Tiền | Số nguyên đồng, không âm, tối đa 1.000 tỷ |
+| Số lượng một dòng | Số nguyên, 1–100.000 theo đơn vị đã chọn; hệ số quy đổi tối đa 10.000. Nhân lại vẫn nằm trong cột số nguyên của CSDL |
+| Thuế suất GTGT | 0, 5, 8 hoặc 10 % |
+| Ngày đã xảy ra | Không ở tương lai: ngày nhận hàng, ngày hóa đơn NCC, ngày trả tiền, lần đo nhiệt độ, ngày kê đơn, ngày ban hành công văn thu hồi, ngày xảy ra khiếu nại |
+| Hạn dùng, ngày sản xuất | Không xa quá 10 năm so với hôm nay (chặn gõ nhầm năm) |
+| Ngày hiệu lực giá | Không lùi về quá khứ, tối đa một năm tới |
+| Hạn xử lý kế hoạch cận hạn | Không trước hôm nay |
+| Mã sản phẩm | Chữ không dấu, số, `.` `_` `-`; lưu chữ hoa |
+| Mã vạch | Chữ, số, gạch ngang; 6–50 ký tự |
+
+Trùng dữ liệu trả `409` kèm mã riêng và chỉ rõ bản ghi đang dùng giá trị đó: `DUPLICATE_TAX_CODE`, `DUPLICATE_NAME` (nhà cung cấp, nhóm, hoạt chất; không phân biệt hoa thường), `DUPLICATE_UNIT` (tên đơn vị trong một sản phẩm), `DUPLICATE_BARCODE`, `DUPLICATE_PHONE` (khách hàng). Một phiếu nhập không được có hai dòng cùng lô của cùng sản phẩm. Câu báo lỗi kiểm tra mặc định bằng tiếng Việt.
 
 ### 2.8 Phạm vi cửa hàng [Đã chốt – P18]
 

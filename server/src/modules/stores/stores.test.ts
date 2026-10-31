@@ -38,7 +38,7 @@ describe("Mở cửa hàng mới", () => {
         code: "nt03",
         name: "Nhà thuốc chi nhánh 3",
         address: "12 Lê Lợi",
-        phone: "0281234567",
+        phone: "02838123456",
       })
       .expect(201);
 

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { lineQuantity, notFutureDay } from "../../lib/validators.js";
 
 /**
  * `productId` và `unitId` đi cùng nhau hoặc cùng vắng mặt: thuốc mới kê
@@ -11,7 +12,7 @@ const itemSchema = z
     productId: z.uuid("productId không hợp lệ").nullish(),
     drugNameText: z.string().trim().min(1, "Thiếu tên thuốc").max(300),
     unitId: z.uuid("unitId không hợp lệ").nullish(),
-    quantity: z.coerce.number().int().positive("Số lượng phải lớn hơn 0"),
+    quantity: lineQuantity(),
     dosageInstruction: z.string().trim().max(500).nullish(),
   })
   .refine((item) => Boolean(item.productId) === Boolean(item.unitId), {
@@ -19,17 +20,22 @@ const itemSchema = z
     path: ["unitId"],
   });
 
-export const createPrescriptionSchema = z.object({
-  customerId: z.uuid("customerId không hợp lệ").nullish(),
-  externalCode: z.string().trim().max(100).nullish(),
-  prescriberName: z.string().trim().max(200).nullish(),
-  facilityName: z.string().trim().max(300).nullish(),
-  diagnosisText: z.string().trim().max(1000).nullish(),
-  prescribedDate: z.coerce.date(),
-  // Bỏ trống thì backend tự tính = prescribedDate + prescriptionValidityDays (P14).
-  validUntil: z.coerce.date().nullish(),
-  items: z.array(itemSchema).min(1, "Đơn thuốc phải có ít nhất một dòng"),
-});
+export const createPrescriptionSchema = z
+  .object({
+    customerId: z.uuid("customerId không hợp lệ").nullish(),
+    externalCode: z.string().trim().max(100).nullish(),
+    prescriberName: z.string().trim().max(200).nullish(),
+    facilityName: z.string().trim().max(300).nullish(),
+    diagnosisText: z.string().trim().max(1000).nullish(),
+    prescribedDate: notFutureDay("Ngày kê đơn"),
+    // Bỏ trống thì backend tự tính = prescribedDate + prescriptionValidityDays (P14).
+    validUntil: z.coerce.date().nullish(),
+    items: z.array(itemSchema).min(1, "Đơn thuốc phải có ít nhất một dòng"),
+  })
+  .refine((value) => !value.validUntil || value.validUntil >= value.prescribedDate, {
+    message: "Hạn đơn không được trước ngày kê đơn",
+    path: ["validUntil"],
+  });
 
 export const patchPrescriptionSchema = z.object({
   version: z.coerce.number().int().positive("Thiếu version"),
@@ -38,7 +44,7 @@ export const patchPrescriptionSchema = z.object({
   prescriberName: z.string().trim().max(200).nullish(),
   facilityName: z.string().trim().max(300).nullish(),
   diagnosisText: z.string().trim().max(1000).nullish(),
-  prescribedDate: z.coerce.date().optional(),
+  prescribedDate: notFutureDay("Ngày kê đơn").optional(),
   // Không cho phép null: luôn phải có một ngày hết hạn, khác lúc tạo mới
   // (nơi bỏ trống nghĩa là "để backend tự tính").
   validUntil: z.coerce.date().optional(),

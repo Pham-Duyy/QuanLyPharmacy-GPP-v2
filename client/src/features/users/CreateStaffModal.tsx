@@ -18,6 +18,7 @@ import type { RoleItem, UserDetail } from "../../api/types.js";
 import { useCreateStaff, useRoles } from "./staff-api.js";
 import { generatePassword, passwordProblem, USERNAME_PATTERN } from "./staff-password.js";
 import { CHAIN_SCOPE, scopeToStoreId, useManagedScopes } from "./staff-scope.js";
+import { phoneRule } from "../../ui/validators";
 
 type Assignment = { scope?: string; roleCode?: string; qualificationReference?: string };
 
@@ -166,11 +167,7 @@ export function CreateStaffModal({ open, onClose, onCreated }: Props) {
               <Input placeholder="Nhập họ và tên" autoComplete="off" />
             </Form.Item>
             <div className="staff-two">
-              <Form.Item
-                name="phone"
-                label="Số điện thoại"
-                rules={[{ max: 20, message: "Tối đa 20 ký tự" }]}
-              >
+              <Form.Item name="phone" label="Số điện thoại" rules={[phoneRule]}>
                 <Input inputMode="tel" placeholder="Ví dụ: 090 123 4567" autoComplete="off" />
               </Form.Item>
               <Form.Item

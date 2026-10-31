@@ -10,6 +10,7 @@ import type {
   ProductUnit,
 } from "../../../api/types.js";
 import { DRUG_CLASS, PRODUCT_TYPE } from "./product-labels.js";
+import { VAT_OPTIONS } from "../../../ui/validators";
 
 type ProductForm = {
   code: string;
@@ -379,7 +380,7 @@ export function PriceModal({
               label="VAT (%)"
               rules={[{ required: true, message: "Nhập VAT" }]}
             >
-              <InputNumber min={0} max={100} style={{ width: "100%" }} />
+              <Select options={VAT_OPTIONS} />
             </Form.Item>
           </Col>
           <Col span={12}>
@@ -465,7 +466,14 @@ export function ProductFormModal({
             <Form.Item
               name="code"
               label="Mã sản phẩm"
-              rules={[{ required: true, whitespace: true, message: "Nhập mã" }]}
+              rules={[
+                { required: true, whitespace: true, message: "Nhập mã" },
+                {
+                  pattern: /^\s*[A-Za-z0-9._-]+\s*$/,
+                  message: "Chỉ gồm chữ không dấu, số, dấu chấm, gạch dưới, gạch ngang",
+                },
+              ]}
+              normalize={(value?: string) => value?.toUpperCase()}
             >
               <Input placeholder="TH0001" />
             </Form.Item>

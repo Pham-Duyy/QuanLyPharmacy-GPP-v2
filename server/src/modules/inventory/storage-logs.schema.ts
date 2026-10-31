@@ -1,8 +1,9 @@
 import { z } from "zod";
+import { notFuture } from "../../lib/validators.js";
 
 export const createStorageLogSchema = z.object({
   location: z.string().trim().min(1, "Thiếu khu vực"),
-  recordedAt: z.coerce.date(),
+  recordedAt: notFuture("Thời điểm đo"),
   temperatureC: z.coerce
     .number()
     .min(-50, "Nhiệt độ không hợp lệ")

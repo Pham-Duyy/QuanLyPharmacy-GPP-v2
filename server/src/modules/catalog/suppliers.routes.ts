@@ -10,6 +10,7 @@ import { parseOrThrow } from "../../lib/validate.js";
 import { authenticate } from "../../middlewares/authenticate.js";
 import { requirePermission } from "../../middlewares/require-permission.js";
 import { storeContext } from "../../middlewares/store-context.js";
+import { optionalPhone, optionalTaxCode } from "../../lib/validators.js";
 
 export const suppliersRouter = Router();
 // Giới hạn theo tiền tố thật sự dùng, cùng lý do đã ghi ở categories.routes.ts.
@@ -17,11 +18,48 @@ suppliersRouter.use("/suppliers", authenticate, storeContext);
 
 const createSchema = z.object({
   name: z.string().trim().min(1, "Thiếu tên nhà cung cấp").max(300),
-  taxCode: z.string().trim().max(20).nullish(),
+  taxCode: optionalTaxCode(),
   licenseNumber: z.string().trim().max(50).nullish(),
   address: z.string().trim().max(500).nullish(),
-  phone: z.string().trim().max(20).nullish(),
+  phone: optionalPhone(),
 });
+
+/**
+ * Hai nhà cung cấp trùng tên hoặc trùng mã số thuế gần như luôn là nhập hai lần
+ * một nhà cung cấp: công nợ và phiếu nhập bị chia ra hai nơi (D28).
+ */
+async function assertSupplierFree(
+  fields: { name?: string | undefined; taxCode?: string | null | undefined },
+  exceptId?: string,
+) {
+  const notSelf = exceptId ? { id: { not: exceptId } } : {};
+  if (fields.taxCode) {
+    const other = await prisma.supplier.findFirst({
+      where: { taxCode: fields.taxCode, ...notSelf },
+      select: { name: true },
+    });
+    if (other) {
+      throw new AppError(
+        409,
+        "DUPLICATE_TAX_CODE",
+        `Mã số thuế ${fields.taxCode} đã thuộc nhà cung cấp "${other.name}"`,
+      );
+    }
+  }
+  if (fields.name) {
+    const other = await prisma.supplier.findFirst({
+      where: { name: { equals: fields.name, mode: "insensitive" }, ...notSelf },
+      select: { name: true, isActive: true },
+    });
+    if (other) {
+      throw new AppError(
+        409,
+        "DUPLICATE_NAME",
+        `Đã có nhà cung cấp "${other.name}"${other.isActive ? "" : " (đang ngừng giao dịch, bấm Giao dịch lại để dùng)"}`,
+      );
+    }
+  }
+}
 
 const patchSchema = createSchema.partial().extend({
   version: z.coerce.number().int().positive(),
@@ -65,6 +103,7 @@ suppliersRouter.get("/suppliers/:id", requirePermission("catalog.read"), async (
 
 suppliersRouter.post("/suppliers", requirePermission("catalog.manage"), async (req, res) => {
   const input = parseOrThrow(createSchema, req.body);
+  await assertSupplierFree(input);
   const created = await withMappedErrors(() =>
     prisma.supplier.create({
       data: {
@@ -82,6 +121,7 @@ suppliersRouter.post("/suppliers", requirePermission("catalog.manage"), async (r
 suppliersRouter.patch("/suppliers/:id", requirePermission("catalog.manage"), async (req, res) => {
   const id = String(req.params.id);
   const { version, ...fields } = parseOrThrow(patchSchema, req.body);
+  await assertSupplierFree(fields, id);
 
   await updateWithVersion({
     notFoundMessage: "Không tìm thấy nhà cung cấp",

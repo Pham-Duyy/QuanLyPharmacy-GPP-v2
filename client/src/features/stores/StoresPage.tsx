@@ -28,6 +28,7 @@ import { getErrorMessage, http } from "../../api/http.js";
 import { type Envelope, type StoreDetail } from "../../api/types.js";
 import { PageHeader } from "../../ui/PageHeader.js";
 import { useAuth } from "../auth/auth-context.js";
+import { phoneRule } from "../../ui/validators";
 
 type StoreListItem = {
   id: string;
@@ -344,7 +345,7 @@ function StoreFormModal({
             </Form.Item>
           </Col>
           <Col xs={24} sm={8}>
-            <Form.Item name="phone" label="Số điện thoại">
+            <Form.Item name="phone" label="Số điện thoại" rules={[phoneRule]}>
               <Input inputMode="tel" />
             </Form.Item>
           </Col>

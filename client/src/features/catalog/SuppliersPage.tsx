@@ -31,6 +31,7 @@ import { PageHeader } from "../../ui/PageHeader.js";
 import { PanelEmpty } from "../../ui/PanelEmpty.js";
 import { useDebounced } from "../../ui/useDebounced.js";
 import { useAuth } from "../auth/auth-context.js";
+import { phoneRule, taxCodeRule } from "../../ui/validators";
 
 /** Quản lý nhà cung cấp dùng chung cho các phiếu nhập kho. */
 export function SuppliersPage() {
@@ -365,7 +366,7 @@ function SupplierFormModal({
         </Divider>
         <Row gutter={12}>
           <Col xs={24} sm={8}>
-            <Form.Item name="phone" label="Số điện thoại">
+            <Form.Item name="phone" label="Số điện thoại" rules={[phoneRule]}>
               <Input inputMode="tel" placeholder="0901 234 567" />
             </Form.Item>
           </Col>
@@ -380,7 +381,7 @@ function SupplierFormModal({
         </Divider>
         <Row gutter={12}>
           <Col xs={24} sm={12}>
-            <Form.Item name="taxCode" label="Mã số thuế">
+            <Form.Item name="taxCode" label="Mã số thuế" rules={[taxCodeRule]}>
               <Input placeholder="Nếu có" />
             </Form.Item>
           </Col>

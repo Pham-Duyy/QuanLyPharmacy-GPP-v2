@@ -1,9 +1,11 @@
 import { z } from "zod";
+import { MAX_MONEY, lineQuantity, money } from "../../lib/validators.js";
+import { optionalPhone } from "../../lib/validators.js";
 
 const cartLineSchema = z.object({
   productId: z.uuid("productId không hợp lệ"),
   unitId: z.uuid("unitId không hợp lệ"),
-  quantity: z.coerce.number().int().positive("Số lượng phải lớn hơn 0"),
+  quantity: lineQuantity(),
 });
 
 export const safetyCheckSchema = z.object({
@@ -30,11 +32,18 @@ const saleLineSchema = cartLineSchema
 const discountSchema = z
   .object({
     type: z.enum(["PERCENT", "AMOUNT"]),
-    value: z.coerce.number().positive("Giá trị giảm phải lớn hơn 0"),
+    value: z.coerce
+      .number()
+      .positive("Giá trị giảm phải lớn hơn 0")
+      .max(MAX_MONEY, "Giá trị giảm quá lớn"),
     reason: z.string().trim().min(1, "Phải ghi lý do giảm giá").max(500),
   })
   .refine((discount) => discount.type !== "PERCENT" || discount.value <= 100, {
     message: "Phần trăm giảm không vượt quá 100",
+    path: ["value"],
+  })
+  .refine((discount) => discount.type !== "AMOUNT" || Number.isInteger(discount.value), {
+    message: "Số tiền giảm phải là số nguyên đồng",
     path: ["value"],
   });
 
@@ -50,7 +59,7 @@ const controlledBuyerSchema = z.object({
   buyerName: z.string().trim().min(1, "Thiếu họ tên người mua").max(200),
   buyerIdNumber: z.string().trim().min(6, "Số giấy tờ tùy thân quá ngắn").max(30),
   buyerAddress: z.string().trim().min(1, "Thiếu địa chỉ người mua").max(300),
-  buyerPhone: z.string().trim().max(20).nullish(),
+  buyerPhone: optionalPhone(),
   relationship: z.enum(["SELF", "RELATIVE", "CAREGIVER", "OTHER"]).default("SELF"),
   relationshipNote: z.string().trim().max(200).nullish(),
 });
@@ -65,7 +74,7 @@ export const createInvoiceSchema = z.object({
    * Số điểm khách muốn đổi trên hóa đơn này. Tiền giảm tương ứng do máy chủ
    * tự tính từ cài đặt tích điểm, máy khách gửi lên cũng bị bỏ qua.
    */
-  loyaltyRedeemPoints: z.coerce.number().int().min(0).default(0),
+  loyaltyRedeemPoints: z.coerce.number().int().min(0).max(100_000_000).default(0),
   acknowledgedWarnings: z
     .array(
       z.object({
@@ -78,7 +87,7 @@ export const createInvoiceSchema = z.object({
   payment: z
     .object({
       method: z.enum(["CASH", "BANK_TRANSFER", "CARD"]).default("CASH"),
-      amountTendered: z.coerce.number().int().min(0).nullish(),
+      amountTendered: money("Tiền khách đưa").nullish(),
     })
     .default({ method: "CASH" }),
 });

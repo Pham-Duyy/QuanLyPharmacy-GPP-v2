@@ -1,4 +1,5 @@
 import { prisma } from "../../db/prisma.js";
+import { normalizeVnPhone } from "../../lib/validators.js";
 import {
   COMMIT_TIMEOUT_MS,
   RowReader,
@@ -8,9 +9,18 @@ import {
   type ImportIssue,
   type PlannedRow,
 } from "./import-kit.js";
-import { asChoice, asInt, asText, type ColumnDef } from "./workbook.js";
+import { asChoice, asInt, asText, CellError, type ColumnDef } from "./workbook.js";
 
 const ACTIVE_CHOICES = { "Đang giao dịch": true, "Ngừng giao dịch": false } as const;
+
+/** Số điện thoại trong tệp: chuẩn hóa như khi nhập tay (Excel hay bỏ mất số 0 đầu). */
+function asPhone(value: unknown): string | null {
+  const text = asText(value, 20, "Số điện thoại");
+  if (!text) return null;
+  const phone = normalizeVnPhone(text);
+  if (!phone) throw new CellError("Số điện thoại không hợp lệ (di động 10 số, máy bàn 11 số)");
+  return phone;
+}
 
 // ---------------------------------------------------------------------------
 // Nhà cung cấp
@@ -88,12 +98,12 @@ export const suppliersImport: ImportDefinition<SupplierRow> = {
           asText(v["licenseNumber"], 50, "Số giấy phép"),
         ),
         address: r.read("address", () => asText(v["address"], 500, "Địa chỉ")),
-        phone: r.read("phone", () => asText(v["phone"], 20, "Điện thoại")),
+        phone: r.read("phone", () => asPhone(v["phone"])),
       };
       const isActive = r.read("status", () => asChoice(v["status"], "Trạng thái", ACTIVE_CHOICES));
       r.require("name", name);
-      if (taxCode && !/^[0-9-]+$/.test(taxCode))
-        r.fail("taxCode", "Mã số thuế chỉ gồm chữ số và dấu gạch ngang");
+      if (taxCode && !/^\d{10}(-\d{3})?$/.test(taxCode))
+        r.fail("taxCode", "Mã số thuế gồm 10 số, chi nhánh thêm gạch ngang và 3 số");
 
       const key = taxCode ? `tax:${taxCode}` : name ? `name:${fold(name)}` : "";
       if (key) {
@@ -215,8 +225,8 @@ export const customersImport: ImportDefinition<CustomerRow> = {
       )
       .filter(Boolean);
     const phones = rows
-      .map((row) => String(row.values["phone"] ?? "").replace(/\s/g, ""))
-      .filter(Boolean);
+      .map((row) => normalizeVnPhone(String(row.values["phone"] ?? "")))
+      .filter((phone): phone is string => Boolean(phone));
     const [byCodeRows, byPhoneRows] = await Promise.all([
       prisma.customer.findMany({
         where: { code: { in: codes } },
@@ -239,8 +249,7 @@ export const customersImport: ImportDefinition<CustomerRow> = {
       const v = raw.values;
       const code = r.read("code", () => asText(v["code"], 20, "Mã KH"))?.toUpperCase() ?? null;
       const fullName = r.read("fullName", () => asText(v["fullName"], 200, "Họ tên"));
-      const phone =
-        r.read("phone", () => asText(v["phone"], 20, "Số điện thoại"))?.replace(/\s/g, "") ?? null;
+      const phone = r.read("phone", () => asPhone(v["phone"]));
       const birthYear = r.read("birthYear", () => asInt(v["birthYear"], "Năm sinh", { min: 1900 }));
       const gender = r.read("gender", () => asChoice(v["gender"], "Giới tính", GENDER_CHOICES));
       const email = r.read("email", () => asText(v["email"], 200, "Email"));
@@ -248,7 +257,6 @@ export const customersImport: ImportDefinition<CustomerRow> = {
       const note = r.read("note", () => asText(v["note"], 1000, "Ghi chú"));
 
       if (!fullName && !phone) r.fail("fullName", "Cần ít nhất họ tên hoặc số điện thoại");
-      if (phone && !/^[0-9+()-]{6,20}$/.test(phone)) r.fail("phone", "Số điện thoại không hợp lệ");
       if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) r.fail("email", "Email không hợp lệ");
       if (birthYear && birthYear > currentYear) r.fail("birthYear", "Năm sinh ở tương lai");
 

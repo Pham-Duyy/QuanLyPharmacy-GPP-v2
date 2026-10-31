@@ -1,5 +1,6 @@
 import { Router, type RequestHandler } from "express";
 import { z } from "zod";
+import { notFutureDay, optionalPhone } from "../../lib/validators.js";
 import { AppError } from "../../lib/app-error.js";
 import { sendData } from "../../lib/respond.js";
 import { parseOrThrow } from "../../lib/validate.js";
@@ -22,18 +23,15 @@ const canRead: RequestHandler = (req, _res, next) => {
   next();
 };
 
-const day = z.coerce.date("Ngày không hợp lệ");
 const text = (max: number) => z.string().trim().max(max);
 
 const createSchema = z.object({
   kind: z.enum(REPORT_KINDS),
-  occurredOn: day,
+  occurredOn: notFutureDay("Ngày xảy ra"),
   productId: z.uuid().nullish(),
   batchId: z.uuid().nullish(),
   reporterName: text(150).nullish(),
-  reporterPhone: text(20)
-    .regex(/^[0-9 +.-]*$/, "Số điện thoại không hợp lệ")
-    .nullish(),
+  reporterPhone: optionalPhone(),
   description: text(2000).min(5, "Mô tả rõ sự việc (ít nhất 5 ký tự)"),
   actionTaken: text(2000).nullish(),
 });
@@ -41,7 +39,7 @@ const createSchema = z.object({
 const updateSchema = z.object({
   version: z.coerce.number().int().positive(),
   actionTaken: text(2000).nullish(),
-  adrReportedOn: day.nullish(),
+  adrReportedOn: notFutureDay("Ngày báo cáo ADR").nullish(),
 });
 
 qualityReportsRouter.get("/quality-reports", canRead, async (req, res) => {

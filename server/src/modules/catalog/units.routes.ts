@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
+import { barcodeSchema, MAX_CONVERSION } from "../../lib/validators.js";
 import { prisma } from "../../db/prisma.js";
 import { AppError } from "../../lib/app-error.js";
 import { withMappedErrors } from "../../lib/prisma-errors.js";
@@ -14,20 +15,74 @@ export const unitsRouter = Router();
 // Giới hạn theo hai tiền tố router này thực sự dùng, cùng lý do đã ghi ở categories.routes.ts.
 unitsRouter.use(["/products", "/product-units"], authenticate, storeContext);
 
+const barcodes = z
+  .array(barcodeSchema)
+  .max(20)
+  .refine((items) => new Set(items).size === items.length, "Một mã vạch được nhập hai lần");
+
 const createSchema = z.object({
   name: z.string().trim().min(1, "Thiếu tên đơn vị").max(50),
-  conversionToBase: z.coerce.number().int().min(1, "Hệ số quy đổi phải từ 1 trở lên"),
+  conversionToBase: z.coerce
+    .number()
+    .int("Hệ số quy đổi phải là số nguyên")
+    .min(1, "Hệ số quy đổi phải từ 1 trở lên")
+    .max(MAX_CONVERSION, `Hệ số quy đổi tối đa ${MAX_CONVERSION.toLocaleString("vi-VN")}`),
   isSellable: z.boolean().default(true),
   isDefaultSaleUnit: z.boolean().default(false),
-  barcodes: z.array(z.string().trim().min(6).max(50)).default([]),
+  barcodes: barcodes.default([]),
 });
 
 const patchSchema = z.object({
   name: z.string().trim().min(1).max(50).optional(),
   isSellable: z.boolean().optional(),
   isDefaultSaleUnit: z.boolean().optional(),
-  barcodes: z.array(z.string().trim().min(6).max(50)).optional(),
+  barcodes: barcodes.optional(),
 });
+
+/**
+ * Báo rõ trùng ở đâu thay cho câu chung của ràng buộc CSDL (D28): tên đơn vị
+ * trùng trong cùng sản phẩm (không phân biệt hoa thường), mã vạch đã gắn cho
+ * đơn vị khác.
+ */
+async function assertUnitFree(
+  productId: string,
+  input: { name?: string | undefined; barcodes?: string[] | undefined },
+  exceptUnitId?: string,
+): Promise<void> {
+  if (input.name) {
+    const same = await prisma.productUnit.findFirst({
+      where: {
+        productId,
+        name: { equals: input.name, mode: "insensitive" },
+        ...(exceptUnitId ? { id: { not: exceptUnitId } } : {}),
+      },
+      select: { name: true },
+    });
+    if (same) {
+      throw new AppError(409, "DUPLICATE_UNIT", `Sản phẩm đã có đơn vị "${same.name}"`);
+    }
+  }
+  if (input.barcodes && input.barcodes.length > 0) {
+    const owner = await prisma.productBarcode.findFirst({
+      where: {
+        barcode: { in: input.barcodes },
+        ...(exceptUnitId ? { productUnitId: { not: exceptUnitId } } : {}),
+      },
+      select: {
+        barcode: true,
+        productUnit: { select: { name: true, product: { select: { code: true, name: true } } } },
+      },
+    });
+    if (owner) {
+      const product = owner.productUnit.product;
+      throw new AppError(
+        409,
+        "DUPLICATE_BARCODE",
+        `Mã vạch ${owner.barcode} đã gắn cho ${product.code} – ${product.name} (${owner.productUnit.name})`,
+      );
+    }
+  }
+}
 
 async function ensureProduct(productId: string): Promise<void> {
   const exists = await prisma.product.count({ where: { id: productId } });
@@ -66,6 +121,7 @@ unitsRouter.post("/products/:id/units", requirePermission("catalog.manage"), asy
   const productId = String(req.params.id);
   await ensureProduct(productId);
   const input = parseOrThrow(createSchema, req.body);
+  await assertUnitFree(productId, input);
 
   const unit = await withMappedErrors(
     () =>
@@ -113,6 +169,7 @@ unitsRouter.patch(
 
     const unit = await prisma.productUnit.findFirst({ where: { id: unitId, productId } });
     if (!unit) throw AppError.notFound("Không tìm thấy đơn vị tính của sản phẩm này");
+    await assertUnitFree(productId, input, unitId);
 
     // Hệ số quy đổi không sửa được sau khi đã tạo: mọi số lượng đã ghi theo
     // đơn vị nhỏ nhất sẽ sai nếu đổi. Muốn khác thì tạo đơn vị mới (contract §6.3).

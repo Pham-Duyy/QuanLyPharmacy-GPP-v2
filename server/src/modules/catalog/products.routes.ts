@@ -33,7 +33,17 @@ const DRUG_CLASSES = ["OTC", "RX", "CONTROLLED"] as const;
 
 const createSchema = z
   .object({
-    code: z.string().trim().min(1, "Thiếu mã sản phẩm").max(50),
+    // Mã lưu chữ hoa để "th0001" và "TH0001" không thành hai sản phẩm (D28).
+    code: z
+      .string()
+      .trim()
+      .min(1, "Thiếu mã sản phẩm")
+      .max(50)
+      .regex(
+        /^[A-Za-z0-9._-]+$/,
+        "Mã sản phẩm chỉ gồm chữ không dấu, số, dấu chấm, gạch dưới, gạch ngang",
+      )
+      .transform((value) => value.toUpperCase()),
     name: z.string().trim().min(1, "Thiếu tên sản phẩm").max(300),
     productType: z.enum(PRODUCT_TYPES),
     drugClass: z.enum(DRUG_CLASSES).nullish(),
@@ -45,13 +55,17 @@ const createSchema = z
     manufacturer: z.string().trim().max(200).nullish(),
     countryOfOrigin: z.string().trim().max(100).nullish(),
     storageCondition: z.string().trim().max(200).nullish(),
-    minStockBaseQuantity: z.coerce.number().int().min(0).default(0),
+    minStockBaseQuantity: z.coerce.number().int().min(0).max(10_000_000).default(0),
     baseUnitName: z.string().trim().min(1, "Thiếu tên đơn vị cơ bản").max(50),
     ingredients: z
       .array(
         z.object({ ingredientId: z.uuid(), strengthText: z.string().trim().max(100).nullish() }),
       )
-      .default([]),
+      .default([])
+      .refine(
+        (items) => new Set(items.map((item) => item.ingredientId)).size === items.length,
+        "Một hoạt chất được chọn hai lần",
+      ),
   })
   // Ràng buộc nghiệp vụ GPP, cũng được CSDL chặn lần nữa (ERD §9).
   .refine((value) => (value.productType === "DRUG") === Boolean(value.drugClass), {
@@ -69,7 +83,7 @@ const patchSchema = z.object({
   manufacturer: z.string().trim().max(200).nullish(),
   countryOfOrigin: z.string().trim().max(100).nullish(),
   storageCondition: z.string().trim().max(200).nullish(),
-  minStockBaseQuantity: z.coerce.number().int().min(0).optional(),
+  minStockBaseQuantity: z.coerce.number().int().min(0).max(10_000_000).optional(),
   version: z.coerce.number().int().positive(),
 });
 
@@ -299,7 +313,7 @@ productsRouter.post("/products", requirePermission("catalog.manage"), async (req
 
         return product;
       }),
-    { conflictMessage: "Mã sản phẩm đã tồn tại" },
+    { conflictMessage: `Mã sản phẩm ${input.code} đã tồn tại` },
   );
 
   sendData(res, created, 201);

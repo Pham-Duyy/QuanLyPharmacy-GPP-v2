@@ -363,13 +363,28 @@ describe("Kế hoạch xử lý lô cận hạn", () => {
     expect(again.body.error.message).toContain("đã đóng rồi");
   });
 
-  it("kế hoạch quá ngày hẹn được đánh dấu để báo lại", async () => {
+  it("không lập kế hoạch với hạn xử lý trước hôm nay", async () => {
     const batchId = await makeBatch("D30", 25);
     await plan({
       batchId,
       action: "PRIORITIZE_SALE",
       dueDate: dayOffset(-2).toISOString().slice(0, 10),
+    }).expect(422);
+  });
+
+  it("kế hoạch quá ngày hẹn được đánh dấu để báo lại", async () => {
+    const batchId = await makeBatch("D30", 25);
+    // Hạn hẹn không lập được ở quá khứ, nên dời hạn sau khi lập để giả lập
+    // kế hoạch đã quá ngày.
+    const created = await plan({
+      batchId,
+      action: "PRIORITIZE_SALE",
+      dueDate: dayOffset(1).toISOString().slice(0, 10),
     }).expect(201);
+    await prisma.batchExpiryPlan.update({
+      where: { id: created.body.data.id },
+      data: { dueDate: dayOffset(-2) },
+    });
 
     const data = await list();
     expect(row(data, "D30")!.plan).toMatchObject({ overdue: true });

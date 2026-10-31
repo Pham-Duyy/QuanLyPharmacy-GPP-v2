@@ -1,4 +1,5 @@
 import { prisma } from "../../db/prisma.js";
+import { MAX_LINE_QUANTITY } from "../../lib/validators.js";
 import { AppError } from "../../lib/app-error.js";
 import { businessDateNow } from "../../lib/settings.js";
 import { MIN_SHELF_LIFE_DAYS } from "../inventory/goods-receipts.schema.js";
@@ -74,7 +75,9 @@ async function planStockLines(
     const v = raw.values;
     const code = r.read("productCode", () => asText(v["productCode"], 50, "Mã sản phẩm"));
     const unitName = r.read("unit", () => asText(v["unit"], 50, "Đơn vị"));
-    const quantity = r.read("quantity", () => asInt(v["quantity"], "Số lượng", { min: 1 }));
+    const quantity = r.read("quantity", () =>
+      asInt(v["quantity"], "Số lượng", { min: 1, max: MAX_LINE_QUANTITY }),
+    );
     const unitCost = r.read("unitCost", () => asInt(v["unitCost"], "Đơn giá", { min: 0 }));
     const batchNumber = r.read("batchNumber", () => asText(v["batchNumber"], 50, "Số lô"));
     const manufactureDate = columns.some((column) => column.key === "manufactureDate")

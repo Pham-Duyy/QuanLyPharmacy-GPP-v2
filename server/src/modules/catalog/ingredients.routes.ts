@@ -20,6 +20,19 @@ const bodySchema = z.object({
   atcCode: z.string().trim().max(20).nullish(),
 });
 
+/** Trùng tên hoạt chất không phân biệt hoa thường: "paracetamol" và "Paracetamol" là một (D28). */
+async function assertIngredientFree(name: string, exceptId?: string) {
+  const same = await prisma.activeIngredient.findFirst({
+    where: {
+      name: { equals: name, mode: "insensitive" },
+      ...(exceptId ? { id: { not: exceptId } } : {}),
+    },
+    select: { name: true },
+  });
+  if (same)
+    throw new AppError(409, "DUPLICATE_NAME", `Hoạt chất "${same.name}" đã có trong danh mục`);
+}
+
 ingredientsRouter.get(
   "/active-ingredients",
   requirePermission("catalog.read"),
@@ -44,6 +57,7 @@ ingredientsRouter.post(
   requirePermission("catalog.manage"),
   async (req, res) => {
     const input = parseOrThrow(bodySchema, req.body);
+    await assertIngredientFree(input.name);
     const created = await withMappedErrors(
       () =>
         prisma.activeIngredient.create({
@@ -61,6 +75,7 @@ ingredientsRouter.patch(
   async (req, res) => {
     const id = String(req.params.id);
     const input = parseOrThrow(bodySchema.partial(), req.body);
+    if (input.name) await assertIngredientFree(input.name, id);
 
     const result = await withMappedErrors(() =>
       prisma.activeIngredient.updateMany({

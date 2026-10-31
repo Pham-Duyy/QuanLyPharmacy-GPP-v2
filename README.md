@@ -20,6 +20,7 @@ Chưa có: sao lưu trong phần mềm, đơn đặt hàng gửi nhà cung cấp
 |---|---|
 | [docs/api-contract.md](docs/api-contract.md) | Contract có hiệu lực: endpoint, quyền, trạng thái, quy tắc nghiệp vụ |
 | [docs/erd.md](docs/erd.md) | Thiết kế CSDL ban đầu (v1.1, 41 bảng): ràng buộc, chỉ mục. Các bảng thêm sau đó chỉ có trong `server/prisma/schema.prisma` và migration |
+| [docs/phase7-nen-tang.md](docs/phase7-nen-tang.md) | Phase 7: kiểm tra dữ liệu nhập, sao lưu, MFA, đơn đặt hàng, khởi động bằng Docker |
 | [docs/restful-api-review.md](docs/restful-api-review.md) | Bản đặc tả API ban đầu, giữ để tham chiếu |
 
 Đọc contract trước khi viết bất kỳ endpoint nào.
@@ -173,6 +174,15 @@ npm test                 # kiểm thử đơn vị (vitest)
 npm run lint             # oxlint
 npm run format:check     # prettier cho .ts, .tsx, .css
 npm run build            # kiểm tra kiểu + đóng gói
+```
+
+Kiểm thử đầu cuối bằng trình duyệt thật: mở mọi trang bằng các tài khoản demo trên màn hình máy tính và điện thoại, báo lỗi JavaScript, lỗi API, trang tràn ngang. Cần phần mềm đang chạy và đã `npm run db:demo`:
+
+```bash
+cd e2e
+npm install
+npm run setup            # tải Chromium, chỉ lần đầu
+npm test                 # BASE_URL mặc định http://localhost:5173
 ```
 
 Kiểm thử chạy trên **PostgreSQL thật**, không dùng mock, vì phần lớn ràng buộc quan trọng của dự án nằm ở tầng CSDL: `CHECK` tồn không âm, khóa duy nhất `NULLS NOT DISTINCT`, khóa ngoại tổ hợp chặn bán lô của cửa hàng khác. Mock sẽ không bắt được những lỗi đó.

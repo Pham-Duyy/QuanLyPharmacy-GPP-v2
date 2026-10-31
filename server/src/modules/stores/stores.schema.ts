@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { optionalPhone } from "../../lib/validators.js";
 
 export const createStoreSchema = z.object({
   code: z
@@ -9,7 +10,7 @@ export const createStoreSchema = z.object({
     .regex(/^[A-Z0-9_-]+$/i, "Mã cửa hàng chỉ gồm chữ, số, gạch dưới, gạch ngang"),
   name: z.string().trim().min(1, "Thiếu tên cửa hàng").max(200),
   address: z.string().trim().max(300).nullish(),
-  phone: z.string().trim().max(20).nullish(),
+  phone: optionalPhone(),
   gppCertificateNumber: z.string().trim().max(100).nullish(),
   licenseNumber: z.string().trim().max(100).nullish(),
 });
@@ -17,7 +18,7 @@ export const createStoreSchema = z.object({
 export const patchStoreSchema = z.object({
   name: z.string().trim().min(1, "Thiếu tên cửa hàng").max(200).optional(),
   address: z.string().trim().max(300).nullish(),
-  phone: z.string().trim().max(20).nullish(),
+  phone: optionalPhone(),
   gppCertificateNumber: z.string().trim().max(100).nullish(),
   licenseNumber: z.string().trim().max(100).nullish(),
   version: z.coerce.number().int().positive("Thiếu version"),

@@ -26,6 +26,7 @@ import type {
 import { formatVnd } from "../../api/types.js";
 import { formatDateTime } from "../../ui/format.js";
 import { GENDER } from "./customer-labels.js";
+import { normalizeVnPhone, PHONE_MESSAGE } from "../../ui/validators";
 
 export function AnonymizeModal({
   open,
@@ -241,6 +242,7 @@ export function CustomerFormModal({
   const { message } = App.useApp();
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
+  const phoneInvalid = phone.trim() !== "" && normalizeVnPhone(phone) === null;
   const [birthYear, setBirthYear] = useState<number | null>(null);
   const [gender, setGender] = useState<string | undefined>(undefined);
   const [note, setNote] = useState("");
@@ -297,7 +299,7 @@ export function CustomerFormModal({
       onOk={() => save.mutate()}
       okText="Lưu"
       cancelText="Hủy"
-      okButtonProps={{ disabled: !fullName.trim() && !phone.trim() }}
+      okButtonProps={{ disabled: (!fullName.trim() && !phone.trim()) || phoneInvalid }}
       confirmLoading={save.isPending}
       title={customer ? "Sửa thông tin khách hàng" : "Thêm khách hàng"}
     >
@@ -319,7 +321,9 @@ export function CustomerFormModal({
               inputMode="tel"
               value={phone}
               onChange={(event) => setPhone(event.target.value)}
+              status={phoneInvalid ? "error" : undefined}
             />
+            {phoneInvalid && <small className="field-error">{PHONE_MESSAGE}</small>}
           </label>
           <label className="field">
             <span>Năm sinh</span>

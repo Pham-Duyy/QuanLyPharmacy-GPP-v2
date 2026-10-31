@@ -1,4 +1,5 @@
 import { prisma } from "../../db/prisma.js";
+import { MAX_CONVERSION, VAT_RATES } from "../../lib/validators.js";
 import { getCurrentPrices } from "../catalog/products.service.js";
 import {
   COMMIT_TIMEOUT_MS,
@@ -209,7 +210,13 @@ export const productsImport: ImportDefinition<ProductRowData> = {
     const notes: string[] = [];
     const planned: PlannedRow<ProductRowData>[] = [];
 
-    const codes = rows.map((row) => String(row.values["code"] ?? "").trim()).filter(Boolean);
+    const codes = rows
+      .map((row) =>
+        String(row.values["code"] ?? "")
+          .trim()
+          .toUpperCase(),
+      )
+      .filter(Boolean);
     const [existing, categories, ingredients] = await Promise.all([
       prisma.product.findMany({
         where: { code: { in: codes } },
@@ -255,7 +262,9 @@ export const productsImport: ImportDefinition<ProductRowData> = {
     for (const raw of rows) {
       const r = new RowReader(raw.rowNumber, headers);
       const v = raw.values;
-      const code = r.read("code", () => asText(v["code"], 50, "Mã sản phẩm"));
+      // Mã sản phẩm lưu chữ hoa: "th0001" và "TH0001" là một mã (D28).
+      const code =
+        r.read("code", () => asText(v["code"], 50, "Mã sản phẩm"))?.toUpperCase() ?? null;
       const name = r.read("name", () => asText(v["name"], 300, "Tên sản phẩm"));
       const productType = r.read("productType", () =>
         asChoice(v["productType"], "Loại hàng", PRODUCT_TYPE_CHOICES),
@@ -279,7 +288,9 @@ export const productsImport: ImportDefinition<ProductRowData> = {
       ] as const) {
         fields[key] = r.read(key, () => asText(v[key], max, label));
       }
-      const minStock = r.read("minStock", () => asInt(v["minStock"], "Tồn tối thiểu", { min: 0 }));
+      const minStock = r.read("minStock", () =>
+        asInt(v["minStock"], "Tồn tối thiểu", { min: 0, max: 10_000_000 }),
+      );
       const baseUnit = r.read("baseUnit", () => asText(v["baseUnit"], 50, "Đơn vị cơ bản"));
       let basePrice = r.read("basePrice", () =>
         asInt(v["basePrice"], "Giá bán đơn vị cơ bản", { min: 0 }),
@@ -287,13 +298,15 @@ export const productsImport: ImportDefinition<ProductRowData> = {
       const baseBarcode = r.read("baseBarcode", () => asText(v["baseBarcode"], 50, "Mã vạch"));
       const largeUnit = r.read("largeUnit", () => asText(v["largeUnit"], 50, "Đơn vị lớn"));
       const largeConversion = r.read("largeConversion", () =>
-        asInt(v["largeConversion"], "Quy đổi đơn vị lớn", { min: 2 }),
+        asInt(v["largeConversion"], "Quy đổi đơn vị lớn", { min: 2, max: MAX_CONVERSION }),
       );
       let largePrice = r.read("largePrice", () =>
         asInt(v["largePrice"], "Giá bán đơn vị lớn", { min: 0 }),
       );
       const largeBarcode = r.read("largeBarcode", () => asText(v["largeBarcode"], 50, "Mã vạch"));
       const vat = r.read("vat", () => asNumber(v["vat"], "VAT", { min: 0, max: 100 }));
+      if (vat !== null && !(VAT_RATES as readonly number[]).includes(vat))
+        r.fail("vat", `Thuế suất GTGT chỉ nhận ${VAT_RATES.join(", ")} %`);
       const status = r.read("status", () => asChoice(v["status"], "Trạng thái", STATUS_CHOICES));
 
       r.require("code", code);
@@ -318,6 +331,8 @@ export const productsImport: ImportDefinition<ProductRowData> = {
       ] as const) {
         if (!barcode) continue;
         if (barcode.length < 6) r.fail(key, "Mã vạch tối thiểu 6 ký tự");
+        else if (!/^[A-Za-z0-9-]+$/.test(barcode))
+          r.fail(key, "Mã vạch chỉ gồm chữ, số và gạch ngang");
         const seen = seenBarcodes.get(barcode);
         if (seen) r.fail(key, `Mã vạch ${barcode} trùng với dòng ${seen}`);
         seenBarcodes.set(barcode, raw.rowNumber);
