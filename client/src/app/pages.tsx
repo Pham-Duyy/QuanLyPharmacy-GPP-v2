@@ -1,4 +1,5 @@
 import {
+  AreaChartOutlined,
   AlertOutlined,
   ApiOutlined,
   AuditOutlined,
@@ -81,6 +82,13 @@ export const PAGES = [
       "dashboard trang chu bang dieu khien bang dieu hanh bi kpi doanh thu loi nhuan chuoi cua hang du bao viec can xu ly",
   },
   {
+    path: "/tro-ly-ai",
+    label: "Trợ lý AI",
+    icon: <RobotOutlined />,
+    permission: "report.ai",
+    keywords: "ai claude hoi dap tro chuyen chat phan tich doanh thu ton kho du bao",
+  },
+  {
     path: "/ban-hang",
     label: "Quầy bán",
     icon: <ShoppingCartOutlined />,
@@ -104,7 +112,7 @@ export const PAGES = [
   {
     path: "/tro-ly-phan-tich",
     label: "Trợ lý phân tích",
-    icon: <RobotOutlined />,
+    icon: <AreaChartOutlined />,
     permission: ["report.sales", "report.chain"],
     keywords: "ai phan tich du lieu bieu do xu huong csv hoi dap chuoi cua hang chi nhanh",
   },

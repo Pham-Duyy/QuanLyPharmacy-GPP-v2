@@ -14,7 +14,7 @@ import type { PagePath } from "./pages.js";
  * ở `pages.tsx`; mục nào ở đây cũng phải là đường dẫn đã đăng ký (kiểu
  * `PagePath` chặn ngay lúc biên dịch).
  *
- * 8 điểm vào chính theo công việc hằng ngày, Quản trị gập ở cuối. Việc dùng
+ * 9 điểm vào chính theo công việc hằng ngày (Trợ lý AI có mục riêng từ Phase 6.4), Quản trị gập ở cuối. Việc dùng
  * nhiều nhất (Tổng quan, Quầy bán, Khách hàng) đứng đầu, mở bằng một lần bấm;
  * phần còn lại tối đa hai lần: mở nhóm rồi chọn trang. Trong mỗi nhóm, trang
  * dùng thường xuyên đứng trước. Bảng điều hành nằm ngay trong Tổng quan.
@@ -32,6 +32,7 @@ export type SidebarEntry =
 
 export const SIDEBAR: readonly SidebarEntry[] = [
   { kind: "page", path: "/tai-khoan" },
+  { kind: "page", path: "/tro-ly-ai" },
   { kind: "page", path: "/ban-hang" },
   { kind: "page", path: "/khach-hang" },
   {

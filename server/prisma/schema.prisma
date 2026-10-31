@@ -1817,6 +1817,8 @@ model AiAgentLog {
   status           String
   answer           String?
   toolCalls        Json     @default("[]") @map("tool_calls")
+  /// Biểu đồ dựng từ kết quả tool (bước 6.4): số đã lọc quyền, hiện lại khi mở hội thoại cũ.
+  charts           Json     @default("[]")
   verification     Json?
   rounds           Int      @default(0)
   model            String?

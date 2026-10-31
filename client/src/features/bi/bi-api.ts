@@ -719,6 +719,8 @@ const TOOL_LABELS: Record<string, string> = {
   get_anomalies: "Bất thường",
   get_forecast: "Dự báo",
   get_data_quality: "Chất lượng dữ liệu",
+  get_reorder_suggestions: "Gợi ý đặt hàng",
+  get_abc_analysis: "Phân loại ABC",
   get_customer_debt: "Công nợ khách hàng",
   get_supplier_data: "Nhà cung cấp",
 };

@@ -175,6 +175,7 @@ function logData(input: LogInput) {
     status: input.status,
     answer: result?.answer ?? null,
     toolCalls: (result?.toolCalls ?? []) as object[],
+    charts: (result?.charts ?? []) as object[],
     verification: result?.verification ?? undefined,
     rounds: result?.rounds ?? 0,
     model: result?.model ?? null,
@@ -315,6 +316,7 @@ export async function askQuestion(
         error: result.error ?? null,
         verification: result.verification,
         toolCalls: result.toolCalls,
+        charts: result.charts,
         costUsd: result.costUsd,
         durationMs: result.durationMs,
       }),
@@ -355,6 +357,7 @@ function turnView(row: {
   error: string | null;
   verification: unknown;
   toolCalls: unknown;
+  charts: unknown;
   costUsd: number | { toString(): string } | null;
   durationMs: number;
 }) {
@@ -383,6 +386,8 @@ function turnView(row: {
         ...(error ? { error } : {}),
       }),
     ),
+    // Biểu đồ chỉ kèm câu đã trả lời hoặc bị chặn (kèm số liệu gốc); số lấy từ tool, không từ mô hình.
+    charts: status === "answered" || status === "blocked" ? ((row.charts ?? []) as unknown[]) : [],
     costUsd: row.costUsd === null ? null : Number(row.costUsd),
     durationMs: row.durationMs,
   };

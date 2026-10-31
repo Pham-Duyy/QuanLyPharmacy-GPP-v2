@@ -533,6 +533,12 @@ Bước:
 - **6.4 Trang "Trợ lý AI"** (mục riêng trên sidebar, giao diện kiểu Claude): cột lịch sử, khung trò chuyện, câu gợi ý,
   tiến trình tra cứu, dấu đối chiếu số, **biểu đồ trong câu trả lời** vẽ từ chính kết quả tool (không để AI tự vẽ số);
   bỏ tab "Hỏi AI" trên Tổng quan, nút "Hỏi AI" mở mục mới.
+  Đã làm: trang `/tro-ly-ai` (quyền `report.ai`, mục cấp đầu ngay dưới Tổng quan, sidebar thành 10 mục), code
+  `client/src/features/assistant/`. Câu trả lời hiển thị Markdown (bảng, danh sách) bằng `react-markdown` + `remark-gfm`.
+  Biểu đồ dựng ở máy chủ (`server/src/modules/bi/agent/charts.ts`) từ kết quả tool đã lọc quyền: xu hướng doanh thu
+  (đường), cơ cấu, xếp hạng thuốc, nhu cầu (thanh), dự báo doanh thu (nét đứt + dải tin cậy); tối đa 3 biểu đồ mỗi câu,
+  lưu cột `ai_agent_logs.charts` (migration `20261101150000_ai_answer_charts`) để mở lại hội thoại cũ vẫn thấy. Câu bị
+  chặn vẫn kèm biểu đồ vì số trong biểu đồ lấy từ tool, không từ mô hình.
 - **6.5 Trang Quản trị "Phân tích & AI"**: nguồn số liệu, hạn mức AI, nhật ký AI (D27).
 - **6.6 Đính kèm tệp Excel/CSV** trong Trợ lý AI (thay trang "Trợ lý phân tích": trang cũ chỉ có 4 cột thời điểm, cửa
   hàng, doanh thu, số hóa đơn nên không trả lời được theo nhóm thuốc, sản phẩm, lợi nhuận); bỏ trang cũ khỏi sidebar.
@@ -575,7 +581,7 @@ Bước:
 | 6.1 | Quyền: `report.ai`, ẩn lợi nhuận khi thiếu `stock.cost.read`, dược sĩ xem Bảng điều hành cửa hàng mình (D23–D25) | Xong |
 | 6.2 | Cấu hình AI: bật/tắt, câu/giờ, ngân sách 10 USD/tháng, chặn trước khi gọi Claude (D26) | Xong |
 | 6.3 | Lịch sử hội thoại 30 ngày, tiến trình tra cứu (SSE), API nhật ký AI | Xong |
-| 6.4 | Trang "Trợ lý AI" kiểu Claude, biểu đồ trong câu trả lời; bỏ tab Hỏi AI | Chưa làm |
+| 6.4 | Trang "Trợ lý AI" kiểu Claude, biểu đồ trong câu trả lời; bỏ tab Hỏi AI | Xong |
 | 6.5 | Trang Quản trị "Phân tích & AI": nguồn số liệu, hạn mức AI, nhật ký AI (D27) | Chưa làm |
 | 6.6 | Đính kèm tệp Excel/CSV trong Trợ lý AI, bỏ trang "Trợ lý phân tích" cũ | Chưa làm |
 

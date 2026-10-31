@@ -13,6 +13,11 @@ export function setAccessToken(token: string | null): void {
   accessToken = token;
 }
 
+/** Cho request không đi qua axios (luồng Server-Sent Events dùng fetch). */
+export function getAccessToken(): string | null {
+  return accessToken;
+}
+
 export function setCurrentStoreId(storeId: string | null): void {
   currentStoreId = storeId;
 }

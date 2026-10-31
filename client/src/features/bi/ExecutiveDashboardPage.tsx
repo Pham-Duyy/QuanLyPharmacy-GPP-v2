@@ -11,12 +11,12 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { Alert, App, Button, Result, Segmented, Select, Skeleton, Table, Tabs, Tag } from "antd";
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useNavigate } from "react-router";
 import { getErrorMessage } from "../../api/http.js";
 import { formatNumber } from "../../ui/format.js";
 import { PageHeader } from "../../ui/PageHeader.js";
 import { StatCard, StatGrid, Trend } from "../../ui/StatCard.js";
 import { LineChart, RankBars } from "../analytics/AnalysisCharts.js";
-import { AgentPanel } from "./AgentPanel.js";
 import { AbcTab, ReorderTab } from "./PlanningTabs.js";
 import {
   AlertsPanel,
@@ -76,6 +76,7 @@ export function ExecutiveDashboardPage({
   storeWork?: ReactNode;
 }) {
   const { message } = App.useApp();
+  const navigate = useNavigate();
   const [period, setPeriod] = useState<Period>("day");
   const [chosenStore, setChosenStore] = useState<string | null>(null);
   const [tab, setTab] = useState("overview");
@@ -187,7 +188,11 @@ export function ExecutiveDashboardPage({
               onChange={(value) => setPeriod(value as Period)}
             />
             {ready && canAsk ? (
-              <Button className="bi-ask" icon={<RobotOutlined />} onClick={() => openTab("agent")}>
+              <Button
+                className="bi-ask"
+                icon={<RobotOutlined />}
+                onClick={() => void navigate(`/tro-ly-ai?store=${encodeURIComponent(store)}`)}
+              >
                 Hỏi AI
               </Button>
             ) : null}
@@ -439,19 +444,6 @@ export function ExecutiveDashboardPage({
                 label: "ABC",
                 children: <AbcTab store={store} version={v} />,
               },
-              ...(canAsk
-                ? [
-                    {
-                      key: "agent",
-                      label: (
-                        <span>
-                          <RobotOutlined /> Hỏi AI
-                        </span>
-                      ),
-                      children: <AgentPanel store={store} inventoryAllowed={inventoryAllowed} />,
-                    },
-                  ]
-                : []),
             ]}
           />
         </>

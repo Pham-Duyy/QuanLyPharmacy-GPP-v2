@@ -11,6 +11,7 @@ import type {
 import { env } from "../../../config/env.js";
 import { AppError } from "../../../lib/app-error.js";
 import type { BiAccess } from "../bi.service.js";
+import { collectCharts, type AnswerChart } from "./charts.js";
 import { runTool, toolDefinitions } from "./tools.js";
 import { collectFacts, correctionTurn, verifyAnswer, type Verification } from "./verify.js";
 
@@ -110,6 +111,8 @@ export type AgentResult = {
   /** Nội dung lượt Claude cuối cùng, nguyên khối: dùng để đối chiếu và sửa lại (bước 4.3). */
   finalContent: BetaContentBlock[];
   toolCalls: AgentToolCall[];
+  /** Biểu đồ dựng từ kết quả tool đã chạy (bước 6.4), không phải do mô hình vẽ. */
+  charts: AnswerChart[];
   rounds: number;
   usage: AgentUsage;
   /** Ước tính theo bảng giá; null nếu mô hình trả lời không có trong bảng. */
@@ -281,6 +284,13 @@ export async function askAgent(options: {
   let finalContent: BetaContentBlock[] = [];
   let verification: AgentResult["verification"] = null;
 
+  // Kết quả tool (đã lọc quyền) để dựng biểu đồ; không lưu vào nhật ký.
+  const chartSources: Array<{
+    name: string;
+    input: unknown;
+    ok: boolean;
+    content: Record<string, unknown>;
+  }> = [];
   const finish = (status: AgentStatus, error?: string): AgentResult => ({
     status,
     answer: status === "answered" ? textOf(finalContent) || null : null,
@@ -288,6 +298,7 @@ export async function askAgent(options: {
     verification,
     finalContent,
     toolCalls,
+    charts: collectCharts(chartSources),
     rounds,
     usage,
     costUsd: costUsd(model, usage),
@@ -401,6 +412,12 @@ export async function askAgent(options: {
           content: JSON.stringify({ error: "Không chạy: đã hết lượt gọi tool cho câu hỏi này" }),
         };
       }
+      chartSources.push({
+        name: outcome.name,
+        input: outcome.input,
+        ok: outcome.ok,
+        content: outcome.content,
+      });
       toolCalls.push({
         round: rounds,
         name: outcome.name,

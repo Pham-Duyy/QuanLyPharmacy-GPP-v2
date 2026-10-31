@@ -73,8 +73,9 @@ describe("danh sách đăng ký trang", () => {
     }
   });
 
-  it("cấp đầu tối đa 9 mục, mỗi nhóm tối đa 6 trang", () => {
-    expect(SIDEBAR.length).toBeLessThanOrEqual(9);
+  // 10 mục từ Phase 6.4: Trợ lý AI có mục riêng ngay dưới Tổng quan.
+  it("cấp đầu tối đa 10 mục, mỗi nhóm tối đa 6 trang", () => {
+    expect(SIDEBAR.length).toBeLessThanOrEqual(10);
     for (const entry of SIDEBAR)
       if (entry.kind === "group") expect(entry.paths.length).toBeLessThanOrEqual(6);
   });
@@ -174,8 +175,19 @@ describe("sidebar theo quyền", () => {
     expect(admin?.kind === "group" ? admin.pages.map((page) => page.path) : []).toEqual(["/excel"]);
   });
 
-  it("người đủ quyền thấy 9 mục cấp đầu", () => {
-    expect(visibleSidebar(ALL)).toHaveLength(9);
+  it("người đủ quyền thấy 10 mục cấp đầu", () => {
+    expect(visibleSidebar(ALL)).toHaveLength(10);
+  });
+
+  it("Trợ lý AI ngay dưới Tổng quan, chỉ người có report.ai thấy", () => {
+    expect(SIDEBAR[1]).toEqual({ kind: "page", path: "/tro-ly-ai" });
+    const paths = (can: Parameters<typeof visibleSidebar>[0]) =>
+      visibleSidebar(can).flatMap((entry) =>
+        entry.kind === "page" ? [entry.page.path] : entry.pages.map((page) => page.path),
+      );
+    expect(paths(canFor("admin"))).toContain("/tro-ly-ai");
+    expect(paths(canFor("auditor"))).not.toContain("/tro-ly-ai");
+    expect(paths(canFor("pharmacist"))).not.toContain("/tro-ly-ai");
   });
 
   it("nhóm Báo cáo: báo cáo kinh doanh, tổng kết tháng, trợ lý phân tích (Bảng điều hành nằm trong Tổng quan)", () => {
