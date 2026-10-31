@@ -436,6 +436,8 @@ export type AgentReply = {
   status: AgentStatus;
   answer: string | null;
   notice: string | null;
+  /** Lý do cụ thể khi không gọi được Claude (khóa sai, hết tiền...). */
+  detail?: string | null;
   verification: AgentVerification | null;
   toolCalls: AgentToolCall[];
   rounds: number;

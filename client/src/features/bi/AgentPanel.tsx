@@ -232,6 +232,7 @@ function ReplyView({ reply }: { reply: AgentReply }) {
           type={reply.status === "blocked" ? "warning" : "info"}
           showIcon
           title={reply.notice}
+          description={reply.detail ?? undefined}
         />
       )}
       <Space wrap size={[6, 6]}>

@@ -272,3 +272,18 @@ describe("POST /api/v1/bi/ask", () => {
     expect(await prisma.aiAgentLog.count()).toBe(0);
   });
 });
+
+describe("lý do không gọi được Claude", () => {
+  it("giải thích lỗi thường gặp, không lộ khóa", async () => {
+    const { explainAgentError } = await import("./agent.service.js");
+    expect(explainAgentError("Claude API lỗi 401: invalid x-api-key")).toContain(
+      "API key không hợp lệ",
+    );
+    expect(explainAgentError("Claude API lỗi 400: Your credit balance is too low")).toContain(
+      "chưa đủ tiền",
+    );
+    expect(explainAgentError("Claude API lỗi 529: Overloaded")).toContain("quá tải");
+    expect(explainAgentError("Claude API lỗi 418: lạ")).toBe("lạ");
+    expect(explainAgentError(undefined)).toBeNull();
+  });
+});

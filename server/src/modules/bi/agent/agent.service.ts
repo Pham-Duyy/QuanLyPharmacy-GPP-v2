@@ -41,6 +41,31 @@ const NOTICES: Record<Exclude<AgentStatus, "answered">, string> = {
   unavailable: "Không kết nối được dịch vụ AI. Hãy thử lại sau ít phút.",
 };
 
+/**
+ * Lý do Claude API từ chối, viết cho người quản trị tự sửa được (không chứa khóa).
+ * `error` của vòng lặp có dạng "Claude API lỗi 401: ...".
+ */
+export function explainAgentError(error: string | undefined): string | null {
+  if (!error) return null;
+  const status = Number(/lỗi (\d{3})/.exec(error)?.[1] ?? 0);
+  const raw = error.replace(/^Claude API lỗi \d{3}:\s*/, "").slice(0, 200);
+  const hint =
+    status === 401
+      ? "API key không hợp lệ hoặc đã bị xóa. Cần khóa tạo ở console.anthropic.com → API Keys (dạng sk-ant-api03-…) trong ANTHROPIC_API_KEY."
+      : status === 400 && /credit|balance|billing/i.test(error)
+        ? "Tài khoản Anthropic chưa đủ tiền: nạp ở console.anthropic.com → Billing."
+        : status === 403
+          ? "Khóa không có quyền dùng mô hình hoặc tính năng này."
+          : status === 404
+            ? "Không tìm thấy mô hình: kiểm tra ANALYTICS_AI_MODEL."
+            : status === 429
+              ? "Gọi quá nhanh hoặc vượt hạn mức của tài khoản: thử lại sau ít phút."
+              : status >= 500
+                ? "Dịch vụ Claude đang quá tải hoặc gặp sự cố: thử lại sau ít phút."
+                : null;
+  return hint ? `${hint} (${raw})` : raw;
+}
+
 /** Một người chỉ chạy một câu một lúc: tránh hai câu cùng nối vào một hội thoại. */
 const inFlight = new Set<string>();
 
@@ -227,6 +252,8 @@ export async function askQuestion(
       status: result.status,
       answer: result.status === "answered" ? result.answer : null,
       notice: result.status === "answered" ? null : NOTICES[result.status],
+      // Lý do cụ thể khi không gọi được Claude (khóa sai, hết tiền...): người quản trị tự sửa được.
+      detail: result.status === "unavailable" ? explainAgentError(result.error) : null,
       verification: result.verification,
       toolCalls: result.toolCalls.map(({ name, input, ok, durationMs, error }) => ({
         name,
