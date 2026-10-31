@@ -22,6 +22,13 @@ const createSchema = z.object({
   licenseNumber: z.string().trim().max(50).nullish(),
   address: z.string().trim().max(500).nullish(),
   phone: optionalPhone(),
+  /** Email nhận đơn đặt hàng (Phase 7, D32). */
+  email: z
+    .email("Email không hợp lệ")
+    .trim()
+    .max(200)
+    .nullish()
+    .or(z.literal("").transform(() => null)),
 });
 
 /**
@@ -112,6 +119,7 @@ suppliersRouter.post("/suppliers", requirePermission("catalog.manage"), async (r
         licenseNumber: input.licenseNumber ?? null,
         address: input.address ?? null,
         phone: input.phone ?? null,
+        email: input.email ?? null,
       },
     }),
   );

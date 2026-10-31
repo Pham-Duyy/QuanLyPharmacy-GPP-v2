@@ -21,7 +21,7 @@ Mục tiêu: bù các chức năng nền còn thiếu sau lần đánh giá ph�
 | 7.2 | Chủ nhà thuốc kiêm dược sĩ: trang Quầy bán giải thích, tự thêm vai trò Dược sĩ, Hướng dẫn sử dụng (D29) | Xong |
 | 7.3 | Sao lưu trong phần mềm, lịch tự động, trang Sao lưu, lệnh phục hồi (D30) | Xong |
 | 7.4 | Xác thực hai lớp TOTP, mã dự phòng, đặt lại, cài đặt bắt buộc (D31) | Xong |
-| 7.5 | Đơn đặt hàng gửi nhà cung cấp, email SMTP, tạo phiếu nhập từ đơn (D32) | Chưa làm |
+| 7.5 | Đơn đặt hàng gửi nhà cung cấp, email SMTP, tạo phiếu nhập từ đơn (D32) | Xong |
 | 7.6 | Docker Compose chạy cả 3 thành phần, hướng dẫn cài đặt (D33) | Chưa làm |
 
 ## Kết quả rà soát 7.1
@@ -77,3 +77,14 @@ Test: `server/src/modules/backup/backup.test.ts` (sao lưu – phục hồi kh�
 - **Rủi ro đã biết**: khóa MFA và mã dự phòng đều dẫn xuất từ `JWT_SECRET`. Đổi `JWT_SECRET` thì cả mã 6 số lẫn mã dự phòng không dùng được nữa; quản lý phải đặt lại MFA cho từng người (người đặt lại cũng cần đăng nhập được, nên đổi `JWT_SECRET` khi chính sách bắt buộc đang tắt). Ghi trong contract §3.
 
 Test: `server/src/lib/totp.test.ts` (bảng kiểm thử RFC), `server/src/modules/auth/mfa.test.ts` (bật, đăng nhập hai bước, chặn dùng lại mã, mã dự phòng, giới hạn thử, tắt, đặt lại, bắt buộc với Quản lý, quyền), `client/src/features/auth/mfa-api.test.ts`. Đã chạy thử trên trình duyệt: bật bằng mã tính từ khóa, đăng nhập hai bước, mã sai, mã dự phòng, bật bắt buộc rồi bị đưa vào màn bật MFA, đặt lại cho nhân viên.
+
+## Đơn đặt hàng (7.5)
+
+- **Lưu trữ**: migration `20261103090000_purchase_orders` (bảng `purchase_orders`, `purchase_order_lines`, cột `suppliers.email`, `goods_receipts.purchase_order_id`) và `20261103100000_receipt_line_passed` (cột `goods_receipt_lines.passed`: dòng không đạt vẫn vào lô biệt trữ nên không suy ra được từ lô).
+- **Số đã nhận không lưu riêng**: tính từ dòng đạt của phiếu nhập đã xác nhận gắn với đơn, nên không lệch với tồn kho. Xác nhận phiếu thì tính lại trạng thái đơn trong cùng giao dịch.
+- **Quyền**: dùng lại quyền phiếu nhập, không thêm quyền mới. Lập, sửa nháp: `goods_receipt.create` (dược sĩ, nhân viên kho, quản lý). Gửi và hủy là cam kết mua: `goods_receipt.confirm` (quản lý).
+- **Email**: thư viện `nodemailer` 10.3.1, ghim đúng phiên bản. Các bản 10.1.3 trở về trước có lỗ hổng đã công bố (GHSA-p6gq-j5cr-w38f, GHSA-8m3c-c648-2xjj); mọi bản đã vá đều mới phát hành dưới hai tuần, chọn bản mới nhất vì bản vá quan trọng hơn độ "chín" của phiên bản. Phần mềm còn tắt đọc tệp và tải URL trong thư (`disableFileAccess`, `disableUrlAccess`). Chưa đặt `SMTP_HOST` thì chỉ in / tải Excel.
+- **Mẫu in**: thêm loại "Đơn đặt hàng" vào Cài đặt → Mẫu in phiếu (khổ A4/A5, tiêu đề, lời cuối, chữ ký).
+
+Test: `server/src/modules/inventory/purchase-orders.test.ts` (lập, sửa, quyền gửi, email qua transport giả, chưa cấu hình SMTP, in, Excel, nhận một phần / nhận đủ, dòng không đạt không tính, chặn lập phiếu từ đơn nháp hoặc sai nhà cung cấp, không thấy đơn cửa hàng khác), `client/src/features/purchase-orders/purchase-orders-api.test.ts`. Chạy thử trên trình duyệt: lập đơn tay, gửi (tự gửi), tải Excel, xem trước bản in, lập phiếu nhập từ đơn.
+

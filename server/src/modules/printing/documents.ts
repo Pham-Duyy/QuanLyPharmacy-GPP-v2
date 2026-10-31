@@ -2,6 +2,7 @@ import { prisma } from "../../db/prisma.js";
 import { AppError } from "../../lib/app-error.js";
 import * as receipts from "../inventory/goods-receipts.service.js";
 import * as adjustments from "../inventory/stock-adjustments.service.js";
+import * as purchaseOrders from "../inventory/purchase-orders.service.js";
 import * as returns from "../sales/returns.service.js";
 import type { DocumentType } from "../settings/document-print.schema.js";
 import type { PrintDocument } from "./document-print.js";
@@ -381,6 +382,111 @@ function stockTransferDocument(item: TransferForPrint): PrintDocument {
 }
 
 // ---------------------------------------------------------------------------
+// Đơn đặt hàng gửi nhà cung cấp (Phase 7, D32)
+// ---------------------------------------------------------------------------
+
+type OrderForPrint = {
+  code: string;
+  status: string;
+  supplier: {
+    name: string;
+    taxCode: string | null;
+    phone: string | null;
+    email: string | null;
+    address: string | null;
+  };
+  store: { name: string; address: string | null; phone: string | null };
+  expectedDate: Date | string | null;
+  note: string | null;
+  estimatedAmount: number;
+  createdAt: Date | string;
+  createdBy: { fullName: string } | null;
+  sentBy: { fullName: string } | null;
+  cancelReason: string | null;
+  lines: Array<{
+    productCode: string;
+    productName: string;
+    unitName: string;
+    quantity: number;
+    unitPrice: number | null;
+    lineAmount: number | null;
+  }>;
+};
+
+/** Đơn gửi nhà cung cấp: không in tồn kho hay giá bán, chỉ hàng cần mua và giá dự kiến. */
+export function purchaseOrderDocument(order: OrderForPrint): PrintDocument {
+  const stamp =
+    order.status === "DRAFT"
+      ? "Bản nháp — chưa gửi nhà cung cấp"
+      : order.status === "CANCELLED"
+        ? `Đơn đã hủy${order.cancelReason ? `: ${order.cancelReason}` : ""}`
+        : null;
+  const hasPrice = order.lines.some((line) => line.unitPrice !== null);
+  return {
+    code: order.code,
+    date: order.createdAt,
+    stamp,
+    info: [
+      { label: "Kính gửi", value: order.supplier.name },
+      { label: "Mã số thuế", value: order.supplier.taxCode },
+      { label: "Điện thoại", value: order.supplier.phone },
+      {
+        label: "Giao hàng tới",
+        value: [order.store.name, order.store.address].filter(Boolean).join(" – "),
+      },
+      { label: "Điện thoại nhận hàng", value: order.store.phone },
+      {
+        label: "Ngày giao dự kiến",
+        value: order.expectedDate ? printDate(order.expectedDate) : null,
+      },
+    ],
+    columns: [
+      { label: "Mã hàng", role: "detail", nowrap: true },
+      { label: "Tên hàng", role: "name" },
+      { label: "ĐVT", role: "detail", align: "center" },
+      { label: "Số lượng", role: "detail", align: "right" },
+      ...(hasPrice
+        ? ([
+            { label: "Đơn giá dự kiến", role: "detail", align: "right" },
+            { label: "Thành tiền", role: "amount", align: "right" },
+          ] as const)
+        : []),
+    ],
+    rows: order.lines.map((line) => [
+      line.productCode,
+      line.productName,
+      line.unitName,
+      num(line.quantity),
+      ...(hasPrice
+        ? [
+            line.unitPrice === null ? "" : money(line.unitPrice),
+            line.lineAmount === null ? "" : money(line.lineAmount),
+          ]
+        : []),
+    ]),
+    totals: [
+      { label: "Số mặt hàng", value: num(order.lines.length) },
+      ...(hasPrice
+        ? [{ label: "Tổng tiền tạm tính", value: money(order.estimatedAmount), strong: true }]
+        : []),
+    ],
+    amountInWords: hasPrice ? order.estimatedAmount : null,
+    note: order.note,
+    signatures: [
+      { title: "Người lập đơn", name: order.createdBy?.fullName },
+      { title: "Người duyệt", name: order.sentBy?.fullName },
+    ],
+  };
+}
+
+export async function loadPurchaseOrderDocument(
+  storeId: string,
+  id: string,
+): Promise<PrintDocument> {
+  return purchaseOrderDocument(await purchaseOrders.getDetail(storeId, id));
+}
+
+// ---------------------------------------------------------------------------
 // Nạp dữ liệu thật
 // ---------------------------------------------------------------------------
 
@@ -574,6 +680,46 @@ export function sampleDocument(type: DocumentType): PrintDocument {
           quantity: 2,
           refundAmount: 30_000,
           batchNumber: "HP2409A",
+        },
+      ],
+    });
+  }
+
+  if (type === "purchaseOrder") {
+    return purchaseOrderDocument({
+      code: "DH-NT01-260917-0001",
+      status: "SENT",
+      supplier: {
+        name: "Công ty CP Dược phẩm Trung ương CPC1",
+        taxCode: "0100108536",
+        phone: "02438123456",
+        email: "donhang@cpc1.vn",
+        address: "87 Nguyễn Văn Trỗi, Hà Nội",
+      },
+      store: { name: "Nhà thuốc GPP số 1", address: "12 Lê Lợi, Q.1, TP.HCM", phone: "0901234567" },
+      expectedDate: new Date(now.getTime() + 3 * 86_400_000),
+      note: "Giao giờ hành chính, gọi trước khi giao.",
+      estimatedAmount: 20 * 28_000 + 5 * 215_000,
+      createdAt: now,
+      createdBy: { fullName: "Lê Văn Kho" },
+      sentBy: { fullName: "Nguyễn Thị Dược" },
+      cancelReason: null,
+      lines: [
+        {
+          productCode: "TH0001",
+          productName: "Paracetamol 500mg (Hapacol)",
+          unitName: "Hộp",
+          quantity: 20,
+          unitPrice: 28_000,
+          lineAmount: 560_000,
+        },
+        {
+          productCode: "TH0002",
+          productName: "Amoxicillin + Acid Clavulanic 875mg/125mg (Augmentin)",
+          unitName: "Hộp",
+          quantity: 5,
+          unitPrice: 215_000,
+          lineAmount: 1_075_000,
         },
       ],
     });

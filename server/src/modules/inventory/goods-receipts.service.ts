@@ -3,6 +3,10 @@ import { prisma } from "../../db/prisma.js";
 import { AppError } from "../../lib/app-error.js";
 import { markIdempotentResource } from "../../lib/idempotency-context.js";
 import { codeDay, nextDocumentCode } from "../../lib/document-code.js";
+import {
+  assertReceivable,
+  refreshStatus as refreshOrderStatus,
+} from "./purchase-orders.service.js";
 import { addToBatch, insertBatchIfAbsent, readBatchByNumber } from "./batch-value.js";
 import { placeBatch } from "./shelf-location.js";
 import { businessDateNow } from "../../lib/settings.js";
@@ -106,6 +110,8 @@ export async function createDraft(
   const store = await prisma.store.findUniqueOrThrow({ where: { id: storeId } });
 
   const receipt = await prisma.$transaction(async (tx) => {
+    if (input.purchaseOrderId)
+      await assertReceivable(tx, storeId, input.purchaseOrderId, input.supplierId);
     const lines = await resolveLines(tx, input.lines);
     const amounts = receiptAmounts(
       lines.reduce((sum, line) => sum + line.lineCost, 0n),
@@ -119,6 +125,7 @@ export async function createDraft(
         code: await nextReceiptCode(tx, storeId, store.code),
         type: "PURCHASE",
         supplierId: input.supplierId,
+        purchaseOrderId: input.purchaseOrderId ?? null,
         supplierInvoiceNumber: input.supplierInvoiceNumber ?? null,
         supplierInvoiceDate: input.supplierInvoiceDate ?? null,
         receivedAt: input.receivedAt,
@@ -419,6 +426,13 @@ export async function confirm(
           balanceAfter,
         });
       }
+
+      // Phiếu lập từ đơn đặt hàng: cập nhật Nhận một phần / Đã nhận đủ (Phase 7, D32).
+      const link = await tx.goodsReceipt.findUniqueOrThrow({
+        where: { id: receiptId },
+        select: { purchaseOrderId: true },
+      });
+      if (link.purchaseOrderId) await refreshOrderStatus(tx, link.purchaseOrderId);
     },
     { timeout: 20_000 },
   );
@@ -439,7 +453,10 @@ async function afterBatchWrite(
 ): Promise<void> {
   const { storeId, userId, receiptId, line, result, batchId, balanceAfter } = context;
 
-  await tx.goodsReceiptLine.update({ where: { id: line.id }, data: { batchId } });
+  await tx.goodsReceiptLine.update({
+    where: { id: line.id },
+    data: { batchId, passed: result.passed },
+  });
 
   await tx.stockMovement.create({
     data: {
@@ -516,6 +533,7 @@ export async function getDetail(storeId: string, receiptId: string) {
       createdByUser: { select: { id: true, fullName: true } },
       confirmedByUser: { select: { id: true, fullName: true } },
       cancelledByUser: { select: { id: true, fullName: true } },
+      purchaseOrder: { select: { id: true, code: true } },
       lines: {
         orderBy: { lineNo: "asc" },
         include: {
@@ -575,6 +593,7 @@ export async function getDetail(storeId: string, receiptId: string) {
     cancelledAt: receipt.cancelledAt,
     cancelledBy: receipt.cancelledByUser,
     cancelReason: receipt.cancelReason,
+    purchaseOrder: receipt.purchaseOrder,
     complianceWarnings,
     lines: receipt.lines.map((line) => ({
       id: line.id,

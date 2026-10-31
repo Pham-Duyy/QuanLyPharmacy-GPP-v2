@@ -291,6 +291,7 @@ type SupplierForm = {
   taxCode?: string;
   licenseNumber?: string;
   address?: string;
+  email?: string;
 };
 function SupplierFormModal({
   open,
@@ -313,6 +314,7 @@ function SupplierFormModal({
         taxCode: values.taxCode?.trim() || null,
         licenseNumber: values.licenseNumber?.trim() || null,
         address: values.address?.trim() || null,
+        email: values.email?.trim() || null,
       };
       if (supplier)
         await http.patch(`/suppliers/${supplier.id}`, { ...body, version: supplier.version });
@@ -346,6 +348,7 @@ function SupplierFormModal({
             taxCode: supplier?.taxCode ?? "",
             licenseNumber: supplier?.licenseNumber ?? "",
             address: supplier?.address ?? "",
+            email: supplier?.email ?? "",
           });
       }}
       destroyOnHidden
@@ -373,6 +376,15 @@ function SupplierFormModal({
           <Col xs={24} sm={16}>
             <Form.Item name="address" label="Địa chỉ">
               <Input placeholder="Số nhà, đường, tỉnh/thành phố" />
+            </Form.Item>
+          </Col>
+          <Col xs={24}>
+            <Form.Item
+              name="email"
+              label="Email nhận đơn đặt hàng"
+              rules={[{ type: "email", message: "Email không hợp lệ" }]}
+            >
+              <Input type="email" placeholder="donhang@congty.vn" />
             </Form.Item>
           </Col>
         </Row>

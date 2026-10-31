@@ -16,6 +16,7 @@ export const printUrl = {
   return: (id: string) => `/returns/${id}/print`,
   stockAdjustment: (id: string) => `/stock-adjustments/${id}/print`,
   stockTransfer: (id: string) => `/stock-transfers/${id}/print`,
+  purchaseOrder: (id: string) => `/purchase-orders/${id}/print`,
 };
 
 /** Mẫu in hóa đơn đang áp dụng tại cửa hàng hiện tại; nhân viên bán hàng cũng đọc được. */

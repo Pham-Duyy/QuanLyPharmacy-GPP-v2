@@ -1,4 +1,10 @@
-import { CarOutlined, InboxOutlined, RollbackOutlined, SwapOutlined } from "@ant-design/icons";
+import {
+  CarOutlined,
+  InboxOutlined,
+  RollbackOutlined,
+  CarryOutOutlined,
+  SwapOutlined,
+} from "@ant-design/icons";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Alert,
@@ -89,6 +95,17 @@ const TYPES: Record<DocumentPrintType, TypeMeta> = {
     papers: ["A4", "A5"],
     titles: ["PHIẾU CHUYỂN KHO", "PHIẾU ĐIỀU CHUYỂN HÀNG HÓA", "BIÊN BẢN GIAO NHẬN HÀNG"],
     hasAmount: false,
+    hasNote: true,
+  },
+  purchaseOrder: {
+    label: "Đơn đặt hàng",
+    short: "Đặt hàng",
+    icon: <CarryOutOutlined />,
+    description:
+      "In, lưu PDF hoặc gửi email nhà cung cấp từ màn Đơn đặt hàng: mặt hàng, số lượng, giá dự kiến, nơi giao.",
+    papers: ["A4", "A5"],
+    titles: ["ĐƠN ĐẶT HÀNG", "ĐƠN ĐẶT MUA HÀNG", "PHIẾU ĐẶT HÀNG"],
+    hasAmount: true,
     hasNote: true,
   },
 };

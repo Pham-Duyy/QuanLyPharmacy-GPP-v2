@@ -1,12 +1,14 @@
 import {
   InboxOutlined,
   SearchOutlined,
+  SendOutlined,
   SettingOutlined,
   ShoppingOutlined,
 } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
 import {
   Alert,
+  App,
   Button,
   Card,
   Empty,
@@ -92,6 +94,7 @@ const REASON: Record<Reason, { label: string; color: string }> = {
 
 export function PurchaseSuggestionsPage() {
   const { can } = useAuth();
+  const { message } = App.useApp();
   const navigate = useNavigate();
   const [windowDays, setWindowDays] = useState(30);
   const [coverDays, setCoverDays] = useState(30);
@@ -141,6 +144,36 @@ export function PurchaseSuggestionsPage() {
     chosen.length > 0 &&
     chosenSuppliers.length === 1 &&
     chosenSuppliers[0] !== "none";
+
+  // Đơn đặt hàng gom được nhiều nhà cung cấp: mỗi nhà cung cấp thành một đơn (Phase 7, D32).
+  const canCreateOrders =
+    can("goods_receipt.create") && chosen.length > 0 && !chosenSuppliers.includes("none");
+  const [creatingOrders, setCreatingOrders] = useState(false);
+
+  async function createOrders() {
+    setCreatingOrders(true);
+    try {
+      const response = await http.post<Envelope<{ ids: string[] }>>(
+        "/purchase-orders/from-suggestions",
+        {
+          items: chosen.map((item) => ({
+            supplierId: item.lastSupplier!.id,
+            productId: item.productId,
+            unitId: item.orderUnit.id,
+            quantity: quantityOf(item),
+            unitPrice: item.lastUnitCost,
+          })),
+        },
+      );
+      void message.success(`Đã lập ${response.data.data.ids.length} đơn đặt hàng nháp`);
+      setSelected([]);
+      void navigate("/don-dat-hang");
+    } catch (error) {
+      void message.error(getErrorMessage(error, "Không lập được đơn đặt hàng"));
+    } finally {
+      setCreatingOrders(false);
+    }
+  }
 
   const prefill = canCreateReceipt
     ? {
@@ -348,6 +381,24 @@ export function PurchaseSuggestionsPage() {
               label="Xuất đơn đặt hàng"
               tooltip="Xuất danh sách cần đặt, xếp theo nhà cung cấp để gọi hàng"
             />
+            <Tooltip
+              title={
+                chosen.length === 0
+                  ? "Chọn các dòng cần đặt trước"
+                  : chosenSuppliers.includes("none")
+                    ? "Có mặt hàng chưa từng nhập nên chưa biết nhà cung cấp; lập đơn tay ở trang Đơn đặt hàng"
+                    : "Mỗi nhà cung cấp thành một đơn nháp, soát lại rồi gửi"
+              }
+            >
+              <Button
+                icon={<SendOutlined />}
+                disabled={!canCreateOrders}
+                loading={creatingOrders}
+                onClick={() => void createOrders()}
+              >
+                Lập đơn đặt hàng {chosen.length > 0 ? `(${chosen.length})` : ""}
+              </Button>
+            </Tooltip>
             <Tooltip
               title={
                 chosen.length === 0

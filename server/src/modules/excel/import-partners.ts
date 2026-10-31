@@ -37,6 +37,7 @@ export const SUPPLIER_COLUMNS: ColumnDef[] = [
   { key: "licenseNumber", header: "Số giấy phép kinh doanh dược", width: 24 },
   { key: "address", header: "Địa chỉ", width: 40 },
   { key: "phone", header: "Điện thoại", width: 16 },
+  { key: "email", header: "Email nhận đơn hàng", width: 26 },
   {
     key: "status",
     header: "Trạng thái",
@@ -99,7 +100,10 @@ export const suppliersImport: ImportDefinition<SupplierRow> = {
         ),
         address: r.read("address", () => asText(v["address"], 500, "Địa chỉ")),
         phone: r.read("phone", () => asPhone(v["phone"])),
+        email: r.read("email", () => asText(v["email"], 200, "Email")),
       };
+      if (fields.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(fields.email))
+        r.fail("email", "Email không hợp lệ");
       const isActive = r.read("status", () => asChoice(v["status"], "Trạng thái", ACTIVE_CHOICES));
       r.require("name", name);
       if (taxCode && !/^\d{10}(-\d{3})?$/.test(taxCode))

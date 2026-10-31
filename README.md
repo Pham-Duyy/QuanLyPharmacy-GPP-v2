@@ -2,11 +2,10 @@
 
 Phần mềm quản lý nhà thuốc bán lẻ đạt chuẩn GPP, thiết kế cho chuỗi nhiều nhà thuốc.
 
-Đã có: bán hàng tại quầy theo FEFO, đơn thuốc, khách hàng và tích điểm, nhập hàng, tồn kho theo lô, kiểm kê, điều chỉnh tồn, trả hàng (khách và nhà cung cấp), công nợ nhà cung cấp, chuyển hàng giữa các cửa hàng, thuốc kiểm soát đặc biệt, sổ nhiệt độ – độ ẩm, thu hồi thuốc, liên thông CSDL Dược quốc gia, hóa đơn điện tử qua MISA meInvoice, bán theo mã đơn thuốc điện tử, sổ doanh thu theo TT 152, báo cáo, nhập/xuất Excel, sao lưu tự động, xác thực hai lớp.
+Đã có: bán hàng tại quầy theo FEFO, đơn thuốc, khách hàng và tích điểm, nhập hàng, tồn kho theo lô, kiểm kê, điều chỉnh tồn, trả hàng (khách và nhà cung cấp), công nợ nhà cung cấp, chuyển hàng giữa các cửa hàng, thuốc kiểm soát đặc biệt, sổ nhiệt độ – độ ẩm, thu hồi thuốc, liên thông CSDL Dược quốc gia, hóa đơn điện tử qua MISA meInvoice, bán theo mã đơn thuốc điện tử, sổ doanh thu theo TT 152, báo cáo, nhập/xuất Excel, sao lưu tự động, xác thực hai lớp, đơn đặt hàng gửi nhà cung cấp (in, Excel, email).
 
 Nghiệp vụ dược không dùng AI (contract §20): đơn thuốc lấy bằng mã đơn điện tử và quét mã vạch/QR, kiểm tra an toàn theo luật tất định. AI chỉ dùng ở **Trợ lý AI** (contract §20): hỏi bằng tiếng Việt về số liệu của chuỗi (doanh thu, sản phẩm, tồn kho, hạn dùng, dự báo) hoặc đính kèm một tệp Excel/CSV, nhận câu trả lời kèm biểu đồ. Mọi con số do máy chủ tính và được đối chiếu trước khi hiện; chủ nhà thuốc đặt ngân sách AI mỗi tháng. Không đặt `ANTHROPIC_API_KEY` thì chỉ phân tích được tệp đính kèm, bằng luật, không gửi dữ liệu ra ngoài.
 
-Chưa có: đơn đặt hàng gửi nhà cung cấp (đang làm ở Phase 7).
 
 - Giao diện: React + Vite
 - Máy chủ: Node.js + Express
@@ -144,6 +143,21 @@ npm run db:restore -- sao-luu-20261031-230000-tu-dong.ndjson.gz
 Lệnh hiện thông tin bản sao lưu, bắt gõ `PHUC HOI` để xác nhận, tự sao lưu dữ liệu hiện tại (loại "trước phục hồi") rồi mới ghi đè. Mọi thứ chạy trong một giao dịch: tệp hỏng, bị cắt cụt hay khác phiên bản CSDL thì hủy, dữ liệu hiện tại giữ nguyên. Sau khi phục hồi mọi người phải đăng nhập lại. Bản sao lưu chỉ phục hồi được vào CSDL cùng phiên bản migration; khác phiên bản thì lệnh báo cần làm gì.
 
 Chép thêm bản sao lưu ra ổ cứng rời hoặc lưu trữ đám mây định kỳ: máy hỏng ổ thì bản nằm trên cùng máy cũng mất.
+
+## Gửi email đơn đặt hàng (tùy chọn)
+
+Đơn đặt hàng luôn in, lưu PDF hoặc tải Excel được để gửi qua Zalo. Muốn gửi email thẳng từ phần mềm, thêm vào `server/.env` rồi khởi động lại máy chủ:
+
+```
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=465
+SMTP_SECURE=true
+SMTP_USER=nhathuoc@gmail.com
+SMTP_PASS=mat-khau-ung-dung
+SMTP_FROM=Nhà thuốc GPP <nhathuoc@gmail.com>
+```
+
+Với Gmail, `SMTP_PASS` là **mật khẩu ứng dụng** (Tài khoản Google → Bảo mật → Xác minh 2 bước → Mật khẩu ứng dụng), không phải mật khẩu đăng nhập Gmail. Nhập email nhà cung cấp ở trang Nhà cung cấp.
 
 ## Máy chủ
 

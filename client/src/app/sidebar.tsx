@@ -54,7 +54,14 @@ export const SIDEBAR: readonly SidebarEntry[] = [
     key: "purchasing",
     label: "Mua hàng",
     icon: <ShoppingOutlined />,
-    paths: ["/de-xuat-dat-hang", "/phieu-nhap", "/nha-cung-cap", "/tra-hang-ncc", "/cong-no-ncc"],
+    paths: [
+      "/de-xuat-dat-hang",
+      "/don-dat-hang",
+      "/phieu-nhap",
+      "/nha-cung-cap",
+      "/tra-hang-ncc",
+      "/cong-no-ncc",
+    ],
   },
   {
     kind: "group",

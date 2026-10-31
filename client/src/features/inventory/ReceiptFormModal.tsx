@@ -62,6 +62,8 @@ export type ReceiptSavedOptions = { inspect: boolean };
  */
 export type ReceiptPrefill = {
   supplierId: string;
+  /** Lập từ đơn đặt hàng (Phase 7, D32): máy chủ đối chiếu số đã nhận theo đơn. */
+  purchaseOrderId?: string;
   lines: Array<{ productId: string; unitName: string; quantity: number; unitCost: number }>;
 };
 
@@ -319,9 +321,16 @@ export function ReceiptFormModal({
         );
         return { id: response.data.data.id, options };
       }
-      const response = await http.post<Envelope<GoodsReceiptDetail>>("/goods-receipts", body, {
-        headers: submitKey.headers(body),
-      });
+      const createBody = prefill?.purchaseOrderId
+        ? { ...body, purchaseOrderId: prefill.purchaseOrderId }
+        : body;
+      const response = await http.post<Envelope<GoodsReceiptDetail>>(
+        "/goods-receipts",
+        createBody,
+        {
+          headers: submitKey.headers(createBody),
+        },
+      );
       return { id: response.data.data.id, options };
     },
     onSuccess: async ({ id, options }) => {

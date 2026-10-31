@@ -1,5 +1,6 @@
 import {
   SlidersOutlined,
+  CarryOutOutlined,
   CloudUploadOutlined,
   AlertOutlined,
   ApiOutlined,
@@ -232,6 +233,13 @@ export const PAGES = [
     icon: <InboxOutlined />,
     permission: "goods_receipt.read",
     keywords: "nhap hang kiem nhap phieu nhap",
+  },
+  {
+    path: "/don-dat-hang",
+    label: "Đơn đặt hàng",
+    icon: <CarryOutOutlined />,
+    permission: "goods_receipt.read",
+    keywords: "don dat hang gui nha cung cap goi hang email zalo po",
   },
   {
     path: "/de-xuat-dat-hang",

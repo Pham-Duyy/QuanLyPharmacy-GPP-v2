@@ -74,11 +74,23 @@ Lưu ý:
 
 **Sổ nhiệt độ – độ ẩm:** **Hồ sơ GPP → Nhiệt độ – độ ẩm**, ghi mỗi lần đo. Vượt ngưỡng thì phần mềm đánh dấu để xử lý.
 
-## 5. Nhập hàng
+## 5. Đặt hàng và nhập hàng
 
-1. **Mua hàng → Đề xuất đặt hàng** xem mặt hàng sắp hết, theo tồn tối thiểu và theo dự báo bán.
-2. Hàng về: **Mua hàng → Phiếu nhập → Lập phiếu nhập**. Chọn nhà cung cấp, nhập từng dòng: thuốc, đơn vị, số lượng, giá nhập, số lô, hạn dùng.
-3. **Quản lý** mở phiếu, kiểm nhập từng dòng (đạt / không đạt kèm lý do), rồi xác nhận. Lúc đó hàng mới vào kho.
+**Đặt hàng nhà cung cấp** (**Mua hàng → Đơn đặt hàng**):
+
+1. Lập đơn bằng một trong hai cách:
+   - **Mua hàng → Đề xuất đặt hàng**: tick các mặt hàng cần đặt → **Lập đơn đặt hàng**. Mỗi nhà cung cấp thành một đơn nháp, số lượng và giá lấy theo đề xuất, sửa lại được.
+   - **Mua hàng → Đơn đặt hàng → Lập đơn**: chọn nhà cung cấp, gõ tên thuốc để thêm từng dòng.
+2. Mở đơn, soát lại, bấm **Gửi nhà cung cấp** (Quản lý):
+   - **Gửi email từ phần mềm**: thư kèm tệp Excel tới email của nhà cung cấp. Cần cấu hình máy chủ thư (README, mục Gửi email).
+   - **Tôi đã tự gửi**: bấm **In / Lưu PDF** hoặc **Tải Excel** gửi qua Zalo hay điện thoại trước, rồi chọn mục này để đơn chuyển sang Đã gửi.
+3. Hàng về: mở đơn → **Lập phiếu nhập từ đơn**. Phiếu nhập tự điền nhà cung cấp, hàng, số lượng còn thiếu và giá dự kiến; chỉ cần nhập số lô, hạn dùng, sửa số lượng và giá thật theo hóa đơn.
+4. Sau khi quản lý kiểm nhập phiếu, đơn tự chuyển **Nhận một phần** hoặc **Đã nhận đủ**. Dòng không đạt kiểm nhập không tính là đã nhận. Nhà cung cấp không giao phần còn lại thì **Hủy đơn** kèm lý do; hàng đã nhập giữ nguyên.
+
+**Nhập hàng không qua đơn đặt hàng** vẫn làm như trước:
+
+1. **Mua hàng → Phiếu nhập → Lập phiếu nhập**. Chọn nhà cung cấp, nhập từng dòng: thuốc, đơn vị, số lượng, giá nhập, số lô, hạn dùng.
+2. **Quản lý** mở phiếu, kiểm nhập từng dòng (đạt / không đạt kèm lý do), rồi xác nhận. Lúc đó hàng mới vào kho.
 
 Phần mềm chặn các lỗi nhập hay gặp:
 
@@ -136,5 +148,7 @@ Trước khi ghi đè, lệnh tự lưu dữ liệu hiện tại thành một b�
 **Thêm nhà cung cấp báo "Đã có nhà cung cấp …"?** Nhà cung cấp đó đã có trong danh mục, có thể đang ngừng giao dịch. Tìm theo tên, bấm **Kích hoạt lại** thay vì tạo mới, để công nợ không bị chia ra hai nơi.
 
 **Ứng dụng xác thực báo mã đúng mà phần mềm nói sai?** Giờ trên điện thoại lệch quá 30 giây. Bật "Thời gian tự động" trong cài đặt điện thoại rồi thử mã mới.
+
+**Nút "Lập đơn đặt hàng" ở Đề xuất bị mờ?** Có mặt hàng chưa từng nhập qua nhà cung cấp nào nên phần mềm chưa biết đặt ở đâu. Bỏ chọn mặt hàng đó, hoặc lập đơn tay ở trang Đơn đặt hàng.
 
 **Số điện thoại báo không hợp lệ?** Di động 10 số, máy bàn 11 số, bắt đầu bằng 0. Viết có khoảng trắng hoặc `+84` đều được, phần mềm tự chuẩn hóa.

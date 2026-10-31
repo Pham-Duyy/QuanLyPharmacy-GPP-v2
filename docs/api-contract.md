@@ -1917,3 +1917,22 @@ Biến môi trường `EINVOICE_BASE_URL` trỏ API MISA sang địa chỉ khác
 
 Không có API phục hồi: phục hồi bằng lệnh `npm run db:restore` (README, mục Sao lưu và phục hồi). Định dạng tệp mô tả ở `server/src/modules/backup/backup-file.ts`.
 
+## Đơn đặt hàng gửi nhà cung cấp [Đã chốt – Phase 7, D32]
+
+Thuộc phạm vi cửa hàng (`X-Store-Id`). Mã `DH-{cửa hàng}-{yyyymmdd}-{số}`. Trạng thái: `DRAFT` nháp → `SENT` đã gửi → `PARTIAL` nhận một phần / `RECEIVED` đã nhận đủ; `CANCELLED` đã hủy (từ nháp, đã gửi hoặc nhận một phần).
+
+| Method | Endpoint | Mô tả | Quyền |
+|---|---|---|---|
+| GET | `/purchase-orders` | Danh sách: `status` (nhiều giá trị cách bằng dấu phẩy), `supplierId`, `search` (mã đơn, tên NCC), phân trang; kèm `mailEnabled` | `goods_receipt.read` |
+| GET | `/purchase-orders/{id}` | Chi tiết: nhà cung cấp, dòng hàng (`quantity`, `baseQuantity`, `unitPrice`, `receivedBaseQuantity`, `remainingBaseQuantity`, `remainingQuantity` theo đơn vị đặt, làm tròn lên), phiếu nhập lập từ đơn; `mailEnabled`, `mailFrom` | `goods_receipt.read` |
+| POST | `/purchase-orders` | Lập đơn nháp: `supplierId` (đang giao dịch), `expectedDate` (không trước hôm nay), `note`, `lines[{ productId, unitId, quantity, unitPrice? }]` — một sản phẩm một dòng; audit `PURCHASE_ORDER_CREATE` | `goods_receipt.create` |
+| POST | `/purchase-orders/from-suggestions` | `items[{ supplierId, productId, unitId, quantity, unitPrice? }]`: mỗi nhà cung cấp một đơn nháp, trả `ids` | `goods_receipt.create` |
+| PATCH | `/purchase-orders/{id}` | Sửa đơn nháp, cần `version`; đơn đã gửi: `409` | `goods_receipt.create` |
+| POST | `/purchase-orders/{id}/send` | `channel: "EMAIL"` + `to`, `message?`: gửi thư kèm tệp Excel qua SMTP, gửi được mới chuyển `SENT` (gửi lại cho đơn đã gửi thì giữ trạng thái). Chưa cấu hình SMTP: `409 MAIL_NOT_CONFIGURED`; máy chủ thư lỗi: `502 MAIL_SEND_FAILED`. `channel: "MANUAL"`: đã tự gửi (in, Excel, Zalo), chỉ ghi nhận. Audit `PURCHASE_ORDER_SEND` | `goods_receipt.confirm` |
+| POST | `/purchase-orders/{id}/cancel` | `reason` bắt buộc; đơn đã nhận đủ: `409`. Audit `PURCHASE_ORDER_CANCEL` | `goods_receipt.confirm` |
+| GET | `/purchase-orders/{id}/print` | Trang in theo mẫu "Đơn đặt hàng" (Cài đặt → Mẫu in phiếu); không in tồn kho hay giá bán | `goods_receipt.read` |
+| GET | `/purchase-orders/{id}/excel` | Tệp `.xlsx` của đơn | `goods_receipt.read` |
+
+- `POST /goods-receipts` nhận thêm `purchaseOrderId`: đơn phải ở `SENT`/`PARTIAL`, cùng cửa hàng, cùng nhà cung cấp với phiếu. Xác nhận phiếu thì tính lại trạng thái đơn. Số đã nhận chỉ tính dòng **đạt** kiểm nhập (`goods_receipt_lines.passed`) của phiếu **đã xác nhận**. `GET /goods-receipts/{id}` có `purchaseOrder { id, code }`.
+- Nhà cung cấp có thêm `email` (nhận đơn); nhập Excel nhà cung cấp có cột "Email nhận đơn hàng".
+

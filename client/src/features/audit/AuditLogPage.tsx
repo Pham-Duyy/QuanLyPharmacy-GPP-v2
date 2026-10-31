@@ -55,6 +55,9 @@ const ACTION_LABEL: Record<string, string> = {
   MFA_RECOVERY_REGENERATE: "Tạo lại mã dự phòng",
   BACKUP_CREATE: "Sao lưu dữ liệu",
   BACKUP_DOWNLOAD: "Tải bản sao lưu",
+  PURCHASE_ORDER_CREATE: "Lập đơn đặt hàng",
+  PURCHASE_ORDER_SEND: "Gửi đơn đặt hàng",
+  PURCHASE_ORDER_CANCEL: "Hủy đơn đặt hàng",
 };
 
 const RESOURCE_LABEL: Record<string, string> = {

@@ -161,9 +161,11 @@ describe("sidebar theo quyền", () => {
     );
     const purchasingPaths =
       purchasing?.kind === "group" ? purchasing.pages.map((page) => page.path) : [];
-    // Có stock.read và catalog.read nên thấy Đề xuất đặt hàng và Nhà cung cấp, dược sĩ còn xem được Phiếu nhập và Trả nhà cung cấp.
+    // Có stock.read và catalog.read nên thấy Đề xuất đặt hàng và Nhà cung cấp, dược sĩ còn xem được
+    // Đơn đặt hàng, Phiếu nhập và Trả nhà cung cấp (goods_receipt.read).
     expect(purchasingPaths).toEqual([
       "/de-xuat-dat-hang",
+      "/don-dat-hang",
       "/phieu-nhap",
       "/nha-cung-cap",
       "/tra-hang-ncc",

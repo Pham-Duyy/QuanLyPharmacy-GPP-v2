@@ -233,6 +233,8 @@ export type SupplierListItem = {
   taxCode: string | null;
   licenseNumber: string | null;
   address: string | null;
+  /** Email nhận đơn đặt hàng (Phase 7, D32). */
+  email?: string | null;
   isActive: boolean;
   version: number;
 };
@@ -859,7 +861,8 @@ export type PrintTemplateState = {
   updatedAt: string | null;
 };
 
-export type DocumentPrintType = "goodsReceipt" | "return" | "stockAdjustment" | "stockTransfer";
+export type DocumentPrintType =
+  "goodsReceipt" | "return" | "stockAdjustment" | "stockTransfer" | "purchaseOrder";
 
 export type DocumentPrintConfig = {
   paperSize: PaperSize;

@@ -72,6 +72,8 @@ const receiptLines = z
 
 export const createReceiptSchema = z.object({
   supplierId: z.uuid("supplierId không hợp lệ"),
+  /** Lập từ đơn đặt hàng (Phase 7, D32): đơn phải đã gửi, cùng nhà cung cấp. */
+  purchaseOrderId: z.uuid("purchaseOrderId không hợp lệ").nullish(),
   supplierInvoiceNumber: z.string().trim().max(50).nullish(),
   supplierInvoiceDate: notFutureDay("Ngày hóa đơn").nullish(),
   receivedAt: notFuture("Ngày nhận hàng").default(() => new Date()),

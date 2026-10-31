@@ -59,6 +59,21 @@ const envSchema = z.object({
     .string()
     .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "BACKUP_TIME dạng HH:mm, ví dụ 23:00")
     .default("23:00"),
+  /**
+   * Máy chủ thư để gửi đơn đặt hàng cho nhà cung cấp (Phase 7, D32). Bỏ trống
+   * SMTP_HOST thì chỉ in / tải Excel để tự gửi. Gmail: smtp.gmail.com, cổng
+   * 465, SMTP_SECURE=true, mật khẩu ứng dụng (không phải mật khẩu Gmail).
+   */
+  SMTP_HOST: z.string().min(1).optional(),
+  SMTP_PORT: z.coerce.number().int().min(1).max(65535).default(587),
+  SMTP_SECURE: z
+    .enum(["true", "false"])
+    .default("false")
+    .transform((value) => value === "true"),
+  SMTP_USER: z.string().min(1).optional(),
+  SMTP_PASS: z.string().min(1).optional(),
+  /** Địa chỉ người gửi, ví dụ `Nhà thuốc GPP <donhang@nhathuoc.vn>`. Bỏ trống thì dùng SMTP_USER. */
+  SMTP_FROM: z.string().min(3).optional(),
   /** `false` thì tắt sao lưu tự động (vẫn sao lưu tay được). */
   BACKUP_AUTO: z
     .enum(["true", "false"])

@@ -64,6 +64,7 @@ model Store {
   einvoiceConfig      EInvoiceStoreConfig?
   eInvoices           EInvoice[]
 
+  purchaseOrders PurchaseOrder[]
   @@map("stores")
 }
 
@@ -147,6 +148,9 @@ model User {
   aiAgentLogs               AiAgentLog[]
   nationalDrugLinks         NationalDrugLink[]
 
+  purchaseOrdersCreated   PurchaseOrder[] @relation("PurchaseOrderCreatedBy")
+  purchaseOrdersSent      PurchaseOrder[] @relation("PurchaseOrderSentBy")
+  purchaseOrdersCancelled PurchaseOrder[] @relation("PurchaseOrderCancelledBy")
   @@index([defaultStoreId])
   @@map("users")
 }
@@ -375,6 +379,7 @@ model Product {
   eprescriptionLinks  EPrescriptionDrugLink[]
   nationalDrugLink    NationalDrugLink?
 
+  purchaseOrderLines PurchaseOrderLine[]
   @@index([categoryId])
   @@index([productType, drugClass])
   @@map("products")
@@ -439,6 +444,7 @@ model ProductUnit {
   supplierReturnLines SupplierReturnLine[]
   transferLines       StockTransferLine[]
 
+  purchaseOrderLines PurchaseOrderLine[]
   @@unique([productId, name])
   @@index([productId])
   @@map("product_units")
@@ -484,6 +490,7 @@ model Supplier {
   licenseNumber   String?  @map("license_number")
   address         String?
   phone           String?
+  email           String?
   isActive        Boolean  @default(true) @map("is_active")
   /// Số ngày được nợ tính từ ngày nhận hàng; 0 nghĩa là trả ngay.
   paymentTermDays Int      @default(0) @map("payment_term_days")
@@ -494,6 +501,7 @@ model Supplier {
   goodsReceipts GoodsReceipt[]
   payments      SupplierPayment[]
   returns       SupplierReturn[]
+  purchaseOrders PurchaseOrder[]
 
   @@map("suppliers")
 }
@@ -603,6 +611,8 @@ model GoodsReceipt {
   cancelReason          String?   @map("cancel_reason")
   /// Hạn thanh toán chốt lúc kiểm nhập, giữ nguyên kể cả khi sau này đổi kỳ hạn của nhà cung cấp.
   paymentDueDate        DateTime? @map("payment_due_date") @db.Date
+  /// Phiếu nhập lập từ đơn đặt hàng (Phase 7, D32).
+  purchaseOrderId       String?   @map("purchase_order_id") @db.Uuid
   version               Int       @default(1)
   createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt             DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -615,8 +625,10 @@ model GoodsReceipt {
   confirmedByUser     User?                       @relation("GoodsReceiptConfirmedBy", fields: [confirmedBy], references: [id])
   cancelledByUser     User?                       @relation("GoodsReceiptCancelledBy", fields: [cancelledBy], references: [id])
   lines               GoodsReceiptLine[]
+  purchaseOrder       PurchaseOrder?              @relation(fields: [purchaseOrderId], references: [id])
 
   @@index([storeId, status, receivedAt(sort: Desc)])
+  @@index([purchaseOrderId])
   @@index([supplierId])
   @@map("goods_receipts")
 }
@@ -635,6 +647,8 @@ model GoodsReceiptLine {
   manufactureDate DateTime? @map("manufacture_date") @db.Date
   expiryDate      DateTime  @map("expiry_date") @db.Date
   batchId         String?   @map("batch_id") @db.Uuid
+  /// Kết quả kiểm nhập (đạt/không đạt); NULL với phiếu chưa xác nhận hoặc lập trước Phase 7.
+  passed          Boolean?
 
   goodsReceipt GoodsReceipt @relation(fields: [goodsReceiptId], references: [id], onDelete: Cascade)
   product      Product      @relation(fields: [productId], references: [id])
@@ -1855,4 +1869,57 @@ model MfaRecoveryCode {
 
   @@index([userId])
   @@map("mfa_recovery_codes")
+}
+
+/// Đơn đặt hàng gửi nhà cung cấp (Phase 7, D32). Trạng thái nhận hàng tính từ phiếu nhập đã xác nhận gắn với đơn.
+model PurchaseOrder {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  storeId         String    @map("store_id") @db.Uuid
+  code            String    @unique
+  supplierId      String    @map("supplier_id") @db.Uuid
+  status          String    @default("DRAFT")
+  expectedDate    DateTime? @map("expected_date") @db.Date
+  note            String?
+  estimatedAmount BigInt    @default(0) @map("estimated_amount")
+  createdBy       String    @map("created_by") @db.Uuid
+  sentAt          DateTime? @map("sent_at") @db.Timestamptz(6)
+  sentBy          String?   @map("sent_by") @db.Uuid
+  sentVia         String?   @map("sent_via")
+  sentTo          String?   @map("sent_to")
+  cancelledAt     DateTime? @map("cancelled_at") @db.Timestamptz(6)
+  cancelledBy     String?   @map("cancelled_by") @db.Uuid
+  cancelReason    String?   @map("cancel_reason")
+  version         Int       @default(1)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  store           Store               @relation(fields: [storeId], references: [id])
+  supplier        Supplier            @relation(fields: [supplierId], references: [id])
+  createdByUser   User                @relation("PurchaseOrderCreatedBy", fields: [createdBy], references: [id])
+  sentByUser      User?               @relation("PurchaseOrderSentBy", fields: [sentBy], references: [id])
+  cancelledByUser User?               @relation("PurchaseOrderCancelledBy", fields: [cancelledBy], references: [id])
+  lines           PurchaseOrderLine[]
+  goodsReceipts   GoodsReceipt[]
+
+  @@index([storeId, status, createdAt(sort: Desc)], map: "purchase_orders_store_status_idx")
+  @@map("purchase_orders")
+}
+
+model PurchaseOrderLine {
+  id              String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  purchaseOrderId String  @map("purchase_order_id") @db.Uuid
+  lineNo          Int     @map("line_no")
+  productId       String  @map("product_id") @db.Uuid
+  productUnitId   String  @map("product_unit_id") @db.Uuid
+  quantity        Int
+  baseQuantity    Int     @map("base_quantity")
+  unitPrice       BigInt? @map("unit_price")
+
+  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  product       Product       @relation(fields: [productId], references: [id])
+  productUnit   ProductUnit   @relation(fields: [productUnitId], references: [id])
+
+  @@unique([purchaseOrderId, lineNo], map: "purchase_order_lines_order_line_key")
+  @@unique([purchaseOrderId, productId], map: "purchase_order_lines_order_product_key")
+  @@map("purchase_order_lines")
 }

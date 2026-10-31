@@ -6,6 +6,7 @@ export const DOCUMENT_TYPES = [
   "return",
   "stockAdjustment",
   "stockTransfer",
+  "purchaseOrder",
 ] as const;
 export type DocumentType = (typeof DOCUMENT_TYPES)[number];
 
@@ -15,6 +16,7 @@ const DOCUMENT_PAPERS = {
   return: ["K80", "K58", "A5", "A4"],
   stockAdjustment: ["A4", "A5"],
   stockTransfer: ["A4", "A5"],
+  purchaseOrder: ["A4", "A5"],
 } as const satisfies Record<DocumentType, readonly string[]>;
 
 export const DOCUMENT_DEFAULTS: Record<
@@ -47,6 +49,13 @@ export const DOCUMENT_DEFAULTS: Record<
     footer: "",
     signatures: ["Người lập phiếu", "Thủ kho xuất", "Người vận chuyển", "Người nhận hàng"],
   },
+  // Gửi nhà cung cấp (Phase 7, D32): in, lưu PDF, hoặc đính kèm email.
+  purchaseOrder: {
+    paperSize: "A4",
+    title: "ĐƠN ĐẶT HÀNG",
+    footer: "Đề nghị quý công ty xác nhận đơn hàng và báo ngày giao. Xin cảm ơn.",
+    signatures: ["Người lập đơn", "Người duyệt"],
+  },
 };
 
 const text = (max: number) => z.string().trim().max(max, `Tối đa ${max} ký tự`);
@@ -66,6 +75,7 @@ export const documentPrintSettingsSchema = z.object({
   return: configSchema("return"),
   stockAdjustment: configSchema("stockAdjustment"),
   stockTransfer: configSchema("stockTransfer"),
+  purchaseOrder: configSchema("purchaseOrder"),
 });
 
 export type DocumentPrintSettings = z.infer<typeof documentPrintSettingsSchema>;
