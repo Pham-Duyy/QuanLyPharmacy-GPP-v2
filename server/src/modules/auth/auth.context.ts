@@ -1,5 +1,6 @@
 import { prisma } from "../../db/prisma.js";
 import { ROLES, additionalPermissionsFor } from "../../config/permissions.js";
+import { managersMustUseMfa } from "./mfa.service.js";
 
 /**
  * Ngữ cảnh phân quyền của một request.
@@ -15,6 +16,12 @@ export class AuthContext {
   readonly defaultStoreId: string | null;
   readonly chainPermissions: ReadonlySet<string>;
   readonly storePermissions: ReadonlyMap<string, ReadonlySet<string>>;
+  /** Mã vai trò đang giữ (mọi phạm vi). */
+  readonly roleCodes: readonly string[];
+  /** Đã bật xác thực hai lớp (Phase 7, D31). */
+  readonly mfaEnabled: boolean;
+  /** Chính sách "bắt buộc MFA với Quản lý" đang bật. */
+  readonly mfaRequired: boolean;
 
   /** Cửa hàng của request hiện tại, lấy từ header X-Store-Id. */
   storeId: string | null = null;
@@ -28,6 +35,9 @@ export class AuthContext {
     defaultStoreId: string | null;
     chainPermissions: Set<string>;
     storePermissions: Map<string, Set<string>>;
+    roleCodes?: string[];
+    mfaEnabled?: boolean;
+    mfaRequired?: boolean;
   }) {
     this.userId = init.userId;
     this.username = init.username;
@@ -37,6 +47,17 @@ export class AuthContext {
     this.defaultStoreId = init.defaultStoreId;
     this.chainPermissions = init.chainPermissions;
     this.storePermissions = init.storePermissions;
+    this.roleCodes = init.roleCodes ?? [];
+    this.mfaEnabled = init.mfaEnabled ?? false;
+    this.mfaRequired = init.mfaRequired ?? false;
+  }
+
+  /**
+   * Quản lý chưa bật MFA trong khi chủ nhà thuốc bắt buộc: chỉ được dùng hồ
+   * sơ, đổi mật khẩu và màn bật MFA cho tới khi bật xong.
+   */
+  get mfaSetupRequired(): boolean {
+    return this.mfaRequired && !this.mfaEnabled && this.roleCodes.includes("admin");
   }
 
   /** Các cửa hàng người dùng được gán vai trò trực tiếp. */
@@ -128,5 +149,8 @@ export async function loadAuthContext(
     defaultStoreId: user.defaultStoreId,
     chainPermissions,
     storePermissions,
+    roleCodes: [...new Set(user.userRoles.map((assignment) => assignment.role.code))],
+    mfaEnabled: user.mfaEnabledAt !== null,
+    mfaRequired: await managersMustUseMfa(),
   });
 }

@@ -1567,3 +1567,57 @@
     max-width: 100%;
   }
 }
+
+/* Xác thực hai lớp (Phase 7, D31) */
+.mfa-step {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.mfa-step p {
+  margin: 0;
+}
+
+.mfa-instructions {
+  margin: 0;
+  padding-left: 20px;
+  line-height: 1.6;
+}
+
+.mfa-qr {
+  display: flex;
+  justify-content: center;
+  padding: 8px;
+  background: #fff;
+  border-radius: 8px;
+}
+
+.mfa-secret {
+  margin: 0;
+  font-size: 13px;
+  text-align: center;
+}
+
+.mfa-code-input {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.2em;
+}
+
+.mfa-recovery-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 16px;
+  margin: 0;
+  padding: 12px 12px 12px 32px;
+  background: var(--c-surface-2);
+  border-radius: 8px;
+  font-size: 15px;
+}
+
+.settings-switch-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  cursor: pointer;
+}

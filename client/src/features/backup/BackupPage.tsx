@@ -63,7 +63,7 @@ export function BackupPage() {
         <Alert
           type="error"
           showIcon
-          message={getErrorMessage(status.error)}
+          title={getErrorMessage(status.error)}
           style={{ marginBottom: 16 }}
         />
       )}
@@ -72,7 +72,7 @@ export function BackupPage() {
           type="error"
           showIcon
           style={{ marginBottom: 16 }}
-          message={`Lần sao lưu lúc ${formatDateTime(failed.startedAt)} thất bại`}
+          title={`Lần sao lưu lúc ${formatDateTime(failed.startedAt)} thất bại`}
           description={failed.error}
         />
       )}
@@ -81,7 +81,7 @@ export function BackupPage() {
           type="warning"
           showIcon
           style={{ marginBottom: 16 }}
-          message="Hơn 2 ngày chưa có bản sao lưu"
+          title="Hơn 2 ngày chưa có bản sao lưu"
           description="Máy chủ phải đang chạy lúc đến giờ sao lưu tự động. Bấm Sao lưu ngay để tạo một bản."
         />
       )}

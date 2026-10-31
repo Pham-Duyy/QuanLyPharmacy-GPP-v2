@@ -724,6 +724,8 @@ export type UserDetail = {
   phone: string | null;
   practiceCertificateNumber: string | null;
   mustChangePassword: boolean;
+  /** Đã bật xác thực hai lớp (Phase 7, D31). */
+  mfaEnabled?: boolean;
   isActive: boolean;
   defaultStoreId: string | null;
   version: number;

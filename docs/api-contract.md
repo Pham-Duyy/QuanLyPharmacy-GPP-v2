@@ -241,11 +241,19 @@ Hệ thống thiết kế cho chuỗi nhiều nhà thuốc. MVP mở một cửa
 
 | Method | Endpoint | Mô tả | Quyền |
 |---|---|---|---|
-| POST | `/auth/login` | Đăng nhập; trả `accessToken` trong body và đặt refresh token | Public, có giới hạn |
+| POST | `/auth/login` | Đăng nhập; trả `accessToken` trong body và đặt refresh token. Tài khoản đã bật MFA: chưa cấp phiên, trả `{ mfaRequired: true, mfaToken }` (vé 5 phút) | Public, có giới hạn |
+| POST | `/auth/login/mfa` | Bước hai: `mfaToken` + `code` (6 số trong ứng dụng hoặc mã dự phòng `XXXXX-XXXXX`); trả như `/auth/login` kèm `usedRecoveryCode`. Sai mã: `401 MFA_INVALID_CODE`; vé hết hạn: `401 MFA_CHALLENGE_EXPIRED` | Public, có giới hạn |
 | POST | `/auth/refresh` | Cấp access token mới, xoay vòng refresh token | Public (cần refresh token) |
 | POST | `/auth/logout` | Thu hồi phiên hiện tại | Đã đăng nhập (kể cả còn mật khẩu tạm) |
 | GET | `/auth/me` | Người dùng hiện tại; danh sách cửa hàng được phép kèm permission tại từng cửa hàng và `features: { einvoice, nationalSync }` (chức năng đã bật ở cửa hàng đó, để giao diện ẩn trang chưa dùng); cửa hàng mặc định | Đã đăng nhập (kể cả còn mật khẩu tạm) |
 | POST | `/auth/change-password` | Đổi mật khẩu; bắt buộc gửi mật khẩu hiện tại | Đã đăng nhập (kể cả còn mật khẩu tạm) |
+| GET | `/auth/mfa` | Trạng thái MFA của mình: `enabled`, `enabledAt`, `recoveryCodesLeft`, `required` (chính sách bắt buộc với Quản lý) | Đã đăng nhập (kể cả đang bị bắt bật MFA) |
+| POST | `/auth/mfa/setup` | Sinh khóa mới chưa có hiệu lực: `secret` (base32), `otpauthUrl` để hiện mã QR | Như trên |
+| POST | `/auth/mfa/enable` | `code` 6 số từ khóa vừa sinh: bật MFA, trả 10 `recoveryCodes` (chỉ một lần); thu hồi các phiên khác; audit `MFA_ENABLE` | Như trên |
+| POST | `/auth/mfa/disable` | `password` + `code`; bị bắt buộc (Quản lý, chính sách bật) thì `409`; audit `MFA_DISABLE` | Như trên |
+| POST | `/auth/mfa/recovery-codes` | `code`: tạo 10 mã dự phòng mới, mã cũ hết hiệu lực; audit `MFA_RECOVERY_REGENERATE` | Đã đăng nhập |
+| GET | `/security/mfa-policy` | `{ requiredForManagers }` | Đã đăng nhập |
+| PUT | `/security/mfa-policy` | Bật/tắt bắt buộc MFA với người có vai trò Quản lý (`admin`); audit `SETTING_UPDATE` | `settings.manage` toàn chuỗi |
 
 Quy tắc:
 
@@ -257,7 +265,9 @@ Quy tắc:
 - Vô hiệu hóa tài khoản, đổi mật khẩu, đặt lại mật khẩu, đổi vai trò: thu hồi mọi refresh token của người đó.
 - Đăng nhập sai nhiều lần, không khóa cứng tài khoản: theo tài khoản, từ lần sai thứ 5 phải chờ tăng dần (tối đa 5 phút); theo IP, quá 20 lần sai trong 15 phút thì tạm không nhận đăng nhập từ IP đó, kể cả đúng mật khẩu (`429 RATE_LIMITED`). Tên đăng nhập không tồn tại vẫn so mật khẩu với một bản băm giả để thời gian trả lời như khi sai mật khẩu. Chạy sau reverse proxy thì đặt `TRUST_PROXY` để máy chủ đọc đúng IP người dùng.
 - Mật khẩu mới tối đa 72 byte (giới hạn của bcrypt; chữ có dấu tính 2–3 byte), ít nhất 10 ký tự, có chữ và số.
-- MFA: sau MVP.
+- **Xác thực hai lớp (Phase 7, D31)**: tùy chọn, mã TOTP (RFC 6238: HMAC-SHA1, 30 giây, 6 số, nhận lệch ±1 bước), chạy với Google Authenticator / Microsoft Authenticator. Khóa bí mật lưu mã hóa AES-256-GCM (khóa dẫn xuất từ `JWT_SECRET`; đổi `JWT_SECRET` thì mọi người phải được đặt lại MFA). Mỗi mã 6 số chỉ dùng một lần; 10 mã dự phòng dùng một lần, chỉ lưu HMAC. Sai mã tính chung bộ đếm và thời gian chờ với sai mật khẩu; đúng mật khẩu ở bước một không xóa bộ đếm khi tài khoản có MFA. Vé bước hai ký bằng khóa riêng nên không dùng thay access token được.
+- Chính sách bắt buộc với Quản lý bật mà tài khoản có vai trò `admin` chưa bật MFA: chỉ gọi được `GET /auth/me`, `POST /auth/change-password`, `POST /auth/logout` và `/auth/mfa/*`; mọi API khác trả `403 MFA_SETUP_REQUIRED`. `GET /auth/me` có `user.mfaEnabled`, `user.mfaSetupRequired`.
+- Quản lý đặt lại MFA của nhân viên: `POST /users/{id}/mfa/reset` (`user.manage` ở mọi phạm vi của người đó, không tự đặt lại cho mình); thu hồi mọi phiên người đó, audit `MFA_RESET`.
 
 ---
 
@@ -1524,6 +1534,7 @@ Hỏi đáp tiếng Việt trên số liệu analytics-service. Claude chỉ g�
 | PUT | `/users/{id}/roles` | Thay toàn bộ vai trò; body là mảng `{ roleCode, storeId }`, `storeId = null` là toàn chuỗi; ghi audit. Người sửa phải quản lý nhân sự ở mọi phạm vi cũ và mới (`403`) | `user.manage` |
 | POST | `/users/{id}/deactivate` | Vô hiệu hóa, thu hồi mọi phiên. Cần quản lý mọi phạm vi của người đó (`403`) | `user.manage` |
 | POST | `/users/{id}/activate` | Kích hoạt lại. Cần quản lý mọi phạm vi của người đó (`403`) | `user.manage` |
+| POST | `/users/{id}/mfa/reset` | Đặt lại xác thực hai lớp (mất điện thoại, hết mã dự phòng); thu hồi mọi phiên; không tự làm cho mình (`422`); audit `MFA_RESET` (Phase 7, D31) | `user.manage` ở mọi phạm vi của người đó |
 | POST | `/users/{id}/reset-password` | Đặt mật khẩu tạm, thu hồi mọi phiên. Cần quản lý mọi phạm vi của người đó (`403`) | `user.manage` |
 | GET | `/roles` | Danh sách vai trò, `permissions` (mã) và `permissionDetails` (`{ code, description }`) của từng vai trò | `user.manage` |
 

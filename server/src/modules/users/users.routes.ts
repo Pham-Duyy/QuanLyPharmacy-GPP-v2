@@ -75,6 +75,12 @@ usersRouter.post("/users/:id/activate", async (req, res) => {
   sendData(res, await service.getDetail(id, req.auth!));
 });
 
+usersRouter.post("/users/:id/mfa/reset", async (req, res) => {
+  const id = String(req.params.id);
+  await service.resetMfa(id, req.auth!);
+  sendData(res, await service.getDetail(id, req.auth!));
+});
+
 usersRouter.post("/users/:id/reset-password", async (req, res) => {
   const id = String(req.params.id);
   const tempPassword = await service.resetPassword(id, req.auth!);

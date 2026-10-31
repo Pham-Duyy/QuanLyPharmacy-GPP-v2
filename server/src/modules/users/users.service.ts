@@ -13,6 +13,7 @@ import type {
 
 import { ROLES, PERMISSIONS, additionalPermissionsFor } from "../../config/permissions.js";
 import type { AuthContext } from "../auth/auth.context.js";
+import { resetForUser as resetMfaForUser } from "../auth/mfa.service.js";
 
 const ADMIN_ROLE_CODE = "admin";
 
@@ -118,6 +119,7 @@ export async function getDetail(id: string, actor: AuthContext) {
     phone: user.phone,
     practiceCertificateNumber: user.practiceCertificateNumber,
     mustChangePassword: user.mustChangePassword,
+    mfaEnabled: user.mfaEnabledAt !== null,
     isActive: user.isActive,
     defaultStoreId: user.defaultStoreId,
     version: user.version,
@@ -484,6 +486,12 @@ export async function addOwnPharmacistRole(
       });
     }),
   );
+}
+
+/** Đặt lại xác thực hai lớp cho nhân viên mất điện thoại (Phase 7, D31). */
+export async function resetMfa(targetUserId: string, actor: AuthContext): Promise<void> {
+  await prisma.$transaction((tx) => assertCanManage(tx, actor, targetUserId));
+  await resetMfaForUser(actor.userId, targetUserId);
 }
 
 /** Không khóa admin cuối hoặc người đang được phân công phụ trách chuyên môn. */

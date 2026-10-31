@@ -18,6 +18,7 @@ import { staffKeys, useStaffDetail } from "./staff-api.js";
 import { canManageAccount, useManagedScopes } from "./staff-scope.js";
 import { AccountStatus, Pairs, StaffAvatar, StaffNote } from "./staff-ui.js";
 import { ChangeRolesModal, EditUserModal, TempPasswordAlert } from "./StaffAccountModals.js";
+import { mfaApi } from "../auth/mfa-api.js";
 
 /** Hồ sơ nhân viên bằng dữ liệu thật: thông tin tài khoản, vai trò và thao tác theo quyền. */
 export function StaffProfile({ id, onClose }: { id: string | null; onClose: () => void }) {
@@ -55,6 +56,16 @@ export function StaffProfile({ id, onClose }: { id: string | null; onClose: () =
         .data,
     onSuccess: (data) => setTempPassword({ userId: id!, value: data.tempPassword }),
     onError: (error) => void message.error(getErrorMessage(error, "Không đặt lại được mật khẩu")),
+  });
+
+  const resetMfa = useMutation({
+    mutationFn: () => mfaApi.resetForUser(id!),
+    onSuccess: async () => {
+      void message.success("Đã đặt lại xác thực hai lớp; nhân viên đăng nhập lại bằng mật khẩu");
+      await refresh();
+    },
+    onError: (error) =>
+      void message.error(getErrorMessage(error, "Không đặt lại được xác thực hai lớp")),
   });
 
   if (id === null) {
@@ -122,6 +133,7 @@ export function StaffProfile({ id, onClose }: { id: string | null; onClose: () =
             ["Họ và tên", user.fullName],
             ["Số điện thoại", user.phone ?? "—"],
             ["Chứng chỉ hành nghề", user.practiceCertificateNumber ?? "—"],
+            ["Xác thực hai lớp", user.mfaEnabled ? "Đang bật" : "Chưa bật"],
           ]}
         />
       </section>
@@ -202,6 +214,19 @@ export function StaffProfile({ id, onClose }: { id: string | null; onClose: () =
               Đặt lại mật khẩu
             </Button>
           </Popconfirm>
+          {user.mfaEnabled && !isSelf ? (
+            <Popconfirm
+              title="Đặt lại xác thực hai lớp?"
+              description="Dùng khi nhân viên mất điện thoại và hết mã dự phòng. Người này bị đăng xuất, lần sau đăng nhập chỉ cần mật khẩu rồi bật lại."
+              okText="Đặt lại"
+              cancelText="Quay lại"
+              onConfirm={() => resetMfa.mutate()}
+            >
+              <Button icon={<SafetyOutlined />} loading={resetMfa.isPending}>
+                Đặt lại xác thực hai lớp
+              </Button>
+            </Popconfirm>
+          ) : null}
           {isSelf ? null : (
             <Popconfirm
               title={user.isActive ? "Khóa tài khoản này?" : "Kích hoạt lại tài khoản này?"}

@@ -16,6 +16,10 @@ export type Me = {
     fullName: string;
     mustChangePassword: boolean;
     defaultStoreId: string | null;
+    /** Đã bật xác thực hai lớp (Phase 7, D31). */
+    mfaEnabled?: boolean;
+    /** Quản lý chưa bật MFA trong khi chủ nhà thuốc bắt buộc: phải bật trước khi dùng. */
+    mfaSetupRequired?: boolean;
   };
   chainPermissions: string[];
   /** storeId rỗng nghĩa là vai trò bao toàn chuỗi. */

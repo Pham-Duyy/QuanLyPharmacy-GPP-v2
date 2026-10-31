@@ -8,6 +8,7 @@ import { PAGES } from "./app/pages.js";
 import { useAuth } from "./features/auth/auth-context.js";
 import { PasswordChangeGate } from "./features/auth/ChangePasswordModal.js";
 import { LoginPage } from "./features/auth/LoginPage.js";
+import { MfaGate } from "./features/auth/MfaPanels.js";
 import { SellingForbidden } from "./features/users/SellingForbidden.js";
 
 /** Trang chỉ dược sĩ dùng: thiếu quyền thì giải thích cách thêm vai trò Dược sĩ (D29). */
@@ -85,6 +86,8 @@ export default function App() {
 
   // Mật khẩu tạm chỉ dùng để đổi sang mật khẩu riêng; máy chủ cũng chặn mọi API khác.
   if (me?.user.mustChangePassword) return <PasswordChangeGate />;
+  // Chủ nhà thuốc bắt buộc MFA với Quản lý (Phase 7, D31); máy chủ cũng chặn mọi API khác.
+  if (me?.user.mfaSetupRequired) return <MfaGate />;
 
   return (
     <Routes>

@@ -27,3 +27,20 @@ export const changePasswordSchema = z.object({
 
 export type LoginInput = z.infer<typeof loginSchema>;
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
+
+/** Mã 6 số từ ứng dụng xác thực, hoặc mã dự phòng dạng XXXXX-XXXXX. */
+const mfaCode = z.string().trim().min(6, "Nhập mã xác thực").max(20);
+
+export const mfaLoginSchema = z.object({
+  mfaToken: z.string().min(1),
+  code: mfaCode,
+});
+
+export const mfaCodeSchema = z.object({ code: mfaCode });
+
+export const mfaDisableSchema = z.object({
+  password: z.string().min(1, "Nhập mật khẩu"),
+  code: mfaCode,
+});
+
+export const mfaPolicySchema = z.object({ requiredForManagers: z.boolean() });

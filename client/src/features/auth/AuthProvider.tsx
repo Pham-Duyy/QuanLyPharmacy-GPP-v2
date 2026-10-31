@@ -88,13 +88,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(
     async (username: string, password: string) => {
-      const response = await http.post<{ data: { accessToken: string } }>("/auth/login", {
-        username,
-        password,
-      });
+      const response = await http.post<{
+        data: { accessToken?: string; mfaRequired?: boolean; mfaToken?: string };
+      }>("/auth/login", { username, password });
+      const data = response.data.data;
+      if (data.mfaRequired && data.mfaToken) return { mfaToken: data.mfaToken };
+      setAccessToken(data.accessToken ?? null);
+      const profile = await http.get<{ data: Me }>("/auth/me");
+      applyMe(profile.data.data);
+      return null;
+    },
+    [applyMe],
+  );
+
+  const loginWithMfa = useCallback(
+    async (mfaToken: string, code: string) => {
+      const response = await http.post<{
+        data: { accessToken: string; usedRecoveryCode: boolean };
+      }>("/auth/login/mfa", { mfaToken, code });
       setAccessToken(response.data.data.accessToken);
       const profile = await http.get<{ data: Me }>("/auth/me");
       applyMe(profile.data.data);
+      return response.data.data.usedRecoveryCode;
     },
     [applyMe],
   );
@@ -139,8 +154,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo<AuthState>(
-    () => ({ status, me, storeId, login, logout, selectStore, can, reloadMe }),
-    [status, me, storeId, login, logout, selectStore, can, reloadMe],
+    () => ({ status, me, storeId, login, loginWithMfa, logout, selectStore, can, reloadMe }),
+    [status, me, storeId, login, loginWithMfa, logout, selectStore, can, reloadMe],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

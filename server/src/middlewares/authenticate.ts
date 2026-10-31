@@ -47,6 +47,16 @@ function createAuthenticate(allowTempPassword: boolean): RequestHandler {
       );
     }
 
+    // Chủ nhà thuốc bắt buộc MFA với Quản lý (Phase 7, D31): chưa bật thì chặn
+    // như mật khẩu tạm, chỉ còn hồ sơ, đổi mật khẩu, đăng xuất và màn bật MFA.
+    if (auth.mfaSetupRequired && !allowTempPassword) {
+      throw new AppError(
+        403,
+        "MFA_SETUP_REQUIRED",
+        "Cần bật xác thực hai lớp trước khi dùng phần mềm",
+      );
+    }
+
     req.auth = auth;
     next();
   };

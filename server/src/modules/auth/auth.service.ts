@@ -10,6 +10,7 @@ import {
   signAccessToken,
 } from "../../lib/tokens.js";
 import type { AuthContext } from "./auth.context.js";
+import { issueChallenge, readChallenge, verifyLoginCode } from "./mfa.service.js";
 import type { ChangePasswordInput, LoginInput } from "./auth.schema.js";
 
 export type SessionInfo = { ip?: string | undefined; userAgent?: string | undefined };
@@ -63,18 +64,14 @@ async function issueSession(
   };
 }
 
-export async function login(input: LoginInput, info: SessionInfo): Promise<TokenPair> {
-  const username = input.username.toLowerCase();
-  const user = await prisma.user.findUnique({ where: { username } });
+/**
+ * Kết quả bước mật khẩu: có phiên ngay, hoặc (đã bật MFA) một vé để nhập mã
+ * 6 số ở bước hai (Phase 7, D31).
+ */
+export type LoginResult =
+  { kind: "tokens"; tokens: TokenPair } | { kind: "mfa"; challenge: string };
 
-  // Cùng một thông báo cho sai tên và sai mật khẩu, để không lộ tài khoản nào có thật.
-  const invalid = new AppError(401, "UNAUTHENTICATED", "Tên đăng nhập hoặc mật khẩu không đúng");
-
-  if (!user || !user.isActive) {
-    await verifyPassword(input.password, DUMMY_PASSWORD_HASH);
-    throw invalid;
-  }
-
+function assertNotThrottled(user: { failedLoginCount: number; lastFailedLoginAt: Date | null }) {
   const delay = requiredDelaySeconds(user.failedLoginCount);
   if (delay > 0 && user.lastFailedLoginAt) {
     const waitedMs = Date.now() - user.lastFailedLoginAt.getTime();
@@ -87,6 +84,21 @@ export async function login(input: LoginInput, info: SessionInfo): Promise<Token
       );
     }
   }
+}
+
+export async function login(input: LoginInput, info: SessionInfo): Promise<LoginResult> {
+  const username = input.username.toLowerCase();
+  const user = await prisma.user.findUnique({ where: { username } });
+
+  // Cùng một thông báo cho sai tên và sai mật khẩu, để không lộ tài khoản nào có thật.
+  const invalid = new AppError(401, "UNAUTHENTICATED", "Tên đăng nhập hoặc mật khẩu không đúng");
+
+  if (!user || !user.isActive) {
+    await verifyPassword(input.password, DUMMY_PASSWORD_HASH);
+    throw invalid;
+  }
+
+  assertNotThrottled(user);
 
   if (!(await verifyPassword(input.password, user.passwordHash))) {
     await prisma.user.update({
@@ -96,14 +108,39 @@ export async function login(input: LoginInput, info: SessionInfo): Promise<Token
     throw invalid;
   }
 
+  // Đã bật MFA: chưa xóa bộ đếm sai, để người biết mật khẩu không thử mã 6 số
+  // vô hạn bằng cách nhập lại mật khẩu đúng sau mỗi lần sai mã.
+  if (user.mfaEnabledAt) return { kind: "mfa", challenge: issueChallenge(user.id) };
+
+  await resetFailures(user);
+  return { kind: "tokens", tokens: await issueSession(user.id, newFamilyId(), info) };
+}
+
+async function resetFailures(user: { id: string; failedLoginCount: number }) {
   if (user.failedLoginCount > 0) {
     await prisma.user.update({
       where: { id: user.id },
       data: { failedLoginCount: 0, lastFailedLoginAt: null },
     });
   }
+}
 
-  return issueSession(user.id, newFamilyId(), info);
+/** Bước hai khi đăng nhập: vé từ bước mật khẩu + mã 6 số hoặc mã dự phòng. */
+export async function loginWithMfa(
+  input: { mfaToken: string; code: string },
+  info: SessionInfo,
+): Promise<{ tokens: TokenPair; usedRecoveryCode: boolean }> {
+  const userId = readChallenge(input.mfaToken);
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user || !user.isActive)
+    throw new AppError(401, "UNAUTHENTICATED", "Phiên xác thực không hợp lệ");
+  assertNotThrottled(user);
+  const kind = await verifyLoginCode(user.id, input.code);
+  await resetFailures(user);
+  return {
+    tokens: await issueSession(user.id, newFamilyId(), info),
+    usedRecoveryCode: kind === "recovery",
+  };
 }
 
 /**
@@ -213,6 +250,8 @@ export async function describeMe(auth: AuthContext) {
       fullName: auth.fullName,
       mustChangePassword: auth.mustChangePassword,
       defaultStoreId: auth.defaultStoreId,
+      mfaEnabled: auth.mfaEnabled,
+      mfaSetupRequired: auth.mfaSetupRequired,
     },
     chainPermissions: [...auth.chainPermissions].sort(),
     roles: assignments.map((item) => ({

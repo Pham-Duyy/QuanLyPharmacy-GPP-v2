@@ -11,6 +11,20 @@ Tài liệu cho người dùng phần mềm hằng ngày: chủ nhà thuốc, d�
 
 Tài khoản quản trị đầu tiên sau khi cài là `admin` / `Admin@12345`.
 
+### Xác thực hai lớp
+
+Bật thêm mã 6 số trên điện thoại khi đăng nhập: lộ mật khẩu thì người khác vẫn không vào được. Nên bật cho mọi tài khoản Quản lý.
+
+1. Cài **Google Authenticator** hoặc **Microsoft Authenticator** trên điện thoại.
+2. Bấm tên mình ở góc trên bên phải → **Bật xác thực hai lớp** → **Bắt đầu**.
+3. Mở ứng dụng, chọn thêm tài khoản, quét mã QR trên màn hình.
+4. Nhập mã 6 số ứng dụng hiện ra → **Bật xác thực hai lớp**.
+5. Lưu **10 mã dự phòng** (Chép hoặc Tải tệp, in ra cất kỹ). Mất điện thoại thì đăng nhập bằng một mã dự phòng, mỗi mã dùng một lần.
+
+Từ lần sau, đăng nhập xong mật khẩu thì nhập mã 6 số trong ứng dụng. Mất điện thoại và hết mã dự phòng: nhờ quản lý vào **Nhân viên** → chọn mình → **Đặt lại xác thực hai lớp**, rồi bật lại trên điện thoại mới.
+
+Chủ nhà thuốc bật được **Cài đặt → Bảo mật → Xác thực hai lớp → Bắt buộc với Quản lý**: tài khoản Quản lý nào chưa bật sẽ phải bật ngay ở lần dùng kế tiếp.
+
 ## 2. Bốn vai trò
 
 Theo GPP, việc bán thuốc và việc quản lý được tách riêng. Mỗi người có một hoặc nhiều vai trò, gán theo từng cửa hàng hoặc cho cả chuỗi.
@@ -120,5 +134,7 @@ Trước khi ghi đè, lệnh tự lưu dữ liệu hiện tại thành một b�
 **Lập phiếu nhập báo "Hạn dùng xa quá 10 năm"?** Kiểm tra lại năm trên bao bì, thường là gõ nhầm (2207 thay vì 2027).
 
 **Thêm nhà cung cấp báo "Đã có nhà cung cấp …"?** Nhà cung cấp đó đã có trong danh mục, có thể đang ngừng giao dịch. Tìm theo tên, bấm **Kích hoạt lại** thay vì tạo mới, để công nợ không bị chia ra hai nơi.
+
+**Ứng dụng xác thực báo mã đúng mà phần mềm nói sai?** Giờ trên điện thoại lệch quá 30 giây. Bật "Thời gian tự động" trong cài đặt điện thoại rồi thử mã mới.
 
 **Số điện thoại báo không hợp lệ?** Di động 10 số, máy bàn 11 số, bắt đầu bằng 0. Viết có khoảng trắng hoặc `+84` đều được, phần mềm tự chuẩn hóa.

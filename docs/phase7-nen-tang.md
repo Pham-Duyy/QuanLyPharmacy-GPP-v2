@@ -20,7 +20,7 @@ Mục tiêu: bù các chức năng nền còn thiếu sau lần đánh giá ph�
 | 7.1 | Rà kiểm tra dữ liệu đầu vào ở mọi API tạo/sửa: trùng, số âm/bằng 0, tiền nguyên đồng, ngày, chuỗi, số điện thoại; test cho từng lỗi; bộ test đầu cuối chạy lại được (D28) | Xong |
 | 7.2 | Chủ nhà thuốc kiêm dược sĩ: trang Quầy bán giải thích, tự thêm vai trò Dược sĩ, Hướng dẫn sử dụng (D29) | Xong |
 | 7.3 | Sao lưu trong phần mềm, lịch tự động, trang Sao lưu, lệnh phục hồi (D30) | Xong |
-| 7.4 | Xác thực hai lớp TOTP, mã dự phòng, đặt lại, cài đặt bắt buộc (D31) | Chưa làm |
+| 7.4 | Xác thực hai lớp TOTP, mã dự phòng, đặt lại, cài đặt bắt buộc (D31) | Xong |
 | 7.5 | Đơn đặt hàng gửi nhà cung cấp, email SMTP, tạo phiếu nhập từ đơn (D32) | Chưa làm |
 | 7.6 | Docker Compose chạy cả 3 thành phần, hướng dẫn cài đặt (D33) | Chưa làm |
 
@@ -66,3 +66,14 @@ Bản trước (gỡ ngày 01/10/2026, migration `20261001090000_remove_backups`
 - **Đo trên dữ liệu chạy thử** (71 bảng, 19.904 dòng, 390 ảnh): sao lưu 4,5 giây, tệp 1,2 MB; phục hồi 7 giây. Đã thử sửa, xóa dữ liệu sau khi sao lưu rồi phục hồi: dữ liệu, số thứ tự mã khách, 173 khóa ngoại trở về đúng.
 
 Test: `server/src/modules/backup/backup.test.ts` (sao lưu – phục hồi khứ hồi, tệp cắt cụt không làm mất dữ liệu, sai phiên bản bị từ chối, quyền, dò đường dẫn, nhật ký).
+
+## Xác thực hai lớp (7.4)
+
+- **TOTP tự cài** (`server/src/lib/totp.ts`, không thêm thư viện), khớp bảng kiểm thử của RFC 4226 và RFC 6238. Mã QR dựng bằng component `QRCode` của antd ở trình duyệt; khóa không gửi đi đâu khác.
+- **Lưu trữ**: migration `20261102090000_mfa` thêm `users.mfa_secret_enc`, `mfa_pending_secret_enc`, `mfa_enabled_at`, `mfa_last_step` (chặn dùng lại mã) và bảng `mfa_recovery_codes` (HMAC, dùng một lần). Khóa mã hóa như mật khẩu liên thông (AES-256-GCM, dẫn xuất từ `JWT_SECRET`).
+- **Đăng nhập hai bước**: đúng mật khẩu nhận vé 5 phút (ký bằng khóa riêng), vé + mã mới có phiên. Sai mã cộng vào bộ đếm sai mật khẩu; bước mật khẩu không xóa bộ đếm khi tài khoản có MFA, nên không thử mã vô hạn được.
+- **Bắt buộc với Quản lý**: cài đặt toàn chuỗi `mfaRequiredForManagers` (Cài đặt → Bảo mật). Quản lý chưa bật thì máy chủ trả `403 MFA_SETUP_REQUIRED` cho mọi API trừ hồ sơ, đổi mật khẩu, đăng xuất, màn bật MFA; giao diện hiện màn bật MFA thay cho cả phần mềm (giống cổng đổi mật khẩu tạm). Đang bắt buộc thì Quản lý không tắt được.
+- **Đặt lại**: quản lý nhân sự đặt lại MFA cho người mình quản lý ở trang Nhân viên; không tự đặt lại cho mình.
+- **Rủi ro đã biết**: khóa MFA và mã dự phòng đều dẫn xuất từ `JWT_SECRET`. Đổi `JWT_SECRET` thì cả mã 6 số lẫn mã dự phòng không dùng được nữa; quản lý phải đặt lại MFA cho từng người (người đặt lại cũng cần đăng nhập được, nên đổi `JWT_SECRET` khi chính sách bắt buộc đang tắt). Ghi trong contract §3.
+
+Test: `server/src/lib/totp.test.ts` (bảng kiểm thử RFC), `server/src/modules/auth/mfa.test.ts` (bật, đăng nhập hai bước, chặn dùng lại mã, mã dự phòng, giới hạn thử, tắt, đặt lại, bắt buộc với Quản lý, quyền), `client/src/features/auth/mfa-api.test.ts`. Đã chạy thử trên trình duyệt: bật bằng mã tính từ khóa, đăng nhập hai bước, mã sai, mã dự phòng, bật bắt buộc rồi bị đưa vào màn bật MFA, đặt lại cho nhân viên.

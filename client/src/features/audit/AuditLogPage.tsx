@@ -48,6 +48,13 @@ const ACTION_LABEL: Record<string, string> = {
   USER_PASSWORD_RESET: "Đặt lại mật khẩu",
   USER_ROLES_REPLACE: "Đổi vai trò",
   USER_SELF_PHARMACIST: "Tự thêm vai trò Dược sĩ",
+  MFA_ENABLE: "Bật xác thực hai lớp",
+  MFA_DISABLE: "Tắt xác thực hai lớp",
+  MFA_RESET: "Đặt lại xác thực hai lớp",
+  MFA_RECOVERY_USED: "Đăng nhập bằng mã dự phòng",
+  MFA_RECOVERY_REGENERATE: "Tạo lại mã dự phòng",
+  BACKUP_CREATE: "Sao lưu dữ liệu",
+  BACKUP_DOWNLOAD: "Tải bản sao lưu",
 };
 
 const RESOURCE_LABEL: Record<string, string> = {

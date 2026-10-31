@@ -79,6 +79,10 @@ model User {
   lastFailedLoginAt         DateTime? @map("last_failed_login_at") @db.Timestamptz(6)
   defaultStoreId            String?   @map("default_store_id") @db.Uuid
   isActive                  Boolean   @default(true) @map("is_active")
+  mfaSecretEnc              String?   @map("mfa_secret_enc")
+  mfaPendingSecretEnc       String?   @map("mfa_pending_secret_enc")
+  mfaEnabledAt              DateTime? @map("mfa_enabled_at") @db.Timestamptz(6)
+  mfaLastStep               BigInt?   @map("mfa_last_step")
   version                   Int       @default(1)
   createdAt                 DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt                 DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
@@ -88,6 +92,7 @@ model User {
   userRoles                 UserRole[]                 @relation("UserRoleUser")
   assignedUserRoles         UserRole[]                 @relation("UserRoleAssignedBy")
   refreshSessions           RefreshSession[]
+  mfaRecoveryCodes          MfaRecoveryCode[]
   auditLogs                 AuditLog[]
   productPrices             ProductPrice[]
   settingsUpdated           Setting[]
@@ -1836,4 +1841,18 @@ model AiAgentLog {
   @@index([userId, occurredAt(sort: Desc)], map: "ai_agent_logs_user_idx")
   @@index([occurredAt(sort: Desc)], map: "ai_agent_logs_occurred_idx")
   @@map("ai_agent_logs")
+}
+
+/// Mã dự phòng của xác thực hai lớp (Phase 7, D31): dùng một lần, chỉ lưu bản băm.
+model MfaRecoveryCode {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  codeHash  String    @map("code_hash")
+  usedAt    DateTime? @map("used_at") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("mfa_recovery_codes")
 }

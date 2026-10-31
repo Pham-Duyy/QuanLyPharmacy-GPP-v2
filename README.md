@@ -2,11 +2,11 @@
 
 Phần mềm quản lý nhà thuốc bán lẻ đạt chuẩn GPP, thiết kế cho chuỗi nhiều nhà thuốc.
 
-Đã có: bán hàng tại quầy theo FEFO, đơn thuốc, khách hàng và tích điểm, nhập hàng, tồn kho theo lô, kiểm kê, điều chỉnh tồn, trả hàng (khách và nhà cung cấp), công nợ nhà cung cấp, chuyển hàng giữa các cửa hàng, thuốc kiểm soát đặc biệt, sổ nhiệt độ – độ ẩm, thu hồi thuốc, liên thông CSDL Dược quốc gia, hóa đơn điện tử qua MISA meInvoice, bán theo mã đơn thuốc điện tử, sổ doanh thu theo TT 152, báo cáo, nhập/xuất Excel.
+Đã có: bán hàng tại quầy theo FEFO, đơn thuốc, khách hàng và tích điểm, nhập hàng, tồn kho theo lô, kiểm kê, điều chỉnh tồn, trả hàng (khách và nhà cung cấp), công nợ nhà cung cấp, chuyển hàng giữa các cửa hàng, thuốc kiểm soát đặc biệt, sổ nhiệt độ – độ ẩm, thu hồi thuốc, liên thông CSDL Dược quốc gia, hóa đơn điện tử qua MISA meInvoice, bán theo mã đơn thuốc điện tử, sổ doanh thu theo TT 152, báo cáo, nhập/xuất Excel, sao lưu tự động, xác thực hai lớp.
 
 Nghiệp vụ dược không dùng AI (contract §20): đơn thuốc lấy bằng mã đơn điện tử và quét mã vạch/QR, kiểm tra an toàn theo luật tất định. AI chỉ dùng ở **Trợ lý AI** (contract §20): hỏi bằng tiếng Việt về số liệu của chuỗi (doanh thu, sản phẩm, tồn kho, hạn dùng, dự báo) hoặc đính kèm một tệp Excel/CSV, nhận câu trả lời kèm biểu đồ. Mọi con số do máy chủ tính và được đối chiếu trước khi hiện; chủ nhà thuốc đặt ngân sách AI mỗi tháng. Không đặt `ANTHROPIC_API_KEY` thì chỉ phân tích được tệp đính kèm, bằng luật, không gửi dữ liệu ra ngoài.
 
-Chưa có: đơn đặt hàng gửi nhà cung cấp, MFA (đang làm ở Phase 7).
+Chưa có: đơn đặt hàng gửi nhà cung cấp (đang làm ở Phase 7).
 
 - Giao diện: React + Vite
 - Máy chủ: Node.js + Express

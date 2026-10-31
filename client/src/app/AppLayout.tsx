@@ -2,6 +2,7 @@ import {
   CalendarOutlined,
   DownOutlined,
   KeyOutlined,
+  SafetyOutlined,
   LogoutOutlined,
   MenuFoldOutlined,
   MenuOutlined,
@@ -27,6 +28,7 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router";
 import { useAuth } from "../features/auth/auth-context.js";
 import { ChangePasswordModal } from "../features/auth/ChangePasswordModal.js";
+import { MfaModal } from "../features/auth/MfaPanels.js";
 import { activeNav, visibleSidebar } from "./access.js";
 import { CommandPalette } from "./CommandPalette.js";
 import { confirmLeave } from "./leave-guard.js";
@@ -63,6 +65,7 @@ export function AppLayout() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [passwordOpen, setPasswordOpen] = useState(false);
+  const [mfaOpen, setMfaOpen] = useState(false);
   /** Nhóm đang bung ra dạng khung nổi khi menu thu gọn; không ghi nhớ. */
   const [popupGroup, setPopupGroup] = useState<string | null>(null);
 
@@ -242,10 +245,16 @@ export function AppLayout() {
       },
       { type: "divider" },
       { key: "password", icon: <KeyOutlined />, label: "Đổi mật khẩu" },
+      {
+        key: "mfa",
+        icon: <SafetyOutlined />,
+        label: me.user.mfaEnabled ? "Xác thực hai lớp: đang bật" : "Bật xác thực hai lớp",
+      },
       { key: "logout", icon: <LogoutOutlined />, label: "Đăng xuất", danger: true },
     ],
     onClick: ({ key }) => {
       if (key === "password") setPasswordOpen(true);
+      if (key === "mfa") setMfaOpen(true);
       if (key === "logout") confirmLeave(() => void logout());
     },
   };
@@ -361,6 +370,7 @@ export function AppLayout() {
       </Layout>
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
       <ChangePasswordModal open={passwordOpen} onClose={() => setPasswordOpen(false)} />
+      <MfaModal open={mfaOpen} onClose={() => setMfaOpen(false)} />
     </Layout>
   );
 }

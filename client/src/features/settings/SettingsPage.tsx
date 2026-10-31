@@ -2,8 +2,10 @@ import {
   FileTextOutlined,
   GiftOutlined,
   InboxOutlined,
+  LockOutlined,
   PrinterOutlined,
   RightOutlined,
+  SafetyOutlined,
   SettingOutlined,
   ShoppingCartOutlined,
   TeamOutlined,
@@ -17,6 +19,7 @@ import { PageHeader } from "../../ui/PageHeader.js";
 import { DocumentTemplateSettings } from "./DocumentTemplateSettings.js";
 import { InvoiceTemplateSettings } from "./InvoiceTemplateSettings.js";
 import { LoyaltySettings } from "./LoyaltySettings.js";
+import { MfaPolicySettings } from "./MfaPolicySettings.js";
 
 type SettingSection = {
   key: string;
@@ -61,6 +64,20 @@ const GROUPS: SettingGroup[] = [
         render: (open) => (
           <DocumentTemplateSettings onOpenInvoiceTemplate={() => open("mau-in-hoa-don")} />
         ),
+      },
+    ],
+  },
+  {
+    key: "bao-mat",
+    label: "Bảo mật",
+    icon: <SafetyOutlined />,
+    sections: [
+      {
+        key: "xac-thuc-hai-lop",
+        label: "Xác thực hai lớp",
+        description: "Bắt buộc tài khoản Quản lý nhập thêm mã 6 số trên điện thoại khi đăng nhập",
+        icon: <LockOutlined />,
+        render: () => <MfaPolicySettings />,
       },
     ],
   },
