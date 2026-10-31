@@ -38,6 +38,11 @@ DATA → MONITORING → PROCESSING → ANALYTICS → STORAGE → DASHBOARD → A
 | D12 | Dự báo chỉ trên ngày đã trọn; tầm 7 và 30 ngày; chọn mô hình bằng backtest 4 tuần, WAPE; phải thắng mô hình ngây thơ | Hôm nay chưa xong sẽ kéo dự báo xuống; WAPE không chia cho 0 |
 | D13 | Ngưỡng: R1 doanh thu giảm > 30%, R2 lượng bán thuốc giảm > 50% (§16), R3 tồn tăng > 3 lần lượng bán 30 ngày, \|z\| > 3,5 | Trong `config.py` |
 | D9 | Ngưỡng mặc định trong `config.py`: ADS tính trên 30 ngày; sắp hết khi số ngày tồn < 7 hoặc dưới `min_stock`; tồn cao khi > 90 ngày hoặc trên `max_stock`; tồn chết khi còn tồn mà 30 ngày không bán; hạn dùng 5 mức 0/7/30/90 ngày | Theo master prompt §13, §14; sửa một chỗ là đổi toàn hệ thống |
+| D23 | Lợi nhuận, giá vốn, biên lợi nhuận (`profit`, `cogs`, `margin_pct`, `cost_coverage_pct`, xếp hạng theo lợi nhuận và "biên thấp") chỉ hiện khi có **`stock.cost.read`** ở phạm vi đang xem (toàn chuỗi: ở mọi cửa hàng). Gateway bỏ các trường này trước khi trả về, áp cho `/bi/*` và tool AI | Dùng lại quyền giá vốn đã có (Tổng kết tháng đã ẩn giá vốn theo quyền này); dược sĩ không xem lợi nhuận |
+| D24 | Dược sĩ vào Bảng điều hành (trên trang Tổng quan) qua quyền **`report.inventory`** đã có, chỉ ở cửa hàng được gán; **không** cấp `report.sales` | `report.sales` còn mở trang Báo cáo kinh doanh có lãi gộp. Dược sĩ xem doanh thu, đơn, dự báo, bất thường, tồn kho, hạn dùng, đặt hàng, ABC; tab Sản phẩm vẫn cần `report.sales` (D8) |
+| D25 | Quyền mới **`report.ai`**: được hỏi trợ lý AI. Admin có; kiểm toán, dược sĩ, kho không | AI tính tiền theo câu: tách khỏi quyền xem báo cáo để chủ nhà thuốc quyết ai được dùng |
+| D26 | Cấu hình AI chung toàn chuỗi trong bảng `settings` (khóa `ai.agent`, không gắn cửa hàng): bật/tắt, số câu mỗi người mỗi giờ (mặc định 30), **ngân sách 10 USD/tháng**. Chi tiêu tháng = tổng `cost_usd` của `ai_agent_logs` từ đầu tháng (giờ Việt Nam). Hết ngân sách hoặc đang tắt thì từ chối **trước khi** gọi Claude (không tốn tiền), báo rõ lý do | Chặn chi phí ngoài ý muốn; sửa không cần khởi động lại; tính trên nhật ký đã có |
+| D27 | Trang Quản trị **"Phân tích & AI"**: Nguồn số liệu (đọc `/bi/health`), Hạn mức AI, Nhật ký AI. Sửa cấu hình cần `settings.manage` toàn chuỗi (ghi audit); xem nhật ký AI (có nội dung câu hỏi) cần `audit.read` toàn chuỗi. Không có nút "cập nhật ngay": Analytics API giữ chỉ đọc, Monitor tự cập nhật trong khoảng 30 giây | Một chỗ cho chủ nhà thuốc theo dõi chi phí AI và tình trạng số liệu; giữ nguyên nguyên tắc Analytics API chỉ đọc |
 
 ## Thành phần
 
@@ -498,6 +503,29 @@ số đặt         = max(0, cần có − tồn dùng được), làm tròn lê
   chỉ đọc 1,7 giây, 0 dòng lỗi; lần kiểm tra không đổi 0,1 giây; tài khoản chỉ đọc bị từ chối khi đọc `customers`,
   khi tạo bảng.
 
+## Phase 6: phân quyền và quản trị Phân tích & AI (thiết kế đã chốt)
+
+Quyết định D23–D27 ở bảng trên. Ma trận quyền sau Phase 6:
+
+| Vai trò | Bảng điều hành | Phạm vi | Lợi nhuận, giá vốn | Tồn kho, hạn dùng | Hỏi AI | Quản trị Phân tích & AI |
+|---|---|---|---|---|---|---|
+| Admin | Có | Theo vai trò được gán (toàn chuỗi nếu gán toàn chuỗi) | Có | Có | Có | Có (khi gán toàn chuỗi) |
+| Kiểm toán | Có | Như trên | Có | Có | **Không** | Chỉ xem nhật ký AI |
+| Dược sĩ | **Có** (qua `report.inventory`) | Cửa hàng được gán | **Không** | Có | Không | Không |
+| Nhân viên kho | Không | — | — | — | — | — |
+
+Quyền mới và thay đổi vai trò đi bằng migration (cơ sở dữ liệu đang chạy được cập nhật, không cần seed lại).
+
+Bước:
+
+- **6.1 Quyền**: `report.ai`; Gateway bỏ trường lợi nhuận khi thiếu `stock.cost.read` (KPI, xu hướng, cơ cấu, sản phẩm,
+  tool AI); `/bi/*` nhận thêm `report.inventory`; giao diện ẩn ô lợi nhuận, biên; Tổng quan hiện Bảng điều hành cho dược sĩ.
+- **6.2 Cấu hình và ngân sách AI**: `settings` khóa `ai.agent`; `GET/PUT /bi/ai/settings`; `/bi/ask` từ chối khi tắt
+  hoặc hết ngân sách (trạng thái `disabled`, `budget_exceeded`); giới hạn câu/giờ đọc từ cấu hình; `/bi/ask/status` trả
+  chi tiêu tháng.
+- **6.3 Nhật ký AI**: `GET /bi/ai/logs` (lọc người, trạng thái, tháng; phân trang; tổng chi phí, số câu theo trạng thái).
+- **6.4 Trang "Phân tích & AI"** trong nhóm Quản trị; tài liệu, hướng dẫn.
+
 ## Lộ trình
 
 | Phase | Nội dung | Trạng thái |
@@ -533,5 +561,9 @@ số đặt         = max(0, cần có − tồn dùng được), làm tròn lê
 | 5.4 | API, Gateway, tab "Đặt hàng" và "ABC" trên Bảng điều hành, 2 tool AI Agent, xuất Excel | Xong |
 | 5.5 | Nguồn PostgreSQL: view chỉ đọc `analytics_src`, tài khoản chỉ đọc, phát hiện thay đổi; cột "Theo dự báo" ở trang Đề xuất đặt hàng || Xong |
 | 5.6 | ML bên thách đấu (scikit-learn, đặc trưng thứ, độ trễ, lễ Tết), chỉ dùng khi backtest tốt hơn ([kpi.md](kpi.md#ml-bên-thách-đấu-phase-5-bước-56)); đo ngoài mẫu không tốt hơn nên tắt mặc định | Xong |
+| 6.1 | Quyền: `report.ai`, ẩn lợi nhuận khi thiếu `stock.cost.read`, dược sĩ xem Bảng điều hành cửa hàng mình (D23–D25) | Chưa làm |
+| 6.2 | Cấu hình AI: bật/tắt, câu/giờ, ngân sách 10 USD/tháng, chặn trước khi gọi Claude (D26) | Chưa làm |
+| 6.3 | API nhật ký AI: lọc, phân trang, tổng chi phí tháng | Chưa làm |
+| 6.4 | Trang Quản trị "Phân tích & AI": nguồn số liệu, hạn mức AI, nhật ký AI (D27) | Chưa làm |
 
 Schema dữ liệu và luật kiểm tra: [data-schema.md](data-schema.md). Công thức KPI: [kpi.md](kpi.md).
