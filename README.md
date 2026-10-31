@@ -88,6 +88,33 @@ Thêm một thay đổi lược đồ:
 
 Không sửa file migration đã được áp dụng; thay đổi tiếp theo luôn là một migration mới. Không sửa mã băm trong bảng `_prisma_migrations` để vượt qua cảnh báo.
 
+## Dữ liệu chạy thử (lịch sử bán hàng)
+
+Để xem biểu đồ, dự báo, bất thường, gợi ý đặt hàng và Trợ lý AI chạy với số liệu có hình dạng thật:
+
+```bash
+cd server
+npm run db:seed          # tài khoản, cửa hàng đầu tiên, danh mục cơ bản (CSDL mới)
+npm run db:catalog       # thêm 40 mặt hàng
+npm run db:demo          # tài khoản demo, lô sắp hết hạn, đơn thuốc...
+npm run db:sales-demo    # 90 ngày bán hàng cho 3 cửa hàng (~4–5 phút)
+```
+
+`db:sales-demo` mở thêm cửa hàng nếu chuỗi có ít hơn 3 (`--stores`), nhập hàng (lô `DEMOSALE-*`), rồi bán qua đúng
+hàm bán hàng của phần mềm (FEFO, thẻ kho, giá vốn) và dời ngày bán về quá khứ. Số liệu tăng dần theo thời gian, cuối
+tuần đông hơn, nhóm thuốc ho tăng theo mùa, có một ngày giảm mạnh và một ngày tăng vọt để phần Bất thường phát hiện;
+vài mặt hàng cố ý nhập ít để có cảnh báo sắp hết hàng. Chỉ thêm dữ liệu, chỉ tạo lịch sử một lần (`--force` để tạo thêm).
+
+```bash
+npm run db:sales-demo -- --days 120 --per-day 40   # dài hơn, đông hơn
+npm run db:sales-demo -- --live-only               # chỉ bán trực tiếp: ~5 giây một hóa đơn, Ctrl+C dừng
+```
+
+Xem số liệu nhảy theo thời gian thực: chạy analytics-service với nguồn PostgreSQL (`ANALYTICS_SOURCE=postgres`, tài khoản
+từ `npm run db:analytics-reader`), mở Tổng quan bằng tài khoản admin toàn chuỗi, rồi chạy `--live-only` ở một cửa sổ
+khác: "Doanh thu hôm nay", số đơn, tồn kho đổi khoảng 30 giây một lần. Đo trên CSDL mới: 60 ngày, 3 cửa hàng, 4.473
+hóa đơn trong 2 phút 24 giây; analytics-service đọc 8.341 dòng bán hàng, 0 lỗi.
+
 ## Sao lưu CSDL
 
 Phần mềm không có chức năng sao lưu; Nhật ký hệ thống chỉ ghi ai làm gì, không phục hồi được dữ liệu. Trước khi áp migration, dọn dữ liệu hay demo, sao lưu bằng tay và để tệp **ngoài thư mục dự án**:

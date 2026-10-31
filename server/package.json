@@ -23,7 +23,8 @@
     "db:catalog": "tsx prisma/seed-catalog-extra.ts",
     "check:migrations": "tsx src/scripts/check-migrations.ts",
     "eval:agent": "tsx src/scripts/agent-eval.ts",
-    "db:analytics-reader": "tsx src/scripts/analytics-reader.ts"
+    "db:analytics-reader": "tsx src/scripts/analytics-reader.ts",
+    "db:sales-demo": "tsx src/scripts/sales-demo.ts"
   },
   "type": "module",
   "dependencies": {
