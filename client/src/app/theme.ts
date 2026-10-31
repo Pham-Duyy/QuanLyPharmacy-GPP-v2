@@ -48,7 +48,8 @@ export const appTheme: ThemeConfig = {
     borderRadiusSM: 6,
     controlHeight: 36,
     fontSize: 14,
-    fontFamily: "'Times New Roman', Times, 'Liberation Serif', Tinos, serif",
+    fontFamily:
+      "'Inter Variable', 'Segoe UI', system-ui, -apple-system, Roboto, 'Helvetica Neue', Arial, sans-serif",
     boxShadowTertiary: "0 1px 2px rgba(15, 35, 70, 0.05)",
   },
   components: {
