@@ -3,6 +3,7 @@ import { prisma } from "../../../db/prisma.js";
 import { AppError } from "../../../lib/app-error.js";
 import type { AuthContext } from "../../auth/auth.context.js";
 import { biAccess, resolveStore } from "../bi.service.js";
+import { aiBudget, getAiSettings } from "./ai-settings.js";
 import {
   AGENT_LIMITS,
   BLOCKED_ANSWER,
@@ -15,8 +16,10 @@ import {
 /**
  * Hỏi đáp với AI Agent qua `POST /api/v1/bi/ask` (Phase 4, bước 4.4).
  *
- * - Giới hạn: 30 câu mỗi người mỗi giờ (đếm trên nhật ký, kể cả câu lỗi), một câu
- *   đang chạy mỗi người. Chỉ gọi Claude khi người dùng gửi câu hỏi.
+ * - Giới hạn: số câu mỗi người mỗi giờ theo cấu hình (mặc định 30; đếm trên nhật ký, kể cả
+ *   câu lỗi), một câu đang chạy mỗi người. Chỉ gọi Claude khi người dùng gửi câu hỏi.
+ * - Cấu hình chung (bước 6.2, D26): chủ nhà thuốc tắt AI hoặc chuỗi đã dùng hết ngân sách tháng
+ *   thì câu hỏi bị từ chối trước khi gọi Claude, không tốn tiền.
  * - Hội thoại lưu phía server, chỉ thêm, tối đa 10 câu, hết hạn 24 giờ sau khi tạo.
  *   Chỉ người tạo mới đọc, hỏi tiếp được.
  * - Mỗi câu hỏi ghi một dòng `ai_agent_logs`: câu hỏi, trạng thái, câu trả lời, tool
@@ -24,7 +27,6 @@ import {
  */
 
 export const AGENT_POLICY = {
-  questionsPerHour: 30,
   conversationTurns: 10,
   conversationTtlMs: 24 * 60 * 60 * 1000,
 } as const;
@@ -80,17 +82,24 @@ async function questionsLastHour(userId: string, now: Date) {
 }
 
 export async function agentStatus(auth: AuthContext) {
-  const [used, access] = await Promise.all([
-    questionsLastHour(auth.userId, new Date()),
+  const now = new Date();
+  const [used, access, { settings }] = await Promise.all([
+    questionsLastHour(auth.userId, now),
     biAccess(auth),
+    getAiSettings(),
   ]);
+  const budget = await aiBudget(settings, now);
   return {
     /** Người này có quyền hỏi AI không (report.ai, D25). */
     allowed: access.canAsk,
+    /** Có ANTHROPIC_API_KEY trên máy chủ. */
     enabled: claudeClient() !== null,
+    /** Chủ nhà thuốc đang bật trợ lý (D26). */
+    turnedOn: settings.enabled,
+    budget,
     limits: {
-      questionsPerHour: AGENT_POLICY.questionsPerHour,
-      remainingThisHour: Math.max(AGENT_POLICY.questionsPerHour - used.count, 0),
+      questionsPerHour: settings.questionsPerHour,
+      remainingThisHour: Math.max(settings.questionsPerHour - used.count, 0),
       conversationTurns: AGENT_POLICY.conversationTurns,
       questionChars: AGENT_LIMITS.questionChars,
       timeoutSeconds: AGENT_LIMITS.timeoutMs / 1000,
@@ -104,6 +113,15 @@ const timeFormat = new Intl.DateTimeFormat("vi-VN", {
   minute: "2-digit",
   hourCycle: "h23",
 });
+
+const dateFormat = new Intl.DateTimeFormat("vi-VN", {
+  timeZone: "Asia/Ho_Chi_Minh",
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+});
+
+const usd = (value: number) => `$${value.toFixed(2)}`;
 
 async function loadConversation(userId: string, id: string, now: Date) {
   const conversation = await prisma.aiAgentConversation.findUnique({ where: { id } });
@@ -170,16 +188,29 @@ export async function askQuestion(
   if (!claudeClient()) {
     throw new AppError(503, "AI_DISABLED", "Chưa cấu hình ANTHROPIC_API_KEY cho trợ lý AI");
   }
+  const { settings } = await getAiSettings();
+  if (!settings.enabled) {
+    throw new AppError(403, "AI_TURNED_OFF", "Chủ nhà thuốc đang tắt trợ lý AI");
+  }
+  const budget = await aiBudget(settings, now);
+  if (budget.exceeded) {
+    throw new AppError(
+      429,
+      "AI_BUDGET_EXCEEDED",
+      `Đã dùng hết ngân sách AI tháng này (${usd(budget.spentUsd)} / ${usd(budget.monthlyUsd)}). ` +
+        `Trợ lý mở lại từ ${dateFormat.format(budget.resetsAt)}, hoặc nhờ chủ nhà thuốc tăng ngân sách.`,
+    );
+  }
   if (inFlight.has(auth.userId)) {
     throw new AppError(409, "AGENT_BUSY", "Trợ lý đang trả lời câu trước của bạn, hãy đợi xong");
   }
   const used = await questionsLastHour(auth.userId, now);
-  if (used.count >= AGENT_POLICY.questionsPerHour) {
+  if (used.count >= settings.questionsPerHour) {
     const retryAt = new Date((used.oldest ?? now).getTime() + HOUR_MS);
     throw new AppError(
       429,
       "RATE_LIMITED",
-      `Bạn đã hỏi ${AGENT_POLICY.questionsPerHour} câu trong 1 giờ qua, hãy thử lại sau ${timeFormat.format(retryAt)}`,
+      `Bạn đã hỏi ${settings.questionsPerHour} câu trong 1 giờ qua, hãy thử lại sau ${timeFormat.format(retryAt)}`,
     );
   }
   const existing = body.conversationId
@@ -280,7 +311,7 @@ export async function askQuestion(
         maxTurns: AGENT_POLICY.conversationTurns,
         expiresAt: conversation.expiresAt,
       },
-      remainingThisHour: Math.max(AGENT_POLICY.questionsPerHour - used.count - 1, 0),
+      remainingThisHour: Math.max(settings.questionsPerHour - used.count - 1, 0),
     };
   } finally {
     inFlight.delete(auth.userId);

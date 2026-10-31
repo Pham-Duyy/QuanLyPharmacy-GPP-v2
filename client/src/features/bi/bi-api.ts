@@ -469,8 +469,24 @@ export type AgentReply = {
   remainingThisHour: number;
 };
 
+/** Chi tiêu AI của cả chuỗi trong tháng (giờ Việt Nam, bước 6.2). */
+export type AiBudget = {
+  monthlyUsd: number;
+  spentUsd: number;
+  remainingUsd: number;
+  questions: number;
+  resetsAt: string;
+  exceeded: boolean;
+};
+
 export type AgentAvailability = {
+  /** Có quyền report.ai (D25). */
+  allowed: boolean;
+  /** Máy chủ có ANTHROPIC_API_KEY. */
   enabled: boolean;
+  /** Chủ nhà thuốc đang bật trợ lý (D26). */
+  turnedOn: boolean;
+  budget: AiBudget;
   limits: {
     questionsPerHour: number;
     remainingThisHour: number;

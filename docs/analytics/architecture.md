@@ -521,8 +521,9 @@ Bước:
 - **6.1 Quyền**: `report.ai`; Gateway bỏ trường lợi nhuận khi thiếu `stock.cost.read` (KPI, xu hướng, cơ cấu, sản phẩm,
   tool AI); `/bi/*` nhận thêm `report.inventory`; giao diện ẩn ô lợi nhuận, biên; Tổng quan hiện Bảng điều hành cho dược sĩ.
 - **6.2 Cấu hình và ngân sách AI**: `settings` khóa `ai.agent`; `GET/PUT /bi/ai/settings`; `/bi/ask` từ chối khi tắt
-  hoặc hết ngân sách (trạng thái `disabled`, `budget_exceeded`); giới hạn câu/giờ đọc từ cấu hình; `/bi/ask/status` trả
-  chi tiêu tháng.
+  (`403 AI_TURNED_OFF`) hoặc hết ngân sách (`429 AI_BUDGET_EXCEEDED`) trước khi gọi Claude; giới hạn câu/giờ đọc từ cấu
+  hình; `/bi/ask/status` trả `turnedOn`, `budget`. Code: `server/src/modules/bi/agent/ai-settings.ts`. Ngân sách kiểm
+  trước mỗi câu, nên câu cuối cùng có thể làm chi tiêu vượt nhẹ (một câu thường dưới 0,2 USD).
 - **6.3 Lịch sử hội thoại, tiến trình, nhật ký**: hội thoại giữ 30 ngày, có tiêu đề (lấy từ câu hỏi đầu, không gọi AI);
   API danh sách, đổi tên, xóa; gửi tiến trình tra cứu từng bước (SSE) trong lúc AI làm việc; `GET /bi/ai/logs` cho admin.
 - **6.4 Trang "Trợ lý AI"** (mục riêng trên sidebar, giao diện kiểu Claude): cột lịch sử, khung trò chuyện, câu gợi ý,
@@ -568,7 +569,7 @@ Bước:
 | 5.5 | Nguồn PostgreSQL: view chỉ đọc `analytics_src`, tài khoản chỉ đọc, phát hiện thay đổi; cột "Theo dự báo" ở trang Đề xuất đặt hàng || Xong |
 | 5.6 | ML bên thách đấu (scikit-learn, đặc trưng thứ, độ trễ, lễ Tết), chỉ dùng khi backtest tốt hơn ([kpi.md](kpi.md#ml-bên-thách-đấu-phase-5-bước-56)); đo ngoài mẫu không tốt hơn nên tắt mặc định | Xong |
 | 6.1 | Quyền: `report.ai`, ẩn lợi nhuận khi thiếu `stock.cost.read`, dược sĩ xem Bảng điều hành cửa hàng mình (D23–D25) | Xong |
-| 6.2 | Cấu hình AI: bật/tắt, câu/giờ, ngân sách 10 USD/tháng, chặn trước khi gọi Claude (D26) | Chưa làm |
+| 6.2 | Cấu hình AI: bật/tắt, câu/giờ, ngân sách 10 USD/tháng, chặn trước khi gọi Claude (D26) | Xong |
 | 6.3 | Lịch sử hội thoại 30 ngày, tiến trình tra cứu (SSE), API nhật ký AI | Chưa làm |
 | 6.4 | Trang "Trợ lý AI" kiểu Claude, biểu đồ trong câu trả lời; bỏ tab Hỏi AI | Chưa làm |
 | 6.5 | Trang Quản trị "Phân tích & AI": nguồn số liệu, hạn mức AI, nhật ký AI (D27) | Chưa làm |

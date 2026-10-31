@@ -116,6 +116,27 @@ export function AgentPanel({
       />
     );
   }
+  if (status.data && !status.data.turnedOn) {
+    return (
+      <Alert
+        type="info"
+        showIcon
+        title="Chủ nhà thuốc đang tắt trợ lý AI"
+        description="Bật lại trong Quản trị → Phân tích & AI."
+      />
+    );
+  }
+  if (status.data?.budget.exceeded) {
+    const { spentUsd, monthlyUsd, resetsAt } = status.data.budget;
+    return (
+      <Alert
+        type="warning"
+        showIcon
+        title={`Đã dùng hết ngân sách AI tháng này ($${spentUsd.toFixed(2)} / $${monthlyUsd.toFixed(2)})`}
+        description={`Trợ lý mở lại từ ${new Date(resetsAt).toLocaleDateString("vi-VN")}, hoặc nhờ chủ nhà thuốc tăng ngân sách.`}
+      />
+    );
+  }
 
   return (
     <Card

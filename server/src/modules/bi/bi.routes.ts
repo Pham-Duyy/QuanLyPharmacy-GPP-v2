@@ -1,10 +1,13 @@
 import { Router } from "express";
 import { z } from "zod";
+import { AppError } from "../../lib/app-error.js";
 import { sendData } from "../../lib/respond.js";
 import { parseOrThrow } from "../../lib/validate.js";
 import { authenticate } from "../../middlewares/authenticate.js";
 import { requireAnyPermission } from "../../middlewares/require-permission.js";
+import type { AuthContext } from "../auth/auth.context.js";
 import { agentStatus, askQuestion } from "./agent/agent.service.js";
+import { aiBudget, aiSettingsSchema, getAiSettings, saveAiSettings } from "./agent/ai-settings.js";
 import { fetchAnalytics } from "./bi.client.js";
 import {
   biAccess,
@@ -211,6 +214,36 @@ const askBody = z.object({
   conversationId: z.uuid("Mã hội thoại không hợp lệ").optional(),
   /** Cửa hàng đang chọn trên Bảng điều hành: phạm vi mặc định khi câu hỏi không nêu. */
   store: storeField,
+});
+
+// --- Cấu hình trợ lý AI (Phase 6, bước 6.2, D26) -------------------------------------------
+
+/** Sửa, xem cấu hình AI chung toàn chuỗi: cần settings.manage ở vai trò toàn chuỗi. */
+function requireChainSettings(auth: AuthContext): void {
+  if (!auth.chainPermissions.has("settings.manage")) {
+    throw new AppError(
+      403,
+      "FORBIDDEN",
+      "Cấu hình trợ lý AI cần quyền settings.manage ở vai trò toàn chuỗi",
+    );
+  }
+}
+
+biRouter.get("/bi/ai/settings", async (req, res) => {
+  requireChainSettings(req.auth!);
+  const effective = await getAiSettings();
+  sendData(res, { ...effective, budget: await aiBudget(effective.settings, new Date()) });
+});
+
+biRouter.put("/bi/ai/settings", async (req, res) => {
+  requireChainSettings(req.auth!);
+  const body = parseOrThrow(aiSettingsSchema, req.body);
+  const saved = await saveAiSettings(
+    req.auth!.userId,
+    body,
+    (res.locals.requestId as string | undefined) ?? null,
+  );
+  sendData(res, { ...saved, budget: await aiBudget(saved.settings, new Date()) });
 });
 
 biRouter.get("/bi/ask/status", async (req, res) => {

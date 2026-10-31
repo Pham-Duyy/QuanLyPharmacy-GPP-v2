@@ -289,3 +289,111 @@ describe("lý do không gọi được Claude", () => {
     expect(explainAgentError(undefined)).toBeNull();
   });
 });
+
+describe("cấu hình trợ lý AI: bật/tắt, câu mỗi giờ, ngân sách tháng (bước 6.2)", () => {
+  const settingsApi = (token: string) =>
+    api().get("/api/v1/bi/ai/settings").set(authHeaders(token));
+  const save = (token: string, body: object) =>
+    api().put("/api/v1/bi/ai/settings").set(authHeaders(token)).send(body);
+  const spend = (costUsd: number, occurredAt = new Date()) =>
+    prisma.aiAgentLog.create({
+      data: {
+        userId: fixture.adminId,
+        question: "đã hỏi",
+        status: "answered",
+        costUsd,
+        occurredAt,
+      },
+    });
+
+  it("mặc định bật, 30 câu/giờ, 10 USD/tháng; chỉ admin toàn chuỗi xem và sửa được, có ghi nhật ký", async () => {
+    const first = await settingsApi(adminToken);
+    expect(first.status).toBe(200);
+    expect(first.body.data).toMatchObject({
+      settings: { enabled: true, questionsPerHour: 30, monthlyBudgetUsd: 10 },
+      isDefault: true,
+      budget: { monthlyUsd: 10, spentUsd: 0, remainingUsd: 10, exceeded: false },
+    });
+
+    expect(
+      (await save(adminToken, { enabled: true, questionsPerHour: 0, monthlyBudgetUsd: 10 })).status,
+    ).toBe(422);
+    const saved = await save(adminToken, {
+      enabled: false,
+      questionsPerHour: 5,
+      monthlyBudgetUsd: 3.5,
+    });
+    expect(saved.status).toBe(200);
+    expect(saved.body.data).toMatchObject({
+      settings: { enabled: false, questionsPerHour: 5, monthlyBudgetUsd: 3.5 },
+      isDefault: false,
+    });
+    const audit = await prisma.auditLog.findFirst({ where: { action: "SETTING_UPDATE" } });
+    expect(audit?.after).toMatchObject({ key: "ai.agent", enabled: false, monthlyBudgetUsd: 3.5 });
+
+    // Quản lý của riêng một cửa hàng không sửa được cấu hình chung của chuỗi.
+    await useTestRole(fixture.pharmacistId, "admin", fixture.storeId);
+    const storeAdmin = (await login("duocsi")).token;
+    expect((await settingsApi(storeAdmin)).status).toBe(403);
+    expect(
+      (await save(storeAdmin, { enabled: true, questionsPerHour: 30, monthlyBudgetUsd: 10 }))
+        .status,
+    ).toBe(403);
+  });
+
+  it("chủ nhà thuốc tắt AI: từ chối trước khi gọi Claude", async () => {
+    const calls = fakeClaude([reply("ok")]);
+    await save(adminToken, { enabled: false, questionsPerHour: 30, monthlyBudgetUsd: 10 });
+    const refused = await ask(adminToken, { question: "Doanh thu hôm nay?" });
+    expect(refused.status).toBe(403);
+    expect(refused.body.error.code).toBe("AI_TURNED_OFF");
+    expect(calls).toHaveLength(0);
+    const status = await api().get("/api/v1/bi/ask/status").set(authHeaders(adminToken));
+    expect(status.body.data.turnedOn).toBe(false);
+  });
+
+  it("hết ngân sách tháng: từ chối trước khi gọi Claude; chi tiêu tháng trước không tính", async () => {
+    const calls = fakeClaude([reply("ok")]);
+    await save(adminToken, { enabled: true, questionsPerHour: 30, monthlyBudgetUsd: 1 });
+    await spend(5, new Date(Date.now() - 40 * 86_400_000)); // tháng trước
+    await spend(0.6);
+    expect((await ask(adminToken, { question: "Doanh thu hôm nay?" })).status).toBe(200);
+
+    await spend(0.5);
+    const refused = await ask(adminToken, { question: "Doanh thu tuần này?" });
+    expect(refused.status).toBe(429);
+    expect(refused.body.error.code).toBe("AI_BUDGET_EXCEEDED");
+    expect(refused.body.error.message).toContain("/ $1.00");
+    expect(calls).toHaveLength(1);
+
+    const status = await api().get("/api/v1/bi/ask/status").set(authHeaders(adminToken));
+    expect(status.body.data.budget).toMatchObject({
+      monthlyUsd: 1,
+      remainingUsd: 0,
+      exceeded: true,
+    });
+  });
+
+  it("số câu mỗi giờ lấy từ cấu hình", async () => {
+    fakeClaude([reply("ok")]);
+    await save(adminToken, { enabled: true, questionsPerHour: 2, monthlyBudgetUsd: 10 });
+    await spend(0);
+    await spend(0);
+    const limited = await ask(adminToken, { question: "Thêm một câu" });
+    expect(limited.status).toBe(429);
+    expect(limited.body.error.code).toBe("RATE_LIMITED");
+    expect(limited.body.error.message).toContain("2 câu");
+  });
+
+  it("tháng tính theo giờ Việt Nam", async () => {
+    const { vnMonthRange } = await import("./ai-settings.js");
+    // 18:00 UTC ngày 31/10 là 01:00 ngày 1/11 ở Việt Nam: đã sang tháng 11.
+    expect(vnMonthRange(new Date("2026-10-31T18:00:00Z"))).toEqual({
+      start: new Date("2026-10-31T17:00:00Z"),
+      next: new Date("2026-11-30T17:00:00Z"),
+    });
+    expect(vnMonthRange(new Date("2026-10-31T16:00:00Z")).start).toEqual(
+      new Date("2026-09-30T17:00:00Z"),
+    );
+  });
+});
