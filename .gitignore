@@ -45,3 +45,6 @@ shots/
 
 # Bản sao lưu trong phần mềm: dữ liệu thật của nhà thuốc, không commit.
 backups/
+
+# Báo cáo, đề xuất dự án (Word): làm trên máy, không đưa lên GitHub.
+deliverables/
