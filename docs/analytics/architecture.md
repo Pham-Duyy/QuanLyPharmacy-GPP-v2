@@ -540,6 +540,11 @@ Bước:
   lưu cột `ai_agent_logs.charts` (migration `20261101150000_ai_answer_charts`) để mở lại hội thoại cũ vẫn thấy. Câu bị
   chặn vẫn kèm biểu đồ vì số trong biểu đồ lấy từ tool, không từ mô hình.
 - **6.5 Trang Quản trị "Phân tích & AI"**: nguồn số liệu, hạn mức AI, nhật ký AI (D27).
+  Đã làm: trang `/phan-tich-ai` trong nhóm Quản trị (mở được khi có `settings.manage` hoặc `audit.read`; từng phần
+  tự báo khi thiếu quyền toàn chuỗi), code `client/src/features/ai-admin/`. Nguồn số liệu đọc `/bi/health` (tự làm
+  mới 30 giây; analytics-service trả thêm `monitor.source` = `files` hoặc `postgres`). Hạn mức: bật/tắt, ngân sách, câu
+  mỗi giờ, thanh chi tiêu tháng, trạng thái API key. Nhật ký: chọn tháng, lọc người (kèm số câu, chi phí), kết quả;
+  bấm một dòng xem câu hỏi, câu trả lời, tool, token, chi phí. Ngày tính lại ngân sách luôn hiện theo giờ Việt Nam.
 - **6.6 Đính kèm tệp Excel/CSV** trong Trợ lý AI (thay trang "Trợ lý phân tích": trang cũ chỉ có 4 cột thời điểm, cửa
   hàng, doanh thu, số hóa đơn nên không trả lời được theo nhóm thuốc, sản phẩm, lợi nhuận); bỏ trang cũ khỏi sidebar.
 
@@ -582,7 +587,7 @@ Bước:
 | 6.2 | Cấu hình AI: bật/tắt, câu/giờ, ngân sách 10 USD/tháng, chặn trước khi gọi Claude (D26) | Xong |
 | 6.3 | Lịch sử hội thoại 30 ngày, tiến trình tra cứu (SSE), API nhật ký AI | Xong |
 | 6.4 | Trang "Trợ lý AI" kiểu Claude, biểu đồ trong câu trả lời; bỏ tab Hỏi AI | Xong |
-| 6.5 | Trang Quản trị "Phân tích & AI": nguồn số liệu, hạn mức AI, nhật ký AI (D27) | Chưa làm |
+| 6.5 | Trang Quản trị "Phân tích & AI": nguồn số liệu, hạn mức AI, nhật ký AI (D27) | Xong |
 | 6.6 | Đính kèm tệp Excel/CSV trong Trợ lý AI, bỏ trang "Trợ lý phân tích" cũ | Chưa làm |
 
 Schema dữ liệu và luật kiểm tra: [data-schema.md](data-schema.md). Công thức KPI: [kpi.md](kpi.md).

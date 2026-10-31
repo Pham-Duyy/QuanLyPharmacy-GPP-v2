@@ -75,7 +75,7 @@ export const SIDEBAR: readonly SidebarEntry[] = [
     key: "admin",
     label: "Quản trị",
     icon: <SettingOutlined />,
-    paths: ["/nhan-vien", "/cua-hang", "/cai-dat", "/audit-log", "/excel"],
+    paths: ["/nhan-vien", "/cua-hang", "/cai-dat", "/phan-tich-ai", "/audit-log", "/excel"],
     // Tách khỏi các mục nghiệp vụ bằng một gạch ngăn: việc ít dùng nằm riêng ở cuối.
     divided: true,
   },

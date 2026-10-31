@@ -1,4 +1,5 @@
 import {
+  SlidersOutlined,
   AreaChartOutlined,
   AlertOutlined,
   ApiOutlined,
@@ -334,6 +335,14 @@ export const PAGES = [
     icon: <AuditOutlined />,
     permission: "audit.read",
     keywords: "audit log lich su thao tac nhat ky",
+  },
+  {
+    path: "/phan-tich-ai",
+    label: "Phân tích & AI",
+    icon: <SlidersOutlined />,
+    // Trang gồm hai phần theo quyền riêng: cấu hình AI (settings.manage), nhật ký AI (audit.read).
+    permission: ["settings.manage", "audit.read"],
+    keywords: "ai claude ngan sach chi phi nhat ky tro ly nguon so lieu phan tich postgres",
   },
   {
     path: "/excel",

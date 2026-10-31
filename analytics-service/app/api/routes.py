@@ -135,6 +135,8 @@ def create_app(store: AnalyticsStore, monitor=None, *, lifespan=None) -> FastAPI
             stats = monitor.stats
             monitor_info = {
                 "folder": str(monitor.folder),
+                # Nguồn dữ liệu (Phase 6.5): "files" (tệp Excel/CSV) hay "postgres" (D22).
+                "source": getattr(getattr(monitor.pipeline, "source", None), "kind", "files"),
                 "events": stats.events,
                 "runs": stats.runs,
                 "last_latency_ms": stats.last_latency_ms,

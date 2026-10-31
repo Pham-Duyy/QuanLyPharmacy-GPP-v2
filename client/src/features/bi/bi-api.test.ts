@@ -4,6 +4,7 @@ import {
   canSeeCost,
   canSeeInventory,
   canSeeProducts,
+  resetDateText,
   clockText,
   errorText,
   matchesText,
@@ -63,6 +64,11 @@ describe("bảng điều hành", () => {
     expect(ageText(185)).toBe("3 phút trước");
     expect(ageText(7_300)).toBe("2 giờ trước");
     expect(ageText(null)).toBe("chưa rõ");
+  });
+
+  it("ngày tính lại ngân sách AI theo giờ Việt Nam", () => {
+    // 17:00 UTC ngày 31/10 là 00:00 ngày 1/11 ở Việt Nam.
+    expect(resetDateText("2026-10-31T17:00:00.000Z")).toBe("01/11/2026");
   });
 
   it("quyền xem tồn kho theo phạm vi", () => {

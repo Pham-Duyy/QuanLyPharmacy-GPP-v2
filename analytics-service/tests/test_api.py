@@ -79,6 +79,24 @@ def test_version_and_health(client):
     assert health["monitor"] is None  # chạy API không kèm Monitor
 
 
+def test_health_reports_source_kind(workspace):
+    from types import SimpleNamespace
+
+    from fastapi.testclient import TestClient
+
+    from app.api import create_app
+    from app.monitor.watcher import MonitorStats
+
+    _, store = workspace
+    monitor = SimpleNamespace(
+        folder="inbox",
+        stats=MonitorStats(),
+        pipeline=SimpleNamespace(source=SimpleNamespace(kind="postgres")),
+    )
+    body = TestClient(create_app(store, monitor)).get("/api/analytics/health").json()
+    assert body["monitor"]["source"] == "postgres"
+
+
 def test_summary_matches_snapshot(client, workspace):
     _, store = workspace
     body = client.get("/api/analytics/summary").json()

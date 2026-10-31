@@ -320,8 +320,20 @@ export type DataQuality = {
 export type Health = {
   status: "ok" | "degraded";
   snapshot: { version: number; age_seconds: number | null } | null;
-  last_run: { status: string; finished_at: string; error_message?: string | null } | null;
-  monitor: { events: number; runs: number; last_latency_ms: number | null } | null;
+  last_run: {
+    status: string;
+    finished_at: string;
+    trigger?: string;
+    duration_ms?: number;
+    error_message?: string | null;
+  } | null;
+  monitor: {
+    events: number;
+    runs: Record<string, number>;
+    last_latency_ms: number | null;
+    /** Nguồn số liệu (Phase 6.5): tệp Excel/CSV hay PostgreSQL. */
+    source?: "files" | "postgres";
+  } | null;
 };
 
 // --- Đặt hàng, ABC–XYZ (Phase 5, bước 5.4) ----------------------------------------------------
@@ -468,6 +480,16 @@ export type AgentReply = {
   conversation: { turns: number; maxTurns: number; expiresAt: string };
   remainingThisHour: number;
 };
+
+/** Ngày tính lại ngân sách AI: luôn theo giờ Việt Nam, dù máy người xem ở múi giờ nào. */
+export function resetDateText(iso: string): string {
+  return new Date(iso).toLocaleDateString("vi-VN", {
+    timeZone: "Asia/Ho_Chi_Minh",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+}
 
 /** Chi tiêu AI của cả chuỗi trong tháng (giờ Việt Nam, bước 6.2). */
 export type AiBudget = {

@@ -425,3 +425,47 @@
     font-size: 21px;
   }
 }
+
+/* ---------- Quản trị Phân tích & AI (bước 6.5) ---------- */
+.ai-budget {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 18px;
+  padding: 12px 14px;
+  border-radius: var(--r-lg);
+  background: var(--c-surface-2);
+}
+.ai-budget-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  color: var(--c-ink-500);
+}
+.ai-budget-head strong {
+  color: var(--c-ink-900);
+  font-size: 18px;
+}
+.ai-budget .muted {
+  font-size: 12.5px;
+}
+.ai-settings-form {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0 16px;
+  align-items: end;
+}
+.ai-settings-form > .ant-btn {
+  justify-self: start;
+}
+.ai-log-question {
+  padding: 10px 14px;
+  border-radius: var(--r-lg);
+  background: var(--c-primary-50);
+  color: var(--c-ink-900);
+  white-space: pre-wrap;
+}
+@media (max-width: 640px) {
+  .ai-settings-form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

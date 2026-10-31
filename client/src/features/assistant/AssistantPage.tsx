@@ -37,6 +37,7 @@ import { useAuth } from "../auth/auth-context.js";
 import {
   biApi,
   canSeeInventory,
+  resetDateText,
   suggestedQuestions,
   toolCallLabel,
   usdText,
@@ -129,7 +130,7 @@ export function AssistantPage() {
       : !status.data.turnedOn
         ? "Chủ nhà thuốc đang tắt trợ lý AI."
         : budget?.exceeded
-          ? `Đã dùng hết ngân sách AI tháng này ($${budget.spentUsd.toFixed(2)} / $${budget.monthlyUsd.toFixed(2)}). Mở lại từ ${new Date(budget.resetsAt).toLocaleDateString("vi-VN")}.`
+          ? `Đã dùng hết ngân sách AI tháng này ($${budget.spentUsd.toFixed(2)} / $${budget.monthlyUsd.toFixed(2)}). Mở lại từ ${resetDateText(budget.resetsAt)}.`
           : null;
 
   useEffect(() => {
