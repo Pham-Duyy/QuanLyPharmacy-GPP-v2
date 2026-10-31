@@ -1,12 +1,15 @@
 import {
   ArrowUpOutlined,
   CheckCircleFilled,
+  CloseOutlined,
   CopyOutlined,
   DeleteOutlined,
   EditOutlined,
+  FileExcelOutlined,
   LoadingOutlined,
   MenuOutlined,
   MoreOutlined,
+  PaperClipOutlined,
   PlusOutlined,
   RedoOutlined,
   RobotOutlined,
@@ -55,6 +58,9 @@ import {
   type ConversationInfo,
 } from "./assistant-api.js";
 
+/** Cùng giới hạn với máy chủ (MAX_CSV_BYTES). */
+const MAX_FILE_BYTES = 5 * 1024 * 1024;
+
 type Pending = { question: string; steps: string[]; error: string | null };
 
 function greeting(): string {
@@ -80,6 +86,8 @@ export function AssistantPage() {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [draft, setDraft] = useState("");
   const [pending, setPending] = useState<Pending | null>(null);
+  const [attached, setAttached] = useState<File | null>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
 
   const status = useQuery({ queryKey: ["bi", "agent-status"], queryFn: biApi.agentStatus });
@@ -123,15 +131,22 @@ export function AssistantPage() {
   const full = conversation ? conversation.turns >= conversation.maxTurns : false;
   const busy = pending !== null && pending.error === null;
   const budget = status.data?.budget;
-  const blockedReason = !status.data
+  // Chặn mọi câu hỏi (cả tệp đính kèm): chủ nhà thuốc tắt, hết ngân sách.
+  const stopReason = !status.data
     ? null
-    : !status.data.enabled
-      ? "Máy chủ chưa có ANTHROPIC_API_KEY: trợ lý AI chưa dùng được."
-      : !status.data.turnedOn
-        ? "Chủ nhà thuốc đang tắt trợ lý AI."
-        : budget?.exceeded
-          ? `Đã dùng hết ngân sách AI tháng này ($${budget.spentUsd.toFixed(2)} / $${budget.monthlyUsd.toFixed(2)}). Mở lại từ ${resetDateText(budget.resetsAt)}.`
-          : null;
+    : !status.data.turnedOn
+      ? "Chủ nhà thuốc đang tắt trợ lý AI."
+      : budget?.exceeded
+        ? `Đã dùng hết ngân sách AI tháng này ($${budget.spentUsd.toFixed(2)} / $${budget.monthlyUsd.toFixed(2)}). Mở lại từ ${resetDateText(budget.resetsAt)}.`
+        : null;
+  // Chưa có khóa API: không hỏi được số liệu chuỗi, nhưng vẫn phân tích tệp bằng luật (miễn phí).
+  const keyMissing = Boolean(status.data && !status.data.enabled);
+  const blockedReason = stopReason ?? (keyMissing ? "no-key" : null);
+  const notice =
+    stopReason ??
+    (keyMissing
+      ? "Máy chủ chưa có ANTHROPIC_API_KEY: chỉ phân tích được tệp Excel/CSV đính kèm (bằng luật, miễn phí)."
+      : null);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -145,19 +160,26 @@ export function AssistantPage() {
 
   const send = async (text: string) => {
     const question = text.trim();
-    if (!question || busy || blockedReason) return;
+    const file = attached;
+    if (busy || stopReason) return;
+    if (file === null && (!question || keyMissing)) return;
     setDraft("");
-    setPending({ question, steps: [], error: null });
+    setAttached(null);
+    const conversationId = activeId && !full ? { conversationId: activeId } : {};
+    setPending({
+      question: file ? `${question || "Phân tích tổng quan tệp này"} · 📎 ${file.name}` : question,
+      steps: file ? ["Đang đọc tệp và phân tích"] : [],
+      error: null,
+    });
     try {
-      const result = await askStream(
-        { question, store, ...(activeId && !full ? { conversationId: activeId } : {}) },
-        (event: AskProgress) => {
-          if (event.type === "tool_done") return;
-          setPending((current) =>
-            current ? { ...current, steps: [...current.steps, progressText(event)] } : current,
-          );
-        },
-      );
+      const result = file
+        ? await assistantApi.askFile({ file, question, ...conversationId })
+        : await askStream({ question, store, ...conversationId }, (event: AskProgress) => {
+            if (event.type === "tool_done") return;
+            setPending((current) =>
+              current ? { ...current, steps: [...current.steps, progressText(event)] } : current,
+            );
+          });
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["assistant", "conversations"] }),
         queryClient.invalidateQueries({ queryKey: ["bi", "agent-status"] }),
@@ -283,8 +305,8 @@ export function AssistantPage() {
         </div>
 
         <footer className="assistant-composer-wrap">
-          {blockedReason ? (
-            <Alert type="info" showIcon title={blockedReason} className="assistant-notice" />
+          {notice ? (
+            <Alert type="info" showIcon title={notice} className="assistant-notice" />
           ) : full && !pending ? (
             <Alert
               type="info"
@@ -305,6 +327,7 @@ export function AssistantPage() {
                   key={text}
                   type="button"
                   disabled={Boolean(blockedReason) || busy}
+                  hidden={keyMissing}
                   onClick={() => void send(text)}
                 >
                   {text}
@@ -313,6 +336,36 @@ export function AssistantPage() {
             </div>
           ) : null}
           <div className="assistant-composer">
+            {attached ? (
+              <div className="assistant-attachment">
+                <FileExcelOutlined />
+                <span title={attached.name}>{attached.name}</span>
+                <small>{(attached.size / 1024).toFixed(0)} KB</small>
+                <Button
+                  type="text"
+                  size="small"
+                  icon={<CloseOutlined />}
+                  onClick={() => setAttached(null)}
+                  aria-label="Bỏ tệp đính kèm"
+                />
+              </div>
+            ) : null}
+            <input
+              ref={fileInput}
+              type="file"
+              hidden
+              accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                event.target.value = "";
+                if (!file) return;
+                if (file.size > MAX_FILE_BYTES) {
+                  void message.error("Tệp tối đa 5 MB");
+                  return;
+                }
+                setAttached(file);
+              }}
+            />
             <Input.TextArea
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
@@ -325,19 +378,35 @@ export function AssistantPage() {
               autoSize={{ minRows: 1, maxRows: 8 }}
               maxLength={status.data?.limits.questionChars ?? 1000}
               placeholder={
-                full ? "Bắt đầu trò chuyện mới để hỏi tiếp" : "Hỏi về doanh thu, tồn kho, hạn dùng…"
+                full
+                  ? "Bắt đầu trò chuyện mới để hỏi tiếp"
+                  : attached
+                    ? "Hỏi gì về tệp này? (để trống: phân tích tổng quan)"
+                    : keyMissing
+                      ? "Đính kèm tệp Excel/CSV để phân tích"
+                      : "Hỏi về doanh thu, tồn kho, hạn dùng…"
               }
-              disabled={Boolean(blockedReason) || full}
+              disabled={Boolean(stopReason) || full || (keyMissing && !attached)}
               aria-label="Câu hỏi cho trợ lý AI"
             />
             <div className="assistant-composer-bar">
+              <Tooltip title="Đính kèm tệp Excel/CSV (tối đa 5 MB)">
+                <Button
+                  type="text"
+                  shape="circle"
+                  icon={<PaperClipOutlined />}
+                  disabled={Boolean(stopReason) || busy || full}
+                  onClick={() => fileInput.current?.click()}
+                  aria-label="Đính kèm tệp Excel/CSV"
+                />
+              </Tooltip>
               <Select
                 size="small"
                 variant="borderless"
                 value={store}
                 options={storeOptions}
                 onChange={(value) => setParam("store", value)}
-                disabled={storeOptions.length <= 1}
+                disabled={storeOptions.length <= 1 || attached !== null}
                 popupMatchSelectWidth={false}
                 aria-label="Phạm vi số liệu"
               />
@@ -348,14 +417,20 @@ export function AssistantPage() {
                 type="primary"
                 shape="circle"
                 icon={busy ? <LoadingOutlined /> : <ArrowUpOutlined />}
-                disabled={!draft.trim() || busy || Boolean(blockedReason) || full}
+                disabled={
+                  busy ||
+                  full ||
+                  Boolean(stopReason) ||
+                  (attached === null && (!draft.trim() || keyMissing))
+                }
                 onClick={() => void send(draft)}
                 aria-label="Gửi"
               />
             </div>
           </div>
           <p className="assistant-foot">
-            Trợ lý chỉ đọc số liệu. Mọi con số được đối chiếu tự động với nguồn trước khi hiện.
+            Trợ lý chỉ đọc số liệu. Mọi con số được đối chiếu tự động với nguồn trước khi hiện. 📎
+            Tệp Excel/CSV: máy chủ tự tính, mỗi tệp trả lời riêng một lượt.
           </p>
         </footer>
       </section>

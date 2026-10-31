@@ -227,6 +227,18 @@
   font-weight: 600;
   background: var(--c-surface-2);
 }
+.assistant-markdown blockquote {
+  margin: 0 0 10px;
+  padding: 6px 12px;
+  border-left: 3px solid var(--tone-orange);
+  border-radius: 0 var(--r-md) var(--r-md) 0;
+  background: var(--tone-orange-bg);
+  color: var(--c-ink-700);
+  font-size: 14px;
+}
+.assistant-markdown blockquote p {
+  margin: 0;
+}
 .assistant-markdown code {
   padding: 1px 5px;
   border-radius: 4px;
@@ -375,6 +387,33 @@
   padding: 2px 4px !important;
   font-size: 15px;
   resize: none;
+}
+.assistant-attachment {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  margin: 2px 0 8px;
+  padding: 6px 6px 6px 10px;
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-md);
+  background: var(--c-surface-2);
+  font-size: 13px;
+}
+.assistant-attachment > .anticon {
+  color: #1d6f42;
+  font-size: 16px;
+}
+.assistant-attachment > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--c-ink-900);
+}
+.assistant-attachment small {
+  color: var(--c-ink-400);
+  white-space: nowrap;
 }
 .assistant-composer-bar {
   display: flex;

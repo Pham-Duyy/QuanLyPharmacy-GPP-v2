@@ -10,6 +10,7 @@ import {
   narrateWithClaude,
   planWithClaude,
   unverifiedPercents,
+  type OnUsage,
 } from "./llm.js";
 import { humanizeColumn, planWithRules, validatePlan, valueFormatFor } from "./planner.js";
 import { profileDataset, toSummary } from "./summarize.js";
@@ -30,6 +31,8 @@ export type AnalyzeOptions = {
   /** Giờ tường hiện tại, để không so sánh kỳ chưa kết thúc. */
   now?: Date;
   source: AnalysisSource;
+  /** Nhận token mỗi lần gọi Claude (Trợ lý AI tính chi phí, ngân sách). */
+  onUsage?: OnUsage;
 };
 
 function describeError(error: unknown): string {
@@ -56,7 +59,7 @@ export async function analyzeDataset(
     planSource = "provided";
   } else if (aiEnabled() && question) {
     try {
-      draft = await planWithClaude(summary, question);
+      draft = await planWithClaude(summary, question, options.onUsage);
       planSource = "ai";
     } catch (error) {
       console.warn("Trợ lý phân tích: AI lập kế hoạch lỗi, dùng luật:", describeError(error));
@@ -88,6 +91,7 @@ export async function analyzeDataset(
         plan,
         facts,
         executed.result,
+        options.onUsage,
       );
       const unverified = unverifiedPercents(written, facts, executed.result);
       if (unverified.length > 0) {

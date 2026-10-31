@@ -68,7 +68,7 @@ export const SIDEBAR: readonly SidebarEntry[] = [
     key: "reports",
     label: "Báo cáo",
     icon: <FundOutlined />,
-    paths: ["/bao-cao", "/tong-ket-thang", "/tro-ly-phan-tich"],
+    paths: ["/bao-cao", "/tong-ket-thang"],
   },
   {
     kind: "group",

@@ -3,12 +3,18 @@ import { prisma } from "../../../db/prisma.js";
 import { AppError } from "../../../lib/app-error.js";
 import type { AuthContext } from "../../auth/auth.context.js";
 import { biAccess, resolveStore } from "../bi.service.js";
+import { analyzeDataset } from "../../analytics/analytics.service.js";
+import type { LlmUsage } from "../../analytics/llm.js";
+import { readUpload } from "../../analytics/upload.js";
+import type { AnalysisResponse } from "../../analytics/types.js";
 import { aiBudget, getAiSettings } from "./ai-settings.js";
+import { chartFromAnalysis, MAX_CHARTS } from "./charts.js";
 import {
   AGENT_LIMITS,
   BLOCKED_ANSWER,
   askAgent,
   claudeClient,
+  costUsd,
   type AgentProgress,
   type AgentResult,
   type AgentStatus,
@@ -189,17 +195,17 @@ function logData(input: LogInput) {
   };
 }
 
-export async function askQuestion(
-  auth: AuthContext,
-  body: { question: string; conversationId?: string | undefined; store?: string | undefined },
-  options: { onProgress?: (event: AgentProgress) => void } = {},
-) {
-  const now = new Date();
+/**
+ * Các chốt chặn trước khi trả lời, theo đúng thứ tự: quyền report.ai (D25), khóa API (khi cần
+ * gọi Claude), chủ nhà thuốc tắt, hết ngân sách tháng (D26), đang có câu chạy dở, quá số câu
+ * mỗi giờ. Mọi từ chối xảy ra trước khi gọi Claude nên không tốn tiền.
+ */
+async function guardAsk(auth: AuthContext, now: Date, options: { needsClaude: boolean }) {
   const access = await biAccess(auth);
   if (!access.canAsk) {
     throw new AppError(403, "FORBIDDEN", "Bạn chưa được dùng trợ lý AI (cần quyền report.ai)");
   }
-  if (!claudeClient()) {
+  if (options.needsClaude && !claudeClient()) {
     throw new AppError(503, "AI_DISABLED", "Chưa cấu hình ANTHROPIC_API_KEY cho trợ lý AI");
   }
   const { settings } = await getAiSettings();
@@ -227,6 +233,16 @@ export async function askQuestion(
       `Bạn đã hỏi ${settings.questionsPerHour} câu trong 1 giờ qua, hãy thử lại sau ${timeFormat.format(retryAt)}`,
     );
   }
+  return { access, settings, used };
+}
+
+export async function askQuestion(
+  auth: AuthContext,
+  body: { question: string; conversationId?: string | undefined; store?: string | undefined },
+  options: { onProgress?: (event: AgentProgress) => void } = {},
+) {
+  const now = new Date();
+  const { access, settings, used } = await guardAsk(auth, now, { needsClaude: true });
   const existing = body.conversationId
     ? await loadConversation(auth.userId, body.conversationId, now)
     : null;
@@ -470,4 +486,167 @@ export async function deleteConversation(auth: AuthContext, id: string) {
   await requireAsker(auth);
   await ownConversation(auth, id);
   await prisma.aiAgentConversation.delete({ where: { id } });
+}
+
+// --- Phân tích tệp Excel/CSV đính kèm (bước 6.6) ----------------------------------------------
+
+/** Câu hỏi mặc định khi chỉ đính kèm tệp. */
+const FILE_DEFAULT_QUESTION = "Phân tích tổng quan tệp này";
+
+/** Câu trả lời dạng Markdown từ nhận xét đã kiểm (số do máy chủ tính, AI chỉ diễn đạt). */
+export function fileAnswer(response: AnalysisResponse, fileName: string): string {
+  const { narrative } = response;
+  const lines = [`**${narrative.headline}**`, ""];
+  for (const finding of narrative.findings) lines.push(`- ${finding}`);
+  if (narrative.recommendations.length > 0) {
+    lines.push("", "**Gợi ý**");
+    for (const item of narrative.recommendations) lines.push(`- ${item}`);
+  }
+  for (const warning of response.warnings) lines.push("", `> ${warning}`);
+  const sheet = response.source.sheet ? `, sheet ${response.source.sheet}` : "";
+  lines.push(
+    "",
+    `_Tệp ${fileName}${sheet} · ${response.result.rowsUsed.toLocaleString("vi-VN")} dòng dùng để tính_`,
+  );
+  return lines.join("\n");
+}
+
+/**
+ * Hỏi về một tệp Excel/CSV đính kèm trong Trợ lý AI. Dùng lõi phân tích tệp có sẵn (máy chủ tự
+ * tính, AI chỉ lập kế hoạch và viết nhận xét; không có khóa API thì chạy bằng luật, miễn phí),
+ * qua cùng chốt chặn của trợ lý, lưu vào hội thoại như một lượt trả lời kèm biểu đồ. Lượt này
+ * không đưa vào lịch sử gửi Claude: câu hỏi tiếp theo về số liệu chuỗi không mang dữ liệu tệp.
+ */
+export async function askAboutFile(
+  auth: AuthContext,
+  body: {
+    question: string;
+    conversationId?: string | undefined;
+    sheet?: string | undefined;
+    file: { buffer: Buffer; name: string };
+  },
+) {
+  const now = new Date();
+  const { settings, used } = await guardAsk(auth, now, { needsClaude: false });
+  const existing = body.conversationId
+    ? await loadConversation(auth.userId, body.conversationId, now)
+    : null;
+  const question = body.question.trim() || FILE_DEFAULT_QUESTION;
+
+  inFlight.add(auth.userId);
+  try {
+    const started = Date.now();
+    const usage = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 };
+    let model: string | null = null;
+    const onUsage = (call: LlmUsage) => {
+      model = call.model;
+      usage.inputTokens += call.inputTokens;
+      usage.outputTokens += call.outputTokens;
+      usage.cacheReadTokens += call.cacheReadTokens;
+      usage.cacheWriteTokens += call.cacheWriteTokens;
+    };
+    const { dataset, source } = await readUpload(body.file.buffer, body.file.name, body.sheet);
+    const response = await analyzeDataset(dataset, {
+      question,
+      narrate: true,
+      source,
+      onUsage,
+    });
+    const durationMs = Date.now() - started;
+    const cost = model ? costUsd(model, usage) : 0;
+    const charts = response.charts
+      .map(chartFromAnalysis)
+      .filter((chart) => chart !== null)
+      .slice(0, MAX_CHARTS);
+    const toolCalls = [
+      {
+        round: 1,
+        name: "analyze_file",
+        input: { file: body.file.name, ...(source.sheet ? { sheet: source.sheet } : {}) },
+        ok: true,
+        durationMs,
+      },
+    ];
+    const verification = { checked: response.facts.length, unverified: [], retried: false };
+    const answer = fileAnswer(response, body.file.name);
+
+    const { conversation, log } = await prisma.$transaction(async (tx) => {
+      let saved;
+      if (existing) {
+        const updated = await tx.aiAgentConversation.updateMany({
+          where: { id: existing.id, turns: existing.turns },
+          data: {
+            turns: existing.turns + 1,
+            expiresAt: new Date(now.getTime() + AGENT_POLICY.conversationTtlMs),
+          },
+        });
+        if (updated.count === 0) {
+          throw new AppError(409, "CONFLICT", "Hội thoại vừa thay đổi, hãy tải lại");
+        }
+        saved = await tx.aiAgentConversation.findUniqueOrThrow({
+          where: { id: existing.id },
+          select: { id: true, turns: true, expiresAt: true, title: true },
+        });
+      } else {
+        saved = await tx.aiAgentConversation.create({
+          data: {
+            userId: auth.userId,
+            title: titleFrom(body.question.trim() || `Phân tích ${body.file.name}`),
+            messages: [],
+            turns: 1,
+            expiresAt: new Date(now.getTime() + AGENT_POLICY.conversationTtlMs),
+          },
+          select: { id: true, turns: true, expiresAt: true, title: true },
+        });
+      }
+      const entry = await tx.aiAgentLog.create({
+        data: {
+          userId: auth.userId,
+          conversationId: saved.id,
+          question,
+          status: "answered",
+          answer,
+          toolCalls,
+          charts: charts as object[],
+          verification,
+          rounds: model ? 1 : 0,
+          model,
+          inputTokens: usage.inputTokens,
+          outputTokens: usage.outputTokens,
+          cacheReadTokens: usage.cacheReadTokens,
+          cacheWriteTokens: usage.cacheWriteTokens,
+          costUsd: cost,
+          durationMs,
+        },
+        select: { id: true, occurredAt: true },
+      });
+      return { conversation: saved, log: entry };
+    });
+
+    return {
+      ...turnView({
+        id: log.id,
+        occurredAt: log.occurredAt,
+        question,
+        status: "answered",
+        answer,
+        error: null,
+        verification,
+        toolCalls,
+        charts,
+        costUsd: cost,
+        durationMs,
+      }),
+      conversationId: conversation.id,
+      conversation: {
+        title: conversation.title,
+        turns: conversation.turns,
+        maxTurns: AGENT_POLICY.conversationTurns,
+        expiresAt: conversation.expiresAt,
+      },
+      remainingThisHour: Math.max(settings.questionsPerHour - used.count - 1, 0),
+    };
+  } finally {
+    inFlight.delete(auth.userId);
+  }
 }

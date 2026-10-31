@@ -97,6 +97,8 @@ export default function App() {
         <Route path="/canh-bao" element={<Navigate to="/can-han" replace />} />
         {/* Bảng điều hành đã gộp vào Tổng quan. */}
         <Route path="/bang-dieu-hanh" element={<Navigate to="/tai-khoan" replace />} />
+        {/* Trợ lý phân tích cũ đã gộp vào Trợ lý AI (đính kèm tệp Excel/CSV, bước 6.6). */}
+        <Route path="/tro-ly-phan-tich" element={<Navigate to="/tro-ly-ai" replace />} />
         <Route path="*" element={<HomeRedirect />} />
       </Route>
     </Routes>

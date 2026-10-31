@@ -1,4 +1,5 @@
 import { Router } from "express";
+import multer from "multer";
 import { z } from "zod";
 import { AppError } from "../../lib/app-error.js";
 import { sendData } from "../../lib/respond.js";
@@ -6,9 +7,11 @@ import { parseOrThrow } from "../../lib/validate.js";
 import { authenticate } from "../../middlewares/authenticate.js";
 import { requireAnyPermission } from "../../middlewares/require-permission.js";
 import type { AuthContext } from "../auth/auth.context.js";
+import { MAX_CSV_BYTES } from "../analytics/parse.js";
 import { aiLogsQuery, listAiLogs } from "./agent/ai-logs.js";
 import {
   agentStatus,
+  askAboutFile,
   askQuestion,
   deleteConversation,
   getConversation,
@@ -300,6 +303,34 @@ biRouter.post("/bi/ask/stream", async (req, res) => {
   } finally {
     res.end();
   }
+});
+
+// --- Tệp Excel/CSV đính kèm trong Trợ lý AI (bước 6.6) ---------------------------------------
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_CSV_BYTES, files: 1 },
+  // Trình duyệt gửi tên tệp theo UTF-8: giữ đúng tên tiếng Việt (mặc định multer đọc latin1).
+  defParamCharset: "utf8",
+});
+const fileAskBody = z.object({
+  question: z.string().trim().max(1_000, "Câu hỏi tối đa 1.000 ký tự").default(""),
+  conversationId: z.uuid("Mã hội thoại không hợp lệ").optional(),
+  /** Tên sheet Excel; bỏ trống thì lấy sheet đầu tiên có bảng số liệu. */
+  sheet: z.string().trim().max(100).optional(),
+});
+
+/** Multipart: `file` (.xlsx hoặc CSV, tối đa 5 MB), `question`, `conversationId`, `sheet`. */
+biRouter.post("/bi/ask/file", upload.single("file"), async (req, res) => {
+  if (!req.file) throw AppError.validation("Chưa chọn tệp Excel hoặc CSV");
+  const body = parseOrThrow(fileAskBody, req.body);
+  sendData(
+    res,
+    await askAboutFile(req.auth!, {
+      ...body,
+      file: { buffer: req.file.buffer, name: req.file.originalname },
+    }),
+  );
 });
 
 // --- Lịch sử hội thoại, nhật ký AI (bước 6.3) ------------------------------------------------

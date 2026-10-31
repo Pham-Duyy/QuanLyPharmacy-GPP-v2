@@ -743,6 +743,7 @@ const TOOL_LABELS: Record<string, string> = {
   get_data_quality: "Chất lượng dữ liệu",
   get_reorder_suggestions: "Gợi ý đặt hàng",
   get_abc_analysis: "Phân loại ABC",
+  analyze_file: "Phân tích tệp",
   get_customer_debt: "Công nợ khách hàng",
   get_supplier_data: "Nhà cung cấp",
 };

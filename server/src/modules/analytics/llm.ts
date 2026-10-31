@@ -24,6 +24,16 @@ export function aiModel(): string {
 
 export class AiUnavailableError extends Error {}
 
+/** Token của một lần gọi Claude: Trợ lý AI cộng vào chi phí và ngân sách tháng (bước 6.6). */
+export type LlmUsage = {
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+};
+export type OnUsage = (usage: LlmUsage) => void;
+
 const PLANNER_SYSTEM = `Bạn là bộ lập kế hoạch phân tích dữ liệu kinh doanh cho chuỗi nhà thuốc.
 Bạn nhận bản tóm tắt các cột của một bảng dữ liệu và câu hỏi của người dùng, rồi trả về MỘT kế hoạch phân tích dạng JSON. Máy chủ sẽ tự tính toán theo kế hoạch; bạn không tính số.
 
@@ -66,6 +76,7 @@ async function structuredCall<T extends z.ZodType>(
   system: string,
   content: string,
   schema: T,
+  onUsage?: OnUsage,
 ): Promise<z.infer<T>> {
   const response = await requireClient().beta.messages.parse({
     model: aiModel(),
@@ -75,6 +86,13 @@ async function structuredCall<T extends z.ZodType>(
     system,
     output_config: { effort: "medium", format: betaZodOutputFormat(schema) },
     messages: [{ role: "user", content }],
+  });
+  onUsage?.({
+    model: response.model,
+    inputTokens: response.usage.input_tokens,
+    outputTokens: response.usage.output_tokens,
+    cacheReadTokens: response.usage.cache_read_input_tokens ?? 0,
+    cacheWriteTokens: response.usage.cache_creation_input_tokens ?? 0,
   });
   if (response.stop_reason === "refusal") throw new AiUnavailableError("Mô hình từ chối yêu cầu");
   if (response.stop_reason === "max_tokens")
@@ -86,9 +104,10 @@ async function structuredCall<T extends z.ZodType>(
 export async function planWithClaude(
   summary: DataSummary,
   question: string,
+  onUsage?: OnUsage,
 ): Promise<AnalysisPlan> {
   const content = `Bản tóm tắt dữ liệu:\n${JSON.stringify(summary)}\n\nCâu hỏi: ${question}`;
-  return structuredCall(PLANNER_SYSTEM, content, analysisPlanSchema);
+  return structuredCall(PLANNER_SYSTEM, content, analysisPlanSchema, onUsage);
 }
 
 /** Bảng gửi cho AI: tối đa 60 kỳ gần nhất, đủ để đọc xu hướng mà không gửi quá nhiều. */
@@ -112,6 +131,7 @@ export async function narrateWithClaude(
   plan: AnalysisPlan,
   facts: Fact[],
   result: ExecutionResult,
+  onUsage?: OnUsage,
 ): Promise<Narrative> {
   const content = [
     `Câu hỏi: ${question}`,
@@ -119,7 +139,7 @@ export async function narrateWithClaude(
     `Sự kiện (đã tính, có định dạng số kiểu Việt Nam):\n${facts.map((fact) => `- ${fact.text}`).join("\n")}`,
     `Bảng số liệu: ${JSON.stringify(compactTables(result))}`,
   ].join("\n\n");
-  return structuredCall(NARRATOR_SYSTEM, content, narrativeSchema);
+  return structuredCall(NARRATOR_SYSTEM, content, narrativeSchema, onUsage);
 }
 
 const PERCENT_TOKEN = /[-+−]?\d+(?:[.,]\d+)?\s?%/g;

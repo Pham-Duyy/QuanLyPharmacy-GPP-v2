@@ -4,6 +4,8 @@
  * biểu đồ luôn khớp số liệu nguồn. Chỉ tool có dạng chuỗi thời gian hoặc xếp hạng mới có biểu đồ.
  */
 
+import type { ChartSpec as AnalysisChart } from "../../analytics/types.js";
+
 type Json = Record<string, unknown>;
 export type ChartFormat = "currency" | "number" | "percent";
 
@@ -165,6 +167,29 @@ export function chartFromTool(name: string, input: unknown, content: Json): Answ
     default:
       return null;
   }
+}
+
+/** Biểu đồ của phần phân tích tệp (Excel/CSV, bước 6.6) đổi sang dạng của câu trả lời. */
+export function chartFromAnalysis(chart: AnalysisChart): AnswerChart | null {
+  if (chart.kind === "line") {
+    return {
+      kind: "line",
+      title: chart.title,
+      labels: chart.labels,
+      series: chart.series.map(({ name, values }) => ({ name, values })),
+      valueFormat: chart.valueFormat,
+    };
+  }
+  if (chart.kind === "bar") {
+    return { kind: "bars", title: chart.title, bars: chart.bars, valueFormat: chart.valueFormat };
+  }
+  // Biểu đồ tăng/giảm: thanh theo phần trăm thay đổi.
+  const changes = chart.bars
+    .filter((bar) => bar.percent !== null)
+    .map((bar) => ({ label: bar.label, value: bar.percent!, share: null }));
+  return changes.length
+    ? { kind: "bars", title: chart.title, bars: changes, valueFormat: "percent" }
+    : null;
 }
 
 /** Gộp biểu đồ của mọi tool đã chạy thành công: bỏ trùng tiêu đề, giữ tối đa MAX_CHARTS. */

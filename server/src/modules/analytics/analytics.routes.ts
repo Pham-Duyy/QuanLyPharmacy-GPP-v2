@@ -14,8 +14,8 @@ import {
   type ChainWindow,
 } from "./analytics.service.js";
 import { aiEnabled, aiModel } from "./llm.js";
-import { looksLikeXlsx, readWorkbook } from "./excel.js";
-import { MAX_CSV_BYTES, parseCsv } from "./parse.js";
+import { MAX_CSV_BYTES } from "./parse.js";
+import { readUpload } from "./upload.js";
 import { analysisPlanSchema } from "./planner.js";
 
 /**
@@ -68,15 +68,6 @@ const chainBodySchema = z.object({
   narrate: z.boolean().default(true),
 });
 
-/** Excel lưu "CSV" kiểu cũ bằng bảng mã Windows; UTF-8 lỗi thì đọc lại theo windows-1258. */
-function decodeCsv(buffer: Buffer): string {
-  try {
-    return new TextDecoder("utf-8", { fatal: true }).decode(buffer);
-  } catch {
-    return new TextDecoder("windows-1258").decode(buffer);
-  }
-}
-
 analyticsRouter.get("/analytics/config", (_req, res) => {
   sendData(res, {
     aiEnabled: aiEnabled(),
@@ -95,20 +86,12 @@ analyticsRouter.post(
   async (req, res) => {
     if (!req.file) throw AppError.validation("Chưa chọn tệp Excel hoặc CSV");
     const body = parseOrThrow(fileBodySchema, req.body);
-    const { buffer, originalname } = req.file;
-    if (looksLikeXlsx(buffer, originalname)) {
-      const { dataset, source } = await readWorkbook(buffer, originalname, body.sheet);
-      sendData(res, await analyzeDataset(dataset, { ...body, source }));
-      return;
-    }
-    const dataset = parseCsv(decodeCsv(buffer), originalname);
-    sendData(
-      res,
-      await analyzeDataset(dataset, {
-        ...body,
-        source: { kind: "csv", sheets: [], sheet: null, notes: [] },
-      }),
+    const { dataset, source } = await readUpload(
+      req.file.buffer,
+      req.file.originalname,
+      body.sheet,
     );
+    sendData(res, await analyzeDataset(dataset, { ...body, source }));
   },
 );
 

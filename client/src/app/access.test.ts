@@ -190,14 +190,13 @@ describe("sidebar theo quyền", () => {
     expect(paths(canFor("pharmacist"))).not.toContain("/tro-ly-ai");
   });
 
-  it("nhóm Báo cáo: báo cáo kinh doanh, tổng kết tháng, trợ lý phân tích (Bảng điều hành nằm trong Tổng quan)", () => {
+  it("nhóm Báo cáo: báo cáo kinh doanh, tổng kết tháng (Bảng điều hành nằm trong Tổng quan, phân tích tệp trong Trợ lý AI)", () => {
     const reports = visibleSidebar(canFor("admin")).find(
       (entry) => entry.kind === "group" && entry.key === "reports",
     );
     expect(reports?.kind === "group" ? reports.pages.map((page) => page.path) : []).toEqual([
       "/bao-cao",
       "/tong-ket-thang",
-      "/tro-ly-phan-tich",
     ]);
   });
 

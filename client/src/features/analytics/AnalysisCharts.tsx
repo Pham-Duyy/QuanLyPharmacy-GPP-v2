@@ -162,6 +162,8 @@ export function LineChart({
         {labels.map((label, index) => {
           const last = index === labels.length - 1;
           if (index % labelEvery !== 0 && !last) return null;
+          // Nhãn cuối luôn hiện: bỏ nhãn đều đặn ngay trước nó nếu quá sát (tránh chồng chữ).
+          if (!last && labelEvery > 1 && labels.length - 1 - index < labelEvery) return null;
           // Nhãn sát mép canh vào trong để không bị cắt.
           const anchor =
             labels.length > 1 && last

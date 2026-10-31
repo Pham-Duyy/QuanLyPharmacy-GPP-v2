@@ -3,7 +3,7 @@ import type {
   BetaMessage,
   MessageCreateParamsNonStreaming,
 } from "@anthropic-ai/sdk/resources/beta/messages/messages";
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { prisma } from "../../../db/prisma.js";
 import { startAnalyticsStub, type AnalyticsStub } from "../../../test/analytics-stub-server.js";
 import {
@@ -16,6 +16,13 @@ import {
   type Fixture,
 } from "../../../test/helpers.js";
 import { BLOCKED_ANSWER, overrideAgentClient, type AgentClient } from "./agent.js";
+
+// Phân tích tệp (bước 6.6) gọi Claude qua module riêng khi có khóa: test luôn chạy bằng luật,
+// không gọi API thật, không tốn tiền dù máy có ANTHROPIC_API_KEY.
+vi.mock("../../analytics/llm.js", async (original) => ({
+  ...(await original<typeof import("../../analytics/llm.js")>()),
+  aiEnabled: () => false,
+}));
 
 /**
  * `POST /api/v1/bi/ask` (bước 4.4): nhật ký, giới hạn tần suất, hội thoại. Claude giả,
@@ -554,5 +561,68 @@ describe("lịch sử hội thoại, tiến trình, nhật ký AI (bước 6.3)"
     await useTestRole(fixture.pharmacistId, "admin", fixture.storeId);
     const storeAdmin = (await login("duocsi")).token;
     expect((await api().get("/api/v1/bi/ai/logs").set(authHeaders(storeAdmin))).status).toBe(403);
+  });
+});
+
+describe("tệp Excel/CSV đính kèm trong Trợ lý AI (bước 6.6)", () => {
+  const CSV = [
+    "thang,cua_hang,doanh_thu",
+    "2026-07,NT01,100",
+    "2026-07,NT02,80",
+    "2026-08,NT01,120",
+    "2026-08,NT02,90",
+    "2026-09,NT01,150",
+    "2026-09,NT02,70",
+  ].join("\n");
+  const attach = (token: string, fields: Record<string, string> = {}, name = "doanh_thu.csv") => {
+    let request = api().post("/api/v1/bi/ask/file").set(authHeaders(token));
+    for (const [key, value] of Object.entries(fields)) request = request.field(key, value);
+    return request.attach("file", Buffer.from(CSV), name);
+  };
+
+  it("phân tích tệp, lưu vào hội thoại kèm biểu đồ; hỏi tiếp cùng hội thoại; không có khóa vẫn chạy", async () => {
+    const first = await attach(adminToken, { question: "Doanh thu theo tháng thế nào?" });
+    expect(first.status).toBe(200);
+    expect(first.body.data).toMatchObject({
+      status: "answered",
+      question: "Doanh thu theo tháng thế nào?",
+      toolCalls: [{ name: "analyze_file", input: { file: "doanh_thu.csv" }, ok: true }],
+      costUsd: 0,
+      conversation: { title: "Doanh thu theo tháng thế nào?", turns: 1 },
+    });
+    expect(first.body.data.answer).toContain("_Tệp doanh_thu.csv");
+    expect(first.body.data.charts.length).toBeGreaterThan(0);
+
+    const id = first.body.data.conversationId as string;
+    const second = await attach(adminToken, { conversationId: id }, "báo cáo quý 3.csv");
+    expect(second.body.data.conversation.turns).toBe(2);
+    // Không có câu hỏi: dùng câu mặc định; tên tệp tiếng Việt giữ nguyên.
+    expect(second.body.data.question).toBe("Phân tích tổng quan tệp này");
+    expect(second.body.data.answer).toContain("báo cáo quý 3.csv");
+
+    const detail = await api()
+      .get(`/api/v1/bi/ask/conversations/${id}`)
+      .set(authHeaders(adminToken));
+    expect(detail.body.data.messages).toHaveLength(2);
+    expect(detail.body.data.messages[0].charts).toEqual(first.body.data.charts);
+    // Lượt phân tích tệp không vào lịch sử gửi Claude.
+    const saved = await prisma.aiAgentConversation.findUniqueOrThrow({ where: { id } });
+    expect(saved.messages).toEqual([]);
+  });
+
+  it("qua cùng chốt chặn: cần report.ai, chủ nhà thuốc tắt thì từ chối; thiếu tệp thì 422", async () => {
+    const pharmacist = (await login("duocsi")).token;
+    expect((await attach(pharmacist)).status).toBe(403);
+    expect(
+      (await api().post("/api/v1/bi/ask/file").set(authHeaders(adminToken)).field("question", "x"))
+        .status,
+    ).toBe(422);
+    await api()
+      .put("/api/v1/bi/ai/settings")
+      .set(authHeaders(adminToken))
+      .send({ enabled: false, questionsPerHour: 30, monthlyBudgetUsd: 10 });
+    const off = await attach(adminToken);
+    expect(off.status).toBe(403);
+    expect(off.body.error.code).toBe("AI_TURNED_OFF");
   });
 });

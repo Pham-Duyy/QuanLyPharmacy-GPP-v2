@@ -547,6 +547,12 @@ Bước:
   bấm một dòng xem câu hỏi, câu trả lời, tool, token, chi phí. Ngày tính lại ngân sách luôn hiện theo giờ Việt Nam.
 - **6.6 Đính kèm tệp Excel/CSV** trong Trợ lý AI (thay trang "Trợ lý phân tích": trang cũ chỉ có 4 cột thời điểm, cửa
   hàng, doanh thu, số hóa đơn nên không trả lời được theo nhóm thuốc, sản phẩm, lợi nhuận); bỏ trang cũ khỏi sidebar.
+  Đã làm: nút 📎 trong ô nhập; `POST /bi/ask/file` dùng lõi phân tích tệp có sẵn (`server/src/modules/analytics/`,
+  tách hàm đọc tệp `upload.ts`), qua cùng chốt chặn của trợ lý (không cần khóa API: không có khóa thì chạy bằng luật,
+  miễn phí); token gọi Claude của phần này nay được đếm (`onUsage`) và tính vào ngân sách. Kết quả lưu thành một lượt
+  trong hội thoại kèm biểu đồ (đổi từ biểu đồ của phần phân tích tệp), không vào lịch sử gửi Claude: hỏi tiếp về tệp
+  thì đính kèm lại. Bỏ trang `/tro-ly-phan-tich` (chuyển sang `/tro-ly-ai`) và tính năng theo dõi tệp trên máy bằng
+  trình duyệt của trang cũ; nhóm Báo cáo còn Báo cáo kinh doanh và Tổng kết tháng.
 
 ## Lộ trình
 
@@ -588,6 +594,6 @@ Bước:
 | 6.3 | Lịch sử hội thoại 30 ngày, tiến trình tra cứu (SSE), API nhật ký AI | Xong |
 | 6.4 | Trang "Trợ lý AI" kiểu Claude, biểu đồ trong câu trả lời; bỏ tab Hỏi AI | Xong |
 | 6.5 | Trang Quản trị "Phân tích & AI": nguồn số liệu, hạn mức AI, nhật ký AI (D27) | Xong |
-| 6.6 | Đính kèm tệp Excel/CSV trong Trợ lý AI, bỏ trang "Trợ lý phân tích" cũ | Chưa làm |
+| 6.6 | Đính kèm tệp Excel/CSV trong Trợ lý AI, bỏ trang "Trợ lý phân tích" cũ | Xong |
 
 Schema dữ liệu và luật kiểm tra: [data-schema.md](data-schema.md). Công thức KPI: [kpi.md](kpi.md).

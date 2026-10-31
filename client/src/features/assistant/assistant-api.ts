@@ -96,6 +96,14 @@ export const assistantApi = {
   remove: async (id: string) => {
     await http.delete(`/bi/ask/conversations/${id}`);
   },
+  /** Hỏi về một tệp Excel/CSV đính kèm (bước 6.6): máy chủ tự tính, trả về một lượt trả lời. */
+  askFile: async (body: { file: File; question: string; conversationId?: string }) => {
+    const form = new FormData();
+    form.append("file", body.file);
+    form.append("question", body.question);
+    if (body.conversationId) form.append("conversationId", body.conversationId);
+    return (await http.post<Envelope<AskResult>>("/bi/ask/file", form)).data.data;
+  },
 };
 
 /** Tách luồng Server-Sent Events thành từng sự kiện `event` + `data`. */
