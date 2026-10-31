@@ -93,6 +93,8 @@ export default function App() {
             element={<Guard path={page.path}>{PAGE_ELEMENTS[page.path]}</Guard>}
           />
         ))}
+        {/* Trang "Cảnh báo" cũ đã gộp vào "Hàng cận hạn": giữ đường dẫn cũ cho dấu trang. */}
+        <Route path="/canh-bao" element={<Navigate to="/can-han" replace />} />
         <Route path="*" element={<HomeRedirect />} />
       </Route>
     </Routes>

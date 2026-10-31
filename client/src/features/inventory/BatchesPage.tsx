@@ -135,8 +135,8 @@ export function BatchesPage() {
               label="Xuất tồn theo lô"
               tooltip="Tồn từng lô theo hạn dùng, dùng khi kiểm kê"
             />
-            <Button icon={<BellOutlined />} onClick={() => void navigate("/canh-bao")}>
-              Xem cảnh báo
+            <Button icon={<BellOutlined />} onClick={() => void navigate("/can-han")}>
+              Hàng cận hạn
             </Button>
           </>
         }

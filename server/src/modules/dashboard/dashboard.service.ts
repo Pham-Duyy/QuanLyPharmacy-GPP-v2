@@ -94,7 +94,7 @@ export async function getDashboard(storeId: string, auth: AuthContext, days: 7 |
             type: "EXPIRED",
             severity: "danger",
             title: `${inventory.counts.expired} lô đã hết hạn`,
-            href: "/canh-bao",
+            href: "/can-han",
           },
         ]
       : []),
@@ -104,7 +104,7 @@ export async function getDashboard(storeId: string, auth: AuthContext, days: 7 |
             type: "EXPIRING",
             severity: "warning",
             title: `${inventory.counts.expiring} lô sắp hết hạn trong 90 ngày`,
-            href: "/canh-bao",
+            href: "/can-han",
           },
         ]
       : []),
@@ -149,6 +149,7 @@ async function getSalesDashboard(
     topLines,
     todayCustomers,
     yesterdayCustomers,
+    refunds,
   ] = await Promise.all([
     prisma.invoice.aggregate({
       where: { storeId, status: completed, businessDate: today },
@@ -178,7 +179,21 @@ async function getSalesDashboard(
     }),
     distinctCustomersOnDate(storeId, today),
     distinctCustomersOnDate(storeId, yesterday),
+    // Doanh thu = hóa đơn hoàn tất trừ tiền hoàn của phiếu trả lập cùng ngày (contract §19, P13),
+    // khớp Báo cáo kinh doanh và Bảng điều hành.
+    prisma.return.groupBy({
+      where: { storeId, businessDate: { gte: rangeStart, lt: nextDay } },
+      by: ["businessDate"],
+      _sum: { refundAmount: true },
+    }),
   ]);
+  const refundByDate = new Map(
+    refunds.map((item) => [
+      item.businessDate.toISOString().slice(0, 10),
+      num(item._sum.refundAmount),
+    ]),
+  );
+  const refundOn = (date: Date) => refundByDate.get(date.toISOString().slice(0, 10)) ?? 0;
 
   const [todayNewCustomers, yesterdayNewCustomers, products] = await Promise.all([
     countNewCustomersAtStore(storeId, today, todayCustomers),
@@ -197,12 +212,12 @@ async function getSalesDashboard(
     const data = dailyByDate.get(date.toISOString().slice(0, 10));
     return {
       date: date.toISOString().slice(0, 10),
-      revenue: num(data?._sum.totalAmount),
+      revenue: num(data?._sum.totalAmount) - refundOn(date),
       invoiceCount: data?._count ?? 0,
     };
   });
-  const todayRevenue = num(todaySummary._sum.totalAmount);
-  const yesterdayRevenue = num(yesterdaySummary._sum.totalAmount);
+  const todayRevenue = num(todaySummary._sum.totalAmount) - refundOn(today);
+  const yesterdayRevenue = num(yesterdaySummary._sum.totalAmount) - refundOn(yesterday);
 
   return {
     today: {

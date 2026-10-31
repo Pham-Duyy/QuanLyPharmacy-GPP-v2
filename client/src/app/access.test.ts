@@ -159,10 +159,10 @@ describe("sidebar theo quyền", () => {
       purchasing?.kind === "group" ? purchasing.pages.map((page) => page.path) : [];
     // Có stock.read và catalog.read nên thấy Đề xuất đặt hàng và Nhà cung cấp, dược sĩ còn xem được Phiếu nhập và Trả nhà cung cấp.
     expect(purchasingPaths).toEqual([
-      "/phieu-nhap",
       "/de-xuat-dat-hang",
-      "/tra-hang-ncc",
+      "/phieu-nhap",
       "/nha-cung-cap",
+      "/tra-hang-ncc",
     ]);
   });
 
@@ -178,15 +178,15 @@ describe("sidebar theo quyền", () => {
     expect(visibleSidebar(ALL)).toHaveLength(9);
   });
 
-  it("nhóm Báo cáo gồm báo cáo kinh doanh, trợ lý phân tích và tổng kết tháng", () => {
+  it("nhóm Báo cáo: Bảng điều hành đứng đầu, rồi báo cáo kinh doanh, tổng kết tháng, trợ lý phân tích", () => {
     const reports = visibleSidebar(canFor("admin")).find(
       (entry) => entry.kind === "group" && entry.key === "reports",
     );
     expect(reports?.kind === "group" ? reports.pages.map((page) => page.path) : []).toEqual([
-      "/bao-cao",
       "/bang-dieu-hanh",
-      "/tro-ly-phan-tich",
+      "/bao-cao",
       "/tong-ket-thang",
+      "/tro-ly-phan-tich",
     ]);
   });
 
@@ -220,7 +220,6 @@ describe("đánh dấu mục đang mở", () => {
     ["/in-tem", "/san-pham", "goods"],
     ["/anh-san-pham", "/san-pham", "goods"],
     ["/danh-muc", "/san-pham", "goods"],
-    ["/canh-bao", "/ton-kho", "goods"],
     ["/excel", "/excel", "admin"],
     // "/tra-hang-ncc" bắt đầu bằng "/tra-hang" nhưng là trang khác, thuộc nhóm khác.
     ["/tra-hang-ncc", "/tra-hang-ncc", "purchasing"],

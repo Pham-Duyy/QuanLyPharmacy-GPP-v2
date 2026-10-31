@@ -1363,7 +1363,7 @@ Nghi lỗi chất lượng thì biệt trữ lô bằng `POST /inventory/batches
 
 | Method | Endpoint | Mô tả | Quyền |
 |---|---|---|---|
-| GET | `/dashboard/summary` | Doanh thu và số hóa đơn hôm nay (cần `report.sales`); lô sắp hết hạn, sản phẩm dưới ngưỡng (cần `stock.read`) | Theo từng phần |
+| GET | `/dashboard/summary` | Doanh thu (hóa đơn hoàn tất trừ tiền hoàn của phiếu trả lập trong ngày, như §19) và số hóa đơn hôm nay (cần `report.sales`); lô sắp hết hạn, sản phẩm dưới ngưỡng (cần `stock.read`) | Theo từng phần |
 | GET | `/reports/revenue` | `from`, `to`, `groupBy=day\|month` | `report.sales` |
 | GET | `/reports/top-selling` | `from`, `to`, `limit` | `report.sales` |
 | GET | `/reports/stock-movement` | Xuất – nhập – tồn theo sản phẩm hoặc lô trong kỳ | `report.inventory` |

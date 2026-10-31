@@ -33,7 +33,6 @@ const GoodsReceiptsPage = page(
   "GoodsReceiptsPage",
 );
 const BatchesPage = page(() => import("../features/inventory/BatchesPage.js"), "BatchesPage");
-const AlertsPage = page(() => import("../features/inventory/AlertsPage.js"), "AlertsPage");
 const StockAdjustmentsPage = page(
   () => import("../features/inventory/StockAdjustmentsPage.js"),
   "StockAdjustmentsPage",
@@ -120,7 +119,6 @@ export const PAGE_ELEMENTS: Record<PagePath, ReactNode> = {
   "/dieu-chinh-ton": <StockAdjustmentsPage />,
   "/chuyen-hang": <StockTransfersPage />,
   "/can-han": <ExpiryAlertsPage />,
-  "/canh-bao": <AlertsPage />,
   "/anh-san-pham": <ProductImagesBulkPage />,
   "/in-tem": <LabelsPage />,
   "/danh-muc": <CatalogDataPage />,

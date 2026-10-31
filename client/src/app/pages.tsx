@@ -4,7 +4,6 @@ import {
   AuditOutlined,
   BarcodeOutlined,
   BarChartOutlined,
-  BellOutlined,
   BulbOutlined,
   CalendarOutlined,
   CarOutlined,
@@ -206,14 +205,6 @@ export const PAGES = [
     keywords: "can han het han xu ly ke hoach tra nha cung cap huy",
   },
   // Công cụ của Hàng hóa, không đặt trên sidebar.
-  {
-    path: "/canh-bao",
-    label: "Cảnh báo",
-    icon: <BellOutlined />,
-    permission: "stock.read",
-    keywords: "canh bao kho het han ton thap",
-    navTarget: "/ton-kho",
-  },
   {
     path: "/anh-san-pham",
     label: "Quản lý ảnh hàng loạt",

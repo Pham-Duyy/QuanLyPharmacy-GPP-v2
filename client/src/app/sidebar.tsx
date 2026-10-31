@@ -15,9 +15,10 @@ import type { PagePath } from "./pages.js";
  * `PagePath` chặn ngay lúc biên dịch).
  *
  * 8 điểm vào chính theo công việc hằng ngày, Quản trị gập ở cuối. Việc dùng
- * nhiều nhất (Quầy bán, Tổng quan, Khách hàng) mở bằng một lần bấm; phần còn
- * lại tối đa hai lần: mở nhóm rồi chọn trang (Báo cáo gồm báo cáo kinh doanh,
- * trợ lý phân tích và tổng kết tháng).
+ * nhiều nhất (Tổng quan, Quầy bán, Khách hàng) đứng đầu, mở bằng một lần bấm;
+ * phần còn lại tối đa hai lần: mở nhóm rồi chọn trang. Trong mỗi nhóm, trang
+ * dùng thường xuyên đứng trước (Báo cáo: Bảng điều hành trước, báo cáo kinh
+ * doanh, tổng kết tháng, trợ lý phân tích).
  */
 export type SidebarEntry =
   | { kind: "page"; path: PagePath }
@@ -33,28 +34,28 @@ export type SidebarEntry =
 export const SIDEBAR: readonly SidebarEntry[] = [
   { kind: "page", path: "/tai-khoan" },
   { kind: "page", path: "/ban-hang" },
+  { kind: "page", path: "/khach-hang" },
   {
     kind: "group",
     key: "sales",
     label: "Giao dịch bán",
     icon: <ProfileOutlined />,
-    paths: ["/hoa-don", "/hoa-don-dien-tu", "/tra-hang", "/ca-thu-ngan", "/don-thuoc"],
+    paths: ["/hoa-don", "/tra-hang", "/don-thuoc", "/ca-thu-ngan", "/hoa-don-dien-tu"],
   },
   {
     kind: "group",
     key: "goods",
     label: "Hàng hóa",
     icon: <AppstoreOutlined />,
-    paths: ["/san-pham", "/ton-kho", "/kiem-ke", "/dieu-chinh-ton", "/chuyen-hang", "/can-han"],
+    paths: ["/san-pham", "/ton-kho", "/can-han", "/chuyen-hang", "/kiem-ke", "/dieu-chinh-ton"],
   },
   {
     kind: "group",
     key: "purchasing",
     label: "Mua hàng",
     icon: <ShoppingOutlined />,
-    paths: ["/phieu-nhap", "/de-xuat-dat-hang", "/tra-hang-ncc", "/cong-no-ncc", "/nha-cung-cap"],
+    paths: ["/de-xuat-dat-hang", "/phieu-nhap", "/nha-cung-cap", "/tra-hang-ncc", "/cong-no-ncc"],
   },
-  { kind: "page", path: "/khach-hang" },
   {
     kind: "group",
     key: "gpp",
@@ -67,7 +68,7 @@ export const SIDEBAR: readonly SidebarEntry[] = [
     key: "reports",
     label: "Báo cáo",
     icon: <FundOutlined />,
-    paths: ["/bao-cao", "/bang-dieu-hanh", "/tro-ly-phan-tich", "/tong-ket-thang"],
+    paths: ["/bang-dieu-hanh", "/bao-cao", "/tong-ket-thang", "/tro-ly-phan-tich"],
   },
   {
     kind: "group",

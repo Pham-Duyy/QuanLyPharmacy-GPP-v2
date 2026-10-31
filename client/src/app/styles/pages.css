@@ -251,45 +251,6 @@
   font-variant-numeric: tabular-nums;
 }
 
-.dashboard-trust-row {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 16px;
-}
-
-.trust-badge {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 14px 16px;
-  border: 1px solid var(--c-border);
-  border-radius: var(--r-lg);
-  background: var(--c-surface);
-}
-
-.trust-badge .anticon {
-  flex: 0 0 auto;
-  width: 36px;
-  height: 36px;
-  display: grid;
-  place-items: center;
-  border-radius: 10px;
-  background: var(--tone-green-bg);
-  color: var(--tone-green);
-  font-size: 17px;
-}
-
-.trust-badge strong {
-  display: block;
-  color: var(--c-ink-900);
-  font-size: 13px;
-}
-
-.trust-badge span {
-  color: var(--c-ink-500);
-  font-size: 12px;
-}
-
 /* ---------- Bán thuốc ---------- */
 
 .shortcut-hints {

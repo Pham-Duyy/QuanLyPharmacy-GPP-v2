@@ -119,6 +119,30 @@ describe("Dashboard", () => {
     expect(response.body.data.permissions.sales).toBe(true);
   });
 
+  it("doanh thu trừ tiền hoàn của phiếu trả trong ngày, khớp Báo cáo kinh doanh", async () => {
+    await makeBatch("L1", 1000);
+    const sold = await sell(adminToken, 10).expect(201);
+    const returned = await api()
+      .post(`/api/v1/invoices/${sold.body.data.id}/returns`)
+      .set({ ...authHeaders(adminToken, fixture.storeId), ...idem() })
+      .send({
+        disposition: "RESTOCK",
+        lines: [{ invoiceLineId: sold.body.data.lines[0].id, unitId, quantity: 4 }],
+      })
+      .expect(201);
+
+    const response = await api()
+      .get("/api/v1/dashboard")
+      .set(authHeaders(adminToken, fixture.storeId))
+      .expect(200);
+    const net = Number(sold.body.data.totalAmount) - Number(returned.body.data.refundAmount);
+    expect(Number(returned.body.data.refundAmount)).toBeGreaterThan(0);
+    expect(response.body.data.sales.today.revenue).toBe(net);
+    expect(response.body.data.sales.trend.at(-1).revenue).toBe(net);
+    // Số hóa đơn vẫn đếm hóa đơn đã bán.
+    expect(response.body.data.sales.today.invoiceCount).toBe(1);
+  });
+
   it("liệt kê đúng lô sắp hết hạn, không lấy lô còn xa hạn", async () => {
     await makeBatch("NEAR", 50, 30);
     await makeBatch("FAR", 50, 400);

@@ -26,7 +26,6 @@ const palette = {
 
 /** Màu dùng cho biểu đồ, theo thứ tự ưu tiên. */
 export const chartColors = ["#0876eb", "#10b58a", "#f5a524", "#7c4ddb", "#e5484d", "#0891b2"];
-export const chartOtherColor = "#a3b1c6";
 
 export const appTheme: ThemeConfig = {
   token: {

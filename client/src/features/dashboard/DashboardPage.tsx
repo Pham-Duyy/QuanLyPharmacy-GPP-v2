@@ -1,36 +1,20 @@
 import {
-  AuditOutlined,
   BellOutlined,
   DollarCircleOutlined,
   FileTextOutlined,
-  PhoneOutlined,
+  FundProjectionScreenOutlined,
   ReloadOutlined,
   RightOutlined,
-  SafetyCertificateOutlined,
   TeamOutlined,
   WarningOutlined,
 } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
-import {
-  Button,
-  Card,
-  Col,
-  Empty,
-  Progress,
-  Result,
-  Row,
-  Segmented,
-  Skeleton,
-  Table,
-  Tag,
-  Typography,
-} from "antd";
-import { useState } from "react";
+import { Button, Card, Col, Empty, Result, Row, Skeleton, Table, Typography } from "antd";
 import { useNavigate } from "react-router";
 import { http } from "../../api/http.js";
 import type { DashboardData, Envelope } from "../../api/types.js";
-import { chartColors, chartOtherColor } from "../../app/theme.js";
-import { BarTrend, Donut } from "../../ui/charts.js";
+import { pageAccess } from "../../app/access.js";
+import { InfoTip } from "../../ui/InfoTip.js";
 import { StatCard, StatGrid, Trend } from "../../ui/StatCard.js";
 import { useAuth } from "../auth/auth-context.js";
 
@@ -40,8 +24,6 @@ const money = new Intl.NumberFormat("vi-VN", {
   maximumFractionDigits: 0,
 });
 const number = new Intl.NumberFormat("vi-VN");
-const dateText = (value: string) =>
-  new Date(value).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit" });
 
 function greeting(): string {
   const hour = new Date().getHours();
@@ -51,11 +33,15 @@ function greeting(): string {
   return "Chào buổi tối";
 }
 
-/** Tổng quan chỉ hiển thị số liệu API trả về, không có số minh họa. */
+/**
+ * Tổng quan: việc hôm nay của cửa hàng đang chọn (chỉ số trong ngày, lô cần xử lý, hàng dưới mức
+ * tối thiểu). Phân tích, biểu đồ, toàn chuỗi nằm ở Bảng điều hành. Chỉ hiển thị số liệu API trả về.
+ */
 export function DashboardPage() {
-  const { me, storeId } = useAuth();
+  const { me, storeId, can } = useAuth();
   const navigate = useNavigate();
-  const [days, setDays] = useState<7 | 30>(7);
+  // days = 7: cùng khóa truy vấn với chuông thông báo nên không gọi API hai lần.
+  const days = 7;
   const dashboard = useQuery({
     queryKey: ["dashboard", storeId, days],
     queryFn: async () =>
@@ -111,21 +97,26 @@ export function DashboardPage() {
             Tình hình hoạt động tại {store?.name ?? "cửa hàng đang chọn"} · cập nhật lúc {updatedAt}
           </p>
         </div>
-        <Segmented
-          value={days}
-          options={[
-            { label: "7 ngày", value: 7 },
-            { label: "30 ngày", value: 30 },
-          ]}
-          onChange={(value) => setDays(value as 7 | 30)}
-        />
+        {pageAccess("/bang-dieu-hanh", can) === "allowed" ? (
+          <Button
+            icon={<FundProjectionScreenOutlined />}
+            onClick={() => void navigate("/bang-dieu-hanh")}
+          >
+            Xem phân tích
+          </Button>
+        ) : null}
       </section>
 
       <StatGrid>
         <StatCard
           tone="green"
           icon={<DollarCircleOutlined />}
-          label="Doanh thu hôm nay"
+          label={
+            <>
+              Doanh thu hôm nay
+              <InfoTip>Hóa đơn hoàn tất, đã trừ tiền hoàn của hàng khách trả trong ngày.</InfoTip>
+            </>
+          }
           value={data.permissions.sales ? money.format(data.sales.today.revenue) : noAccess}
           hint={
             data.permissions.sales ? (
@@ -162,15 +153,15 @@ export function DashboardPage() {
         <StatCard
           tone="orange"
           icon={<WarningOutlined />}
-          label="Lô sắp hết hạn"
+          label="Lô hết hạn ≤ 90 ngày"
           value={
             data.permissions.inventory ? number.format(data.inventory.counts.expiring) : noAccess
           }
           hint={
             data.permissions.inventory
               ? data.inventory.counts.expired > 0
-                ? `Trong 90 ngày tới · ${number.format(data.inventory.counts.expired)} lô đã hết hạn`
-                : "Trong 90 ngày tới"
+                ? `${number.format(data.inventory.counts.expired)} lô đã hết hạn`
+                : null
               : null
           }
         />
@@ -179,55 +170,10 @@ export function DashboardPage() {
       <Row gutter={[16, 16]}>
         <Col xs={24} xl={15}>
           <Card
-            title={`Doanh thu ${days} ngày gần đây`}
-            className="card-fill"
-            extra={data.permissions.sales ? <Tag color="blue">Hóa đơn hoàn tất</Tag> : null}
-          >
-            {data.permissions.sales ? (
-              <BarTrend
-                emptyText="Chưa có hóa đơn hoàn tất trong khoảng thời gian này"
-                points={data.sales.trend.map((point) => ({
-                  key: point.date,
-                  label: dateText(point.date),
-                  value: point.revenue,
-                  tooltip: (
-                    <div>
-                      {dateText(point.date)}
-                      <br />
-                      Doanh thu: {money.format(point.revenue)}
-                      <br />
-                      Số đơn: {number.format(point.invoiceCount)}
-                    </div>
-                  ),
-                }))}
-              />
-            ) : (
-              <NoPermission />
-            )}
-          </Card>
-        </Col>
-        <Col xs={24} xl={9}>
-          <Card
-            title="Thuốc bán chạy"
-            className="card-fill"
-            extra={data.permissions.sales ? <Tag color="blue">Theo doanh thu</Tag> : null}
-          >
-            {data.permissions.sales ? (
-              <TopProductsDonut items={data.sales.topProducts} trend={data.sales.trend} />
-            ) : (
-              <NoPermission />
-            )}
-          </Card>
-        </Col>
-      </Row>
-
-      <Row gutter={[16, 16]}>
-        <Col xs={24} xl={15}>
-          <Card
-            title="Lô sắp hết hạn"
+            title="Lô hết hạn trong 90 ngày"
             className="card-fill"
             extra={
-              <Button type="link" onClick={() => void navigate("/canh-bao")}>
+              <Button type="link" onClick={() => void navigate("/can-han")}>
                 Xem tất cả <RightOutlined />
               </Button>
             }
@@ -282,43 +228,6 @@ export function DashboardPage() {
         </Col>
         <Col xs={24} xl={9}>
           <Card
-            title="Tồn kho theo nhóm hàng"
-            className="card-fill"
-            extra={
-              <Button type="link" onClick={() => void navigate("/ton-kho")}>
-                Chi tiết <RightOutlined />
-              </Button>
-            }
-          >
-            {data.permissions.inventory ? (
-              <CategoryStock items={data.inventory.categoryStock} />
-            ) : (
-              <NoPermission />
-            )}
-          </Card>
-        </Col>
-      </Row>
-
-      <Row gutter={[16, 16]}>
-        <Col xs={24} xl={15}>
-          <Card
-            title="Mặt hàng dưới mức tồn tối thiểu"
-            className="card-fill"
-            extra={
-              <Button type="link" onClick={() => void navigate("/ton-kho")}>
-                Mở tồn kho <RightOutlined />
-              </Button>
-            }
-          >
-            {data.permissions.inventory ? (
-              <LowStock items={data.inventory.lowStockProducts} />
-            ) : (
-              <NoPermission />
-            )}
-          </Card>
-        </Col>
-        <Col xs={24} xl={9}>
-          <Card
             className="card-fill"
             title={
               <span>
@@ -331,85 +240,20 @@ export function DashboardPage() {
         </Col>
       </Row>
 
-      <div className="dashboard-trust-row">
-        <div className="trust-badge">
-          <SafetyCertificateOutlined />
-          <div>
-            <strong>Tuân thủ GPP</strong>
-            <span>Quy trình theo Thực hành tốt nhà thuốc</span>
-          </div>
-        </div>
-        <div className="trust-badge">
-          <AuditOutlined />
-          <div>
-            <strong>Kiểm soát truy cập</strong>
-            <span>Phân quyền theo vai trò, ghi nhật ký thao tác</span>
-          </div>
-        </div>
-        <div className="trust-badge">
-          <PhoneOutlined />
-          <div>
-            <strong>Hỗ trợ</strong>
-            <span>{store?.phone ?? "Liên hệ quản trị viên hệ thống"}</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/** "Khác" = doanh thu cả kỳ trừ các sản phẩm top, không phải số minh họa. */
-function TopProductsDonut({
-  items,
-  trend,
-}: {
-  items: DashboardData["sales"]["topProducts"];
-  trend: DashboardData["sales"]["trend"];
-}) {
-  const periodRevenue = trend.reduce((sum, point) => sum + point.revenue, 0);
-  const topRevenue = items.reduce((sum, item) => sum + item.revenue, 0);
-  const otherRevenue = Math.max(0, periodRevenue - topRevenue);
-  const slices = [
-    ...items.map((item, index) => ({
-      label: item.productName,
-      value: item.revenue,
-      color: chartColors[index % chartColors.length]!,
-    })),
-    ...(otherRevenue > 0 ? [{ label: "Khác", value: otherRevenue, color: chartOtherColor }] : []),
-  ];
-  return (
-    <Donut
-      slices={slices}
-      centerLabel="Tổng doanh thu"
-      formatTotal={(total) => money.format(total)}
-      emptyText="Chưa có dữ liệu bán hàng"
-    />
-  );
-}
-
-function CategoryStock({ items }: { items: DashboardData["inventory"]["categoryStock"] }) {
-  if (items.length === 0)
-    return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có dữ liệu tồn kho" />;
-  const maximum = Math.max(...items.map((item) => item.quantity), 1);
-  return (
-    <div className="category-stock-list">
-      {items.map((item) => (
-        <div key={item.categoryName}>
-          <div className="category-stock-title">
-            <span>{item.categoryName}</span>
-            <strong>{number.format(item.quantity)}</strong>
-          </div>
-          <Progress
-            percent={Math.round((item.quantity / maximum) * 100)}
-            showInfo={false}
-            strokeColor="var(--c-accent)"
-            size="small"
-          />
-          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-            {number.format(item.productCount)} mặt hàng
-          </Typography.Text>
-        </div>
-      ))}
+      <Card
+        title="Mặt hàng dưới mức tồn tối thiểu"
+        extra={
+          <Button type="link" onClick={() => void navigate("/ton-kho")}>
+            Mở tồn kho <RightOutlined />
+          </Button>
+        }
+      >
+        {data.permissions.inventory ? (
+          <LowStock items={data.inventory.lowStockProducts} />
+        ) : (
+          <NoPermission />
+        )}
+      </Card>
     </div>
   );
 }
