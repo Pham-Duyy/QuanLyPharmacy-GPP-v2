@@ -8,7 +8,10 @@ import { fileURLToPath } from "node:url";
  * `express.static`, nên thư mục này không truy cập trực tiếp được qua URL,
  * chỉ đọc được qua endpoint có kiểm tra chữ ký (`signed-url.ts`).
  */
-const STORAGE_BASE = path.join(path.dirname(fileURLToPath(import.meta.url)), "../../storage");
+export const STORAGE_BASE = path.join(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../../storage",
+);
 
 const EXTENSION_BY_TYPE: Record<string, string> = {
   "image/jpeg": "jpg",

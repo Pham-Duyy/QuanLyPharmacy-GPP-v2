@@ -12,6 +12,7 @@ import { Breadcrumb, Card } from "antd";
 import type { ReactNode } from "react";
 import { useSearchParams } from "react-router";
 import { confirmLeave } from "../../app/leave-guard.js";
+import { PageToolsMenu } from "../../app/PageToolsMenu.js";
 import { PageHeader } from "../../ui/PageHeader.js";
 import { DocumentTemplateSettings } from "./DocumentTemplateSettings.js";
 import { InvoiceTemplateSettings } from "./InvoiceTemplateSettings.js";
@@ -92,7 +93,11 @@ export function SettingsPage() {
 
   return (
     <div>
-      <PageHeader icon={<SettingOutlined />} title="Cài đặt" />
+      <PageHeader
+        icon={<SettingOutlined />}
+        title="Cài đặt"
+        extra={<PageToolsMenu paths={["/sao-luu"]} />}
+      />
       <div className="settings-layout">
         <nav className="settings-nav" aria-label="Danh mục cài đặt">
           <Card size="small">

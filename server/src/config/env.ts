@@ -46,6 +46,24 @@ const envSchema = z.object({
    */
   ANALYTICS_SERVICE_URL: z.string().url().optional(),
   ANALYTICS_AI_MODEL: z.string().min(1).default("claude-opus-5-5"),
+  /**
+   * Sao lưu trong phần mềm (Phase 7, D30). Thư mục chứa bản sao lưu; nên đặt
+   * ngoài thư mục dự án, ví dụ `D:\sao-luu-nha-thuoc` trên Windows. Bỏ trống
+   * thì dùng thư mục `backups/` cạnh mã nguồn.
+   */
+  BACKUP_DIR: z.string().min(1).optional(),
+  /** Số bản sao lưu tự động giữ lại; bản cũ hơn bị xóa. */
+  BACKUP_KEEP: z.coerce.number().int().min(1).max(365).default(14),
+  /** Giờ sao lưu tự động mỗi ngày, giờ Việt Nam, dạng HH:mm. */
+  BACKUP_TIME: z
+    .string()
+    .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "BACKUP_TIME dạng HH:mm, ví dụ 23:00")
+    .default("23:00"),
+  /** `false` thì tắt sao lưu tự động (vẫn sao lưu tay được). */
+  BACKUP_AUTO: z
+    .enum(["true", "false"])
+    .default("true")
+    .transform((value) => value === "true"),
 });
 
 const parsed = envSchema.safeParse(process.env);

@@ -6,7 +6,7 @@ Phần mềm quản lý nhà thuốc bán lẻ đạt chuẩn GPP, thiết kế 
 
 Nghiệp vụ dược không dùng AI (contract §20): đơn thuốc lấy bằng mã đơn điện tử và quét mã vạch/QR, kiểm tra an toàn theo luật tất định. AI chỉ dùng ở **Trợ lý AI** (contract §20): hỏi bằng tiếng Việt về số liệu của chuỗi (doanh thu, sản phẩm, tồn kho, hạn dùng, dự báo) hoặc đính kèm một tệp Excel/CSV, nhận câu trả lời kèm biểu đồ. Mọi con số do máy chủ tính và được đối chiếu trước khi hiện; chủ nhà thuốc đặt ngân sách AI mỗi tháng. Không đặt `ANTHROPIC_API_KEY` thì chỉ phân tích được tệp đính kèm, bằng luật, không gửi dữ liệu ra ngoài.
 
-Chưa có: sao lưu trong phần mềm, đơn đặt hàng gửi nhà cung cấp, MFA.
+Chưa có: đơn đặt hàng gửi nhà cung cấp, MFA (đang làm ở Phase 7).
 
 - Giao diện: React + Vite
 - Máy chủ: Node.js + Express
@@ -117,22 +117,33 @@ từ `npm run db:analytics-reader`), mở Tổng quan bằng tài khoản admin 
 khác: "Doanh thu hôm nay", số đơn, tồn kho đổi khoảng 30 giây một lần. Đo trên CSDL mới: 60 ngày, 3 cửa hàng, 4.473
 hóa đơn trong 2 phút 24 giây; analytics-service đọc 8.341 dòng bán hàng, 0 lỗi.
 
-## Sao lưu CSDL
+## Sao lưu và phục hồi
 
-Phần mềm không có chức năng sao lưu; Nhật ký hệ thống chỉ ghi ai làm gì, không phục hồi được dữ liệu. Trước khi áp migration, dọn dữ liệu hay demo, sao lưu bằng tay và để tệp **ngoài thư mục dự án**:
+Phần mềm tự sao lưu mỗi ngày lúc 23:00 (giờ Việt Nam) và giữ 14 bản gần nhất, không cần cài `pg_dump`. Một bản sao lưu là một tệp `.ndjson.gz` gồm toàn bộ dữ liệu và thư mục ảnh (`server/storage/`). Máy chủ phải đang chạy lúc đến giờ; tắt máy lúc đó thì lần bật lại trong ngày sẽ sao lưu bù.
 
-```bash
-# Sao lưu (định dạng custom của pg_dump)
-docker exec gpp-postgres pg_dump -U gpp -d pharmacy_gpp -Fc > "D:/sao-luu/pharmacy_gpp-$(date +%Y%m%d-%H%M).dump"
+Đặt thư mục sao lưu **ngoài thư mục dự án**, tốt nhất ở ổ đĩa khác, trong `server/.env`:
 
-# Kiểm tra tệp đọc được
-docker exec -i gpp-postgres pg_restore -l < "D:/sao-luu/<tệp>.dump" | head
-
-# Phục hồi: GHI ĐÈ toàn bộ dữ liệu hiện có
-docker exec -i gpp-postgres pg_restore -U gpp -d pharmacy_gpp --clean --if-exists < "D:/sao-luu/<tệp>.dump"
+```
+BACKUP_DIR=D:\sao-luu-nha-thuoc
 ```
 
-Ảnh đơn thuốc và ảnh sản phẩm nằm ở `server/storage/`, không có trong tệp dump; chép thư mục này kèm theo nếu cần giữ đủ hồ sơ.
+Xem, sao lưu ngay, tải về: **Quản trị → Cài đặt → Công cụ → Sao lưu dữ liệu** (chỉ quản lý toàn chuỗi). Hoặc từ dòng lệnh:
+
+```bash
+cd server
+npm run db:backup
+```
+
+**Phục hồi** ghi đè toàn bộ dữ liệu nên không có nút trên giao diện. Dừng máy chủ, rồi:
+
+```bash
+cd server
+npm run db:restore -- sao-luu-20261031-230000-tu-dong.ndjson.gz
+```
+
+Lệnh hiện thông tin bản sao lưu, bắt gõ `PHUC HOI` để xác nhận, tự sao lưu dữ liệu hiện tại (loại "trước phục hồi") rồi mới ghi đè. Mọi thứ chạy trong một giao dịch: tệp hỏng, bị cắt cụt hay khác phiên bản CSDL thì hủy, dữ liệu hiện tại giữ nguyên. Sau khi phục hồi mọi người phải đăng nhập lại. Bản sao lưu chỉ phục hồi được vào CSDL cùng phiên bản migration; khác phiên bản thì lệnh báo cần làm gì.
+
+Chép thêm bản sao lưu ra ổ cứng rời hoặc lưu trữ đám mây định kỳ: máy hỏng ổ thì bản nằm trên cùng máy cũng mất.
 
 ## Máy chủ
 

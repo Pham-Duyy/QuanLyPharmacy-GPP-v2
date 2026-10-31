@@ -1,5 +1,6 @@
 import {
   SlidersOutlined,
+  CloudUploadOutlined,
   AlertOutlined,
   ApiOutlined,
   AuditOutlined,
@@ -335,6 +336,15 @@ export const PAGES = [
     // Trang gồm hai phần theo quyền riêng: cấu hình AI (settings.manage), nhật ký AI (audit.read).
     permission: ["settings.manage", "audit.read"],
     keywords: "ai claude ngan sach chi phi nhat ky tro ly nguon so lieu phan tich postgres",
+  },
+  {
+    path: "/sao-luu",
+    label: "Sao lưu dữ liệu",
+    icon: <CloudUploadOutlined />,
+    permission: "settings.manage",
+    keywords: "sao luu backup phuc hoi khoi phuc du lieu tai ve",
+    // Công cụ của trang Cài đặt: nhóm Quản trị đã đủ 6 mục.
+    navTarget: "/cai-dat",
   },
   {
     path: "/excel",

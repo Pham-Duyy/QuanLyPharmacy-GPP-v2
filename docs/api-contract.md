@@ -1895,3 +1895,14 @@ Hóa đơn đã phát hành rồi bị hủy hoặc trả hàng: giữ nguyên t
 | POST | `/einvoices/{id}/retry` | Đưa việc `FAILED`/`REJECTED` về hàng chờ; việc của cửa hàng khác trả `404` | `einvoice.manage` |
 
 Biến môi trường `EINVOICE_BASE_URL` trỏ API MISA sang địa chỉ khác (bộ kiểm thử dùng máy chủ mô phỏng `src/test/misa-stub-server.ts`). Chưa nghiệm thu với hệ thống MISA thật: cần nhà thuốc có hợp đồng và tài khoản sandbox.
+
+## Sao lưu dữ liệu [Đã chốt – Phase 7, D30]
+
+| Method | Endpoint | Mô tả | Quyền |
+|---|---|---|---|
+| GET | `/backups` | Thư mục lưu, lịch tự động (`auto`, `time`, `keep`), lần chạy gần nhất (`lastRun`, kể cả lỗi), danh sách bản sao lưu mới nhất trước: `name`, `kind` (`auto`/`manual`/`before-restore`), `createdAt`, `sizeBytes`, `tables` | `settings.manage` toàn chuỗi |
+| POST | `/backups` | Sao lưu ngay; đang có lượt khác chạy: `409 BACKUP_RUNNING`. Ghi audit `BACKUP_CREATE` | `settings.manage` toàn chuỗi |
+| GET | `/backups/{name}/download` | Tải tệp `.ndjson.gz`. Tên không đúng mẫu do phần mềm đặt hoặc không có: `404`. Ghi audit `BACKUP_DOWNLOAD` | `settings.manage` toàn chuỗi |
+
+Không có API phục hồi: phục hồi bằng lệnh `npm run db:restore` (README, mục Sao lưu và phục hồi). Định dạng tệp mô tả ở `server/src/modules/backup/backup-file.ts`.
+

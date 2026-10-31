@@ -21,6 +21,8 @@ server/generated/
 
 # Ảnh đơn thuốc lưu trên đĩa (contract §12): không commit, không thuộc mã nguồn.
 server/storage/
+# Thư mục ảnh cũ giữ lại sau khi phục hồi, thư mục tạm khi đang phục hồi.
+server/storage.*/
 
 # Log
 *.log
@@ -40,3 +42,6 @@ shots/
 # Thư mục dựng tài liệu tạm và file khóa của Word
 .tmp/
 ~$*
+
+# Bản sao lưu trong phần mềm: dữ liệu thật của nhà thuốc, không commit.
+backups/

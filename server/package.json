@@ -24,7 +24,9 @@
     "check:migrations": "tsx src/scripts/check-migrations.ts",
     "eval:agent": "tsx src/scripts/agent-eval.ts",
     "db:analytics-reader": "tsx src/scripts/analytics-reader.ts",
-    "db:sales-demo": "tsx src/scripts/sales-demo.ts"
+    "db:sales-demo": "tsx src/scripts/sales-demo.ts",
+    "db:backup": "tsx src/scripts/backup.ts",
+    "db:restore": "tsx src/scripts/restore.ts"
   },
   "type": "module",
   "dependencies": {

@@ -93,9 +93,27 @@ Phần mềm chặn các lỗi nhập hay gặp:
 - **Cửa hàng**: thông tin, số chứng nhận GPP; mở cửa hàng mới.
 - **Cài đặt**: mẫu in hóa đơn và phiếu, tích điểm, hóa đơn điện tử, liên thông Dược quốc gia.
 - **Nhật ký hệ thống**: ai làm gì, lúc nào.
+- **Sao lưu dữ liệu** (**Cài đặt → Công cụ → Sao lưu dữ liệu**, chỉ quản lý toàn chuỗi): phần mềm tự sao lưu mỗi ngày lúc 23:00, giữ 14 bản. Trang này cho xem các bản, bấm **Sao lưu ngay**, **Tải về**. Hơn 2 ngày chưa có bản mới thì trang báo vàng. Nên chép bản sao lưu ra ổ cứng rời mỗi tuần.
 - **Nhập / xuất Excel**: nhập danh mục, nhà cung cấp, khách hàng, tồn đầu kỳ từ tệp mẫu.
 
-## 9. Câu hỏi hay gặp
+## 9. Phục hồi dữ liệu khi có sự cố
+
+Phục hồi thay **toàn bộ** dữ liệu hiện tại bằng dữ liệu lúc sao lưu: mọi hóa đơn, phiếu nhập sau thời điểm đó sẽ mất. Chỉ làm khi máy hỏng, cài lại máy mới, hoặc dữ liệu bị xóa nhầm nặng.
+
+1. Dừng máy chủ (đóng cửa sổ đang chạy `npm run dev` trong thư mục `server`).
+2. Mở PowerShell trong thư mục `server`, chạy (thay tên tệp bằng bản muốn dùng, xem ở trang Sao lưu dữ liệu):
+
+   ```
+   npm run db:restore -- sao-luu-20261031-230000-tu-dong.ndjson.gz
+   ```
+
+   Tệp nằm ngoài thư mục sao lưu (ví dụ chép từ ổ cứng rời) thì ghi đường dẫn đầy đủ: `npm run db:restore -- "E:\sao-luu\sao-luu-....ndjson.gz"`.
+3. Đọc thông tin bản sao lưu hiện ra, gõ `PHUC HOI` rồi Enter.
+4. Chạy lại máy chủ. Mọi người đăng nhập lại.
+
+Trước khi ghi đè, lệnh tự lưu dữ liệu hiện tại thành một bản "Trước phục hồi", nên lỡ chọn nhầm bản vẫn quay lại được. Tệp hỏng hoặc không đúng phiên bản thì lệnh báo lỗi và không thay đổi gì.
+
+## 10. Câu hỏi hay gặp
 
 **Tôi là chủ nhà thuốc, sao không thấy nút bán hàng?** Xem mục 3.
 

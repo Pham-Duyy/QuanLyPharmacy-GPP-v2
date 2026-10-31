@@ -52,6 +52,7 @@ const PAGES = [
   "/hoa-don-dien-tu",
   "/lien-thong-duoc",
   "/tai-khoan",
+  "/sao-luu",
 ];
 const VIEWPORTS = [
   { tag: "may-tinh", width: 1440, height: 900 },

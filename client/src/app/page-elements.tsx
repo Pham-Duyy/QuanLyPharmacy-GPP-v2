@@ -8,6 +8,7 @@ function page<K extends string>(loader: () => Promise<Record<K, ComponentType>>,
 }
 
 const DashboardPage = page(() => import("../features/dashboard/DashboardPage.js"), "DashboardPage");
+const BackupPage = page(() => import("../features/backup/BackupPage.js"), "BackupPage");
 const AiAdminPage = page(() => import("../features/ai-admin/AiAdminPage.js"), "AiAdminPage");
 const AssistantPage = page(() => import("../features/assistant/AssistantPage.js"), "AssistantPage");
 const SalePage = page(() => import("../features/sales/SalePage.js"), "SalePage");
@@ -133,5 +134,6 @@ export const PAGE_ELEMENTS: Record<PagePath, ReactNode> = {
   "/cai-dat": <SettingsPage />,
   "/audit-log": <AuditLogPage />,
   "/phan-tich-ai": <AiAdminPage />,
+  "/sao-luu": <BackupPage />,
   "/excel": <ExcelHubPage />,
 };
