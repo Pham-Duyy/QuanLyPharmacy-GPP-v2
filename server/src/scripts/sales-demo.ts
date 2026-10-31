@@ -511,7 +511,8 @@ async function main(): Promise<void> {
           // Đông giờ trưa và chiều tối.
           const r = rand();
           const peak = r < 0.5 ? 11 + rand() * 2.5 : r < 0.85 ? 17 + rand() * 3.5 : 7 + rand() * 15;
-          return isToday ? Math.min(peak, Math.max(nowHour - 0.05, 7)) : peak;
+          // Hôm nay: rải đều từ lúc mở cửa (7h) tới giờ hiện tại, không dồn hết về một thời điểm.
+          return isToday ? 7 + rand() * Math.max(nowHour - 7.05, 0) : peak;
         }).sort((a, b) => a - b);
         for (const hour of hours) {
           const sold = await sell(store, auth, items, rand, seasonalBoost(progress));

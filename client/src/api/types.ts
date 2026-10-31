@@ -411,7 +411,8 @@ export type InvoiceListItem = {
 /** Định dạng tiền Việt, dùng thống nhất toàn giao diện. */
 export function formatVnd(value: Money | null | undefined): string {
   if (value === null || value === undefined) return "—";
-  return new Intl.NumberFormat("vi-VN").format(value) + " ₫";
+  // Tiền đồng không có số lẻ: giá vốn theo lô có phần thập phân, làm tròn khi hiển thị.
+  return new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 0 }).format(Number(value)) + " ₫";
 }
 
 // --- Trả hàng (contract §15) -----------------------------------------------

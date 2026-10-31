@@ -94,7 +94,28 @@ export async function getDetail(customerId: string) {
   };
 }
 
+/**
+ * Một số điện thoại chỉ thuộc một khách: tránh tách điểm tích lũy, lịch sử mua ra hai hồ sơ và
+ * tìm ở quầy ra hai người. Cùng quy tắc với nhập khách từ Excel (trùng số thì cập nhật).
+ * Kiểm ở ứng dụng, không thêm ràng buộc CSDL vì dữ liệu cũ có thể đã trùng.
+ */
+async function assertPhoneFree(phone: string | null | undefined, exceptId?: string): Promise<void> {
+  if (!phone) return;
+  const owner = await prisma.customer.findFirst({
+    where: { phone, ...(exceptId ? { id: { not: exceptId } } : {}) },
+    select: { code: true, fullName: true },
+  });
+  if (owner) {
+    throw new AppError(
+      409,
+      "DUPLICATE_PHONE",
+      `Số điện thoại ${phone} đã thuộc khách ${owner.code}${owner.fullName ? ` – ${owner.fullName}` : ""}`,
+    );
+  }
+}
+
 export async function create(input: CreateCustomerInput): Promise<string> {
+  await assertPhoneFree(input.phone);
   const customer = await prisma.customer.create({
     data: {
       fullName: input.fullName ?? null,
@@ -125,6 +146,9 @@ export async function update(customerId: string, input: PatchCustomerInput): Pro
   const nextPhone = input.phone !== undefined ? input.phone : existing.phone;
   if (!nextFullName && !nextPhone) {
     throw new AppError(422, "VALIDATION_ERROR", "Phải giữ lại ít nhất họ tên hoặc số điện thoại");
+  }
+  if (input.phone !== undefined && input.phone !== existing.phone) {
+    await assertPhoneFree(input.phone, customerId);
   }
 
   await updateWithVersion({

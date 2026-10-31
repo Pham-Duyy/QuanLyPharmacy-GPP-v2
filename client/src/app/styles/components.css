@@ -454,6 +454,11 @@
   gap: 8px;
 }
 
+.panel-actions-note {
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
 .panel-actions-row {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));

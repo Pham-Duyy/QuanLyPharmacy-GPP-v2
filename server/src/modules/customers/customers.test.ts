@@ -654,3 +654,32 @@ describe("Ẩn danh khách hàng", () => {
     expect(response.body.error.code).toBe("FORBIDDEN");
   });
 });
+
+describe("Một số điện thoại chỉ thuộc một khách", () => {
+  it("thêm hoặc sửa sang số đã có thì 409, báo khách đang giữ số; sửa giữ nguyên số của mình vẫn được", async () => {
+    const first = await createCustomer({ fullName: "Trần Thị Mai", phone: "0912345678" });
+    const duplicate = await api()
+      .post("/api/v1/customers")
+      .set(authHeaders(salesToken))
+      .send({ fullName: "Người trùng số", phone: "0912345678" })
+      .expect(409);
+    expect(duplicate.body.error.code).toBe("DUPLICATE_PHONE");
+    expect(duplicate.body.error.message).toContain("Trần Thị Mai");
+
+    const second = await createCustomer({ fullName: "Lê Văn B", phone: "0988000111" });
+    const version = (await prisma.customer.findUniqueOrThrow({ where: { id: second } })).version;
+    const moved = await api()
+      .patch(`/api/v1/customers/${second}`)
+      .set(authHeaders(salesToken))
+      .send({ phone: "0912345678", version })
+      .expect(409);
+    expect(moved.body.error.code).toBe("DUPLICATE_PHONE");
+
+    const own = (await prisma.customer.findUniqueOrThrow({ where: { id: first } })).version;
+    await api()
+      .patch(`/api/v1/customers/${first}`)
+      .set(authHeaders(salesToken))
+      .send({ phone: "0912345678", fullName: "Trần Thị Mai (đổi tên)", version: own })
+      .expect(200);
+  });
+});

@@ -193,7 +193,8 @@ export async function getCostCounts(storeId: string, from: Date, to: Date): Prom
 export function netOf(totals: Totals): { netRevenue: number; grossProfit: number } {
   const netRevenue = totals.revenue - totals.refund;
   const netCogs = totals.cogs - totals.restockedCost;
-  return { netRevenue, grossProfit: netRevenue - netCogs };
+  // Giá vốn theo lô có phần thập phân; lợi nhuận là tiền đồng nên làm tròn.
+  return { netRevenue, grossProfit: Math.round(netRevenue - netCogs) };
 }
 
 type DailyRow = {

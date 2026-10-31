@@ -2,12 +2,15 @@
 
 .dashboard-page {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
 }
 
 /* Tổng quan của người có quyền báo cáo: việc hôm nay của cửa hàng, nằm giữa biểu đồ và các tab. */
 .store-work {
   display: grid;
+  /* minmax(0, 1fr): bảng, tiêu đề dài bên trong không đẩy khung rộng hơn màn hình điện thoại. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
   margin: 20px 0 24px;
 }

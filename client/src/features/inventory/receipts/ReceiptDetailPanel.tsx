@@ -12,7 +12,18 @@ import {
   ShopOutlined,
 } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, App, Button, Card, Input, Modal, Progress, Skeleton, Typography } from "antd";
+import {
+  Alert,
+  App,
+  Button,
+  Card,
+  Input,
+  Modal,
+  Progress,
+  Skeleton,
+  Tooltip,
+  Typography,
+} from "antd";
 import { useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { getErrorMessage, http } from "../../../api/http.js";
@@ -24,6 +35,9 @@ import { PrintPreviewModal } from "../../printing/PrintPreviewModal.js";
 import { ReceiptFormModal } from "../ReceiptFormModal.js";
 import { InspectionModal } from "./InspectionModal.js";
 import { ReceiptLinesModal } from "./ReceiptLinesModal.js";
+
+const CONFIRM_HINT =
+  "Chỉ quản lý cửa hàng (quyền xác nhận phiếu nhập) mới kiểm nhập, nhập kho hoặc hủy phiếu.";
 import { StatusTag } from "./StatusTag.js";
 
 export type PanelAction = "lines" | "inspect" | "edit" | "cancel";
@@ -349,16 +363,24 @@ export function ReceiptDetailPanel({
 
           <div className="panel-actions">
             {isDraft ? (
-              <Button
-                type="primary"
-                size="large"
-                block
-                icon={<SafetyCertificateOutlined />}
-                disabled={!can("goods_receipt.confirm")}
-                onClick={() => setInspecting(true)}
-              >
-                Kiểm nhập &amp; xác nhận
-              </Button>
+              // Nút bị khóa thì nói rõ vì sao (dược sĩ, kho chỉ lập phiếu; quản lý xác nhận).
+              <Tooltip title={can("goods_receipt.confirm") ? undefined : CONFIRM_HINT}>
+                <Button
+                  type="primary"
+                  size="large"
+                  block
+                  icon={<SafetyCertificateOutlined />}
+                  disabled={!can("goods_receipt.confirm")}
+                  onClick={() => setInspecting(true)}
+                >
+                  Kiểm nhập &amp; xác nhận
+                </Button>
+              </Tooltip>
+            ) : null}
+            {isDraft && !can("goods_receipt.confirm") ? (
+              <Typography.Text type="secondary" className="panel-actions-note">
+                {CONFIRM_HINT}
+              </Typography.Text>
             ) : null}
             <Button
               size="large"
@@ -388,14 +410,16 @@ export function ReceiptDetailPanel({
                 >
                   Sửa phiếu
                 </Button>
-                <Button
-                  danger
-                  icon={<CloseCircleOutlined />}
-                  disabled={!can("goods_receipt.confirm")}
-                  onClick={() => setCancelling(true)}
-                >
-                  Hủy phiếu
-                </Button>
+                <Tooltip title={can("goods_receipt.confirm") ? undefined : CONFIRM_HINT}>
+                  <Button
+                    danger
+                    icon={<CloseCircleOutlined />}
+                    disabled={!can("goods_receipt.confirm")}
+                    onClick={() => setCancelling(true)}
+                  >
+                    Hủy phiếu
+                  </Button>
+                </Tooltip>
               </div>
             ) : null}
             {receipt.status === "CONFIRMED" && can("stock.read") ? (

@@ -985,8 +985,8 @@ Trạng thái: `DRAFT` → `IN_TRANSIT` → `RECEIVED`; `DRAFT` hoặc `IN_TRANS
 | GET | `/customers/summary` | Tổng khách, khách mới tháng này, đã mua trong 30 ngày, số khách mỗi nhóm, kèm quy tắc nhóm | `customer.read` |
 | GET | `/customers/export` | CSV theo bộ lọc `q`, `segment`; có số điện thoại đầy đủ; ghi audit `CUSTOMER_EXPORT` | `customer.sensitive` |
 | GET | `/customers/{id}` | Thông tin cơ bản, mã khách, email, địa chỉ, `stats` (tổng mua, số đơn, lần mua cuối, nhóm) | `customer.read` |
-| POST | `/customers` | Tạo khách | `customer.manage` |
-| PATCH | `/customers/{id}` | Sửa thông tin cơ bản | `customer.manage` |
+| POST | `/customers` | Tạo khách. Số điện thoại đã thuộc khách khác thì `409 DUPLICATE_PHONE` (báo mã, tên khách đang giữ số; cùng quy tắc nhập Excel) | `customer.manage` |
+| PATCH | `/customers/{id}` | Sửa thông tin cơ bản; đổi sang số điện thoại của khách khác thì `409 DUPLICATE_PHONE` | `customer.manage` |
 | GET | `/customers/{id}/health-profile` | Dị ứng (theo hoạt chất và ghi chú), bệnh nền; ghi audit mỗi lần xem | `customer.sensitive` |
 | PATCH | `/customers/{id}/health-profile` | Cập nhật hồ sơ sức khỏe | `customer.sensitive` |
 | GET | `/customers/{id}/invoices` | Lịch sử mua; ghi audit mỗi lần xem | `customer.sensitive` |
