@@ -39,6 +39,8 @@ from app.config import (
     HW_GAMMAS,
     INTERVAL_QUANTILES,
     MIN_HISTORY_DAYS,
+    ML_ENABLED,
+    ML_MIN_IMPROVEMENT,
     WEEKDAY_MEAN_WEEKS,
 )
 
@@ -307,17 +309,37 @@ def forecast_revenue(sales: pd.DataFrame, as_of: pd.Timestamp, store_code: str |
 
 
 def forecast_demand(sales: pd.DataFrame, as_of: pd.Timestamp, *, horizon: int = FORECAST_HORIZON_DAYS) -> list[dict]:
-    """Nhu cầu (số lượng) từng thuốc ở từng cửa hàng; độ chính xác đo trên TỔNG 7 ngày bán lẻ."""
+    """Nhu cầu (số lượng) từng thuốc ở từng cửa hàng; độ chính xác đo trên TỔNG 7 ngày bán lẻ.
+
+    Bước 5.6: mô hình học máy (ml.py) thách đấu mô hình chọn được; chuỗi nào ML có sai số thấp
+    hơn ít nhất ML_MIN_IMPROVEMENT thì dùng dự báo ML, còn lại giữ nguyên.
+    """
+    from . import ml
     from .series import units_table
 
     retail, wholesale = _split(sales)
     retail_table = units_table(retail, as_of)
     wholesale_table = units_table(wholesale, as_of) if not wholesale.empty else pd.DataFrame()
+    classic = {
+        column: forecast_series(
+            retail_table[column], horizon=horizon, candidates=("naive", "weekday_mean", "holt_winters"), metric="wape_total"
+        )
+        for column in retail_table.columns
+    }
+    challengers: dict = {}
+    if ML_ENABLED and ml.available() and any(result["status"] == "ok" for result in classic.values()):
+        categories = sales.drop_duplicates("medicine_code").set_index("medicine_code")["category"].to_dict() if "category" in sales.columns else {}
+        challengers = ml.ml_demand(retail_table, categories, horizon=horizon)
     rows = []
     for column in retail_table.columns:
-        series = retail_table[column]
-        result = forecast_series(series, horizon=horizon, candidates=("naive", "weekday_mean", "holt_winters"), metric="wape_total")
-        clean = series.dropna()
+        result = classic[column]
+        challenger = challengers.get(column)
+        if result["status"] == "ok":
+            # Mọi chuỗi đều ghi sai số của ML để so (kể cả khi không dùng).
+            result = {**result, "ml_wape": None if challenger is None else challenger["wape_total"]}
+            if ml.adopt(result, challenger, ML_MIN_IMPROVEMENT):
+                result = ml.as_forecast(result, challenger, [point["date"] for point in result["points"]])
+        clean = retail_table[column].dropna()
         extra = wholesale_table[column] if column in wholesale_table.columns else pd.Series(dtype="float64")
         result = _with_wholesale(result, extra.fillna(0.0), clean.index, float(clean.iloc[-7:].sum()))
         rows.append({"store_code": column[0], "medicine_code": column[1], **result})
@@ -377,7 +399,11 @@ def data_key(sales: pd.DataFrame, as_of: pd.Timestamp) -> str:
         keys.append(complete["sale_type"])
     totals = complete.groupby(keys)[["quantity", "revenue"]].sum().round(4)
     digest = hashlib.sha256()
-    digest.update(f"{end.date()}|{sorted(MODELS)}|{HW_ALPHAS}{HW_BETAS}{HW_GAMMAS}{HW_DAMPING}|{BACKTEST_FOLDS}".encode())
+    from . import ml
+
+    # Bật/tắt ML hay đổi phiên bản ML cũng làm dấu đổi, để bộ nhớ đệm dự báo tính lại.
+    ml_tag = f"{ml.VERSION}:{ML_MIN_IMPROVEMENT}" if ML_ENABLED and ml.available() else "no-ml"
+    digest.update(f"{end.date()}|{sorted(MODELS)}|{HW_ALPHAS}{HW_BETAS}{HW_GAMMAS}{HW_DAMPING}|{BACKTEST_FOLDS}|{ml_tag}".encode())
     digest.update(pd.util.hash_pandas_object(totals, index=True).to_numpy().tobytes())
     return digest.hexdigest()
 

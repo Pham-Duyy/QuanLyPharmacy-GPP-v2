@@ -153,6 +153,18 @@ Mã cửa hàng, mã thuốc trùng phần mềm; trang "Đề xuất đặt hà
 Cứ ~30 giây Monitor hỏi `change_marker` (vài phép đếm, rất nhẹ); chỉ khi có hóa đơn, phiếu trả, thay đổi lô, danh mục
 mới đọc lại. CSDL tạm không kết nối được: ghi lần chạy lỗi, giữ snapshot tốt gần nhất. Bỏ hai biến trên là quay về đọc tệp.
 
+## ML thách đấu dự báo nhu cầu (Phase 5, bước 5.6, tùy chọn)
+
+Tắt mặc định: trên dữ liệu mẫu, đo ngoài mẫu không giảm sai số. Muốn thử với dữ liệu của mình:
+
+```
+.venv\Scripts\pip install -r requirements-ml.txt
+.venv\Scripts\python main.py ml-check data\inbox
+```
+
+Lệnh đứng ở 3 thời điểm quá khứ, so dự báo 7 ngày (có và không có ML) với số bán thật và kết luận có nên bật.
+Bật: `$env:ANALYTICS_ML = "on"` trước khi chạy `main.py serve`. Chỉ thuốc nào ML đo được sai số thấp hơn ít nhất 10% mới dùng ML.
+
 ## Cấu trúc
 
 ```

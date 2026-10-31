@@ -319,3 +319,23 @@ Cùng mã `reorder.py`, cùng lệnh `python main.py reorder`. Mỗi dòng gợi
 
 Chưa xét: chi phí, quãng đường của chuyến chuyển; lô cận hạn ở nơi bán chậm chuyển sang nơi bán nhanh (bước 2.4 mới chỉ khuyên làm tay).
 
+## ML bên thách đấu (Phase 5, bước 5.6)
+
+Mã: `analytics-service/app/analytics/ml.py`; bật bằng `ANALYTICS_ML=on` (cần `requirements-ml.txt`, ~160 MB kèm scipy).
+Đo: `python main.py ml-check`.
+
+| Phần | Cách làm |
+|---|---|
+| Mô hình | Một `HistGradientBoostingRegressor` học chung mọi chuỗi (cửa hàng × thuốc), dự báo trực tiếp ngày h = 1..30 |
+| Mục tiêu | Tỷ lệ số bán ngày đó / mức bán 28 ngày gần nhất, rồi nhân lại: thuốc bán ít, bán nhiều học chung một quy luật |
+| Đặc trưng | Trung bình 7 ngày, 4 lần cùng thứ gần nhất, lần cùng thứ gần nhất (đều chia mức 28 ngày); log mức 28 ngày; h; thứ trong tuần; ngày lễ (01/01, 30/04, 01/05, 02/09, ±5 ngày quanh mùng 1 Tết); số ngày tới Tết; cửa hàng; nhóm thuốc |
+| Đo | Đúng 4 lần thử × 7 ngày như mô hình cổ điển; mỗi lần mô hình chỉ học mục tiêu TRƯỚC mốc thử (có test chống rò dữ liệu) |
+| Thay thế | Chuỗi nào sai số tổng 7 ngày của ML thấp hơn mô hình cổ điển ít nhất 10% (cùng số lần thử) thì dùng ML; mọi chuỗi ghi `ml_wape` để so |
+
+Kết quả trên dữ liệu mẫu (180 chuỗi, 90 ngày): trong mẫu, trung vị sai số ML 32,1% so với 27,9% của mô hình cổ điển tốt
+nhất; ML thắng 55/180 chuỗi, 22 chuỗi thắng từ 10%. **Đo ngoài mẫu** (`ml-check`: đứng ở 09/10, 16/10, 23/10, chọn
+mô hình chỉ bằng dữ liệu tới lúc đó, so 7 ngày sau với số thật): tổng sai số 30,3% → 30,5%, 30,0% → 30,2%, 28,0% →
+28,1%; thời gian tính ~0,8 giây → ~2,7 giây. ML **không** giúp: dữ liệu mẫu tự sinh, biến động chủ yếu là nhiễu, mô
+hình cổ điển đã sát mức sàn. Vì vậy ML **tắt mặc định** (quyết định D21: không ép dùng). Có dữ liệu thật dài hơn (hơn
+một năm, có mùa vụ, lễ Tết) thì chạy lại `ml-check`; lệnh khuyên bật khi ML tốt hơn ở cả 3 lần.
+

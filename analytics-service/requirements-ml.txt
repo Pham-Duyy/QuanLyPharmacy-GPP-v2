@@ -1,0 +1,4 @@
+# Bước 5.6 (tùy chọn): mô hình học máy thách đấu dự báo nhu cầu (ANALYTICS_ML=on).
+# Khoảng 160 MB (kèm scipy). Không cài thì hệ thống chạy như cũ.
+#   .venv\Scripts\pip install -r requirements-ml.txt
+scikit-learn>=1.4

@@ -313,6 +313,61 @@ def command_reorder(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_ml_check(args: argparse.Namespace) -> int:
+    """Đo ngoài mẫu (bước 5.6): đứng ở 3 thời điểm quá khứ, chọn mô hình chỉ bằng dữ liệu tới lúc đó,
+    so dự báo 7 ngày bán lẻ với số thật; so "chỉ mô hình cổ điển" với "có ML thách đấu"."""
+    import time
+
+    import app.analytics.forecast as forecast
+    from app.analytics import ml
+
+    if not ml.available():
+        print("Chưa cài scikit-learn: .venv\\Scripts\\pip install -r requirements-ml.txt", file=sys.stderr)
+        return 1
+    try:
+        results = process_folder(args.folder)
+    except (LoadError, FileNotFoundError) as error:
+        print(f"Không xử lý được: {error}", file=sys.stderr)
+        return 1
+    medicines = results["medicines"].data if "medicines" in results else None
+    sales = prepare_sales(results["sales"].data, medicines)
+    end = (pd.Timestamp(args.as_of) if args.as_of else now_local()).normalize()
+    retail = sales[sales["sale_type"] == "retail"]
+    print("Sai số tổng 7 ngày bán lẻ (càng thấp càng tốt), tính trên mọi thuốc ở mọi cửa hàng:")
+    wins = 0
+    for back in (21, 14, 7):
+        as_of = end - pd.Timedelta(days=back)
+        actual = (
+            retail[(retail["sale_datetime"] >= as_of) & (retail["sale_datetime"] < as_of + pd.Timedelta(days=7))]
+            .groupby(["store_code", "medicine_code"])["quantity"]
+            .sum()
+        )
+        scores = {}
+        for enabled in (False, True):
+            forecast.ML_ENABLED = enabled
+            started = time.perf_counter()
+            rows = forecast.forecast_demand(sales[sales["sale_datetime"] < as_of], as_of, horizon=7)
+            took = time.perf_counter() - started
+            predicted = {
+                (row["store_code"], row["medicine_code"]): sum(point["value"] for point in row["points"]) - 7 * (row.get("wholesale_per_day") or 0)
+                for row in rows
+                if row["status"] == "ok"
+            }
+            error = sum(abs(value - float(actual.get(key, 0.0))) for key, value in predicted.items())
+            total = sum(float(actual.get(key, 0.0)) for key in predicted)
+            used = sum(1 for row in rows if row.get("model") == ml.MODEL_NAME)
+            scores[enabled] = (error / total if total else float("nan"), used, took)
+        classic, hybrid = scores[False], scores[True]
+        wins += hybrid[0] < classic[0]
+        print(
+            f"  {as_of:%d/%m/%Y}: cổ điển {_number(classic[0] * 100, 1)}%  có ML {_number(hybrid[0] * 100, 1)}%"
+            f"  ({hybrid[1]} chuỗi dùng ML; {_number(classic[2], 1)} giây → {_number(hybrid[2], 1)} giây)"
+        )
+    verdict = "nên bật ANALYTICS_ML=on" if wins == 3 else "chưa nên bật (không tốt hơn ở cả 3 lần)"
+    print(f"\nKết luận: ML tốt hơn {wins}/3 lần: {verdict}.")
+    return 0
+
+
 def command_inventory(args: argparse.Namespace) -> int:
     """Tình trạng tồn kho (bước 2.3): hết hàng, sắp hết, tồn chết, tồn cao."""
     from app.analytics.inventory import STATUS_LABELS, inventory_analysis
@@ -721,6 +776,10 @@ def main() -> int:
     reorder.add_argument("--top", type=int, default=30, help="Số dòng in ra (mặc định 30)")
     reorder.add_argument("--json", action="store_true", help="In kết quả dạng JSON")
     reorder.set_defaults(handler=command_reorder)
+    ml_check = commands.add_parser("ml-check", help="Đo ngoài mẫu: ML thách đấu có giảm sai số dự báo nhu cầu không")
+    ml_check.add_argument("folder", nargs="?", type=Path, default=SAMPLES_DIR, help="Thư mục chứa medicines/sales")
+    ml_check.add_argument("--as-of", help="Thời điểm hiện tại giả định (mặc định: bây giờ)")
+    ml_check.set_defaults(handler=command_ml_check)
     run = commands.add_parser("run", help="Chạy pipeline và lưu snapshot vào SQLite")
     run.add_argument("folder", nargs="?", type=Path, default=SAMPLES_DIR, help="Thư mục chứa medicines/sales/inventory")
     run.add_argument("--db", type=Path, default=ANALYTICS_DB, help="Tệp SQLite (mặc định data/analytics.db)")

@@ -526,6 +526,6 @@ số đặt         = max(0, cần có − tồn dùng được), làm tròn lê
 | 5.3 | Gợi ý chuyển hàng giữa cửa hàng trước khi mua ([kpi.md](kpi.md#chuyển-hàng-giữa-cửa-hàng-trước-khi-mua-phase-5-bước-53)) | Xong |
 | 5.4 | API, Gateway, tab "Đặt hàng" và "ABC" trên Bảng điều hành, 2 tool AI Agent, xuất Excel | Xong |
 | 5.5 | Nguồn PostgreSQL: view chỉ đọc `analytics_src`, tài khoản chỉ đọc, phát hiện thay đổi; cột "Theo dự báo" ở trang Đề xuất đặt hàng || Xong |
-| 5.6 | ML bên thách đấu (scikit-learn, đặc trưng thứ, độ trễ, lễ Tết), chỉ dùng khi backtest tốt hơn | |
+| 5.6 | ML bên thách đấu (scikit-learn, đặc trưng thứ, độ trễ, lễ Tết), chỉ dùng khi backtest tốt hơn ([kpi.md](kpi.md#ml-bên-thách-đấu-phase-5-bước-56)); đo ngoài mẫu không tốt hơn nên tắt mặc định | Xong |
 
 Schema dữ liệu và luật kiểm tra: [data-schema.md](data-schema.md). Công thức KPI: [kpi.md](kpi.md).

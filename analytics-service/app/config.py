@@ -213,3 +213,18 @@ ANALYTICS_SOURCE = os.environ.get("ANALYTICS_SOURCE", "files")
 # Chuỗi kết nối tài khoản CHỈ ĐỌC analytics_reader (server/prisma/sql/analytics-reader.sql),
 # ví dụ postgresql://analytics_reader:mat-khau@localhost:5432/pharmacy_gpp
 ANALYTICS_PG_DSN = os.environ.get("ANALYTICS_PG_DSN")
+
+# --- ML bên thách đấu (Phase 5, bước 5.6; quyết định D21) -------------------------------
+
+# Mô hình học máy dự báo nhu cầu thuốc: TẮT mặc định, bật bằng ANALYTICS_ML=on (cần requirements-ml.txt).
+# Đo ngoài mẫu trên dữ liệu mẫu 90 ngày (python main.py ml-check): không giảm sai số (30,3% → 30,5%,
+# 30,0% → 30,2%, 28,0% → 28,1%) mà tính lâu gấp ~3 lần. Đo lại khi có dữ liệu thật dài hơn rồi mới bật.
+ML_ENABLED = os.environ.get("ANALYTICS_ML", "off").lower() in ("on", "1", "true")
+# Chỉ thay mô hình cổ điển cho thuốc nào mà ML có sai số tổng 7 ngày (backtest) thấp hơn ít nhất 10% (tương đối).
+ML_MIN_IMPROVEMENT = 0.10
+# Dữ liệu học: lấy mốc dự báo cách nhau ngần này ngày (đủ đa dạng, học nhanh).
+ML_ORIGIN_STEP = 2
+# Ngày lễ cố định (tháng-ngày) và mùng 1 Tết âm lịch các năm; ±ML_TET_WINDOW ngày quanh Tết tính là ngày lễ.
+VN_FIXED_HOLIDAYS = ("01-01", "04-30", "05-01", "09-02")
+VN_TET = ("2024-02-10", "2025-01-29", "2026-02-17", "2027-02-06", "2028-01-26", "2029-02-13", "2030-02-03")
+ML_TET_WINDOW = 5
