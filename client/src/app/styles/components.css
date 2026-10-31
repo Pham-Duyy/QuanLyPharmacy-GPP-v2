@@ -1471,6 +1471,19 @@
   font-size: 12.5px;
 }
 
+.camera-scan-steps {
+  margin: 4px 0 0;
+  padding-inline-start: 20px;
+}
+
+.camera-scan-steps li + li {
+  margin-top: 4px;
+}
+
+.camera-scan-actions {
+  margin: 12px 0 8px;
+}
+
 /* ---------- Biểu tượng "?" và trạng thái rỗng dùng chung ---------- */
 
 .info-tip-icon {

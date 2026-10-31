@@ -83,7 +83,15 @@ Máy quầy, máy tính bảng cùng mạng Wi-Fi/LAN mở được phần mềm
 
 Nên đặt IP tĩnh cho máy cài (trong cài đặt modem) để địa chỉ không đổi.
 
-Camera quét mã chỉ chạy trên `https` hoặc `localhost`. Máy khác mở bằng `http://192.168…` thì dùng máy quét mã vạch cầm tay (cắm USB, chạy như bàn phím).
+Camera quét mã trực tiếp chỉ chạy trên `https` hoặc `localhost`. Máy khác mở bằng `http://192.168…` thì dùng máy quét mã vạch cầm tay (cắm USB, chạy như bàn phím), hoặc bấm nút camera rồi **Chụp ảnh mã**: điện thoại, máy tính bảng mở ứng dụng camera để chụp, phần mềm đọc mã từ ảnh.
+
+Bấm nút camera mà báo bị chặn: hộp thoại tự nói nguyên nhân và cách sửa.
+
+| Báo | Sửa ở đâu |
+|---|---|
+| Trang này đang bị chặn dùng camera | Trong trình duyệt: bấm biểu tượng bên trái địa chỉ trang → Quyền cho trang web → Camera → Cho phép. Cho phép xong, camera tự mở |
+| Máy tính đang chặn trình duyệt dùng camera | Cài đặt Windows (Windows + I) → Quyền riêng tư và bảo mật → Camera: bật Truy cập camera và Cho phép ứng dụng máy tính truy cập camera; đóng hẳn trình duyệt rồi mở lại |
+| Camera đang được ứng dụng khác dùng | Đóng Zalo, Zoom, Teams… đang mở camera rồi bấm Thử lại |
 
 ## 5. Vận hành hằng ngày
 
