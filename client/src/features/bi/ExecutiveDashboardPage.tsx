@@ -44,6 +44,7 @@ import {
   trendWithForecast,
   type Alert as BiAlert,
   type BreakdownBy,
+  type Health,
   type Period,
   type Summary,
 } from "./bi-api.js";
@@ -108,7 +109,7 @@ export function ExecutiveDashboardPage({
   const health = useQuery({
     queryKey: ["bi", "health", v],
     queryFn: biApi.health,
-    enabled: v !== null,
+    // Cả khi chưa có snapshot: cần biết nguồn số liệu và lỗi gần nhất để báo đúng việc phải làm.
     refetchInterval: VERSION_POLL_MS,
   });
 
@@ -117,7 +118,7 @@ export function ExecutiveDashboardPage({
   useEffect(() => {
     if (v === null) return;
     if (seenVersion.current !== null && v > seenVersion.current) {
-      void message.info(`Số liệu vừa cập nhật từ tệp dữ liệu (bản ${v})`);
+      void message.info(`Số liệu vừa cập nhật (bản ${v})`);
     }
     seenVersion.current = v;
   }, [v, message]);
@@ -215,13 +216,7 @@ export function ExecutiveDashboardPage({
         />
       ) : null}
 
-      {version.data && v === null ? (
-        <Result
-          status="info"
-          title="Chưa có số liệu"
-          subTitle="Thêm medicines.xlsx và sales.xlsx vào thư mục data/inbox của analytics-service."
-        />
-      ) : null}
+      {version.data && v === null ? <NoSnapshot health={health.data} /> : null}
 
       {ready ? (
         <>
@@ -476,6 +471,43 @@ function buildStoreOptions(
   ];
 }
 
+/** Chưa tính được số liệu lần nào: nói đúng việc cần làm theo nguồn số liệu. */
+function NoSnapshot({ health }: { health: Health | undefined }) {
+  const lastRun = health?.last_run;
+  const error = lastRun?.status === "failed" ? lastRun.error_message : null;
+  if (health?.monitor?.source !== "postgres")
+    return (
+      <Result
+        status="info"
+        title="Chưa có số liệu"
+        subTitle="Thêm medicines.xlsx và sales.xlsx vào thư mục data/inbox của analytics-service."
+      />
+    );
+  // Lỗi "chưa có dòng bán hàng" là tình trạng bình thường của phần mềm mới cài, không phải sự cố.
+  const realError = error && !/chưa có dòng bán hàng/i.test(error) ? error : null;
+  return (
+    <Result
+      status="info"
+      title="Chưa có số liệu phân tích"
+      subTitle={
+        realError
+          ? "Phần mềm chưa đọc được dữ liệu bán hàng để tính số liệu."
+          : "Số liệu được tính từ các hóa đơn đã bán. Bán hóa đơn đầu tiên ở trang Bán hàng: khoảng 1 phút sau trang này tự hiện doanh thu, không cần tải lại."
+      }
+      extra={
+        realError ? (
+          <Alert
+            type="warning"
+            showIcon
+            title={realError}
+            description="Báo lỗi này cho người cài đặt phần mềm (xem docker compose logs analytics)."
+          />
+        ) : null
+      }
+    />
+  );
+}
+
 function FreshnessBar({
   asOf,
   version,
@@ -487,16 +519,23 @@ function FreshnessBar({
 }) {
   const failed = health?.last_run?.status === "failed";
   const watching = Boolean(health?.monitor);
+  const fromDatabase = health?.monitor?.source === "postgres";
   return (
     <span
       className="bi-freshness"
-      title={`Bản ${version} · ${watching ? "đang theo dõi tệp" : "không theo dõi tệp"}`}
+      title={`Bản ${version} · ${
+        fromDatabase
+          ? "tự cập nhật từ hóa đơn, khoảng 1 phút một lần"
+          : watching
+            ? "đang theo dõi tệp"
+            : "không theo dõi tệp"
+      }`}
     >
       <span className={`bi-dot ${failed ? "warn" : watching ? "live" : ""}`} aria-hidden />
       Cập nhật {clockText(asOf)} · {ageText(health?.snapshot?.age_seconds)}
       {failed ? (
         <Tag color="orange" title={health?.last_run?.error_message ?? undefined}>
-          Lần đọc tệp gần nhất lỗi
+          {fromDatabase ? "Lần cập nhật gần nhất lỗi" : "Lần đọc tệp gần nhất lỗi"}
         </Tag>
       ) : null}
     </span>
